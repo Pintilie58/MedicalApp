@@ -1,0 +1,33 @@
+@model MedicalApp.Models.User
+@{
+    ViewData["Title"] = Loc.T("WelcomeBack");
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h2 class="text-primary">@Loc.T("WelcomeBack"), @Model.Email!</h2>
+                    <hr />
+                    <dl class="row">
+                        <dt class="col-sm-4">@Loc.T("Email")</dt>
+                        <dd class="col-sm-8">@Model.Email</dd>
+
+                        <dt class="col-sm-4">@Loc.T("Credits")</dt>
+                        <dd class="col-sm-8">@Model.Credite</dd>
+
+                        <dt class="col-sm-4">Data Creării</dt>
+                        <dd class="col-sm-8">@Model.DataC.ToString("yyyy-MM-dd HH:mm")</dd>
+
+                        <dt class="col-sm-4">Credit Consumat</dt>
+                        <dd class="col-sm-8">@Model.CreditConsum</dd>
+
+                        <dt class="col-sm-4">Credit Rest</dt>
+                        <dd class="col-sm-8">@Model.CreditRest</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

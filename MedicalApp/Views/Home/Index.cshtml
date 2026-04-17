@@ -1,0 +1,114 @@
+@{
+    ViewData["Title"] = Loc.T("AppTitle");
+    var loginModel = ViewData["LoginModel"] as LoginViewModel ?? new LoginViewModel();
+    var registerModel = ViewData["RegisterModel"] as RegisterViewModel ?? new RegisterViewModel();
+    var activeTab = (ViewData["ActiveTab"] as string) ?? (TempData["ActiveTab"] as string) ?? "login";
+    var successMessage = TempData["SuccessMessage"] as string;
+    var currentCulture = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+}
+
+<div class="container py-4">
+
+    <!-- Language selector -->
+    <div class="d-flex justify-content-end mb-3">
+        <form asp-controller="Home" asp-action="SetLanguage" method="post" class="d-flex align-items-center gap-2">
+            @Html.AntiForgeryToken()
+            <label class="form-label m-0 small text-muted">@Loc.T("SelectLanguage"):</label>
+            <select name="culture" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+                <option value="en" selected="@(currentCulture == "en")">@Loc.T("English")</option>
+                <option value="ro" selected="@(currentCulture == "ro")">@Loc.T("Romanian")</option>
+                <option value="fr" selected="@(currentCulture == "fr")">@Loc.T("French")</option>
+                <option value="es" selected="@(currentCulture == "es")">@Loc.T("Spanish")</option>
+                <option value="de" selected="@(currentCulture == "de")">@Loc.T("German")</option>
+            </select>
+        </form>
+    </div>
+
+    <div class="row g-4 align-items-stretch">
+
+        <!-- Welcome image + message -->
+        <div class="col-lg-6">
+            <div class="card h-100 shadow-sm border-0">
+                <img src="~/images/welcome.jpg" class="card-img-top" alt="Welcome"
+                     onerror="this.onerror=null;this.src='https://via.placeholder.com/800x500/0d6efd/ffffff?text=MedicalApp';" />
+                <div class="card-body text-center">
+                    <h2 class="card-title fw-bold text-primary">@Loc.T("WelcomeMessage")</h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- Auth panel -->
+        <div class="col-lg-6">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-body">
+                    @if (!string.IsNullOrEmpty(successMessage))
+                    {
+                        <div class="alert alert-success">@successMessage</div>
+                    }
+
+                    <ul class="nav nav-tabs mb-3" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link @(activeTab == "login" ? "active" : "")"
+                                    data-bs-toggle="tab" data-bs-target="#loginPane" type="button">
+                                @Loc.T("Login")
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link @(activeTab == "register" ? "active" : "")"
+                                    data-bs-toggle="tab" data-bs-target="#registerPane" type="button">
+                                @Loc.T("Register")
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content">
+                        <!-- Login Form -->
+                        <div id="loginPane" class="tab-pane fade @(activeTab == "login" ? "show active" : "")">
+                            <form asp-controller="Account" asp-action="Login" method="post">
+                                @Html.AntiForgeryToken()
+                                <div asp-validation-summary="ModelOnly" class="text-danger small mb-2"></div>
+
+                                <div class="mb-3">
+                                    <label asp-for="@loginModel.Email" class="form-label">@Loc.T("Email")</label>
+                                    <input asp-for="@loginModel.Email" name="Email" class="form-control" autocomplete="email" />
+                                    <span asp-validation-for="@loginModel.Email" class="text-danger small"></span>
+                                </div>
+                                <div class="mb-3">
+                                    <label asp-for="@loginModel.Parola" class="form-label">@Loc.T("Password")</label>
+                                    <input asp-for="@loginModel.Parola" name="Parola" type="password" class="form-control" autocomplete="current-password" />
+                                    <span asp-validation-for="@loginModel.Parola" class="text-danger small"></span>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100">@Loc.T("LoginButton")</button>
+                            </form>
+                        </div>
+
+                        <!-- Register Form -->
+                        <div id="registerPane" class="tab-pane fade @(activeTab == "register" ? "show active" : "")">
+                            <form asp-controller="Account" asp-action="Register" method="post">
+                                @Html.AntiForgeryToken()
+                                <div asp-validation-summary="ModelOnly" class="text-danger small mb-2"></div>
+
+                                <div class="mb-3">
+                                    <label asp-for="@registerModel.Email" class="form-label">@Loc.T("Email")</label>
+                                    <input asp-for="@registerModel.Email" name="Email" class="form-control" autocomplete="email" />
+                                    <span asp-validation-for="@registerModel.Email" class="text-danger small"></span>
+                                </div>
+                                <div class="mb-3">
+                                    <label asp-for="@registerModel.Parola" class="form-label">@Loc.T("Password")</label>
+                                    <input asp-for="@registerModel.Parola" name="Parola" type="password" class="form-control" autocomplete="new-password" />
+                                    <span asp-validation-for="@registerModel.Parola" class="text-danger small"></span>
+                                </div>
+                                <div class="mb-3">
+                                    <label asp-for="@registerModel.ConfirmParola" class="form-label">@Loc.T("ConfirmPassword")</label>
+                                    <input asp-for="@registerModel.ConfirmParola" name="ConfirmParola" type="password" class="form-control" autocomplete="new-password" />
+                                    <span asp-validation-for="@registerModel.ConfirmParola" class="text-danger small"></span>
+                                </div>
+                                <button type="submit" class="btn btn-success w-100">@Loc.T("RegisterButton")</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
