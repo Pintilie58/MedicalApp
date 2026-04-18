@@ -66,7 +66,7 @@
                         <div id="loginPane" class="tab-pane fade @(activeTab == "login" ? "show active" : "")">
                             <form asp-controller="Account" asp-action="Login" method="post">
                                 @Html.AntiForgeryToken()
-                                <div asp-validation-summary="ModelOnly" class="text-danger small mb-2"></div>
+                                <div asp-validation-summary="All" class="text-danger small mb-2"></div>
 
                                 <div class="mb-3">
                                     <label asp-for="@loginModel.Email" class="form-label">@Loc.T("Email")</label>
@@ -86,7 +86,7 @@
                         <div id="registerPane" class="tab-pane fade @(activeTab == "register" ? "show active" : "")">
                             <form asp-controller="Account" asp-action="Register" method="post">
                                 @Html.AntiForgeryToken()
-                                <div asp-validation-summary="ModelOnly" class="text-danger small mb-2"></div>
+                                <div asp-validation-summary="All" class="text-danger small mb-2"></div>
 
                                 <div class="mb-3">
                                     <label asp-for="@registerModel.Email" class="form-label">@Loc.T("Email")</label>
