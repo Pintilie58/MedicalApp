@@ -84,13 +84,13 @@
 
                         <!-- Register Form -->
                         <div id="registerPane" class="tab-pane fade @(activeTab == "register" ? "show active" : "")">
-                            <form asp-controller="Account" asp-action="Register" method="post">
+                            <form asp-controller="Account" asp-action="Register" method="post" autocomplete="off">
                                 @Html.AntiForgeryToken()
                                 <div asp-validation-summary="All" class="text-danger small mb-2"></div>
 
                                 <div class="mb-3">
                                     <label asp-for="@registerModel.Email" class="form-label">@Loc.T("Email")</label>
-                                    <input asp-for="@registerModel.Email" name="Email" class="form-control" autocomplete="email" />
+                                    <input asp-for="@registerModel.Email" name="Email" class="form-control" autocomplete="off" />
                                     <span asp-validation-for="@registerModel.Email" class="text-danger small"></span>
                                 </div>
                                 <div class="mb-3">
