@@ -32,7 +32,14 @@ namespace MedicalApp.Services
                 ["Romanian"] = "Romanian",
                 ["French"] = "French",
                 ["Spanish"] = "Spanish",
-                ["German"] = "German"
+                ["German"] = "German",
+                // Validation messages
+                ["PasswordMinLength"] = "Password must be at least {0} characters long.",
+                ["PasswordMismatch"] = "The password and confirmation password do not match.",
+                ["EmailRequired"] = "Email is required.",
+                ["EmailInvalid"] = "Invalid email format.",
+                ["PasswordRequired"] = "Password is required.",
+                ["ConfirmPasswordRequired"] = "Please confirm your password."
             },
             ["ro"] = new()
             {
@@ -56,7 +63,14 @@ namespace MedicalApp.Services
                 ["Romanian"] = "Română",
                 ["French"] = "Franceză",
                 ["Spanish"] = "Spaniolă",
-                ["German"] = "Germană"
+                ["German"] = "Germană",
+                // Validation messages
+                ["PasswordMinLength"] = "Parola trebuie să aibă cel puțin {0} caractere.",
+                ["PasswordMismatch"] = "Parola și confirmarea parolei nu coincid.",
+                ["EmailRequired"] = "Email-ul este obligatoriu.",
+                ["EmailInvalid"] = "Format email invalid.",
+                ["PasswordRequired"] = "Parola este obligatorie.",
+                ["ConfirmPasswordRequired"] = "Te rugăm să confirmi parola."
             },
             ["fr"] = new()
             {
@@ -80,7 +94,14 @@ namespace MedicalApp.Services
                 ["Romanian"] = "Roumain",
                 ["French"] = "Français",
                 ["Spanish"] = "Espagnol",
-                ["German"] = "Allemand"
+                ["German"] = "Allemand",
+                // Validation messages
+                ["PasswordMinLength"] = "Le mot de passe doit contenir au moins {0} caractères.",
+                ["PasswordMismatch"] = "Le mot de passe et la confirmation ne correspondent pas.",
+                ["EmailRequired"] = "L'email est obligatoire.",
+                ["EmailInvalid"] = "Format d'email invalide.",
+                ["PasswordRequired"] = "Le mot de passe est obligatoire.",
+                ["ConfirmPasswordRequired"] = "Veuillez confirmer votre mot de passe."
             },
             ["es"] = new()
             {
@@ -104,7 +125,14 @@ namespace MedicalApp.Services
                 ["Romanian"] = "Rumano",
                 ["French"] = "Francés",
                 ["Spanish"] = "Español",
-                ["German"] = "Alemán"
+                ["German"] = "Alemán",
+                // Validation messages
+                ["PasswordMinLength"] = "La contraseña debe tener al menos {0} caracteres.",
+                ["PasswordMismatch"] = "La contraseña y la confirmación no coinciden.",
+                ["EmailRequired"] = "El correo es obligatorio.",
+                ["EmailInvalid"] = "Formato de correo inválido.",
+                ["PasswordRequired"] = "La contraseña es obligatoria.",
+                ["ConfirmPasswordRequired"] = "Por favor confirme su contraseña."
             },
             ["de"] = new()
             {
@@ -128,7 +156,14 @@ namespace MedicalApp.Services
                 ["Romanian"] = "Rumänisch",
                 ["French"] = "Französisch",
                 ["Spanish"] = "Spanisch",
-                ["German"] = "Deutsch"
+                ["German"] = "Deutsch",
+                // Validation messages
+                ["PasswordMinLength"] = "Das Passwort muss mindestens {0} Zeichen lang sein.",
+                ["PasswordMismatch"] = "Passwort und Bestätigung stimmen nicht überein.",
+                ["EmailRequired"] = "E-Mail ist erforderlich.",
+                ["EmailInvalid"] = "Ungültiges E-Mail-Format.",
+                ["PasswordRequired"] = "Passwort ist erforderlich.",
+                ["ConfirmPasswordRequired"] = "Bitte bestätigen Sie Ihr Passwort."
             }
         };
 
