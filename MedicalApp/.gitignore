@@ -36,7 +36,3 @@ bld/
 
 # ASP.NET Core
 appsettings.*.Local.json
-
-# User-uploaded image
-wwwroot/images/welcome.*
-!wwwroot/images/README.md
