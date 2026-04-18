@@ -1,4 +1,5 @@
 using MedicalApp.Services;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 using System.ComponentModel.DataAnnotations;
 
 namespace MedicalApp.Models
@@ -15,11 +16,27 @@ namespace MedicalApp.Models
         public override string FormatErrorMessage(string name) => Loc.T(_resourceKey);
     }
 
-    public class LocalizedEmailAddressAttribute : EmailAddressAttribute
+    /// <summary>
+    /// EmailAddressAttribute is sealed in .NET, so we wrap it instead of inheriting.
+    /// </summary>
+    public class LocalizedEmailAddressAttribute : ValidationAttribute, IClientModelValidator
     {
+        private static readonly EmailAddressAttribute _inner = new EmailAddressAttribute();
         private readonly string _resourceKey;
+
         public LocalizedEmailAddressAttribute(string resourceKey) { _resourceKey = resourceKey; }
+
+        public override bool IsValid(object? value) => _inner.IsValid(value);
+
         public override string FormatErrorMessage(string name) => Loc.T(_resourceKey);
+
+        public void AddValidation(ClientModelValidationContext context)
+        {
+            if (!context.Attributes.ContainsKey("data-val"))
+                context.Attributes.Add("data-val", "true");
+            if (!context.Attributes.ContainsKey("data-val-email"))
+                context.Attributes.Add("data-val-email", FormatErrorMessage(context.ModelMetadata.GetDisplayName() ?? string.Empty));
+        }
     }
 
     public class LocalizedStringLengthAttribute : StringLengthAttribute
