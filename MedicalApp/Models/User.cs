@@ -21,5 +21,11 @@ namespace MedicalApp.Models
         public int CreditConsum { get; set; } = 0;
 
         public int CreditRest { get; set; } = 0;
+
+        // Password reset fields (nullable)
+        [StringLength(128)]
+        public string? PasswordResetToken { get; set; }
+
+        public DateTime? PasswordResetTokenExpiry { get; set; }
     }
 }

@@ -111,7 +111,7 @@ namespace MedicalApp.Controllers
             return RedirectToAction("Index", "Home");
         }
 
-        // ---------- Forgot Password ----------
+        // ---------- Forgot Password (step 1: request reset link) ----------
 
         [HttpGet]
         public IActionResult ForgotPassword()
@@ -135,35 +135,95 @@ namespace MedicalApp.Controllers
                 return View(model);
             }
 
-            // Generate and persist new password (hashed)
-            var newPassword = PasswordGenerator.Generate(10);
-            user.Parola = BCrypt.Net.BCrypt.HashPassword(newPassword);
+            // Generate secure token valid for 30 minutes
+            user.PasswordResetToken = PasswordGenerator.GenerateToken(48);
+            user.PasswordResetTokenExpiry = DateTime.UtcNow.AddMinutes(30);
             await _db.SaveChangesAsync();
 
-            // Send email with plaintext password
+            // Build reset link
+            var resetLink = Url.Action(
+                action: "ResetPassword",
+                controller: "Account",
+                values: new { token = user.PasswordResetToken, email = user.Email },
+                protocol: Request.Scheme,
+                host: Request.Host.Value);
+
             try
             {
                 var subject = Loc.T("EmailSubject");
-                var htmlBody = BuildEmailBody(newPassword);
+                var htmlBody = BuildResetEmailBody(resetLink ?? string.Empty);
                 await _emailService.SendEmailAsync(email, subject, htmlBody);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error sending password recovery email to {Email}", email);
+                _logger.LogError(ex, "Error sending password reset email to {Email}", email);
                 ModelState.AddModelError(string.Empty, Loc.T("EmailSendFailed"));
                 return View(model);
             }
 
-            TempData["SuccessMessage"] = Loc.T("NewPasswordSent");
+            TempData["SuccessMessage"] = Loc.T("ResetLinkSent");
             TempData["ActiveTab"] = "login";
             return RedirectToAction("Index", "Home");
         }
 
-        private static string BuildEmailBody(string newPassword)
+        // ---------- Reset Password (step 2: set new password via link) ----------
+
+        [HttpGet]
+        public async Task<IActionResult> ResetPassword(string? token, string? email)
+        {
+            if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(email))
+                return View("ResetPasswordInvalid");
+
+            var normalizedEmail = email.Trim().ToLowerInvariant();
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+
+            if (user == null
+                || user.PasswordResetToken != token
+                || user.PasswordResetTokenExpiry == null
+                || user.PasswordResetTokenExpiry < DateTime.UtcNow)
+            {
+                return View("ResetPasswordInvalid");
+            }
+
+            return View(new ResetPasswordViewModel { Token = token, Email = normalizedEmail });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model)
+        {
+            if (!ModelState.IsValid)
+                return View(model);
+
+            var normalizedEmail = model.Email.Trim().ToLowerInvariant();
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+
+            if (user == null
+                || user.PasswordResetToken != model.Token
+                || user.PasswordResetTokenExpiry == null
+                || user.PasswordResetTokenExpiry < DateTime.UtcNow)
+            {
+                return View("ResetPasswordInvalid");
+            }
+
+            // Apply new password and invalidate token (one-time use)
+            user.Parola = BCrypt.Net.BCrypt.HashPassword(model.Parola);
+            user.PasswordResetToken = null;
+            user.PasswordResetTokenExpiry = null;
+            await _db.SaveChangesAsync();
+
+            TempData["SuccessMessage"] = Loc.T("ResetPasswordSuccess");
+            TempData["ActiveTab"] = "login";
+            return RedirectToAction("Index", "Home");
+        }
+
+        private static string BuildResetEmailBody(string resetLink)
         {
             var greeting = Loc.T("EmailGreeting");
-            var intro = Loc.T("EmailNewPasswordIntro");
-            var advice = Loc.T("EmailChangeAdvice");
+            var intro = Loc.T("EmailResetLinkIntro");
+            var buttonText = Loc.T("EmailResetLinkButton");
+            var expiry = Loc.T("EmailLinkExpiryNote");
+            var ignore = Loc.T("EmailIgnoreIfNotRequested");
             var regards = Loc.T("EmailRegards");
 
             return $@"
@@ -171,11 +231,15 @@ namespace MedicalApp.Controllers
     <h2 style='color: #0d6efd;'>MedicalApp</h2>
     <p>{greeting}</p>
     <p>{intro}</p>
-    <div style='background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;'>
-        <span style='font-family: monospace; font-size: 24px; font-weight: bold; color: #0d6efd; letter-spacing: 2px;'>{System.Net.WebUtility.HtmlEncode(newPassword)}</span>
+    <div style='text-align: center; margin: 30px 0;'>
+        <a href='{resetLink}' style='display: inline-block; background: #0d6efd; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: bold;'>
+            {buttonText}
+        </a>
     </div>
-    <p style='color: #dc3545;'><strong>{advice}</strong></p>
+    <p style='color: #6c757d; font-size: 0.9em;'>{expiry}</p>
+    <p style='color: #6c757d; font-size: 0.9em;'>{ignore}</p>
     <hr style='border: none; border-top: 1px solid #dee2e6; margin: 20px 0;' />
+    <p style='color: #6c757d; font-size: 0.85em; word-break: break-all;'>{System.Net.WebUtility.HtmlEncode(resetLink)}</p>
     <p style='color: #6c757d; font-size: 0.9em;'>{regards}</p>
 </div>";
         }
