@@ -9,10 +9,14 @@ namespace MedicalApp.Controllers
     public class AccountController : Controller
     {
         private readonly AppDbContext _db;
+        private readonly IEmailService _emailService;
+        private readonly ILogger<AccountController> _logger;
 
-        public AccountController(AppDbContext db)
+        public AccountController(AppDbContext db, IEmailService emailService, ILogger<AccountController> logger)
         {
             _db = db;
+            _emailService = emailService;
+            _logger = logger;
         }
 
         [HttpPost]
@@ -105,6 +109,75 @@ namespace MedicalApp.Controllers
         {
             HttpContext.Session.Clear();
             return RedirectToAction("Index", "Home");
+        }
+
+        // ---------- Forgot Password ----------
+
+        [HttpGet]
+        public IActionResult ForgotPassword()
+        {
+            return View(new ForgotPasswordViewModel());
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ForgotPassword(ForgotPasswordViewModel model)
+        {
+            if (!ModelState.IsValid)
+                return View(model);
+
+            var email = model.Email.Trim().ToLowerInvariant();
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email);
+
+            if (user == null)
+            {
+                ModelState.AddModelError(string.Empty, Loc.T("EmailNotRegistered"));
+                return View(model);
+            }
+
+            // Generate and persist new password (hashed)
+            var newPassword = PasswordGenerator.Generate(10);
+            user.Parola = BCrypt.Net.BCrypt.HashPassword(newPassword);
+            await _db.SaveChangesAsync();
+
+            // Send email with plaintext password
+            try
+            {
+                var subject = Loc.T("EmailSubject");
+                var htmlBody = BuildEmailBody(newPassword);
+                await _emailService.SendEmailAsync(email, subject, htmlBody);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending password recovery email to {Email}", email);
+                ModelState.AddModelError(string.Empty, Loc.T("EmailSendFailed"));
+                return View(model);
+            }
+
+            TempData["SuccessMessage"] = Loc.T("NewPasswordSent");
+            TempData["ActiveTab"] = "login";
+            return RedirectToAction("Index", "Home");
+        }
+
+        private static string BuildEmailBody(string newPassword)
+        {
+            var greeting = Loc.T("EmailGreeting");
+            var intro = Loc.T("EmailNewPasswordIntro");
+            var advice = Loc.T("EmailChangeAdvice");
+            var regards = Loc.T("EmailRegards");
+
+            return $@"
+<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
+    <h2 style='color: #0d6efd;'>MedicalApp</h2>
+    <p>{greeting}</p>
+    <p>{intro}</p>
+    <div style='background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;'>
+        <span style='font-family: monospace; font-size: 24px; font-weight: bold; color: #0d6efd; letter-spacing: 2px;'>{System.Net.WebUtility.HtmlEncode(newPassword)}</span>
+    </div>
+    <p style='color: #dc3545;'><strong>{advice}</strong></p>
+    <hr style='border: none; border-top: 1px solid #dee2e6; margin: 20px 0;' />
+    <p style='color: #6c757d; font-size: 0.9em;'>{regards}</p>
+</div>";
         }
     }
 }

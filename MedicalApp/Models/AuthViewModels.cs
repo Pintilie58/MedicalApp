@@ -34,4 +34,12 @@ namespace MedicalApp.Models
         [Display(Name = "Password")]
         public string Parola { get; set; } = string.Empty;
     }
+
+    public class ForgotPasswordViewModel
+    {
+        [LocalizedRequired("EmailRequired")]
+        [LocalizedEmailAddress("EmailInvalid")]
+        [Display(Name = "Email")]
+        public string Email { get; set; } = string.Empty;
+    }
 }
