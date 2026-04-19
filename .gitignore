@@ -142,3 +142,6 @@ credentials.json
 *.pem
 *.key
 .credentials
+
+# Visual Studio
+.vs/
