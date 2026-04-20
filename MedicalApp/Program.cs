@@ -25,6 +25,11 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.AddScoped<IEmailService, EmailService>();
 
+// OpenAI service configuration
+builder.Services.Configure<OpenAISettings>(builder.Configuration.GetSection("OpenAI"));
+builder.Services.AddScoped<IMedicalInterpretationService, MedicalInterpretationService>();
+builder.Services.AddSingleton<PdfReportGenerator>();
+
 // Pending registrations (in-memory, singleton)
 builder.Services.AddSingleton<PendingRegistrationStore>();
 

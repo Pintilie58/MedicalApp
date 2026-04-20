@@ -20,7 +20,17 @@ namespace MedicalApp.Services
             _logger = logger;
         }
 
-        public async Task SendEmailAsync(string toEmail, string subject, string htmlBody)
+        public Task SendEmailAsync(string toEmail, string subject, string htmlBody)
+            => SendInternalAsync(toEmail, subject, htmlBody, null, null);
+
+        public Task SendEmailWithAttachmentAsync(
+            string toEmail, string subject, string htmlBody,
+            byte[] attachmentBytes, string attachmentFileName)
+            => SendInternalAsync(toEmail, subject, htmlBody, attachmentBytes, attachmentFileName);
+
+        private async Task SendInternalAsync(
+            string toEmail, string subject, string htmlBody,
+            byte[]? attachmentBytes, string? attachmentFileName)
         {
             var message = new MimeMessage();
             message.From.Add(new MailboxAddress(_settings.SenderName, _settings.SenderEmail));
@@ -28,12 +38,18 @@ namespace MedicalApp.Services
             message.Subject = subject;
 
             var builder = new BodyBuilder { HtmlBody = htmlBody };
+
+            if (attachmentBytes is { Length: > 0 } && !string.IsNullOrWhiteSpace(attachmentFileName))
+            {
+                builder.Attachments.Add(attachmentFileName, attachmentBytes,
+                    new ContentType("application", "pdf"));
+            }
+
             message.Body = builder.ToMessageBody();
 
             using var client = new SmtpClient();
             try
             {
-                // STARTTLS on port 587 (Gmail standard)
                 await client.ConnectAsync(_settings.SmtpServer, _settings.SmtpPort, SecureSocketOptions.StartTls);
                 await client.AuthenticateAsync(_settings.Username, _settings.Password);
                 await client.SendAsync(message);

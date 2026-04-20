@@ -8,6 +8,7 @@ namespace MedicalApp.Data
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
         public DbSet<User> Users { get; set; } = null!;
+        public DbSet<InterpretationHistory> InterpretationHistories { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -20,6 +21,14 @@ namespace MedicalApp.Data
                 entity.Property(u => u.Email).HasMaxLength(200);
                 entity.Property(u => u.Parola).HasMaxLength(255).IsRequired();
                 entity.Property(u => u.DataC).HasColumnType("datetime2");
+            });
+
+            modelBuilder.Entity<InterpretationHistory>(entity =>
+            {
+                entity.ToTable("InterpretationHistories");
+                entity.HasKey(h => h.Id);
+                entity.HasIndex(h => h.UserEmail);
+                entity.Property(h => h.CreatedAt).HasColumnType("datetime2");
             });
         }
     }

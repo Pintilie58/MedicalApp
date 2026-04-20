@@ -73,7 +73,10 @@
             </div>
 
             <!-- Actions -->
-            <div class="text-center mb-4">
+            <div class="d-flex flex-wrap justify-content-center gap-3 mb-4">
+                <a asp-controller="Interpretation" asp-action="Upload" class="btn btn-success btn-lg @(outOfCredits ? "disabled" : "")">
+                    @Loc.T("InterpretAnalysis")
+                </a>
                 <a asp-controller="Credits" asp-action="Buy" class="btn btn-primary btn-lg">
                     @Loc.T("BuyCredits")
                 </a>

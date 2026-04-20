@@ -1,0 +1,86 @@
+@model MedicalApp.Models.InterpretationUploadViewModel
+@{
+    ViewData["Title"] = Loc.T("InterpretTitle");
+    var creditRest = (int)(ViewBag.CreditRest ?? 0);
+    var errorMessage = TempData["ErrorMessage"] as string;
+    var hasErrors = !ViewData.ModelState.IsValid;
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-7">
+
+            <div class="text-center mb-4">
+                <h2 class="text-primary fw-bold">@Loc.T("InterpretTitle")</h2>
+                <p class="text-muted">@Loc.T("InterpretIntro")</p>
+            </div>
+
+            <div class="alert alert-info d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>@Loc.T("CreditsRemainingLabel"):</strong> @creditRest
+                </div>
+                <small class="text-muted">@Loc.T("OneCreditPerInterpretation")</small>
+            </div>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger">@errorMessage</div>
+            }
+
+            @if (hasErrors)
+            {
+                <div class="alert alert-danger">
+                    <div asp-validation-summary="All" class="mb-0"></div>
+                </div>
+            }
+
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <form asp-action="Upload" method="post" enctype="multipart/form-data">
+                        @Html.AntiForgeryToken()
+
+                        <div class="mb-3">
+                            <label asp-for="PdfFile" class="form-label fw-semibold">@Loc.T("SelectPdfFile")</label>
+                            <input asp-for="PdfFile" type="file" accept="application/pdf,.pdf"
+                                   class="form-control form-control-lg" required />
+                            <div class="form-text">@Loc.T("MaxSizeHint")</div>
+                            <span asp-validation-for="PdfFile" class="text-danger small"></span>
+                        </div>
+
+                        <div class="alert alert-warning small">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>@Loc.T("ProcessingNoticeTitle")</strong><br />
+                            @Loc.T("ProcessingNoticeBody")
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100 btn-lg mt-2" id="submitBtn">
+                            @Loc.T("InterpretAndSend")
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="text-center mt-4">
+                <a asp-controller="Account" asp-action="Dashboard" class="text-decoration-none small text-muted">
+                    &larr; @Loc.T("BackToDashboard")
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Simple UX: disable button while submitting + show processing text
+        document.addEventListener('DOMContentLoaded', function () {
+            var form = document.querySelector('form');
+            var btn = document.getElementById('submitBtn');
+            if (form && btn) {
+                form.addEventListener('submit', function () {
+                    btn.disabled = true;
+                    btn.innerHTML = '@Loc.T("ProcessingPleaseWait")';
+                });
+            }
+        });
+    </script>
+}
