@@ -1,30 +1,94 @@
 @model MedicalApp.Models.User
 @{
     ViewData["Title"] = Loc.T("WelcomeBack");
+    var successMessage = TempData["SuccessMessage"] as string;
+    var outOfCredits = Model.CreditRest <= 0;
+    var lowCredits = Model.CreditRest > 0 && Model.CreditRest <= 5;
 }
 
 <div class="container py-5">
     <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card shadow-sm border-0">
+        <div class="col-lg-9">
+
+            @if (!string.IsNullOrEmpty(successMessage))
+            {
+                <div class="alert alert-success">@successMessage</div>
+            }
+
+            @if (outOfCredits)
+            {
+                <div class="alert alert-danger d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>@Loc.T("NoCreditsTitle")</strong>
+                        <div>@Loc.T("NoCreditsBody")</div>
+                    </div>
+                    <a asp-controller="Credits" asp-action="Buy" class="btn btn-danger">@Loc.T("RenewCredits")</a>
+                </div>
+            }
+            else if (lowCredits)
+            {
+                <div class="alert alert-warning d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>@Loc.T("LowCreditsTitle")</strong>
+                        <div>@string.Format(Loc.T("LowCreditsBody"), Model.CreditRest)</div>
+                    </div>
+                    <a asp-controller="Credits" asp-action="Buy" class="btn btn-warning">@Loc.T("BuyMoreCredits")</a>
+                </div>
+            }
+
+            <!-- Welcome header -->
+            <div class="card border-0 shadow-sm mb-4">
                 <div class="card-body">
-                    <h2 class="text-primary">@Loc.T("WelcomeBack"), @Model.Email!</h2>
-                    <hr />
-                    <dl class="row">
-                        <dt class="col-sm-4">@Loc.T("Email")</dt>
+                    <h2 class="text-primary mb-1">@Loc.T("WelcomeBack")!</h2>
+                    <p class="text-muted mb-0">@Model.Email</p>
+                </div>
+            </div>
+
+            <!-- Credit balance -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <div class="card border-0 shadow-sm text-center h-100">
+                        <div class="card-body">
+                            <div class="text-muted small text-uppercase">@Loc.T("CreditsTotalLabel")</div>
+                            <div class="display-5 fw-bold text-secondary">@Model.Credite</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card border-0 shadow-sm text-center h-100">
+                        <div class="card-body">
+                            <div class="text-muted small text-uppercase">@Loc.T("CreditsUsedLabel")</div>
+                            <div class="display-5 fw-bold text-info">@Model.CreditConsum</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card border-0 shadow-lg text-center h-100 @(outOfCredits ? "border-danger" : "border-success")">
+                        <div class="card-body">
+                            <div class="text-muted small text-uppercase">@Loc.T("CreditsRemainingLabel")</div>
+                            <div class="display-3 fw-bold @(outOfCredits ? "text-danger" : "text-success")">@Model.CreditRest</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="text-center mb-4">
+                <a asp-controller="Credits" asp-action="Buy" class="btn btn-primary btn-lg">
+                    @Loc.T("BuyCredits")
+                </a>
+            </div>
+
+            <!-- Account info -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">@Loc.T("AccountInformation")</h5>
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4 text-muted">@Loc.T("Email")</dt>
                         <dd class="col-sm-8">@Model.Email</dd>
 
-                        <dt class="col-sm-4">@Loc.T("Credits")</dt>
-                        <dd class="col-sm-8">@Model.Credite</dd>
-
-                        <dt class="col-sm-4">Data Creării</dt>
+                        <dt class="col-sm-4 text-muted">@Loc.T("AccountCreated")</dt>
                         <dd class="col-sm-8">@Model.DataC.ToString("yyyy-MM-dd HH:mm")</dd>
-
-                        <dt class="col-sm-4">Credit Consumat</dt>
-                        <dd class="col-sm-8">@Model.CreditConsum</dd>
-
-                        <dt class="col-sm-4">Credit Rest</dt>
-                        <dd class="col-sm-8">@Model.CreditRest</dd>
                     </dl>
                 </div>
             </div>

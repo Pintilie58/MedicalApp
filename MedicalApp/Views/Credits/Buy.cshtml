@@ -1,0 +1,58 @@
+@model IReadOnlyList<MedicalApp.Services.CreditPackage>
+@{
+    ViewData["Title"] = Loc.T("BuyCreditsTitle");
+    var lowCreditsWarning = TempData["LowCreditsWarning"] as string;
+}
+
+<div class="container py-5">
+    <div class="text-center mb-5">
+        <h2 class="text-primary fw-bold">@Loc.T("BuyCreditsTitle")</h2>
+        <p class="text-muted">@Loc.T("BuyCreditsIntro")</p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(lowCreditsWarning))
+    {
+        <div class="alert alert-warning text-center">@lowCreditsWarning</div>
+    }
+
+    <div class="row g-4 justify-content-center">
+        @foreach (var pkg in Model)
+        {
+            var isPopular = pkg.Key == "super";
+            var cardClass = isPopular ? "border-primary shadow-lg" : "shadow-sm";
+            <div class="col-md-6 col-lg-3">
+                <div class="card h-100 border-0 @cardClass position-relative">
+                    @if (isPopular)
+                    {
+                        <span class="badge bg-primary position-absolute top-0 start-50 translate-middle px-3 py-2">
+                            @Loc.T("MostPopular")
+                        </span>
+                    }
+                    <div class="card-body text-center d-flex flex-column">
+                        <h4 class="card-title mt-2">@Loc.T(pkg.NameKey)</h4>
+                        <div class="my-3">
+                            <span class="display-4 fw-bold text-primary">@pkg.PriceEur.ToString("0")€</span>
+                        </div>
+                        <div class="mb-3">
+                            <span class="fs-3 fw-semibold">@pkg.Credits</span>
+                            <div class="text-muted small">@Loc.T("CreditsLabel")</div>
+                        </div>
+                        <div class="text-muted small mb-3">
+                            @((pkg.PriceEur / pkg.Credits).ToString("0.00"))€ / @Loc.T("CreditUnit")
+                        </div>
+                        <a asp-action="Checkout" asp-route-package="@pkg.Key"
+                           class="btn btn-primary mt-auto">
+                            @Loc.T("ChoosePackage")
+                        </a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="text-center mt-5">
+        <a asp-controller="Account" asp-action="Dashboard" class="text-decoration-none small text-muted">
+            &larr; @Loc.T("BackToDashboard")
+        </a>
+    </div>
+</div>

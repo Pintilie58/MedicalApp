@@ -1,0 +1,123 @@
+@model MedicalApp.Models.CheckoutViewModel
+@{
+    ViewData["Title"] = Loc.T("CheckoutTitle");
+    var pkg = ViewBag.Package as MedicalApp.Services.CreditPackage;
+    var hasErrors = !ViewData.ModelState.IsValid;
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+
+            <!-- Order summary -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">@Loc.T("OrderSummary")</h5>
+                    @if (pkg != null)
+                    {
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>@Loc.T("Package")</span>
+                            <strong>@Loc.T(pkg.NameKey)</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>@Loc.T("CreditsLabel")</span>
+                            <strong>@pkg.Credits</strong>
+                        </div>
+                        <hr />
+                        <div class="d-flex justify-content-between fs-5">
+                            <strong>@Loc.T("Total")</strong>
+                            <strong class="text-primary">@pkg.PriceEur.ToString("0")€</strong>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Payment form -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">@Loc.T("PaymentDetails")</h5>
+
+                    <div class="alert alert-info small">
+                        <strong>@Loc.T("SimulatedPaymentNoticeTitle")</strong><br />
+                        @Loc.T("SimulatedPaymentNoticeBody")
+                    </div>
+
+                    @if (hasErrors)
+                    {
+                        <div class="alert alert-danger">
+                            <div asp-validation-summary="All" class="mb-0"></div>
+                        </div>
+                    }
+
+                    <form asp-action="Checkout" method="post" autocomplete="off">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="PackageKey" />
+
+                        <div class="mb-3">
+                            <label asp-for="CardNumber" class="form-label">@Loc.T("CardNumber")</label>
+                            <input asp-for="CardNumber" class="form-control" maxlength="19"
+                                   inputmode="numeric" placeholder="4242 4242 4242 4242" />
+                            <span asp-validation-for="CardNumber" class="text-danger small"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="CardHolder" class="form-label">@Loc.T("CardHolder")</label>
+                            <input asp-for="CardHolder" class="form-control" placeholder="NUMELE TĂU" />
+                            <span asp-validation-for="CardHolder" class="text-danger small"></span>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-6 mb-3">
+                                <label asp-for="Expiry" class="form-label">@Loc.T("Expiry")</label>
+                                <input asp-for="Expiry" class="form-control" maxlength="5" placeholder="12/28" />
+                                <span asp-validation-for="Expiry" class="text-danger small"></span>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <label asp-for="Cvv" class="form-label">@Loc.T("Cvv")</label>
+                                <input asp-for="Cvv" type="password" class="form-control" maxlength="4"
+                                       inputmode="numeric" placeholder="123" />
+                                <span asp-validation-for="Cvv" class="text-danger small"></span>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100 fs-5 py-2 mt-2">
+                            <i class="bi bi-lock-fill"></i> @Loc.T("PayNow") @pkg?.PriceEur.ToString("0")€
+                        </button>
+
+                        <div class="text-center mt-3">
+                            <a asp-action="Buy" class="text-decoration-none small text-muted">
+                                &larr; @Loc.T("BackToPackages")
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery-validation@1.19.5/dist/jquery.validate.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery-validation-unobtrusive@4.0.0/dist/jquery.validate.unobtrusive.min.js"></script>
+    <script>
+        // Auto-format card number with spaces
+        document.addEventListener('DOMContentLoaded', function () {
+            var card = document.querySelector('input[name="CardNumber"]');
+            if (card) {
+                card.addEventListener('input', function (e) {
+                    var v = e.target.value.replace(/\s/g, '').replace(/[^0-9]/g, '');
+                    e.target.value = v.replace(/(.{4})/g, '$1 ').trim();
+                });
+            }
+            var exp = document.querySelector('input[name="Expiry"]');
+            if (exp) {
+                exp.addEventListener('input', function (e) {
+                    var v = e.target.value.replace(/[^0-9]/g, '');
+                    if (v.length >= 3) v = v.slice(0, 2) + '/' + v.slice(2, 4);
+                    e.target.value = v;
+                });
+            }
+        });
+    </script>
+}
