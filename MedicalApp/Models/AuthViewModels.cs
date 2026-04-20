@@ -64,4 +64,16 @@ namespace MedicalApp.Models
         [Display(Name = "Confirm Password")]
         public string ConfirmParola { get; set; } = string.Empty;
     }
+
+    public class VerifyEmailViewModel
+    {
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        [LocalizedRequired("VerificationCodeRequired")]
+        [RegularExpression(@"^\d{4}$", ErrorMessage = "Code must be 4 digits")]
+        [Display(Name = "Verification Code")]
+        public string Code { get; set; } = string.Empty;
+    }
 }

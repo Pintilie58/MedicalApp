@@ -65,7 +65,22 @@ namespace MedicalApp.Services
                 ["EmailResetLinkButton"] = "Reset password",
                 ["EmailLinkExpiryNote"] = "This link will expire in 30 minutes.",
                 ["EmailIgnoreIfNotRequested"] = "If you did not request this, please ignore this email.",
-                ["EmailRegards"] = "Regards, MedicalApp Team"
+                ["EmailRegards"] = "Regards, MedicalApp Team",
+                // Email verification (register)
+                ["VerifyEmailTitle"] = "Verify your email",
+                ["VerifyEmailPageIntro"] = "We sent a 4-digit code to",
+                ["VerificationCode"] = "Verification code",
+                ["VerifyButton"] = "Verify and create account",
+                ["DidNotReceiveCode"] = "Didn't receive the code?",
+                ["ResendCode"] = "Resend code",
+                ["CodeResent"] = "A new code has been sent to your email.",
+                ["VerificationExpired"] = "The verification session has expired. Please register again.",
+                ["InvalidCodeTriesLeft"] = "Invalid code. {0} attempt(s) remaining.",
+                ["TooManyAttempts"] = "Too many invalid attempts. Please register again.",
+                ["VerificationCodeRequired"] = "Verification code is required.",
+                ["VerifyEmailSubject"] = "Verify your MedicalApp email",
+                ["VerifyEmailIntro"] = "Thank you for registering. Use the code below to verify your email address:",
+                ["VerifyEmailExpiry"] = "This code will expire in 10 minutes."
             },
             ["ro"] = new()
             {
@@ -122,7 +137,22 @@ namespace MedicalApp.Services
                 ["EmailResetLinkButton"] = "Resetează parola",
                 ["EmailLinkExpiryNote"] = "Acest link expiră în 30 de minute.",
                 ["EmailIgnoreIfNotRequested"] = "Dacă nu ai solicitat acest lucru, te rugăm să ignori acest email.",
-                ["EmailRegards"] = "Cu respect, Echipa MedicalApp"
+                ["EmailRegards"] = "Cu respect, Echipa MedicalApp",
+                // Email verification (register)
+                ["VerifyEmailTitle"] = "Verifică email-ul tău",
+                ["VerifyEmailPageIntro"] = "Am trimis un cod de 4 cifre către",
+                ["VerificationCode"] = "Cod de verificare",
+                ["VerifyButton"] = "Verifică și creează cont",
+                ["DidNotReceiveCode"] = "Nu ai primit codul?",
+                ["ResendCode"] = "Retrimite codul",
+                ["CodeResent"] = "Un cod nou a fost trimis pe email.",
+                ["VerificationExpired"] = "Sesiunea de verificare a expirat. Te rugăm să te înregistrezi din nou.",
+                ["InvalidCodeTriesLeft"] = "Cod incorect. Mai ai {0} încercări.",
+                ["TooManyAttempts"] = "Prea multe încercări incorecte. Te rugăm să te înregistrezi din nou.",
+                ["VerificationCodeRequired"] = "Codul de verificare este obligatoriu.",
+                ["VerifyEmailSubject"] = "Verifică email-ul tău MedicalApp",
+                ["VerifyEmailIntro"] = "Mulțumim pentru înregistrare. Folosește codul de mai jos pentru a-ți verifica adresa de email:",
+                ["VerifyEmailExpiry"] = "Acest cod expiră în 10 minute."
             },
             ["fr"] = new()
             {
@@ -179,7 +209,22 @@ namespace MedicalApp.Services
                 ["EmailResetLinkButton"] = "Réinitialiser le mot de passe",
                 ["EmailLinkExpiryNote"] = "Ce lien expirera dans 30 minutes.",
                 ["EmailIgnoreIfNotRequested"] = "Si vous n'avez pas demandé cela, veuillez ignorer cet email.",
-                ["EmailRegards"] = "Cordialement, L'équipe MedicalApp"
+                ["EmailRegards"] = "Cordialement, L'équipe MedicalApp",
+                // Email verification (register)
+                ["VerifyEmailTitle"] = "Vérifiez votre email",
+                ["VerifyEmailPageIntro"] = "Nous avons envoyé un code à 4 chiffres à",
+                ["VerificationCode"] = "Code de vérification",
+                ["VerifyButton"] = "Vérifier et créer le compte",
+                ["DidNotReceiveCode"] = "Vous n'avez pas reçu le code ?",
+                ["ResendCode"] = "Renvoyer le code",
+                ["CodeResent"] = "Un nouveau code a été envoyé à votre email.",
+                ["VerificationExpired"] = "La session de vérification a expiré. Veuillez vous inscrire à nouveau.",
+                ["InvalidCodeTriesLeft"] = "Code invalide. Il vous reste {0} tentative(s).",
+                ["TooManyAttempts"] = "Trop de tentatives invalides. Veuillez vous inscrire à nouveau.",
+                ["VerificationCodeRequired"] = "Le code de vérification est obligatoire.",
+                ["VerifyEmailSubject"] = "Vérifiez votre email MedicalApp",
+                ["VerifyEmailIntro"] = "Merci pour votre inscription. Utilisez le code ci-dessous pour vérifier votre adresse email :",
+                ["VerifyEmailExpiry"] = "Ce code expirera dans 10 minutes."
             },
             ["es"] = new()
             {
@@ -236,7 +281,22 @@ namespace MedicalApp.Services
                 ["EmailResetLinkButton"] = "Restablecer contraseña",
                 ["EmailLinkExpiryNote"] = "Este enlace expirará en 30 minutos.",
                 ["EmailIgnoreIfNotRequested"] = "Si no solicitó esto, por favor ignore este correo.",
-                ["EmailRegards"] = "Saludos, Equipo MedicalApp"
+                ["EmailRegards"] = "Saludos, Equipo MedicalApp",
+                // Email verification (register)
+                ["VerifyEmailTitle"] = "Verifique su correo",
+                ["VerifyEmailPageIntro"] = "Hemos enviado un código de 4 dígitos a",
+                ["VerificationCode"] = "Código de verificación",
+                ["VerifyButton"] = "Verificar y crear cuenta",
+                ["DidNotReceiveCode"] = "¿No ha recibido el código?",
+                ["ResendCode"] = "Reenviar código",
+                ["CodeResent"] = "Se ha enviado un nuevo código a su correo.",
+                ["VerificationExpired"] = "La sesión de verificación ha caducado. Por favor, regístrese nuevamente.",
+                ["InvalidCodeTriesLeft"] = "Código inválido. Le quedan {0} intento(s).",
+                ["TooManyAttempts"] = "Demasiados intentos inválidos. Por favor, regístrese nuevamente.",
+                ["VerificationCodeRequired"] = "El código de verificación es obligatorio.",
+                ["VerifyEmailSubject"] = "Verifique su correo MedicalApp",
+                ["VerifyEmailIntro"] = "Gracias por registrarse. Use el código de abajo para verificar su dirección de correo:",
+                ["VerifyEmailExpiry"] = "Este código caducará en 10 minutos."
             },
             ["de"] = new()
             {
@@ -293,7 +353,22 @@ namespace MedicalApp.Services
                 ["EmailResetLinkButton"] = "Passwort zurücksetzen",
                 ["EmailLinkExpiryNote"] = "Dieser Link läuft in 30 Minuten ab.",
                 ["EmailIgnoreIfNotRequested"] = "Wenn Sie dies nicht angefordert haben, ignorieren Sie bitte diese E-Mail.",
-                ["EmailRegards"] = "Mit freundlichen Grüßen, das MedicalApp-Team"
+                ["EmailRegards"] = "Mit freundlichen Grüßen, das MedicalApp-Team",
+                // Email verification (register)
+                ["VerifyEmailTitle"] = "E-Mail bestätigen",
+                ["VerifyEmailPageIntro"] = "Wir haben einen 4-stelligen Code gesendet an",
+                ["VerificationCode"] = "Bestätigungscode",
+                ["VerifyButton"] = "Bestätigen und Konto erstellen",
+                ["DidNotReceiveCode"] = "Sie haben den Code nicht erhalten?",
+                ["ResendCode"] = "Code erneut senden",
+                ["CodeResent"] = "Ein neuer Code wurde an Ihre E-Mail gesendet.",
+                ["VerificationExpired"] = "Die Bestätigungssitzung ist abgelaufen. Bitte registrieren Sie sich erneut.",
+                ["InvalidCodeTriesLeft"] = "Ungültiger Code. Sie haben noch {0} Versuch(e).",
+                ["TooManyAttempts"] = "Zu viele ungültige Versuche. Bitte registrieren Sie sich erneut.",
+                ["VerificationCodeRequired"] = "Der Bestätigungscode ist erforderlich.",
+                ["VerifyEmailSubject"] = "Bestätigen Sie Ihre MedicalApp E-Mail",
+                ["VerifyEmailIntro"] = "Vielen Dank für Ihre Registrierung. Verwenden Sie den folgenden Code, um Ihre E-Mail-Adresse zu bestätigen:",
+                ["VerifyEmailExpiry"] = "Dieser Code läuft in 10 Minuten ab."
             }
         };
 

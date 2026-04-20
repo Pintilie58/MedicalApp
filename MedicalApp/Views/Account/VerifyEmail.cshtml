@@ -1,0 +1,83 @@
+@model MedicalApp.Models.VerifyEmailViewModel
+@{
+    ViewData["Title"] = Loc.T("VerifyEmailTitle");
+    var errorMessage = TempData["ErrorMessage"] as string;
+    var successMessage = TempData["SuccessMessage"] as string;
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h3 class="text-primary mb-3">@Loc.T("VerifyEmailTitle")</h3>
+                    <p class="text-muted">
+                        @Loc.T("VerifyEmailPageIntro") <strong>@Model.Email</strong>
+                    </p>
+
+                    @if (!string.IsNullOrEmpty(successMessage))
+                    {
+                        <div class="alert alert-success">@successMessage</div>
+                    }
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger">@errorMessage</div>
+                    }
+
+                    <form asp-controller="Account" asp-action="VerifyEmail" method="post" autocomplete="off">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="Email" />
+
+                        <div asp-validation-summary="All" class="alert alert-danger py-2 d-none d-validation"></div>
+
+                        <div class="mb-3 text-center">
+                            <label asp-for="Code" class="form-label">@Loc.T("VerificationCode")</label>
+                            <input asp-for="Code" class="form-control form-control-lg text-center"
+                                   style="letter-spacing: 16px; font-size: 28px; font-weight: bold;"
+                                   maxlength="4" inputmode="numeric" pattern="[0-9]{4}"
+                                   autocomplete="one-time-code" autofocus />
+                            <span asp-validation-for="Code" class="text-danger small"></span>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100">@Loc.T("VerifyButton")</button>
+                    </form>
+
+                    <hr class="my-4" />
+
+                    <form asp-controller="Account" asp-action="ResendCode" method="post" class="text-center">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="email" value="@Model.Email" />
+                        <p class="text-muted small mb-2">@Loc.T("DidNotReceiveCode")</p>
+                        <button type="submit" class="btn btn-outline-secondary btn-sm">@Loc.T("ResendCode")</button>
+                    </form>
+
+                    <div class="text-center mt-3">
+                        <a asp-controller="Home" asp-action="Index" class="text-decoration-none small">
+                            &larr; @Loc.T("BackToLogin")
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Show validation summary only when it has content */
+    [asp-validation-summary] ul:empty { display: none; }
+</style>
+
+@section Scripts {
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery-validation@1.19.5/dist/jquery.validate.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery-validation-unobtrusive@4.0.0/dist/jquery.validate.unobtrusive.min.js"></script>
+    <script>
+        // Show validation summary only if it actually has errors
+        document.addEventListener('DOMContentLoaded', function () {
+            var summary = document.querySelector('.d-validation');
+            if (summary && summary.querySelector('ul li')) {
+                summary.classList.remove('d-none');
+            }
+        });
+    </script>
+}

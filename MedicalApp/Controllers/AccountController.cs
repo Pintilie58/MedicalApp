@@ -10,14 +10,22 @@ namespace MedicalApp.Controllers
     {
         private readonly AppDbContext _db;
         private readonly IEmailService _emailService;
+        private readonly PendingRegistrationStore _pendingStore;
         private readonly ILogger<AccountController> _logger;
 
-        public AccountController(AppDbContext db, IEmailService emailService, ILogger<AccountController> logger)
+        public AccountController(
+            AppDbContext db,
+            IEmailService emailService,
+            PendingRegistrationStore pendingStore,
+            ILogger<AccountController> logger)
         {
             _db = db;
             _emailService = emailService;
+            _pendingStore = pendingStore;
             _logger = logger;
         }
+
+        // ---------- Register (Step 1: request verification code) ----------
 
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -31,7 +39,9 @@ namespace MedicalApp.Controllers
                 return View("~/Views/Home/Index.cshtml");
             }
 
-            var exists = await _db.Users.AnyAsync(u => u.Email == model.Email);
+            var email = model.Email.Trim().ToLowerInvariant();
+
+            var exists = await _db.Users.AnyAsync(u => u.Email == email);
             if (exists)
             {
                 ModelState.AddModelError(string.Empty, Loc.T("EmailAlreadyExists"));
@@ -41,23 +51,146 @@ namespace MedicalApp.Controllers
                 return View("~/Views/Home/Index.cshtml");
             }
 
+            // Store pending registration and send verification code
+            var code = PasswordGenerator.GenerateNumericCode(4);
+            _pendingStore.Save(new PendingRegistration
+            {
+                Email = email,
+                HashedPassword = BCrypt.Net.BCrypt.HashPassword(model.Parola),
+                VerificationCode = code,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(10),
+                AttemptsLeft = 5
+            });
+
+            try
+            {
+                await _emailService.SendEmailAsync(
+                    email,
+                    Loc.T("VerifyEmailSubject"),
+                    BuildVerificationEmailBody(code));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending verification email to {Email}", email);
+                _pendingStore.Remove(email);
+                ModelState.AddModelError(string.Empty, Loc.T("EmailSendFailed"));
+                ViewData["LoginModel"] = new LoginViewModel();
+                ViewData["RegisterModel"] = model;
+                ViewData["ActiveTab"] = "register";
+                return View("~/Views/Home/Index.cshtml");
+            }
+
+            return RedirectToAction("VerifyEmail", new { email });
+        }
+
+        // ---------- Register (Step 2: verify email with 4-digit code) ----------
+
+        [HttpGet]
+        public IActionResult VerifyEmail(string? email)
+        {
+            if (string.IsNullOrEmpty(email))
+                return RedirectToAction("Index", "Home");
+
+            var normalized = email.Trim().ToLowerInvariant();
+            var pending = _pendingStore.Get(normalized);
+            if (pending == null)
+            {
+                TempData["ErrorMessage"] = Loc.T("VerificationExpired");
+                return RedirectToAction("Index", "Home");
+            }
+
+            return View(new VerifyEmailViewModel { Email = normalized });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> VerifyEmail(VerifyEmailViewModel model)
+        {
+            if (!ModelState.IsValid)
+                return View(model);
+
+            var email = model.Email.Trim().ToLowerInvariant();
+            var pending = _pendingStore.Get(email);
+
+            if (pending == null)
+            {
+                TempData["ErrorMessage"] = Loc.T("VerificationExpired");
+                return RedirectToAction("Index", "Home");
+            }
+
+            if (pending.VerificationCode != model.Code)
+            {
+                pending.AttemptsLeft--;
+                if (pending.AttemptsLeft <= 0)
+                {
+                    _pendingStore.Remove(email);
+                    TempData["ErrorMessage"] = Loc.T("TooManyAttempts");
+                    return RedirectToAction("Index", "Home");
+                }
+                _pendingStore.Save(pending);
+                ModelState.AddModelError(string.Empty,
+                    string.Format(Loc.T("InvalidCodeTriesLeft"), pending.AttemptsLeft));
+                return View(model);
+            }
+
+            // Code matches → create user
             var user = new User
             {
-                Email = model.Email.Trim().ToLowerInvariant(),
-                Parola = BCrypt.Net.BCrypt.HashPassword(model.Parola),
+                Email = pending.Email,
+                Parola = pending.HashedPassword,
                 Credite = 0,
                 DataC = DateTime.UtcNow,
                 CreditConsum = 0,
                 CreditRest = 0
             };
-
             _db.Users.Add(user);
             await _db.SaveChangesAsync();
+            _pendingStore.Remove(email);
 
             TempData["SuccessMessage"] = Loc.T("RegistrationSuccess");
             TempData["ActiveTab"] = "login";
             return RedirectToAction("Index", "Home");
         }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ResendCode(string email)
+        {
+            if (string.IsNullOrEmpty(email))
+                return RedirectToAction("Index", "Home");
+
+            var normalized = email.Trim().ToLowerInvariant();
+            var pending = _pendingStore.Get(normalized);
+            if (pending == null)
+            {
+                TempData["ErrorMessage"] = Loc.T("VerificationExpired");
+                return RedirectToAction("Index", "Home");
+            }
+
+            // Generate new code, extend expiry, reset attempts
+            pending.VerificationCode = PasswordGenerator.GenerateNumericCode(4);
+            pending.ExpiresAt = DateTime.UtcNow.AddMinutes(10);
+            pending.AttemptsLeft = 5;
+            _pendingStore.Save(pending);
+
+            try
+            {
+                await _emailService.SendEmailAsync(
+                    normalized,
+                    Loc.T("VerifyEmailSubject"),
+                    BuildVerificationEmailBody(pending.VerificationCode));
+                TempData["SuccessMessage"] = Loc.T("CodeResent");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error resending verification email to {Email}", normalized);
+                TempData["ErrorMessage"] = Loc.T("EmailSendFailed");
+            }
+
+            return RedirectToAction("VerifyEmail", new { email = normalized });
+        }
+
+        // ---------- Login ----------
 
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -140,7 +273,6 @@ namespace MedicalApp.Controllers
             user.PasswordResetTokenExpiry = DateTime.UtcNow.AddMinutes(30);
             await _db.SaveChangesAsync();
 
-            // Build reset link
             var resetLink = Url.Action(
                 action: "ResetPassword",
                 controller: "Account",
@@ -150,9 +282,8 @@ namespace MedicalApp.Controllers
 
             try
             {
-                var subject = Loc.T("EmailSubject");
-                var htmlBody = BuildResetEmailBody(resetLink ?? string.Empty);
-                await _emailService.SendEmailAsync(email, subject, htmlBody);
+                await _emailService.SendEmailAsync(email, Loc.T("EmailSubject"),
+                    BuildResetEmailBody(resetLink ?? string.Empty));
             }
             catch (Exception ex)
             {
@@ -206,7 +337,6 @@ namespace MedicalApp.Controllers
                 return View("ResetPasswordInvalid");
             }
 
-            // Apply new password and invalidate token (one-time use)
             user.Parola = BCrypt.Net.BCrypt.HashPassword(model.Parola);
             user.PasswordResetToken = null;
             user.PasswordResetTokenExpiry = null;
@@ -215,6 +345,31 @@ namespace MedicalApp.Controllers
             TempData["SuccessMessage"] = Loc.T("ResetPasswordSuccess");
             TempData["ActiveTab"] = "login";
             return RedirectToAction("Index", "Home");
+        }
+
+        // ---------- Email body builders ----------
+
+        private static string BuildVerificationEmailBody(string code)
+        {
+            var greeting = Loc.T("EmailGreeting");
+            var intro = Loc.T("VerifyEmailIntro");
+            var expiry = Loc.T("VerifyEmailExpiry");
+            var ignore = Loc.T("EmailIgnoreIfNotRequested");
+            var regards = Loc.T("EmailRegards");
+
+            return $@"
+<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
+    <h2 style='color: #0d6efd;'>MedicalApp</h2>
+    <p>{greeting}</p>
+    <p>{intro}</p>
+    <div style='background: #f8f9fa; border: 2px solid #0d6efd; border-radius: 10px; padding: 28px; text-align: center; margin: 24px 0;'>
+        <span style='font-family: monospace; font-size: 42px; font-weight: bold; color: #0d6efd; letter-spacing: 12px;'>{System.Net.WebUtility.HtmlEncode(code)}</span>
+    </div>
+    <p style='color: #6c757d; font-size: 0.9em;'>{expiry}</p>
+    <p style='color: #6c757d; font-size: 0.9em;'>{ignore}</p>
+    <hr style='border: none; border-top: 1px solid #dee2e6; margin: 20px 0;' />
+    <p style='color: #6c757d; font-size: 0.9em;'>{regards}</p>
+</div>";
         }
 
         private static string BuildResetEmailBody(string resetLink)

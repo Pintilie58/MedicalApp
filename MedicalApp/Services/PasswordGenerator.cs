@@ -36,5 +36,22 @@ namespace MedicalApp.Services
                 .Replace('/', '_')
                 .TrimEnd('=');
         }
+
+        /// <summary>
+        /// Generates a random numeric code of the given length (default 4 digits).
+        /// Used for email verification codes.
+        /// </summary>
+        public static string GenerateNumericCode(int digits = 4)
+        {
+            var bytes = new byte[digits];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(bytes);
+            var chars = new char[digits];
+            for (int i = 0; i < digits; i++)
+            {
+                chars[i] = (char)('0' + (bytes[i] % 10));
+            }
+            return new string(chars);
+        }
     }
 }

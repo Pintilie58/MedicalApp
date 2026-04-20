@@ -25,6 +25,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.AddScoped<IEmailService, EmailService>();
 
+// Pending registrations (in-memory, singleton)
+builder.Services.AddSingleton<PendingRegistrationStore>();
+
 // Localization - supported cultures
 var supportedCultures = new[]
 {
