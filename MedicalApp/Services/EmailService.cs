@@ -21,16 +21,22 @@ namespace MedicalApp.Services
         }
 
         public Task SendEmailAsync(string toEmail, string subject, string htmlBody)
-            => SendInternalAsync(toEmail, subject, htmlBody, null, null);
+            => SendInternalAsync(toEmail, subject, htmlBody, Array.Empty<(byte[], string, string)>());
 
         public Task SendEmailWithAttachmentAsync(
             string toEmail, string subject, string htmlBody,
             byte[] attachmentBytes, string attachmentFileName)
-            => SendInternalAsync(toEmail, subject, htmlBody, attachmentBytes, attachmentFileName);
+            => SendInternalAsync(toEmail, subject, htmlBody,
+                new[] { (attachmentBytes, attachmentFileName, "application/pdf") });
+
+        public Task SendEmailWithAttachmentsAsync(
+            string toEmail, string subject, string htmlBody,
+            IEnumerable<(byte[] Bytes, string FileName, string MimeType)> attachments)
+            => SendInternalAsync(toEmail, subject, htmlBody, attachments);
 
         private async Task SendInternalAsync(
             string toEmail, string subject, string htmlBody,
-            byte[]? attachmentBytes, string? attachmentFileName)
+            IEnumerable<(byte[] Bytes, string FileName, string MimeType)> attachments)
         {
             var message = new MimeMessage();
             message.From.Add(new MailboxAddress(_settings.SenderName, _settings.SenderEmail));
@@ -39,10 +45,17 @@ namespace MedicalApp.Services
 
             var builder = new BodyBuilder { HtmlBody = htmlBody };
 
-            if (attachmentBytes is { Length: > 0 } && !string.IsNullOrWhiteSpace(attachmentFileName))
+            foreach (var (bytes, fileName, mimeType) in attachments)
             {
-                builder.Attachments.Add(attachmentFileName, attachmentBytes,
-                    new ContentType("application", "pdf"));
+                if (bytes is null || bytes.Length == 0 || string.IsNullOrWhiteSpace(fileName))
+                    continue;
+
+                // Split mime type "type/subtype" (fallback to application/octet-stream).
+                var parts = (mimeType ?? "application/octet-stream").Split('/', 2);
+                var type = parts.Length == 2 ? parts[0] : "application";
+                var subtype = parts.Length == 2 ? parts[1] : "octet-stream";
+
+                builder.Attachments.Add(fileName, bytes, new ContentType(type, subtype));
             }
 
             message.Body = builder.ToMessageBody();

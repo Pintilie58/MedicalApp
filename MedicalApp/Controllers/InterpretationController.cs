@@ -127,9 +127,10 @@ namespace MedicalApp.Controllers
             // 2) Call OpenAI for interpretation
             InterpretationResult result;
             int inputTokens, outputTokens;
+            string rawGptResponse;
             try
             {
-                (result, inputTokens, outputTokens) = await _ai.InterpretAsync(extractedText, languageCode);
+                (result, inputTokens, outputTokens, rawGptResponse) = await _ai.InterpretAsync(extractedText, languageCode);
             }
             catch (Exception ex)
             {
@@ -162,14 +163,32 @@ namespace MedicalApp.Controllers
                 return RedirectToAction(nameof(Upload));
             }
 
-            // 5) Send email with attachment
+            // 5) Send email with attachment (+ debug attachments: extracted text and raw GPT JSON)
             try
             {
                 var subject = Loc.T("ResultEmailSubject");
                 var htmlBody = BuildEmailBody(originalFileName);
-                await _emailService.SendEmailWithAttachmentAsync(
-                    user.Email, subject, htmlBody, pdfBytes,
-                    $"MedicalApp_Interpretation_{DateTime.Now:yyyyMMdd_HHmmss}.pdf");
+                var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+
+                var attachments = new List<(byte[] Bytes, string FileName, string MimeType)>
+                {
+                    (pdfBytes,
+                        $"MedicalApp_Interpretation_{timestamp}.pdf",
+                        "application/pdf"),
+
+                    // DEBUG #1 – exactly what we extracted from the user's PDF BEFORE sending to GPT.
+                    (System.Text.Encoding.UTF8.GetBytes(extractedText ?? string.Empty),
+                        $"DEBUG_01_extracted_text_{timestamp}.txt",
+                        "text/plain"),
+
+                    // DEBUG #2 – raw JSON returned by GPT, exactly as received (before deserialization).
+                    (System.Text.Encoding.UTF8.GetBytes(rawGptResponse ?? string.Empty),
+                        $"DEBUG_02_gpt_raw_response_{timestamp}.json",
+                        "application/json"),
+                };
+
+                await _emailService.SendEmailWithAttachmentsAsync(
+                    user.Email, subject, htmlBody, attachments);
             }
             catch (Exception ex)
             {

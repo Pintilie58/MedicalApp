@@ -28,7 +28,7 @@ namespace MedicalApp.Services
             _logger = logger;
         }
 
-        public async Task<(InterpretationResult Result, int InputTokens, int OutputTokens)> InterpretAsync(
+        public async Task<(InterpretationResult Result, int InputTokens, int OutputTokens, string RawResponse)> InterpretAsync(
             string extractedText, string languageCode, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(_settings.ApiKey))
@@ -102,7 +102,7 @@ namespace MedicalApp.Services
             if (result == null)
                 throw new InvalidOperationException("The AI returned an empty response.");
 
-            return (result, inputTokens, outputTokens);
+            return (result, inputTokens, outputTokens, responseText);
         }
 
         // =============================================================================
