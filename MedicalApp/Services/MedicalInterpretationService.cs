@@ -120,27 +120,57 @@ STRICT RULES - you MUST follow ALL of them:
 7. Use SIMPLE language, accessible to a non-medical reader.
 8. Provide a DETAILED interpretation (not a short one) - include thorough explanations.
 
-EXTRACTION COMPLETENESS - CRITICAL:
+==========================================================
+EXTRACTION COMPLETENESS - THIS IS THE MOST IMPORTANT RULE
+==========================================================
+The JSON field is named ""key_results"" for legacy technical reasons.
+IT DOES NOT MEAN ""important results"" OR ""selected results"".
+IT MEANS ""THE COMPLETE LIST OF EVERY SINGLE LAB RESULT FOUND IN THE TEXT"".
+
 - You MUST include in ""key_results"" EVERY single measured parameter that appears in the extracted text, WITHOUT EXCEPTION.
-- Do NOT skip parameters because their value is normal, borderline, high, or low.
-- Do NOT skip parameters because you consider them less important.
-- Do NOT summarize or group multiple parameters into one entry.
-- Iterate through the extracted text systematically, top to bottom, and for each numeric lab result (with a value and/or a reference range) produce one entry in ""key_results"".
-- Preserve the EXACT parameter name, value, unit and reference range as they appear in the source text (do not round, convert or rename units).
-- The ""status"" field must be computed from the actual value vs. the reference range in the source text:
+- NEVER skip a parameter. Not because it is normal. Not because it is not interesting. Not because it is a ""less important"" test. NEVER.
+- Do NOT summarize or group multiple parameters into one entry - one row per parameter.
+- Preserve the EXACT parameter name, value, unit and reference range as they appear in the source text.
+
+METHODICAL PROCESSING (follow this algorithm, do not deviate):
+Lab reports are typically organized in SECTIONS with section headers such as:
+    * Hematologie / Hematology        (Hb, Ht, leukocytes, erythrocytes, platelets, neutrophils, lymphocytes, etc.)
+    * Coagulare / Coagulation         (Timp de protrombina / Quick, INR, APTT, Fibrinogen, etc.)
+    * VSH / ESR
+    * Biochimie / Biochemistry        (glucose, urea, creatinine, AST, ALT, GGT, bilirubin, uric acid, electrolytes, CK, amylase, lipase, etc.)
+    * Imunochimie / Immunochemistry   (!!! THYROID HORMONES: TSH, FT3, FT4, T3, T4; TUMOR MARKERS: PSA, CEA, AFP, CA 19-9, CA 125, CA 15-3; CARDIAC: troponin, BNP; REPRODUCTIVE: LH, FSH, estradiol, testosterone, progesterone, prolactin; VITAMINS: vitamin D, B12, folate, ferritin; insulin, C-peptide, cortisol, etc.)
+    * Profil lipidic / Lipid panel    (total cholesterol, HDL, LDL, VLDL, non-HDL, triglycerides, total lipids)
+    * Urinar / Urinalysis             (pH, density, protein, glucose, ketones, blood, leukocytes, nitrites, microscopy, etc.)
+    * Serologie / Serology            (Hepatitis markers, HIV, syphilis, etc.)
+    * Microbiologie / Microbiology    (cultures, sensitivity tests, etc.)
+    * Hormoni / Hormones (standalone section with any hormone not listed above)
+    * Markeri tumorali / Tumor markers (standalone section)
+    * Vitamine / Vitamins (standalone section)
+
+MANDATORY ALGORITHM (execute strictly):
+  Step 1. Read the entire text from start to end and identify EVERY section header.
+  Step 2. For EACH section you identified, list internally every parameter that belongs to it and its value.
+  Step 3. MERGE all those lists into ""key_results"" - preserving original order.
+  Step 4. Before finalizing, COUNT how many numeric measurements exist in the source text.
+          If your ""key_results"" array has fewer entries than that count, GO BACK to step 2 - you missed something.
+  Step 5. In particular, VERIFY that you did NOT skip the Imunochimie / Immunochemistry section:
+          if the source text contains TSH, FT3, FT4, PSA, or any hormone / tumor marker / vitamin,
+          those MUST appear in ""key_results"".
+
+STATUS FIELD:
+  The ""status"" field must be computed from the actual value vs. the reference range:
     * ""normal""     => value falls inside the reference range
     * ""high""       => value is above the reference range
     * ""low""        => value is below the reference range
     * ""borderline"" => value is at the exact limit of the reference range, or within ~5% of a limit
-- EVERY parameter whose status is ""high"", ""low"" or ""borderline"" MUST also appear as an entry in ""abnormal_findings"".
-- If ""key_results"" ends up with fewer entries than the number of measured parameters visible in the text, you have failed the task.
+  EVERY parameter whose status is ""high"", ""low"" or ""borderline"" MUST also appear as an entry in ""abnormal_findings"".
 
 DETECTING NON-MEDICAL FILES:
 If the text received is NOT a medical analysis (wrong document type, empty text, unintelligible, or clearly not a lab result), set ""is_medical_analysis"": false and explain the reason in ""rejection_reason"". In that case set ""key_results"" and ""abnormal_findings"" to empty arrays, and keep ""summary"", ""correlations"", ""recommendations"", ""disclaimer"" as short explanatory strings.
 
 CONTENT GUIDELINES:
 - ""summary"": 2-3 sentences overviewing what was analyzed.
-- ""key_results"": ALL measured parameters found in the text. Each with clear, simple explanation.
+- ""key_results"": THE COMPLETE LIST (re-read the rule above) of ALL measured parameters. Each with a clear, simple explanation.
 - ""abnormal_findings"": EVERY value outside the normal range. Explain possible causes in educational terms.
 - ""correlations"": explain meaningful combinations (e.g. low hemoglobin + low ferritin = possible iron-deficiency anemia).
 - ""recommendations"": general lifestyle/dietary advice, when to repeat tests, when to see a doctor. NO specific medications or doses.
@@ -159,10 +189,12 @@ Text extracted from the patient's PDF analysis:
 {extractedText}
 ===
 
-Task:
-1. Extract EVERY measured lab parameter from the text above (do NOT skip any).
-2. For each one, determine status vs. its reference range.
-3. Produce the full structured JSON per the ""medical_interpretation"" schema, written entirely in {languageName}.";
+Task (follow the MANDATORY ALGORITHM from your system instructions, do not skip any step):
+1. Identify EVERY section header present in the text above (Hematologie, Biochimie, Imunochimie, Profil lipidic, Coagulare, VSH, Urinar, etc.).
+2. For EACH section, extract EVERY measured parameter (do NOT skip any - pay SPECIAL ATTENTION to Imunochimie / hormones / tumor markers / vitamins, which are frequently forgotten).
+3. For each parameter determine status vs. its reference range.
+4. Count the numeric measurements in the text - your ""key_results"" array must have AT LEAST that many entries.
+5. Produce the full structured JSON per the ""medical_interpretation"" schema, written entirely in {languageName}.";
 
         // =============================================================================
         // JSON SCHEMA for OpenAI Structured Outputs (strict = true)
