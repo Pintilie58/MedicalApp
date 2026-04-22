@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>MedicalApp</RootNamespace>
     <AssemblyName>MedicalApp</AssemblyName>
+    <UserSecretsId>f33d471a-90a7-4ca4-a797-dd8dc5541ebb</UserSecretsId>
     <NoWarn>$(NoWarn);NU1902;NU1903;OPENAI001</NoWarn>
   </PropertyGroup>
 
