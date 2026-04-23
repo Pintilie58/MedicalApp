@@ -172,7 +172,7 @@ CONTENT GUIDELINES:
 - ""summary"": 2-3 sentences overviewing what was analyzed.
 - ""key_results"": THE COMPLETE LIST (re-read the rule above) of ALL measured parameters. Each with a clear, simple explanation.
 - ""abnormal_findings"": EVERY value outside the normal range. Explain possible causes in educational terms.
-- ""correlations"": explain meaningful combinations (e.g. low hemoglobin + low ferritin = possible iron-deficiency anemia).
+- - """"correlations"""": this field MUST be substantial and detailed. Write at LEAST 3-5 full sentences (minimum 300 characters). Explain meaningful combinations between the abnormal and borderline values found, such as: (a) metabolic patterns (e.g. elevated glucose + high HOMA index + elevated triglycerides may suggest insulin resistance / metabolic syndrome); (b) hepatobiliary patterns (e.g. elevated GGT + elevated ALT/AST may suggest liver stress); (c) inflammatory patterns (e.g. elevated ESR/VSH + elevated leukocytes may suggest inflammation/infection); (d) anemia patterns (e.g. low hemoglobin + low ferritin = possible iron-deficiency anemia); (e) lipid / cardiovascular risk patterns (elevated non-HDL, LDL, triglycerides together). If no strong correlations exist, still explain in 2-3 sentences what combinations were examined and why they are NOT concerning. Never write a single short sentence - the user expects a thorough analysis."",
 - ""recommendations"": general lifestyle/dietary advice, when to repeat tests, when to see a doctor. NO specific medications or doses.
 - ""disclaimer"": explicit statement that this is educational only, NOT a medical diagnosis, and a qualified doctor must be consulted.
 
