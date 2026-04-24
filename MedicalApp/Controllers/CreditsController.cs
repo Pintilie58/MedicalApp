@@ -76,6 +76,18 @@ namespace MedicalApp.Controllers
             // TODO: replace with real payment provider (Netopia/Stripe/PayPal).
             user.Credite += selected.Credits;
             user.CreditRest = user.Credite - user.CreditConsum;
+            user.TotalPaid += selected.PriceEur;
+
+            _db.Purchases.Add(new Purchase
+            {
+                UserEmail = user.Email,
+                PurchasedAt = DateTime.UtcNow,
+                AmountEur = selected.PriceEur,
+                CreditsAdded = selected.Credits,
+                PaymentMethod = "simulated",
+                PackageKey = selected.Key
+            });
+
             await _db.SaveChangesAsync();
 
             _logger.LogInformation(

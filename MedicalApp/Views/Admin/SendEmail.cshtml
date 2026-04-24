@@ -1,0 +1,76 @@
+@model MedicalApp.Models.BulkEmailViewModel
+@{
+    ViewData["Title"] = "Admin - Bulk email";
+    var filters = new[]
+    {
+        ("all",                     "All users"),
+        ("paying",                  "Only paying users"),
+        ("with_credits",            "Users with credits remaining"),
+        ("registered_last_30_days", "Registered last 30 days"),
+        ("blocked",                 "Blocked users only")
+    };
+}
+
+<div class="container py-4">
+    <div class="d-flex align-items-center mb-4">
+        <h2 class="text-primary fw-bold mb-0">
+            <i class="bi bi-envelope-paper"></i> Send bulk email
+        </h2>
+        <div class="ms-auto">
+            <a asp-action="Index" class="btn btn-outline-secondary btn-sm">&larr; Dashboard</a>
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <form asp-action="SendEmail" method="post">
+                @Html.AntiForgeryToken()
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Recipients filter</label>
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach (var f in filters)
+                        {
+                            <a class="btn btn-sm @(Model.Filter == f.Item1 ? "btn-primary" : "btn-outline-primary")"
+                               asp-action="SendEmail" asp-route-filter="@f.Item1">@f.Item2</a>
+                        }
+                    </div>
+                    <input type="hidden" asp-for="Filter" />
+                    <div class="text-muted small mt-2">
+                        Will be sent to <strong>@Model.RecipientsCount</strong> recipients.
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="Subject" class="form-label fw-semibold"></label>
+                    <input asp-for="Subject" class="form-control" />
+                    <span asp-validation-for="Subject" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="HtmlBody" class="form-label fw-semibold">
+                        HTML body
+                        <span class="text-muted fw-normal">(plain text is OK too)</span>
+                    </label>
+                    <textarea asp-for="HtmlBody" rows="12" class="form-control font-monospace"
+                              placeholder="&lt;p&gt;Hello,&lt;/p&gt;&lt;p&gt;Your message here...&lt;/p&gt;"></textarea>
+                    <span asp-validation-for="HtmlBody" class="text-danger small"></span>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg"
+                        onclick="return confirm('Send email to ' + @Model.RecipientsCount + ' recipients?');">
+                    <i class="bi bi-send"></i> Send to @Model.RecipientsCount users
+                </button>
+            </form>
+        </div>
+    </div>
+</div>

@@ -11,17 +11,20 @@ namespace MedicalApp.Controllers
         private readonly AppDbContext _db;
         private readonly IEmailService _emailService;
         private readonly PendingRegistrationStore _pendingStore;
+        private readonly AdminSettings _adminSettings;
         private readonly ILogger<AccountController> _logger;
 
         public AccountController(
             AppDbContext db,
             IEmailService emailService,
             PendingRegistrationStore pendingStore,
+            Microsoft.Extensions.Options.IOptions<AdminSettings> adminOptions,
             ILogger<AccountController> logger)
         {
             _db = db;
             _emailService = emailService;
             _pendingStore = pendingStore;
+            _adminSettings = adminOptions.Value;
             _logger = logger;
         }
 
@@ -141,8 +144,34 @@ namespace MedicalApp.Controllers
                 Credite = 0,
                 DataC = DateTime.UtcNow,
                 CreditConsum = 0,
-                CreditRest = 0
+                CreditRest = 0,
+                IsAdmin = _adminSettings.IsAdminEmail(pending.Email)
             };
+
+            // Apply promo code (if any and valid)
+            if (!string.IsNullOrWhiteSpace(pending.PromoCode))
+            {
+                var codeNorm = pending.PromoCode.Trim();
+                var promo = await _db.PromoCodes
+                    .FirstOrDefaultAsync(p => p.Code == codeNorm);
+
+                if (promo != null && promo.IsCurrentlyValid())
+                {
+                    user.Credite += promo.CreditsToAdd;
+                    user.CreditRest = user.Credite - user.CreditConsum;
+                    promo.TimesUsed++;
+                    _logger.LogInformation(
+                        "Promo code {Code} redeemed by {Email} for {Credits} credits.",
+                        promo.Code, pending.Email, promo.CreditsToAdd);
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "Promo code {Code} entered by {Email} at register is invalid/expired - ignored.",
+                        codeNorm, pending.Email);
+                }
+            }
+
             _db.Users.Add(user);
             await _db.SaveChangesAsync();
             _pendingStore.Remove(email);
@@ -215,6 +244,22 @@ namespace MedicalApp.Controllers
                 ViewData["ActiveTab"] = "login";
                 return View("~/Views/Home/Index.cshtml");
             }
+
+            if (user.IsBlocked)
+            {
+                ModelState.AddModelError(string.Empty, Loc.T("AccountBlocked"));
+                ViewData["LoginModel"] = model;
+                ViewData["RegisterModel"] = new RegisterViewModel();
+                ViewData["ActiveTab"] = "login";
+                return View("~/Views/Home/Index.cshtml");
+            }
+
+            // Auto-promote to admin if configured email
+            if (!user.IsAdmin && _adminSettings.IsAdminEmail(user.Email))
+                user.IsAdmin = true;
+
+            user.LastLoginAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
 
             HttpContext.Session.SetString("UserEmail", user.Email);
             return RedirectToAction("Dashboard", "Account");

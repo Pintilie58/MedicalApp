@@ -25,6 +25,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.AddScoped<IEmailService, EmailService>();
 
+// Admin settings (list of admin emails)
+builder.Services.Configure<AdminSettings>(builder.Configuration.GetSection("AdminSettings"));
+
 // OpenAI service configuration
 builder.Services.Configure<OpenAISettings>(builder.Configuration.GetSection("OpenAI"));
 builder.Services.AddScoped<IMedicalInterpretationService, MedicalInterpretationService>();

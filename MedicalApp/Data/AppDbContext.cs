@@ -9,6 +9,8 @@ namespace MedicalApp.Data
 
         public DbSet<User> Users { get; set; } = null!;
         public DbSet<InterpretationHistory> InterpretationHistories { get; set; } = null!;
+        public DbSet<Purchase> Purchases { get; set; } = null!;
+        public DbSet<PromoCode> PromoCodes { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -21,6 +23,8 @@ namespace MedicalApp.Data
                 entity.Property(u => u.Email).HasMaxLength(200);
                 entity.Property(u => u.Parola).HasMaxLength(255).IsRequired();
                 entity.Property(u => u.DataC).HasColumnType("datetime2");
+                entity.Property(u => u.LastLoginAt).HasColumnType("datetime2");
+                entity.Property(u => u.TotalPaid).HasColumnType("decimal(12,2)");
             });
 
             modelBuilder.Entity<InterpretationHistory>(entity =>
@@ -29,6 +33,27 @@ namespace MedicalApp.Data
                 entity.HasKey(h => h.Id);
                 entity.HasIndex(h => h.UserEmail);
                 entity.Property(h => h.CreatedAt).HasColumnType("datetime2");
+            });
+
+            modelBuilder.Entity<Purchase>(entity =>
+            {
+                entity.ToTable("Purchases");
+                entity.HasKey(p => p.Id);
+                entity.HasIndex(p => p.UserEmail);
+                entity.HasIndex(p => p.PurchasedAt);
+                entity.Property(p => p.PurchasedAt).HasColumnType("datetime2");
+                entity.Property(p => p.AmountEur).HasColumnType("decimal(10,2)");
+            });
+
+            modelBuilder.Entity<PromoCode>(entity =>
+            {
+                entity.ToTable("PromoCodes");
+                entity.HasKey(p => p.Id);
+                entity.HasIndex(p => p.Code).IsUnique();
+                entity.Property(p => p.Code).HasMaxLength(50);
+                entity.Property(p => p.ValidFrom).HasColumnType("datetime2");
+                entity.Property(p => p.ValidUntil).HasColumnType("datetime2");
+                entity.Property(p => p.CreatedAt).HasColumnType("datetime2");
             });
         }
     }

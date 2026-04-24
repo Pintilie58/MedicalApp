@@ -1,0 +1,145 @@
+@model MedicalApp.Models.AdminDashboardViewModel
+@{
+    ViewData["Title"] = "Admin Dashboard";
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex align-items-center mb-4">
+        <h2 class="text-primary fw-bold mb-0">
+            <i class="bi bi-shield-lock"></i> Admin Dashboard
+        </h2>
+        <div class="ms-auto">
+            <a asp-action="Users" class="btn btn-outline-primary btn-sm">Users</a>
+            <a asp-action="SendEmail" class="btn btn-outline-primary btn-sm">Bulk email</a>
+            <a asp-action="PromoCodes" class="btn btn-outline-primary btn-sm">Promo codes</a>
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+    }
+
+    <!-- STATS CARDS -->
+    <div class="row g-3 mb-4">
+        @{
+            var statCards = new (string Label, string Value, string Color, string Icon)[]
+            {
+                ("Total users",       Model.TotalUsers.ToString(),             "primary", "bi-people"),
+                ("Paying users",      Model.PayingUsers.ToString(),            "success", "bi-credit-card"),
+                ("Active users",      Model.ActiveUsers.ToString(),            "info",    "bi-activity"),
+                ("New (7 days)",      Model.NewUsersLast7Days.ToString(),      "warning", "bi-person-plus"),
+                ("Blocked users",     Model.BlockedUsers.ToString(),           "danger",  "bi-slash-circle"),
+                ("Total revenue",     $"{Model.TotalRevenueEur:F2} €",         "success", "bi-cash-stack"),
+                ("Revenue 30d",       $"{Model.RevenueLast30DaysEur:F2} €",    "success", "bi-graph-up"),
+                ("Purchases 30d",     Model.PurchasesLast30Days.ToString(),    "primary", "bi-bag-check"),
+                ("Credits purchased", Model.TotalCreditsPurchased.ToString(),  "primary", "bi-coin"),
+                ("Credits consumed",  Model.TotalCreditsConsumed.ToString(),   "secondary","bi-fire"),
+                ("Credits remaining", Model.TotalCreditsRemaining.ToString(),  "info",    "bi-wallet2"),
+                ("Active promo codes",Model.ActivePromoCodes.ToString(),       "warning", "bi-ticket-perforated")
+            };
+        }
+        @foreach (var c in statCards)
+        {
+            <div class="col-md-3 col-sm-6">
+                <div class="card border-start border-@c.Color border-4 shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small text-uppercase fw-semibold">@c.Label</div>
+                        <div class="fs-3 fw-bold text-@c.Color">@c.Value</div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="row g-3">
+        <!-- TOP SPENDERS -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-primary text-white fw-semibold">
+                    Top 10 spenders
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Email</th>
+                                <th class="text-end">Paid (€)</th>
+                                <th class="text-end">Credits bought</th>
+                                <th class="text-end">Consumed</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!Model.TopSpenders.Any())
+                            {
+                                <tr><td colspan="4" class="text-muted text-center py-4">No paying users yet.</td></tr>
+                            }
+                            @foreach (var s in Model.TopSpenders)
+                            {
+                                <tr>
+                                    <td>
+                                        <a asp-action="UserDetail" asp-route-email="@s.Email" class="text-decoration-none">
+                                            @s.Email
+                                        </a>
+                                    </td>
+                                    <td class="text-end fw-semibold">@s.TotalPaid.ToString("F2")</td>
+                                    <td class="text-end">@s.Credite</td>
+                                    <td class="text-end">@s.CreditConsum</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- REVENUE CHART 30 DAYS -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-success text-white fw-semibold">
+                    Revenue last 30 days
+                </div>
+                <div class="card-body">
+                    <canvas id="revenueChart" height="120"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script>
+        (function () {
+            var labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                Model.RevenueChart.Select(r => r.Date.ToString("dd/MM"))));
+            var data = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                Model.RevenueChart.Select(r => r.Amount)));
+
+            var ctx = document.getElementById('revenueChart');
+            if (!ctx) return;
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'EUR',
+                        data: data,
+                        backgroundColor: 'rgba(40, 167, 69, 0.6)',
+                        borderColor: 'rgba(40, 167, 69, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        })();
+    </script>
+}

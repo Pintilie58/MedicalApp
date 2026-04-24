@@ -1,0 +1,99 @@
+@model List<MedicalApp.Models.User>
+@{
+    ViewData["Title"] = "Admin - Users";
+    var query = ViewBag.Query as string ?? "";
+    var page = (int)ViewBag.Page;
+    var total = (int)ViewBag.Total;
+    var totalPages = (int)ViewBag.TotalPages;
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex align-items-center mb-4">
+        <h2 class="text-primary fw-bold mb-0">
+            <i class="bi bi-people"></i> Users (@total)
+        </h2>
+        <div class="ms-auto">
+            <a asp-action="Index" class="btn btn-outline-secondary btn-sm">&larr; Back to dashboard</a>
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+    }
+
+    <form method="get" class="mb-3">
+        <div class="input-group" style="max-width:500px;">
+            <input type="text" name="q" value="@query" class="form-control" placeholder="Search by email..." />
+            <button class="btn btn-primary">Search</button>
+            @if (!string.IsNullOrEmpty(query))
+            {
+                <a asp-action="Users" class="btn btn-outline-secondary">Clear</a>
+            }
+        </div>
+    </form>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Email</th>
+                        <th>Registered</th>
+                        <th>Last login</th>
+                        <th class="text-end">Credits bought</th>
+                        <th class="text-end">Consumed</th>
+                        <th class="text-end">Remaining</th>
+                        <th class="text-end">Total paid</th>
+                        <th class="text-center">Flags</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr><td colspan="9" class="text-muted text-center py-4">No users found.</td></tr>
+                    }
+                    @foreach (var u in Model)
+                    {
+                        <tr class="@(u.IsBlocked ? "table-danger" : "")">
+                            <td class="fw-semibold">@u.Email</td>
+                            <td class="text-nowrap small">@u.DataC.ToString("dd/MM/yyyy HH:mm")</td>
+                            <td class="text-nowrap small">@(u.LastLoginAt?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
+                            <td class="text-end">@u.Credite</td>
+                            <td class="text-end">@u.CreditConsum</td>
+                            <td class="text-end fw-semibold">@u.CreditRest</td>
+                            <td class="text-end fw-semibold">@u.TotalPaid.ToString("F2") €</td>
+                            <td class="text-center">
+                                @if (u.IsAdmin) { <span class="badge bg-warning text-dark">admin</span> }
+                                @if (u.IsBlocked) { <span class="badge bg-danger">blocked</span> }
+                            </td>
+                            <td>
+                                <a asp-action="UserDetail" asp-route-email="@u.Email"
+                                   class="btn btn-sm btn-outline-primary">Detail</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @if (totalPages > 1)
+    {
+        <nav class="mt-3">
+            <ul class="pagination pagination-sm">
+                @for (int i = 1; i <= totalPages; i++)
+                {
+                    <li class="page-item @(i == page ? "active" : "")">
+                        <a class="page-link" asp-action="Users" asp-route-q="@query" asp-route-page="@i">@i</a>
+                    </li>
+                }
+            </ul>
+        </nav>
+    }
+</div>

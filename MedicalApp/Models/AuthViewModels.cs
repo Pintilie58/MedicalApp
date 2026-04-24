@@ -20,6 +20,11 @@ namespace MedicalApp.Models
         [LocalizedCompare("Parola", "PasswordMismatch")]
         [Display(Name = "Confirm Password")]
         public string ConfirmParola { get; set; } = string.Empty;
+
+        /// <summary>Optional promo code entered at registration (e.g. "Med3").</summary>
+        [StringLength(50)]
+        [Display(Name = "Promo Code")]
+        public string? PromoCode { get; set; }
     }
 
     public class LoginViewModel

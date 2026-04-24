@@ -113,6 +113,12 @@
                                     <input asp-for="@registerModel.ConfirmParola" name="ConfirmParola" type="password" class="form-control" autocomplete="new-password" />
                                     <span asp-validation-for="@registerModel.ConfirmParola" class="text-danger small"></span>
                                 </div>
+                                <div class="mb-3">
+                                    <label asp-for="@registerModel.PromoCode" class="form-label">@Loc.T("PromoCodeOptional")</label>
+                                    <input asp-for="@registerModel.PromoCode" name="PromoCode" class="form-control font-monospace" autocomplete="off" placeholder="@Loc.T("PromoCodePlaceholder")" />
+                                    <span asp-validation-for="@registerModel.PromoCode" class="text-danger small"></span>
+                                    <div class="form-text">@Loc.T("PromoCodeHint")</div>
+                                </div>
                                 <button type="submit" class="btn btn-success w-100">@Loc.T("RegisterButton")</button>
                             </form>
                         </div>

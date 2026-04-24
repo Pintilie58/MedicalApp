@@ -8,26 +8,30 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 ## Core stack
 - ASP.NET Core MVC .NET 9, EF Core + SQL Server
 - BCrypt auth, MailKit (Gmail SMTP)
-- OpenAI `gpt-4o-mini` (user-provided API key)
+- OpenAI `gpt-4o-mini` (user-provided API key in **User Secrets**)
 - UglyToad.PdfPig `1.7.0-custom-5` (PDF text extraction)
 - QuestPDF (PDF report generation)
+- Chart.js (admin revenue chart)
 
 ## Architecture
 ```
 /app/MedicalApp/
-├── Controllers/ (Account, Credits, Home, Interpretation)
+├── Attributes/ (AdminAuthorizeAttribute)
+├── Controllers/ (Account, Admin, Credits, Home, Interpretation)
 ├── Data/ (AppDbContext)
-├── Models/ (User, InterpretationHistory, AuthViewModels, CheckoutViewModel, InterpretationResult)
-├── Services/ (EmailService, Loc, MedicalInterpretationService, OpenAISettings, PasswordGenerator, PdfReportGenerator, PdfTextExtractor, PendingRegistrationStore)
-├── Views/ (Account, Credits, Home, Interpretation, Shared)
-├── wwwroot/ (css, js, images)
+├── Models/ (User, Purchase, PromoCode, AdminViewModels, InterpretationHistory, AuthViewModels, CheckoutViewModel, InterpretationResult)
+├── Services/ (AdminSettings, EmailService, Loc, MedicalInterpretationService, OpenAISettings, PasswordGenerator, PdfReportGenerator, PdfTextExtractor, PendingRegistrationStore)
+├── Views/ (Account, Admin, Credits, Home, Interpretation, Shared)
+├── wwwroot/
 ├── appsettings.json
 └── Program.cs
 ```
 
 ## DB schema
-- **Users**: Email (PK), Parola, Credite, DataC, CreditConsum, CreditRest, PasswordResetToken, PasswordResetTokenExpiry
-- **InterpretationHistories**: Id (PK), UserEmail, OriginalFileName, UploadDate, CostInCredits, IsSuccess, ErrorMessage
+- **Users**: Email (PK), Parola, Credite, DataC, CreditConsum, CreditRest, PasswordResetToken, PasswordResetTokenExpiry, **TotalPaid**, **LastLoginAt**, **IsBlocked**, **IsAdmin**
+- **InterpretationHistories**: Id, UserEmail, OriginalFileName, Language, Status, ErrorMessage, CreditsConsumed, InputTokens, OutputTokens, CreatedAt
+- **Purchases** (new): Id, UserEmail, PurchasedAt, AmountEur, CreditsAdded, PaymentMethod, PackageKey, PromoCode
+- **PromoCodes** (new): Id, Code (UQ), CreditsToAdd, ValidFrom, ValidUntil, TimesUsed, MaxUses, IsActive, CreatedAt
 
 ## Implemented (changelog)
 - ✅ Project scaffolding (.NET 9 MVC) + SQL Server via EF Core
@@ -36,34 +40,38 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - ✅ Password reset via email link (MailKit)
 - ✅ Registration with 4-digit email verification
 - ✅ Credit system + simulated checkout
-- ✅ PDF text extraction via PdfPig
-- ✅ OpenAI interpretation (gpt-4o-mini)
+- ✅ PDF text extraction (layout-aware Y/X sort using PdfPig 1.7.0-custom-5)
+- ✅ OpenAI interpretation with strict JSON Schema + Seed + MaxOutputTokens=16000 + mandatory 5-step algorithm prompt (Imunochimie etc.)
 - ✅ Localized PDF report generation (QuestPDF, A4)
-- ✅ Interpretation integrated in dashboard (−1 credit per call)
-- ✅ **[Feb 2026] Option A – Strict & Deterministic AI interpretation:**
-  - `OpenAISettings.cs` defaults: Temperature=0.0, Seed=42, MaxOutputTokens=8000, TimeoutSeconds=120
-  - `appsettings.json` aligned to the same values (ApiKey untouched)
-  - `PdfTextExtractor.cs` uses `ContentOrderTextExtractor.GetText(page, true)` (with fallback) for layout-aware extraction (preserves table rows/columns of lab PDFs)
-  - `MedicalInterpretationService.cs` switched from plain JSON mode to **OpenAI Structured Outputs** (`ChatResponseFormat.CreateJsonSchemaFormat(strict:true)`) with a full schema for `medical_interpretation`
-  - `Seed` now passed in `ChatCompletionOptions` for deterministic runs
-  - System prompt hardened with an "EXTRACTION COMPLETENESS" section forcing the model to emit EVERY measured parameter, compute status vs. reference range, and add any non-normal to `abnormal_findings`
-  - Added `FinishReason==Length` warning in logs if response ever gets truncated
+- ✅ Debug email attachments: extracted text + raw GPT JSON
+- ✅ OpenAI ApiKey migrated to User Secrets (not in repo)
+- ✅ Loading overlay "Așteptați câteva secunde!" (5 languages) on interpretation upload
+- ✅ Stronger correlations + recommendations prompts (min 3-5 / 4-6 sentences)
+- ✅ **[Feb 2026] Admin Dashboard** (new):
+  - `AdminController` + `[AdminAuthorize]` attribute (session + IsAdmin flag + not blocked)
+  - `AdminSettings` in appsettings → list of admin emails auto-promoted at register/login
+  - Dashboard: 12 stat cards, Top-10 spenders, 30-day revenue chart (Chart.js)
+  - Users list with search + pagination
+  - User detail page: profile, purchase history, interpretation history, actions (give credits, reset password, block/unblock)
+  - Bulk email with filters (all / paying / with_credits / last 30 days / blocked)
+  - Promo codes CRUD (e.g. `Med3` → +3 credits for new registrations, with ValidFrom/ValidUntil, MaxUses)
+  - Register form accepts optional promo code
+  - Purchase row written on every successful credit purchase + TotalPaid incremented on User
+  - LastLoginAt tracked on every login
+  - Block check on login
 
 ## Pending / Backlog
 ### P0 – validation
-- 🧪 User to pull from GitHub and retest with the same PDF that previously gave inconsistent output. Expected: same output on repeated runs + every lab parameter present in `key_results`.
-
-### P1
-- History page for users to view their past interpretations (read from `InterpretationHistories`)
+- 🧪 User to apply admin dashboard changes via `Save to GitHub → Create Branch & Push`, merge PR on GitHub, then `Git Pull` locally, run EF migration, test all flows.
 
 ### P2
-- Move secrets (`OpenAI:ApiKey`, Gmail App Password) from `appsettings.json` to User Secrets / Environment Variables
 - Real payment gateway (Stripe / Netopia / PayPal) replacing the simulated checkout
+- Interpretation history page for users (their own)
 
 ### P3
 - Deploy to Azure App Service + SQL Azure
 - PWA (installable on mobile)
 
 ## Known constraints
-- User's **local** `appsettings.json` must keep the OpenAI API key after Git Pull (the repo version has `ApiKey: ""`). If Git Pull overwrites the local value, user must re-paste the key or (preferred) migrate to User Secrets (P2).
-- Agent cannot run/test the app in the cloud sandbox (no .NET SDK, no SQL Server); validation happens on the user's Windows machine.
+- Cheia OpenAI e în User Secrets (NU în repo). Sandbox-ul cloud nu o are.
+- Agent cannot run/test the app in cloud sandbox (no .NET SDK, no SQL Server). Validation happens on user's Windows machine.
