@@ -14,28 +14,27 @@
         <nav class="navbar navbar-expand-sm navbar-dark bg-dark">
             <div class="container">
                 <a class="navbar-brand" asp-controller="Home" asp-action="Index">@Loc.T("AppTitle")</a>
-                <div class="ms-auto d-flex align-items-center gap-2">
+               <div class="ms-auto d-flex align-items-center gap-2">
                     @if (!string.IsNullOrEmpty(Context.Session.GetString("UserEmail")))
                     {
-                        @{
-                            var _layoutEmail = Context.Session.GetString("UserEmail")!;
-                            var _layoutDb = Context.RequestServices.GetService(typeof(AppDbContext)) as AppDbContext;
-                            var _layoutUser = _layoutDb?.Users.AsNoTracking().FirstOrDefault(u => u.Email == _layoutEmail);
-                        }
-                        @if (_layoutUser != null && _layoutUser.IsAdmin)
-                        {
+                        var _layoutEmail = Context.Session.GetString("UserEmail")!;
+                        var _layoutDb = Context.RequestServices.GetService(typeof(AppDbContext)) as AppDbContext;
+                        var _layoutUser = _layoutDb?.Users.AsNoTracking().FirstOrDefault(u => u.Email == _layoutEmail);
+
+                        if (_layoutUser != null && _layoutUser.IsAdmin)
+    {
                             <a asp-controller="Admin" asp-action="Index"
                                class="btn btn-sm btn-warning fw-bold" data-testid="admin-nav-link">
                                 &#9881; Admin
                             </a>
-                        }
+    }
                         <span class="text-white small me-2">@_layoutEmail</span>
                         <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
                             @Html.AntiForgeryToken()
                             <button type="submit" class="btn btn-sm btn-outline-light">@Loc.T("Logout")</button>
                         </form>
                     }
-                </div>
+                    </div>
             </div>
         </nav>
     </header>
