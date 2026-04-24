@@ -17,12 +17,11 @@
                 <div class="ms-auto d-flex align-items-center gap-2">
                     @if (!string.IsNullOrEmpty(Context.Session.GetString("UserEmail")))
                     {
-                        @{
-                            var _layoutEmail = Context.Session.GetString("UserEmail")!;
-                            var _layoutDb = Context.RequestServices.GetService(typeof(AppDbContext)) as AppDbContext;
-                            var _layoutUser = _layoutDb?.Users.AsNoTracking().FirstOrDefault(u => u.Email == _layoutEmail);
-                        }
-                        @if (_layoutUser != null && _layoutUser.IsAdmin)
+                        var _layoutEmail = Context.Session.GetString("UserEmail")!;
+                        var _layoutDb = Context.RequestServices.GetService(typeof(AppDbContext)) as AppDbContext;
+                        var _layoutUser = _layoutDb?.Users.AsNoTracking().FirstOrDefault(u => u.Email == _layoutEmail);
+
+                        if (_layoutUser != null && _layoutUser.IsAdmin)
                         {
                             <a asp-controller="Admin" asp-action="Index"
                                class="btn btn-sm btn-warning fw-bold" data-testid="admin-nav-link">
