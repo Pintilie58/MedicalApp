@@ -13,6 +13,9 @@ namespace MedicalApp.Services
         public string VerificationCode { get; set; } = string.Empty;
         public DateTime ExpiresAt { get; set; }
         public int AttemptsLeft { get; set; } = 5;
+
+        /// <summary>Promo code typed at register, applied on successful verification.</summary>
+        public string? PromoCode { get; set; }
     }
 
     /// <summary>

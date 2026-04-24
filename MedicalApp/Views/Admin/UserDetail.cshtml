@@ -1,0 +1,190 @@
+@model MedicalApp.Models.User
+@{
+    ViewData["Title"] = "Admin - User detail";
+    var purchases = ViewBag.Purchases as List<MedicalApp.Models.Purchase> ?? new();
+    var history = ViewBag.History as List<MedicalApp.Models.InterpretationHistory> ?? new();
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex align-items-center mb-4">
+        <h2 class="text-primary fw-bold mb-0">
+            <i class="bi bi-person-circle"></i> @Model.Email
+        </h2>
+        <div class="ms-auto">
+            <a asp-action="Users" class="btn btn-outline-secondary btn-sm">&larr; Users</a>
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+    }
+
+    <div class="row g-3">
+        <!-- LEFT: profile -->
+        <div class="col-lg-5">
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-primary text-white fw-semibold">Profile</div>
+                <div class="card-body">
+                    <dl class="row mb-0 small">
+                        <dt class="col-5">Registered</dt><dd class="col-7">@Model.DataC.ToString("dd/MM/yyyy HH:mm")</dd>
+                        <dt class="col-5">Last login</dt><dd class="col-7">@(Model.LastLoginAt?.ToString("dd/MM/yyyy HH:mm") ?? "-")</dd>
+                        <dt class="col-5">Credits purchased</dt><dd class="col-7">@Model.Credite</dd>
+                        <dt class="col-5">Consumed</dt><dd class="col-7">@Model.CreditConsum</dd>
+                        <dt class="col-5">Remaining</dt><dd class="col-7 fw-bold">@Model.CreditRest</dd>
+                        <dt class="col-5">Total paid</dt><dd class="col-7 fw-bold">@Model.TotalPaid.ToString("F2") €</dd>
+                        <dt class="col-5">Admin</dt><dd class="col-7">@(Model.IsAdmin ? "Yes" : "No")</dd>
+                        <dt class="col-5">Blocked</dt><dd class="col-7">@(Model.IsBlocked ? "Yes" : "No")</dd>
+                    </dl>
+                </div>
+            </div>
+
+            <!-- ACTIONS -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-warning fw-semibold">Admin actions</div>
+                <div class="card-body">
+
+                    <!-- Give credits -->
+                    <form asp-action="GiveCredits" method="post" class="mb-3 border-bottom pb-3">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="email" value="@Model.Email" />
+                        <label class="form-label small fw-semibold">Give free credits</label>
+                        <div class="input-group input-group-sm">
+                            <input type="number" name="credits" value="1" min="1" max="1000" class="form-control" />
+                            <input type="text" name="reason" placeholder="Reason (optional)" class="form-control" />
+                            <button class="btn btn-success">Give</button>
+                        </div>
+                    </form>
+
+                    <!-- Reset password -->
+                    <form asp-action="ResetUserPassword" method="post" class="mb-3 border-bottom pb-3"
+                          onsubmit="return confirm('Generate a new password and email it to this user?');">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="email" value="@Model.Email" />
+                        <label class="form-label small fw-semibold">Reset password</label>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary">
+                                Generate new password &amp; email it
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Block / Unblock -->
+                    @if (!Model.IsAdmin || Model.IsBlocked)
+                    {
+                        <form asp-action="ToggleBlock" method="post" class="mb-0"
+                              onsubmit="return confirm(@(Model.IsBlocked ? "'Unblock this account?'" : "'Block this account? The user will not be able to log in.'"));">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="email" value="@Model.Email" />
+                            <label class="form-label small fw-semibold">
+                                @(Model.IsBlocked ? "Status" : "Block account")
+                            </label>
+                            <div>
+                                @if (Model.IsBlocked)
+                                {
+                                    <button class="btn btn-sm btn-success">Unblock</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm btn-danger">Block user</button>
+                                }
+                            </div>
+                        </form>
+                    }
+                    else
+                    {
+                        <div class="text-muted small">Admin accounts cannot be blocked.</div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: history -->
+        <div class="col-lg-7">
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-success text-white fw-semibold">
+                    Purchases (@purchases.Count)
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date</th>
+                                <th>Package</th>
+                                <th class="text-end">Credits</th>
+                                <th class="text-end">Amount (€)</th>
+                                <th>Method</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!purchases.Any())
+                            {
+                                <tr><td colspan="5" class="text-muted text-center py-4">No purchases yet.</td></tr>
+                            }
+                            @foreach (var p in purchases)
+                            {
+                                <tr>
+                                    <td class="small">@p.PurchasedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                    <td>@p.PackageKey</td>
+                                    <td class="text-end">@p.CreditsAdded</td>
+                                    <td class="text-end">@p.AmountEur.ToString("F2")</td>
+                                    <td class="small">@p.PaymentMethod</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header bg-info text-white fw-semibold">
+                    Interpretation history (@history.Count, last 50)
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date</th>
+                                <th>File</th>
+                                <th>Lang</th>
+                                <th>Status</th>
+                                <th class="text-end">Credits</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!history.Any())
+                            {
+                                <tr><td colspan="5" class="text-muted text-center py-4">No interpretations yet.</td></tr>
+                            }
+                            @foreach (var h in history)
+                            {
+                                <tr>
+                                    <td class="small">@h.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                    <td class="small">@h.OriginalFileName</td>
+                                    <td class="small">@h.Language</td>
+                                    <td>
+                                        @{
+                                            var cls = h.Status switch
+                                            {
+                                                "success" => "bg-success",
+                                                "rejected" => "bg-secondary",
+                                                "error" => "bg-danger",
+                                                _ => "bg-secondary"
+                                            };
+                                        }
+                                        <span class="badge @cls">@h.Status</span>
+                                    </td>
+                                    <td class="text-end">@h.CreditsConsumed</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

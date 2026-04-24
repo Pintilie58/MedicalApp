@@ -24,6 +24,12 @@ namespace MedicalApp.Services
         }
 
         /// <summary>
+        /// Generates a stronger password (mixed case, digits) – alias for Generate
+        /// kept for semantic clarity in admin-reset flows.
+        /// </summary>
+        public static string GenerateStrong(int length = 12) => Generate(length);
+
+        /// <summary>
         /// Generates a URL-safe random token (base64 without padding/special chars).
         /// </summary>
         public static string GenerateToken(int byteLength = 48)

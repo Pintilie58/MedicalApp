@@ -69,6 +69,10 @@
     </div>
 </div>
 
+<!-- ============================================================= -->
+<!-- Full-screen processing overlay - shown on submit,              -->
+<!-- automatically disappears when the server redirects (new page). -->
+<!-- ============================================================= -->
 <div id="processingOverlay" class="processing-overlay" aria-hidden="true" role="status" aria-live="polite">
     <div class="processing-box">
         <div class="processing-spinner" aria-hidden="true"></div>
@@ -91,9 +95,9 @@
         animation: fadeIn 0.25s ease-out;
     }
 
-        .processing-overlay.is-visible {
-            display: flex;
-        }
+    .processing-overlay.is-visible {
+        display: flex;
+    }
 
     .processing-box {
         background: #ffffff;
@@ -130,19 +134,12 @@
     }
 
     @@keyframes spin {
-        to {
-            transform: rotate(360deg);
-        }
+        to { transform: rotate(360deg); }
     }
 
     @@keyframes fadeIn {
-        from {
-            opacity: 0;
-        }
-
-        to {
-            opacity: 1;
-        }
+        from { opacity: 0; }
+        to { opacity: 1; }
     }
 </style>
 
@@ -154,8 +151,10 @@
             var overlay = document.getElementById('processingOverlay');
             if (!form || !overlay) return;
 
-            form.addEventListener('submit', function () {
+            form.addEventListener('submit', function (e) {
+                // Let browser validation (required file) run first.
                 if (!form.checkValidity()) return;
+
                 if (btn) {
                     btn.disabled = true;
                     btn.innerHTML = '@Loc.T("ProcessingPleaseWait")';
@@ -164,6 +163,8 @@
                 overlay.setAttribute('aria-hidden', 'false');
             });
 
+            // Safety net: if user navigates back via bfcache and the page is
+            // restored from cache with the overlay still visible, hide it.
             window.addEventListener('pageshow', function (ev) {
                 if (ev.persisted) {
                     overlay.classList.remove('is-visible');

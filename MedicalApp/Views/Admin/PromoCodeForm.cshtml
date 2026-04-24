@@ -1,0 +1,80 @@
+@model MedicalApp.Models.PromoCodeViewModel
+@{
+    ViewData["Title"] = Model.Id == 0 ? "New promo code" : "Edit promo code";
+}
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="d-flex align-items-center mb-4">
+                <h2 class="text-primary fw-bold mb-0">
+                    <i class="bi bi-ticket-perforated"></i> @ViewData["Title"]
+                </h2>
+                <div class="ms-auto">
+                    <a asp-action="PromoCodes" class="btn btn-outline-secondary btn-sm">&larr; Codes</a>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <form asp-action="SavePromoCode" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="Id" />
+
+                        <div asp-validation-summary="ModelOnly" class="text-danger small mb-3"></div>
+
+                        <div class="mb-3">
+                            <label asp-for="Code" class="form-label fw-semibold">
+                                Code (e.g. Med3)
+                            </label>
+                            <input asp-for="Code" class="form-control font-monospace"
+                                   placeholder="Med3" autocomplete="off" />
+                            <span asp-validation-for="Code" class="text-danger small"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="CreditsToAdd" class="form-label fw-semibold">
+                                Credits granted per use
+                            </label>
+                            <input asp-for="CreditsToAdd" type="number" min="1" max="1000"
+                                   class="form-control" />
+                            <span asp-validation-for="CreditsToAdd" class="text-danger small"></span>
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label asp-for="ValidFrom" class="form-label fw-semibold">Valid from</label>
+                                <input asp-for="ValidFrom" type="datetime-local" class="form-control"
+                                       value="@Model.ValidFrom.ToString("yyyy-MM-ddTHH:mm")" />
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="ValidUntil" class="form-label fw-semibold">Valid until</label>
+                                <input asp-for="ValidUntil" type="datetime-local" class="form-control"
+                                       value="@Model.ValidUntil.ToString("yyyy-MM-ddTHH:mm")" />
+                                <span asp-validation-for="ValidUntil" class="text-danger small"></span>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="MaxUses" class="form-label fw-semibold">
+                                Max uses (0 = unlimited)
+                            </label>
+                            <input asp-for="MaxUses" type="number" min="0" max="100000"
+                                   class="form-control" />
+                            <span asp-validation-for="MaxUses" class="text-danger small"></span>
+                        </div>
+
+                        <div class="form-check mb-4">
+                            <input asp-for="IsActive" class="form-check-input" />
+                            <label asp-for="IsActive" class="form-check-label">Active</label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-lg w-100">
+                            @(Model.Id == 0 ? "Create promo code" : "Save changes")
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

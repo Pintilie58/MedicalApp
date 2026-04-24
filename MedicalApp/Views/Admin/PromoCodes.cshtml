@@ -1,0 +1,79 @@
+@model List<MedicalApp.Models.PromoCode>
+@{
+    ViewData["Title"] = "Admin - Promo codes";
+}
+
+<div class="container py-4">
+    <div class="d-flex align-items-center mb-4">
+        <h2 class="text-primary fw-bold mb-0">
+            <i class="bi bi-ticket-perforated"></i> Promo codes
+        </h2>
+        <div class="ms-auto">
+            <a asp-action="NewPromoCode" class="btn btn-primary btn-sm">+ New code</a>
+            <a asp-action="Index" class="btn btn-outline-secondary btn-sm">&larr; Dashboard</a>
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Code</th>
+                        <th class="text-end">Credits</th>
+                        <th>Valid from</th>
+                        <th>Valid until</th>
+                        <th class="text-end">Uses</th>
+                        <th class="text-end">Max uses</th>
+                        <th class="text-center">Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr><td colspan="8" class="text-muted text-center py-4">
+                            No promo codes yet. <a asp-action="NewPromoCode">Create one</a>.
+                        </td></tr>
+                    }
+                    @foreach (var p in Model)
+                    {
+                        var valid = p.IsCurrentlyValid();
+                        <tr>
+                            <td class="fw-semibold font-monospace">@p.Code</td>
+                            <td class="text-end">+@p.CreditsToAdd</td>
+                            <td class="small">@p.ValidFrom.ToString("dd/MM/yyyy")</td>
+                            <td class="small">@p.ValidUntil.ToString("dd/MM/yyyy")</td>
+                            <td class="text-end">@p.TimesUsed</td>
+                            <td class="text-end">@(p.MaxUses == 0 ? "∞" : p.MaxUses.ToString())</td>
+                            <td class="text-center">
+                                @if (!p.IsActive) { <span class="badge bg-secondary">inactive</span> }
+                                else if (valid) { <span class="badge bg-success">active</span> }
+                                else { <span class="badge bg-warning text-dark">expired</span> }
+                            </td>
+                            <td class="text-end">
+                                <a asp-action="EditPromoCode" asp-route-id="@p.Id"
+                                   class="btn btn-sm btn-outline-primary">Edit</a>
+                                <form asp-action="DeletePromoCode" method="post" class="d-inline"
+                                      onsubmit="return confirm('Delete promo code @p.Code?');">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@p.Id" />
+                                    <button class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
