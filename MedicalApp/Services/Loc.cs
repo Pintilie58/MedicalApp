@@ -360,6 +360,8 @@ namespace MedicalApp.Services
                 ["PromoCodeOptional"] = "Code promo (facultatif)",
                 ["PromoCodePlaceholder"] = "ex. Med3",
                 ["PromoCodeHint"] = "Vous avez un code promo ? Saisissez-le pour recevoir des crédits bonus.",
+                ["PromoCodeInvalid"] = "Le code promo est invalide ou expiré.",
+                ["PromoCodeValidOffer"] = "Le code promo est valide ! Il vous offrira {0} crédits bonus.",
                 ["LoginButton"] = "Se connecter",
                 ["RegisterButton"] = "Créer un compte",
                 ["Logout"] = "Déconnexion",
