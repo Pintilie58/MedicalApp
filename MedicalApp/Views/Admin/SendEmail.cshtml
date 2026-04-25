@@ -61,6 +61,13 @@
                         HTML body
                         <span class="text-muted fw-normal">(plain text is OK too)</span>
                     </label>
+                    <div class="alert alert-info small mb-2">
+                        <i class="bi bi-info-circle"></i>
+                        Each email will be wrapped automatically:<br />
+                        &nbsp;&nbsp;<strong>Header:</strong> <em>MedicalApp - Intelligent interpretation of medical analyses</em><br />
+                        &nbsp;&nbsp;<strong>Body:</strong> the text you write below<br />
+                        &nbsp;&nbsp;<strong>Footer:</strong> <em>Be smart, take care of your health!</em>
+                    </div>
                     <textarea asp-for="HtmlBody" rows="12" class="form-control font-monospace"
                               placeholder="&lt;p&gt;Hello,&lt;/p&gt;&lt;p&gt;Your message here...&lt;/p&gt;"></textarea>
                     <span asp-validation-for="HtmlBody" class="text-danger small"></span>

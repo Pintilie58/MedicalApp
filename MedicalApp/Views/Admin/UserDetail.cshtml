@@ -76,7 +76,7 @@
                     <!-- Block / Unblock -->
                     @if (!Model.IsAdmin || Model.IsBlocked)
                     {
-                        <form asp-action="ToggleBlock" method="post" class="mb-0"
+                        <form asp-action="ToggleBlock" method="post" class="mb-3 border-bottom pb-3"
                               onsubmit="return confirm(@(Model.IsBlocked ? "'Unblock this account?'" : "'Block this account? The user will not be able to log in.'"));">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="email" value="@Model.Email" />
@@ -97,7 +97,27 @@
                     }
                     else
                     {
-                        <div class="text-muted small">Admin accounts cannot be blocked.</div>
+                        <div class="text-muted small border-bottom pb-3 mb-3">Admin accounts cannot be blocked.</div>
+                    }
+
+                    <!-- Delete user -->
+                    @if (!Model.IsAdmin)
+                    {
+                        <form asp-action="DeleteUser" method="post" class="mb-0"
+                              onsubmit="return confirm('PERMANENTLY DELETE @Model.Email and ALL their data (purchases, history)? This cannot be undone.');">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="email" value="@Model.Email" />
+                            <label class="form-label small fw-semibold text-danger">Danger zone</label>
+                            <div>
+                                <button class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-trash"></i> Delete user permanently
+                                </button>
+                            </div>
+                        </form>
+                    }
+                    else
+                    {
+                        <div class="text-muted small">Admin accounts cannot be deleted.</div>
                     }
                 </div>
             </div>
