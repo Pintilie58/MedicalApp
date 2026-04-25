@@ -27,6 +27,39 @@ namespace MedicalApp.Controllers
             _adminSettings = adminOptions.Value;
             _logger = logger;
         }
+        // =====================================================================
+        //  AJAX endpoint: validate promo code in real time on the register form.
+        //  Returns JSON: { valid: bool, message: string, credits: int }
+        // =====================================================================
+        [HttpGet]
+        public async Task<IActionResult> CheckPromoCode(string code)
+        {
+            if (string.IsNullOrWhiteSpace(code))
+                return Json(new { valid = false, message = string.Empty, credits = 0 });
+
+            var codeNorm = code.Trim().ToLower();
+            var promo = await _db.PromoCodes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Code.ToLower() == codeNorm);
+
+            if (promo == null || !promo.IsCurrentlyValid())
+            {
+                return Json(new
+                {
+                    valid = false,
+                    message = Loc.T("PromoCodeInvalid"),
+                    credits = 0
+                });
+            }
+
+            return Json(new
+            {
+                valid = true,
+                message = string.Format(Loc.T("PromoCodeValidOffer"), promo.CreditsToAdd),
+                credits = promo.CreditsToAdd
+            });
+        }
+
 
         // ---------- Register (Step 1: request verification code) ----------
 
@@ -151,9 +184,9 @@ namespace MedicalApp.Controllers
             // Apply promo code (if any and valid)
             if (!string.IsNullOrWhiteSpace(pending.PromoCode))
             {
-                var codeNorm = pending.PromoCode.Trim();
+                var codeNorm = pending.PromoCode.Trim().ToLower();
                 var promo = await _db.PromoCodes
-                    .FirstOrDefaultAsync(p => p.Code == codeNorm);
+                    .FirstOrDefaultAsync(p => p.Code.ToLower() == codeNorm);
 
                 if (promo != null && promo.IsCurrentlyValid())
                 {

@@ -115,9 +115,9 @@
                                 </div>
                                 <div class="mb-3">
                                     <label asp-for="@registerModel.PromoCode" class="form-label">@Loc.T("PromoCodeOptional")</label>
-                                    <input asp-for="@registerModel.PromoCode" name="PromoCode" class="form-control font-monospace" autocomplete="off" placeholder="@Loc.T("PromoCodePlaceholder")" />
+                                    <input asp-for="@registerModel.PromoCode" name="PromoCode" id="promoCodeInput" class="form-control font-monospace" autocomplete="off" placeholder="@Loc.T("PromoCodePlaceholder")" />
                                     <span asp-validation-for="@registerModel.PromoCode" class="text-danger small"></span>
-                                    <div class="form-text">@Loc.T("PromoCodeHint")</div>
+                                    <div id="promoCodeFeedback" class="form-text">@Loc.T("PromoCodeHint")</div>
                                 </div>
                                 <button type="submit" class="btn btn-success w-100">@Loc.T("RegisterButton")</button>
                             </form>
@@ -133,4 +133,54 @@
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jquery-validation@1.19.5/dist/jquery.validate.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jquery-validation-unobtrusive@4.0.0/dist/jquery.validate.unobtrusive.min.js"></script>
+    <script>
+        // ----- Live promo code validation on register form -----
+        (function () {
+            var input = document.getElementById('promoCodeInput');
+            var feedback = document.getElementById('promoCodeFeedback');
+            if (!input || !feedback) return;
+
+            var defaultText = feedback.textContent;
+            var defaultClass = 'form-text';
+            var debounceTimer = null;
+            var lastChecked = '';
+
+            function setNeutral() {
+                feedback.className = defaultClass;
+                feedback.textContent = defaultText;
+            }
+
+            function setValid(message) {
+                feedback.className = 'form-text text-success fw-semibold';
+                feedback.textContent = message;
+            }
+
+            function setInvalid(message) {
+                feedback.className = 'form-text text-danger fw-semibold';
+                feedback.textContent = message;
+            }
+
+            input.addEventListener('input', function () {
+                var value = input.value.trim();
+                clearTimeout(debounceTimer);
+
+                if (value === '') { setNeutral(); lastChecked = ''; return; }
+                if (value === lastChecked) return;
+
+                debounceTimer = setTimeout(function () {
+                    lastChecked = value;
+                    fetch('/Account/CheckPromoCode?code=' + encodeURIComponent(value))
+                        .then(function (r) { return r.json(); })
+                        .then(function (data) {
+                            if (input.value.trim() !== value) return; // user kept typing
+                            if (data.valid) setValid(data.message);
+                            else setInvalid(data.message);
+                        })
+                        .catch(function () { /* keep neutral on network error */ });
+                }, 350);
+            });
+        })();
+    </script>
+
+
 }
