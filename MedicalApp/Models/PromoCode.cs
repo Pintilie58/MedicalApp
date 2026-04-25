@@ -34,8 +34,8 @@ namespace MedicalApp.Models
         // ----- helpers -----
         public bool IsCurrentlyValid() =>
             IsActive
-            && DateTime.UtcNow >= ValidFrom
-            && DateTime.UtcNow <= ValidUntil
+            && DateTime.Now >= ValidFrom
+            && DateTime.Now <= ValidUntil
             && (MaxUses == 0 || TimesUsed < MaxUses);
     }
 }
