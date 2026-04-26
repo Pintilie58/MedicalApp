@@ -43,6 +43,10 @@ namespace MedicalApp.Controllers
             var totalConsumed = await _db.Users.SumAsync(u => (int?)u.CreditConsum) ?? 0;
             var totalRemaining = await _db.Users.SumAsync(u => (int?)u.CreditRest) ?? 0;
 
+            var totalBonusGranted = await _db.Users.SumAsync(u => (int?)u.BonusCredits) ?? 0;
+            var totalBonusConsumed = await _db.Users.SumAsync(u => (int?)u.BonusCreditsConsumed) ?? 0;
+            var totalBonusRemaining = totalBonusGranted - totalBonusConsumed;
+
             var totalRevenue = await _db.Purchases.SumAsync(p => (decimal?)p.AmountEur) ?? 0m;
             var revenue30 = await _db.Purchases
                 .Where(p => p.PurchasedAt >= cutoff30)
