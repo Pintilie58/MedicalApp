@@ -20,10 +20,16 @@ namespace MedicalApp.Controllers
         // ---------- Buy: show package selection ----------
 
         [HttpGet]
-        public IActionResult Buy()
+        public async Task<IActionResult> Buy()
         {
-            if (string.IsNullOrEmpty(HttpContext.Session.GetString("UserEmail")))
+            var email = HttpContext.Session.GetString("UserEmail");
+            if (string.IsNullOrEmpty(email))
                 return RedirectToAction("Index", "Home");
+
+            var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Email == email);
+            ViewBag.PaidRemaining = user?.CreditRest ?? 0;
+            ViewBag.BonusRemaining = user?.BonusCreditsRemaining ?? 0;
+            ViewBag.TotalAvailable = user?.TotalAvailableCredits ?? 0;
 
             return View(CreditPackages.All);
         }

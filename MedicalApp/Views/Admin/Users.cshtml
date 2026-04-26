@@ -45,9 +45,10 @@
                         <th>Email</th>
                         <th>Registered</th>
                         <th>Last login</th>
-                        <th class="text-end">Credits bought</th>
-                        <th class="text-end">Consumed</th>
-                        <th class="text-end">Remaining</th>
+                        <th class="text-end">Paid bought</th>
+                        <th class="text-end">Paid consum.</th>
+                        <th class="text-end">Paid left</th>
+                        <th class="text-end">Bonus left</th>
                         <th class="text-end">Total paid</th>
                         <th class="text-center">Flags</th>
                         <th></th>
@@ -56,7 +57,7 @@
                 <tbody>
                     @if (!Model.Any())
                     {
-                        <tr><td colspan="9" class="text-muted text-center py-4">No users found.</td></tr>
+                        <tr><td colspan="10" class="text-muted text-center py-4">No users found.</td></tr>
                     }
                     @foreach (var u in Model)
                     {
@@ -67,10 +68,17 @@
                             <td class="text-end">@u.Credite</td>
                             <td class="text-end">@u.CreditConsum</td>
                             <td class="text-end fw-semibold">@u.CreditRest</td>
+                            <td class="text-end fw-semibold text-warning">@u.BonusCreditsRemaining</td>
                             <td class="text-end fw-semibold">@u.TotalPaid.ToString("F2") €</td>
                             <td class="text-center">
-                                @if (u.IsAdmin) { <span class="badge bg-warning text-dark">admin</span> }
-                                @if (u.IsBlocked) { <span class="badge bg-danger">blocked</span> }
+                                @if (u.IsAdmin)
+                                {
+                                    <span class="badge bg-warning text-dark">admin</span>
+                                }
+                                @if (u.IsBlocked)
+                                {
+                                    <span class="badge bg-danger">blocked</span>
+                                }
                             </td>
                             <td>
                                 <a asp-action="UserDetail" asp-route-email="@u.Email"

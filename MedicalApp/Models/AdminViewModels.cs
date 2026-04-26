@@ -72,6 +72,10 @@ namespace MedicalApp.Models
         public int TotalCreditsConsumed { get; set; }
         public int TotalCreditsRemaining { get; set; }
 
+        public int TotalBonusGranted { get; set; }
+        public int TotalBonusConsumed { get; set; }
+        public int TotalBonusRemaining { get; set; }
+
         public decimal TotalRevenueEur { get; set; }
         public decimal RevenueLast30DaysEur { get; set; }
         public int PurchasesLast30Days { get; set; }

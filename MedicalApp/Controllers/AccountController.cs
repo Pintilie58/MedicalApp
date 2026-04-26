@@ -27,13 +27,26 @@ namespace MedicalApp.Controllers
             _adminSettings = adminOptions.Value;
             _logger = logger;
         }
+
         // =====================================================================
         //  AJAX endpoint: validate promo code in real time on the register form.
         //  Returns JSON: { valid: bool, message: string, credits: int }
         // =====================================================================
         [HttpGet]
-        public async Task<IActionResult> CheckPromoCode(string code)
+        public async Task<IActionResult> CheckPromoCode(string code, string? lang = null)
         {
+            // Force the requested language on this thread so Loc.T returns the right strings
+            if (!string.IsNullOrWhiteSpace(lang))
+            {
+                try
+                {
+                    var ci = new System.Globalization.CultureInfo(lang);
+                    System.Globalization.CultureInfo.CurrentCulture = ci;
+                    System.Globalization.CultureInfo.CurrentUICulture = ci;
+                }
+                catch { /* invalid lang -> keep request culture */ }
+            }
+
             if (string.IsNullOrWhiteSpace(code))
                 return Json(new { valid = false, message = string.Empty, credits = 0 });
 
@@ -59,7 +72,6 @@ namespace MedicalApp.Controllers
                 credits = promo.CreditsToAdd
             });
         }
-
 
         // ---------- Register (Step 1: request verification code) ----------
 
@@ -181,7 +193,10 @@ namespace MedicalApp.Controllers
                 IsAdmin = _adminSettings.IsAdminEmail(pending.Email)
             };
 
-            // Apply promo code (if any and valid)
+            // Apply promo code (if any and valid) - case-insensitive lookup.
+            // Promo credits go to the SEPARATE Bonus pool, NOT to user.Credite (paid).
+            int bonusGranted = 0;
+            string? appliedCode = null;
             if (!string.IsNullOrWhiteSpace(pending.PromoCode))
             {
                 var codeNorm = pending.PromoCode.Trim().ToLower();
@@ -190,11 +205,13 @@ namespace MedicalApp.Controllers
 
                 if (promo != null && promo.IsCurrentlyValid())
                 {
-                    user.Credite += promo.CreditsToAdd;
-                    user.CreditRest = user.Credite - user.CreditConsum;
+                    user.BonusCredits = promo.CreditsToAdd;
+                    user.BonusCreditsConsumed = 0;
+                    bonusGranted = promo.CreditsToAdd;
+                    appliedCode = promo.Code;
                     promo.TimesUsed++;
                     _logger.LogInformation(
-                        "Promo code {Code} redeemed by {Email} for {Credits} credits.",
+                        "Promo code {Code} redeemed by {Email} for {Credits} bonus credits.",
                         promo.Code, pending.Email, promo.CreditsToAdd);
                 }
                 else
@@ -209,7 +226,21 @@ namespace MedicalApp.Controllers
             await _db.SaveChangesAsync();
             _pendingStore.Remove(email);
 
-            TempData["SuccessMessage"] = Loc.T("RegistrationSuccess");
+            // Build success message with promo info, so the user clearly sees the bonus
+            if (bonusGranted > 0)
+            {
+                TempData["SuccessMessage"] = string.Format(
+                    Loc.T("RegistrationSuccessWithPromo"),
+                    bonusGranted, appliedCode);
+            }
+            else if (!string.IsNullOrWhiteSpace(pending.PromoCode))
+            {
+                TempData["SuccessMessage"] = Loc.T("RegistrationSuccessPromoInvalid");
+            }
+            else
+            {
+                TempData["SuccessMessage"] = Loc.T("RegistrationSuccess");
+            }
             TempData["ActiveTab"] = "login";
             return RedirectToAction("Index", "Home");
         }

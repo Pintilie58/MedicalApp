@@ -15,6 +15,17 @@
         <div class="alert alert-warning text-center">@lowCreditsWarning</div>
     }
 
+    <div class="alert alert-info d-flex justify-content-center align-items-center gap-3 flex-wrap">
+        <span><strong>@Loc.T("PaidCreditsLabel"):</strong> @ViewBag.PaidRemaining</span>
+        <span class="text-muted">|</span>
+        <span><strong>@Loc.T("BonusCreditsLabel"):</strong> @ViewBag.BonusRemaining</span>
+        <span class="text-muted">|</span>
+        <span>
+            <strong>@Loc.T("TotalAvailableLabel"):</strong>
+            <span class="fw-bold text-success">@ViewBag.TotalAvailable</span>
+        </span>
+    </div>
+
     <div class="row g-4 justify-content-center">
         @foreach (var pkg in Model)
         {

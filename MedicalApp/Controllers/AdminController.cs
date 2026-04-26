@@ -43,6 +43,10 @@ namespace MedicalApp.Controllers
             var totalConsumed = await _db.Users.SumAsync(u => (int?)u.CreditConsum) ?? 0;
             var totalRemaining = await _db.Users.SumAsync(u => (int?)u.CreditRest) ?? 0;
 
+            var totalBonusGranted = await _db.Users.SumAsync(u => (int?)u.BonusCredits) ?? 0;
+            var totalBonusConsumed = await _db.Users.SumAsync(u => (int?)u.BonusCreditsConsumed) ?? 0;
+            var totalBonusRemaining = totalBonusGranted - totalBonusConsumed;
+
             var totalRevenue = await _db.Purchases.SumAsync(p => (decimal?)p.AmountEur) ?? 0m;
             var revenue30 = await _db.Purchases
                 .Where(p => p.PurchasedAt >= cutoff30)
@@ -93,6 +97,9 @@ namespace MedicalApp.Controllers
                 TotalCreditsPurchased = totalBought,
                 TotalCreditsConsumed = totalConsumed,
                 TotalCreditsRemaining = totalRemaining,
+                TotalBonusGranted = totalBonusGranted,
+                TotalBonusConsumed = totalBonusConsumed,
+                TotalBonusRemaining = totalBonusRemaining,
                 TotalRevenueEur = totalRevenue,
                 RevenueLast30DaysEur = revenue30,
                 PurchasesLast30Days = purchases30,
@@ -189,13 +196,12 @@ namespace MedicalApp.Controllers
                 return RedirectToAction(nameof(Users));
             }
 
-            user.Credite += credits;
-            user.CreditRest = user.Credite - user.CreditConsum;
+            user.BonusCredits += credits;
             await _db.SaveChangesAsync();
 
-            _logger.LogInformation("Admin gave {Credits} free credits to {Email}. Reason: {Reason}",
+            _logger.LogInformation("Admin gave {Credits} bonus credits to {Email}. Reason: {Reason}",
                 credits, e, reason ?? "(none)");
-            TempData["SuccessMessage"] = $"Added {credits} credits to {e}.";
+            TempData["SuccessMessage"] = $"Added {credits} BONUS credits to {e}.";
             return RedirectToAction(nameof(UserDetail), new { email = e });
         }
 
@@ -247,6 +253,7 @@ namespace MedicalApp.Controllers
 
             return RedirectToAction(nameof(UserDetail), new { email = e });
         }
+
         // =====================================================================
         //  Delete user (and all related data)
         // =====================================================================
@@ -281,6 +288,7 @@ namespace MedicalApp.Controllers
             TempData["SuccessMessage"] = $"User {e} and all related data were deleted.";
             return RedirectToAction(nameof(Users));
         }
+
         // =====================================================================
         //  Block / Unblock user
         // =====================================================================
@@ -350,13 +358,8 @@ namespace MedicalApp.Controllers
             {
                 try
                 {
-                    // await _emailService.SendEmailAsync(email, model.Subject, model.HtmlBody);
                     var wrappedBody = WrapBulkEmailHtml(model.HtmlBody);
                     await _emailService.SendEmailAsync(email, model.Subject, wrappedBody);
-
-
-
-
                     sent++;
                 }
                 catch (Exception ex)
@@ -369,6 +372,7 @@ namespace MedicalApp.Controllers
             TempData["SuccessMessage"] = $"Email sent to {sent} users (failed: {failed}).";
             return RedirectToAction(nameof(SendEmail), new { filter = model.Filter });
         }
+
         /// <summary>
         /// Wraps the admin-typed HTML body with a branded header and footer
         /// so every bulk email looks consistent.
@@ -387,7 +391,6 @@ namespace MedicalApp.Controllers
   </div>
 </div>";
 
-
         private async Task<List<string>> ResolveRecipients(string filter)
         {
             var now = DateTime.UtcNow;
@@ -395,11 +398,11 @@ namespace MedicalApp.Controllers
 
             q = filter switch
             {
-                "paying"          => q.Where(u => u.TotalPaid > 0),
-                "with_credits"    => q.Where(u => u.CreditRest > 0),
+                "paying" => q.Where(u => u.TotalPaid > 0),
+                "with_credits" => q.Where(u => u.CreditRest > 0),
                 "registered_last_30_days" => q.Where(u => u.DataC >= now.AddDays(-30)),
-                "blocked"         => _db.Users.Where(u => u.IsBlocked),
-                _                 => q
+                "blocked" => _db.Users.Where(u => u.IsBlocked),
+                _ => q
             };
 
             return await q.Select(u => u.Email).ToListAsync();

@@ -31,14 +31,34 @@
                 <div class="card-header bg-primary text-white fw-semibold">Profile</div>
                 <div class="card-body">
                     <dl class="row mb-0 small">
-                        <dt class="col-5">Registered</dt><dd class="col-7">@Model.DataC.ToString("dd/MM/yyyy HH:mm")</dd>
-                        <dt class="col-5">Last login</dt><dd class="col-7">@(Model.LastLoginAt?.ToString("dd/MM/yyyy HH:mm") ?? "-")</dd>
-                        <dt class="col-5">Credits purchased</dt><dd class="col-7">@Model.Credite</dd>
-                        <dt class="col-5">Consumed</dt><dd class="col-7">@Model.CreditConsum</dd>
-                        <dt class="col-5">Remaining</dt><dd class="col-7 fw-bold">@Model.CreditRest</dd>
-                        <dt class="col-5">Total paid</dt><dd class="col-7 fw-bold">@Model.TotalPaid.ToString("F2") €</dd>
-                        <dt class="col-5">Admin</dt><dd class="col-7">@(Model.IsAdmin ? "Yes" : "No")</dd>
-                        <dt class="col-5">Blocked</dt><dd class="col-7">@(Model.IsBlocked ? "Yes" : "No")</dd>
+                        <dt class="col-5">Registered</dt>
+                        <dd class="col-7">@Model.DataC.ToString("dd/MM/yyyy HH:mm")</dd>
+                        <dt class="col-5">Last login</dt>
+                        <dd class="col-7">@(Model.LastLoginAt?.ToString("dd/MM/yyyy HH:mm") ?? "-")</dd>
+                        <dt class="col-5 mt-2 fw-bold text-primary">Paid credits</dt>
+                        <dd class="col-7 mt-2"></dd>
+                        <dt class="col-5 ps-3">Purchased</dt>
+                        <dd class="col-7">@Model.Credite</dd>
+                        <dt class="col-5 ps-3">Consumed</dt>
+                        <dd class="col-7">@Model.CreditConsum</dd>
+                        <dt class="col-5 ps-3">Remaining</dt>
+                        <dd class="col-7 fw-bold">@Model.CreditRest</dd>
+                        <dt class="col-5 mt-2 fw-bold text-warning">Bonus credits</dt>
+                        <dd class="col-7 mt-2"></dd>
+                        <dt class="col-5 ps-3">Granted</dt>
+                        <dd class="col-7">@Model.BonusCredits</dd>
+                        <dt class="col-5 ps-3">Consumed</dt>
+                        <dd class="col-7">@Model.BonusCreditsConsumed</dd>
+                        <dt class="col-5 ps-3">Remaining</dt>
+                        <dd class="col-7 fw-bold">@Model.BonusCreditsRemaining</dd>
+                        <dt class="col-5 mt-2 fw-bold text-success">Total available</dt>
+                        <dd class="col-7 mt-2 fw-bold text-success">@Model.TotalAvailableCredits</dd>
+                        <dt class="col-5 mt-2">Total paid</dt>
+                        <dd class="col-7 mt-2 fw-bold">@Model.TotalPaid.ToString("F2") €</dd>
+                        <dt class="col-5">Admin</dt>
+                        <dd class="col-7">@(Model.IsAdmin ? "Yes" : "No")</dd>
+                        <dt class="col-5">Blocked</dt>
+                        <dd class="col-7">@(Model.IsBlocked ? "Yes" : "No")</dd>
                     </dl>
                 </div>
             </div>
@@ -52,7 +72,7 @@
                     <form asp-action="GiveCredits" method="post" class="mb-3 border-bottom pb-3">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="email" value="@Model.Email" />
-                        <label class="form-label small fw-semibold">Give free credits</label>
+                        <label class="form-label small fw-semibold">Give free BONUS credits</label>
                         <div class="input-group input-group-sm">
                             <input type="number" name="credits" value="1" min="1" max="1000" class="form-control" />
                             <input type="text" name="reason" placeholder="Reason (optional)" class="form-control" />
@@ -72,6 +92,7 @@
                             </button>
                         </div>
                     </form>
+
                     <!-- Block / Unblock -->
                     @if (!Model.IsAdmin || Model.IsBlocked)
                     {
@@ -118,7 +139,6 @@
                     {
                         <div class="text-muted small">Admin accounts cannot be deleted.</div>
                     }
-                   
                 </div>
             </div>
         </div>
