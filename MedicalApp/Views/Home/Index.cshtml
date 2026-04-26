@@ -140,6 +140,16 @@
             var feedback = document.getElementById('promoCodeFeedback');
             if (!input || !feedback) return;
 
+            // Detect current UI language from <html lang="...">,
+            // fallback to .AspNetCore.Culture cookie, fallback to "en".
+            function getLang() {
+                var htmlLang = document.documentElement.getAttribute('lang');
+                if (htmlLang) return htmlLang.substring(0, 2).toLowerCase();
+                var m = document.cookie.match(/\.AspNetCore\.Culture=c%3D([a-zA-Z\-]+)/);
+                if (m) return m[1].substring(0, 2).toLowerCase();
+                return 'en';
+            }
+
             var defaultText = feedback.textContent;
             var defaultClass = 'form-text';
             var debounceTimer = null;
@@ -169,7 +179,9 @@
 
                 debounceTimer = setTimeout(function () {
                     lastChecked = value;
-                    fetch('/Account/CheckPromoCode?code=' + encodeURIComponent(value))
+                    var url = '/Account/CheckPromoCode?code=' + encodeURIComponent(value)
+                              + '&lang=' + encodeURIComponent(getLang());
+                    fetch(url, { credentials: 'same-origin' })
                         .then(function (r) { return r.json(); })
                         .then(function (data) {
                             if (input.value.trim() !== value) return; // user kept typing

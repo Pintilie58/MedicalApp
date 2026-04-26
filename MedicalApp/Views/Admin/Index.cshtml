@@ -37,9 +37,12 @@
                 ("Total revenue",     $"{Model.TotalRevenueEur:F2} €",         "success", "bi-cash-stack"),
                 ("Revenue 30d",       $"{Model.RevenueLast30DaysEur:F2} €",    "success", "bi-graph-up"),
                 ("Purchases 30d",     Model.PurchasesLast30Days.ToString(),    "primary", "bi-bag-check"),
-                ("Credits purchased", Model.TotalCreditsPurchased.ToString(),  "primary", "bi-coin"),
-                ("Credits consumed",  Model.TotalCreditsConsumed.ToString(),   "secondary","bi-fire"),
-                ("Credits remaining", Model.TotalCreditsRemaining.ToString(),  "info",    "bi-wallet2"),
+                ("Paid credits bought",   Model.TotalCreditsPurchased.ToString(),  "primary", "bi-coin"),
+                ("Paid credits consumed", Model.TotalCreditsConsumed.ToString(),   "secondary","bi-fire"),
+                ("Paid credits remaining",Model.TotalCreditsRemaining.ToString(),  "info",    "bi-wallet2"),
+                ("Bonus granted",     Model.TotalBonusGranted.ToString(),      "warning", "bi-gift"),
+                ("Bonus consumed",    Model.TotalBonusConsumed.ToString(),     "secondary","bi-fire"),
+                ("Bonus remaining",   Model.TotalBonusRemaining.ToString(),    "warning", "bi-stars"),
                 ("Active promo codes",Model.ActivePromoCodes.ToString(),       "warning", "bi-ticket-perforated")
             };
         }

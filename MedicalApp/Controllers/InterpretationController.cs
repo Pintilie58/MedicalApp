@@ -46,13 +46,15 @@ namespace MedicalApp.Controllers
                 return RedirectToAction("Index", "Home");
             }
 
-            if (user.CreditRest <= 0)
+            if (user.CreditRest <= 0 && user.BonusCreditsRemaining <= 0)
             {
                 TempData["ErrorMessage"] = Loc.T("NoCreditsBody");
                 return RedirectToAction("Buy", "Credits");
             }
 
             ViewBag.CreditRest = user.CreditRest;
+            ViewBag.BonusCreditsRemaining = user.BonusCreditsRemaining;
+            ViewBag.TotalAvailableCredits = user.TotalAvailableCredits;
             return View(new InterpretationUploadViewModel());
         }
 
@@ -71,7 +73,7 @@ namespace MedicalApp.Controllers
                 return RedirectToAction("Index", "Home");
             }
 
-            if (user.CreditRest <= 0)
+            if (user.CreditRest <= 0 && user.BonusCreditsRemaining <= 0)
             {
                 TempData["ErrorMessage"] = Loc.T("NoCreditsBody");
                 return RedirectToAction("Buy", "Credits");
@@ -198,9 +200,16 @@ namespace MedicalApp.Controllers
                 return RedirectToAction(nameof(Upload));
             }
 
-            // 6) Consume 1 credit (SUCCESS)
-            user.CreditConsum += 1;
-            user.CreditRest = user.Credite - user.CreditConsum;
+            // 6) Consume 1 credit (SUCCESS) - bonus first, then paid
+            if (user.BonusCreditsRemaining > 0)
+            {
+                user.BonusCreditsConsumed += 1;
+            }
+            else
+            {
+                user.CreditConsum += 1;
+                user.CreditRest = user.Credite - user.CreditConsum;
+            }
             await _db.SaveChangesAsync();
 
             await SaveHistory(user.Email, originalFileName, languageCode, "success", null, 1, inputTokens, outputTokens);

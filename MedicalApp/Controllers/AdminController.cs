@@ -93,6 +93,9 @@ namespace MedicalApp.Controllers
                 TotalCreditsPurchased = totalBought,
                 TotalCreditsConsumed = totalConsumed,
                 TotalCreditsRemaining = totalRemaining,
+                TotalBonusGranted = totalBonusGranted,
+                TotalBonusConsumed = totalBonusConsumed,
+                TotalBonusRemaining = totalBonusRemaining,
                 TotalRevenueEur = totalRevenue,
                 RevenueLast30DaysEur = revenue30,
                 PurchasesLast30Days = purchases30,
@@ -189,13 +192,12 @@ namespace MedicalApp.Controllers
                 return RedirectToAction(nameof(Users));
             }
 
-            user.Credite += credits;
-            user.CreditRest = user.Credite - user.CreditConsum;
+            user.BonusCredits += credits;
             await _db.SaveChangesAsync();
 
-            _logger.LogInformation("Admin gave {Credits} free credits to {Email}. Reason: {Reason}",
+            _logger.LogInformation("Admin gave {Credits} bonus credits to {Email}. Reason: {Reason}",
                 credits, e, reason ?? "(none)");
-            TempData["SuccessMessage"] = $"Added {credits} credits to {e}.";
+            TempData["SuccessMessage"] = $"Added {credits} BONUS credits to {e}.";
             return RedirectToAction(nameof(UserDetail), new { email = e });
         }
 

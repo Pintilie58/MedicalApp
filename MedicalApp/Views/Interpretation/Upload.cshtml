@@ -15,9 +15,14 @@
                 <p class="text-muted">@Loc.T("InterpretIntro")</p>
             </div>
 
-            <div class="alert alert-info d-flex justify-content-between align-items-center">
+            <div class="alert alert-info d-flex justify-content-between align-items-center flex-wrap">
                 <div>
-                    <strong>@Loc.T("CreditsRemainingLabel"):</strong> @creditRest
+                    <strong>@Loc.T("PaidCreditsLabel"):</strong> @ViewBag.CreditRest
+                    &nbsp;|&nbsp;
+                    <strong>@Loc.T("BonusCreditsLabel"):</strong> @ViewBag.BonusCreditsRemaining
+                    &nbsp;|&nbsp;
+                    <strong>@Loc.T("TotalAvailableLabel"):</strong>
+                    <span class="fw-bold text-success">@ViewBag.TotalAvailableCredits</span>
                 </div>
                 <small class="text-muted">@Loc.T("OneCreditPerInterpretation")</small>
             </div>

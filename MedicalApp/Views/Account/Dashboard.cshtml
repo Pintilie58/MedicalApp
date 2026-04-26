@@ -2,8 +2,9 @@
 @{
     ViewData["Title"] = Loc.T("WelcomeBack");
     var successMessage = TempData["SuccessMessage"] as string;
-    var outOfCredits = Model.CreditRest <= 0;
-    var lowCredits = Model.CreditRest > 0 && Model.CreditRest <= 5;
+    var totalAvail = Model.TotalAvailableCredits;
+    var outOfCredits = totalAvail <= 0;
+    var lowCredits = totalAvail > 0 && totalAvail <= 5;
 }
 
 <div class="container py-5">
@@ -30,7 +31,7 @@
                 <div class="alert alert-warning d-flex justify-content-between align-items-center">
                     <div>
                         <strong>@Loc.T("LowCreditsTitle")</strong>
-                        <div>@string.Format(Loc.T("LowCreditsBody"), Model.CreditRest)</div>
+                        <div>@string.Format(Loc.T("LowCreditsBody"), totalAvail)</div>
                     </div>
                     <a asp-controller="Credits" asp-action="Buy" class="btn btn-warning">@Loc.T("BuyMoreCredits")</a>
                 </div>
@@ -44,29 +45,36 @@
                 </div>
             </div>
 
-            <!-- Credit balance -->
+            <!-- Credit balance: paid + bonus + total -->
             <div class="row g-3 mb-4">
                 <div class="col-md-4">
                     <div class="card border-0 shadow-sm text-center h-100">
                         <div class="card-body">
-                            <div class="text-muted small text-uppercase">@Loc.T("CreditsTotalLabel")</div>
-                            <div class="display-5 fw-bold text-secondary">@Model.Credite</div>
+                            <div class="text-muted small text-uppercase">@Loc.T("PaidCreditsLabel")</div>
+                            <div class="display-5 fw-bold text-primary">@Model.CreditRest</div>
+                            <div class="small text-muted">
+                                @string.Format(Loc.T("OfPurchasedFormat"), Model.Credite)
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="card border-0 shadow-sm text-center h-100">
                         <div class="card-body">
-                            <div class="text-muted small text-uppercase">@Loc.T("CreditsUsedLabel")</div>
-                            <div class="display-5 fw-bold text-info">@Model.CreditConsum</div>
+                            <div class="text-muted small text-uppercase">@Loc.T("BonusCreditsLabel")</div>
+                            <div class="display-5 fw-bold text-warning">@Model.BonusCreditsRemaining</div>
+                            <div class="small text-muted">
+                                @string.Format(Loc.T("OfBonusGrantedFormat"), Model.BonusCredits)
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="card border-0 shadow-lg text-center h-100 @(outOfCredits ? "border-danger" : "border-success")">
                         <div class="card-body">
-                            <div class="text-muted small text-uppercase">@Loc.T("CreditsRemainingLabel")</div>
-                            <div class="display-3 fw-bold @(outOfCredits ? "text-danger" : "text-success")">@Model.CreditRest</div>
+                            <div class="text-muted small text-uppercase">@Loc.T("TotalAvailableLabel")</div>
+                            <div class="display-3 fw-bold @(outOfCredits ? "text-danger" : "text-success")">@totalAvail</div>
+                            <div class="small text-muted">@Loc.T("BonusConsumedFirstHint")</div>
                         </div>
                     </div>
                 </div>

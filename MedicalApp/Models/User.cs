@@ -41,5 +41,23 @@ namespace MedicalApp.Models
 
         /// <summary>When true the user has admin dashboard access.</summary>
         public bool IsAdmin { get; set; } = false;
+
+        // ----- Bonus credits tracking (separate from paid credits) -----
+
+        /// <summary>Total bonus credits the user has ever received (promo codes, gifts).</summary>
+        public int BonusCredits { get; set; } = 0;
+
+        /// <summary>Bonus credits consumed so far. Bonus credits are consumed FIRST.</summary>
+        public int BonusCreditsConsumed { get; set; } = 0;
+
+        // ----- Computed (NOT mapped to DB) -----
+
+        /// <summary>Bonus credits still available.</summary>
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public int BonusCreditsRemaining => BonusCredits - BonusCreditsConsumed;
+
+        /// <summary>Total credits the user can still spend (paid + bonus remaining).</summary>
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public int TotalAvailableCredits => CreditRest + BonusCreditsRemaining;
     }
 }
