@@ -4,6 +4,7 @@ using MedicalApp.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
+using System.Net.Http;
 
 namespace MedicalApp.Controllers
 {
@@ -126,20 +127,46 @@ namespace MedicalApp.Controllers
                 return RedirectToAction(nameof(Upload));
             }
 
-            // 2) Call OpenAI for interpretation
+            // 2) Call OpenAI for interpretation - with auto-retry on transient errors (timeout, network)
             InterpretationResult result;
             int inputTokens, outputTokens;
             string rawGptResponse;
-            try
+
+            const int maxAttempts = 2;
+            int attempt = 0;
+            Exception? lastException = null;
+
+            while (true)
             {
-                (result, inputTokens, outputTokens, rawGptResponse) = await _ai.InterpretAsync(extractedText, languageCode);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "OpenAI interpretation failed");
-                await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, null, null);
-                TempData["ErrorMessage"] = Loc.T("InterpretationFailed");
-                return RedirectToAction(nameof(Upload));
+                attempt++;
+                try
+                {
+                    (result, inputTokens, outputTokens, rawGptResponse) = await _ai.InterpretAsync(extractedText, languageCode);
+                    break; // success
+                }
+                catch (OperationCanceledException ex) when (attempt < maxAttempts)
+                {
+                    // Timeout or network cancellation -> retry once
+                    _logger.LogWarning(ex, "OpenAI call timed out (attempt {Attempt}/{Max}). Retrying...", attempt, maxAttempts);
+                    lastException = ex;
+                    await Task.Delay(2000); // small backoff
+                }
+                catch (HttpRequestException ex) when (attempt < maxAttempts)
+                {
+                    _logger.LogWarning(ex, "OpenAI HTTP error (attempt {Attempt}/{Max}). Retrying...", attempt, maxAttempts);
+                    lastException = ex;
+                    await Task.Delay(2000);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "OpenAI interpretation failed after {Attempt} attempt(s)", attempt);
+                    await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, null, null);
+                    var msgKey = (ex is OperationCanceledException || ex is HttpRequestException)
+                        ? "InterpretationTimeout"
+                        : "InterpretationFailed";
+                    TempData["ErrorMessage"] = Loc.T(msgKey);
+                    return RedirectToAction(nameof(Upload));
+                }
             }
 
             // 3) If non-medical, reject without consuming credit
