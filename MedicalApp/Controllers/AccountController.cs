@@ -107,7 +107,12 @@ namespace MedicalApp.Controllers
                 HashedPassword = BCrypt.Net.BCrypt.HashPassword(model.Parola),
                 VerificationCode = code,
                 ExpiresAt = DateTime.UtcNow.AddMinutes(10),
-                AttemptsLeft = 5
+                AttemptsLeft = 5,
+                // Persist the promo code typed at register, so it can be applied
+                // on successful email verification (VerifyEmail action).
+                PromoCode = string.IsNullOrWhiteSpace(model.PromoCode)
+                    ? null
+                    : model.PromoCode.Trim()
             });
 
             try

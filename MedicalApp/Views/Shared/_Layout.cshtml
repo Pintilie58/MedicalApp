@@ -14,27 +14,52 @@
         <nav class="navbar navbar-expand-sm navbar-dark bg-dark">
             <div class="container">
                 <a class="navbar-brand" asp-controller="Home" asp-action="Index">@Loc.T("AppTitle")</a>
-               <div class="ms-auto d-flex align-items-center gap-2">
+                <div class="ms-auto d-flex align-items-center gap-2">
                     @if (!string.IsNullOrEmpty(Context.Session.GetString("UserEmail")))
                     {
                         var _layoutEmail = Context.Session.GetString("UserEmail")!;
                         var _layoutDb = Context.RequestServices.GetService(typeof(AppDbContext)) as AppDbContext;
                         var _layoutUser = _layoutDb?.Users.AsNoTracking().FirstOrDefault(u => u.Email == _layoutEmail);
 
+                        if (_layoutUser != null)
+                        {
+                            // Credits widget: shows paid + bonus, color-coded by total available
+                            var _navPaid = _layoutUser.CreditRest;
+                            var _navBonus = _layoutUser.BonusCreditsRemaining;
+                            var _navTotal = _navPaid + _navBonus;
+                            var _navBadgeClass = _navTotal <= 0 ? "bg-danger"
+                            : _navTotal <= 5 ? "bg-warning text-dark"
+                            : "bg-success";
+                            var _navTooltip = string.Format(Loc.T("NavCreditsTooltip"), _navPaid, _navBonus);
+
+                            <a asp-controller="Account" asp-action="Dashboard"
+                               class="d-inline-flex align-items-center text-decoration-none me-2"
+                               title="@_navTooltip" data-testid="navbar-credits-widget">
+                                <span class="badge @_navBadgeClass fw-bold py-2 px-3"
+                                      style="font-size: 0.85rem; border-radius: 20px;">
+                                    &#128176; @_navTotal
+                                    @if (_navBonus > 0)
+                                    {
+                                        <span class="ms-1 small fw-normal">(+@_navBonus @Loc.T("BonusShort"))</span>
+                                    }
+                                </span>
+                            </a>
+                        }
+
                         if (_layoutUser != null && _layoutUser.IsAdmin)
-    {
+                        {
                             <a asp-controller="Admin" asp-action="Index"
                                class="btn btn-sm btn-warning fw-bold" data-testid="admin-nav-link">
                                 &#9881; Admin
                             </a>
-    }
+                        }
                         <span class="text-white small me-2">@_layoutEmail</span>
                         <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
                             @Html.AntiForgeryToken()
                             <button type="submit" class="btn btn-sm btn-outline-light">@Loc.T("Logout")</button>
                         </form>
                     }
-                    </div>
+                </div>
             </div>
         </nav>
     </header>
