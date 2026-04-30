@@ -13,8 +13,8 @@ namespace MedicalApp.Services
     {
         public string ApiKey { get; set; } = string.Empty;
         public string Model { get; set; } = "gemini-2.5-flash";
-        public int MaxOutputTokens { get; set; } = 16000;
+        public int MaxOutputTokens { get; set; } = 32000;
         public float Temperature { get; set; } = 0.0f;
-        public int TimeoutSeconds { get; set; } = 180;
+        public int TimeoutSeconds { get; set; } = 300;
     }
 }

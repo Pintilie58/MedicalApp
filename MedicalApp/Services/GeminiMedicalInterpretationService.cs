@@ -94,19 +94,41 @@ namespace MedicalApp.Services
 
             // 4) Parse the wrapper to extract the JSON the model produced
             string modelText;
+            string finishReason = "";
             int inputTokens = 0, outputTokens = 0;
             try
             {
                 using var doc = JsonDocument.Parse(responseString);
                 var root = doc.RootElement;
 
+                // Validate candidates exist (Gemini may block content with safety filters)
+                if (!root.TryGetProperty("candidates", out var candidates) || candidates.GetArrayLength() == 0)
+                {
+                    var promptFeedback = root.TryGetProperty("promptFeedback", out var pf)
+                        ? pf.ToString() : "(no feedback)";
+                    _logger.LogError("Gemini returned no candidates. promptFeedback: {Feedback}. Body: {Body}",
+                        promptFeedback, Truncate(responseString, 1000));
+                    throw new InvalidOperationException(
+                        "Gemini returned no candidates (possibly blocked by safety filters).");
+                }
+
+                var candidate = candidates[0];
+                if (candidate.TryGetProperty("finishReason", out var fr))
+                    finishReason = fr.GetString() ?? "";
+
                 // candidates[0].content.parts[0].text  -> the JSON string we asked the model to produce
-                modelText = root
-                    .GetProperty("candidates")[0]
-                    .GetProperty("content")
-                    .GetProperty("parts")[0]
-                    .GetProperty("text")
-                    .GetString() ?? string.Empty;
+                if (!candidate.TryGetProperty("content", out var contentEl)
+                    || !contentEl.TryGetProperty("parts", out var parts)
+                    || parts.GetArrayLength() == 0
+                    || !parts[0].TryGetProperty("text", out var textEl))
+                {
+                    _logger.LogError("Gemini candidate has no text part. finishReason={Finish}. Body: {Body}",
+                        finishReason, Truncate(responseString, 1500));
+                    throw new InvalidOperationException(
+                        $"Gemini returned an empty response (finishReason={finishReason}).");
+                }
+
+                modelText = textEl.GetString() ?? string.Empty;
 
                 if (root.TryGetProperty("usageMetadata", out var usage))
                 {
@@ -116,6 +138,7 @@ namespace MedicalApp.Services
                         outputTokens = ct2.GetInt32();
                 }
             }
+            catch (InvalidOperationException) { throw; }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Could not parse Gemini wrapper response. Body: {Body}",
@@ -123,24 +146,38 @@ namespace MedicalApp.Services
                 throw new InvalidOperationException("Gemini returned an unrecognized response shape.", ex);
             }
 
-            _logger.LogInformation("Gemini response received. Tokens in={In} out={Out}", inputTokens, outputTokens);
+            _logger.LogInformation(
+                "Gemini response received. Tokens in={In} out={Out}. FinishReason={Finish}. TextLen={Len}",
+                inputTokens, outputTokens, finishReason, modelText.Length);
 
-            // 5) Strip any accidental markdown fences and parse the structured JSON
-            var cleaned = StripMarkdownFences(modelText);
+            // Truncated output -> JSON will be invalid. Fail fast with a clear message
+            // so the auto-retry in the controller kicks in.
+            if (string.Equals(finishReason, "MAX_TOKENS", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"Gemini hit MaxOutputTokens ({_settings.MaxOutputTokens}). Response was truncated.");
+            }
+
+            // 5) Strip any accidental markdown fences and extract JSON, then parse
+            var cleaned = ExtractJsonObject(modelText);
 
             InterpretationResult? result;
             try
             {
                 result = JsonSerializer.Deserialize<InterpretationResult>(cleaned, new JsonSerializerOptions
                 {
-                    PropertyNameCaseInsensitive = true
+                    PropertyNameCaseInsensitive = true,
+                    AllowTrailingCommas = true,
+                    ReadCommentHandling = JsonCommentHandling.Skip
                 });
             }
             catch (JsonException ex)
             {
-                _logger.LogError(ex, "Failed to parse Gemini structured JSON. Cleaned: {Body}",
-                    Truncate(cleaned, 2000));
-                throw new InvalidOperationException("The AI returned an unparseable response. Please try again.", ex);
+                _logger.LogError(ex,
+                    "Failed to parse Gemini structured JSON. FinishReason={Finish}. Cleaned (first 3000 chars): {Body}",
+                    finishReason, Truncate(cleaned, 3000));
+                throw new InvalidOperationException(
+                    "The AI returned an unparseable response. Please try again.", ex);
             }
 
             if (result == null)
@@ -218,6 +255,50 @@ namespace MedicalApp.Services
                 if (t.EndsWith("```")) t = t[..^3];
             }
             return t.Trim();
+        }
+
+        /// <summary>
+        /// Robustly extracts the first complete JSON object from the model output.
+        /// Handles: markdown code fences, leading/trailing prose, BOM/whitespace.
+        /// Returns the inner text unchanged if no balanced object is found (caller
+        /// will then fail with a useful error message).
+        /// </summary>
+        private static string ExtractJsonObject(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return s ?? string.Empty;
+
+            // Strip markdown code fences first
+            var t = StripMarkdownFences(s);
+
+            // Find the first '{' and the matching closing '}', ignoring braces inside strings
+            int start = t.IndexOf('{');
+            if (start < 0) return t;
+
+            int depth = 0;
+            bool inString = false;
+            bool escape = false;
+
+            for (int i = start; i < t.Length; i++)
+            {
+                char c = t[i];
+
+                if (escape) { escape = false; continue; }
+                if (c == '\\' && inString) { escape = true; continue; }
+                if (c == '"') { inString = !inString; continue; }
+                if (inString) continue;
+
+                if (c == '{') depth++;
+                else if (c == '}')
+                {
+                    depth--;
+                    if (depth == 0)
+                        return t.Substring(start, i - start + 1);
+                }
+            }
+
+            // Unbalanced (likely truncated by MAX_TOKENS) - return what we have so the
+            // JSON parser raises a clear error.
+            return t.Substring(start);
         }
 
         // =========================================================================

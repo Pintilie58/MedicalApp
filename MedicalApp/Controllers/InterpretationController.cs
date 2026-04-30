@@ -165,7 +165,7 @@ namespace MedicalApp.Controllers
             int inputTokens, outputTokens;
             string rawGptResponse;
 
-            const int maxAttempts = 2;
+            const int maxAttempts = 3;
             int attempt = 0;
             Exception? lastException = null;
 
@@ -189,18 +189,30 @@ namespace MedicalApp.Controllers
                 }
                 catch (OperationCanceledException ex) when (attempt < maxAttempts)
                 {
-                    // Timeout or network cancellation -> retry once
-                    _logger.LogWarning(ex, "{Provider} call timed out (attempt {Attempt}/{Max}). Retrying...",
+                    _logger.LogWarning(ex,
+                        "{Provider} call timed out (attempt {Attempt}/{Max}). Retrying...",
                         providerName, attempt, maxAttempts);
                     lastException = ex;
-                    await Task.Delay(2000); // small backoff
+                    await Task.Delay(2000 * attempt); // 2s, 4s
                 }
                 catch (HttpRequestException ex) when (attempt < maxAttempts)
                 {
-                    _logger.LogWarning(ex, "{Provider} HTTP error (attempt {Attempt}/{Max}). Retrying...",
+                    _logger.LogWarning(ex,
+                        "{Provider} HTTP error (attempt {Attempt}/{Max}). Retrying...",
                         providerName, attempt, maxAttempts);
                     lastException = ex;
-                    await Task.Delay(2000);
+                    await Task.Delay(2000 * attempt);
+                }
+                catch (InvalidOperationException ex) when (attempt < maxAttempts)
+                {
+                    // Transient model-side issues: malformed JSON, truncated output (MAX_TOKENS),
+                    // empty response, etc. Retrying often succeeds because the model produces a
+                    // different output on the next call.
+                    _logger.LogWarning(ex,
+                        "{Provider} produced an invalid/truncated response (attempt {Attempt}/{Max}). Retrying... Reason: {Reason}",
+                        providerName, attempt, maxAttempts, ex.Message);
+                    lastException = ex;
+                    await Task.Delay(1500 * attempt); // 1.5s, 3s
                 }
                 catch (Exception ex)
                 {
