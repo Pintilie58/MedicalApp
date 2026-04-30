@@ -3,6 +3,7 @@ using MedicalApp.Models;
 using MedicalApp.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System.Globalization;
 using System.Net.Http;
 
@@ -11,7 +12,8 @@ namespace MedicalApp.Controllers
     public class InterpretationController : Controller
     {
         private readonly AppDbContext _db;
-        private readonly IMedicalInterpretationService _ai;
+        private readonly IMedicalInterpretationProvider _ai;
+        private readonly InterpretationSettings _interpretationSettings;
         private readonly IEmailService _emailService;
         private readonly PdfReportGenerator _pdfGenerator;
         private readonly ILogger<InterpretationController> _logger;
@@ -20,13 +22,15 @@ namespace MedicalApp.Controllers
 
         public InterpretationController(
             AppDbContext db,
-            IMedicalInterpretationService ai,
+            IMedicalInterpretationProvider ai,
+            IOptions<InterpretationSettings> interpretationOptions,
             IEmailService emailService,
             PdfReportGenerator pdfGenerator,
             ILogger<InterpretationController> logger)
         {
             _db = db;
             _ai = ai;
+            _interpretationSettings = interpretationOptions.Value;
             _emailService = emailService;
             _pdfGenerator = pdfGenerator;
             _logger = logger;
@@ -104,30 +108,59 @@ namespace MedicalApp.Controllers
 
             var languageCode = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
             var originalFileName = Path.GetFileName(model.PdfFile.FileName);
+            var providerName = (_interpretationSettings.Provider ?? "Gemini").Trim();
+            var useGemini = !string.Equals(providerName, "OpenAI", StringComparison.OrdinalIgnoreCase);
 
-            // 1) Extract text
-            string extractedText;
+            // 1) Read the PDF stream into memory once - we need it twice
+            //    (a) for the AI provider, (b) for OpenAI's text-extraction path,
+            //    plus we keep it as DEBUG attachment when using Gemini.
+            byte[] pdfBytes;
             try
             {
                 using var stream = model.PdfFile.OpenReadStream();
-                extractedText = PdfTextExtractor.Extract(stream);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                pdfBytes = ms.ToArray();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to extract text from PDF");
+                _logger.LogError(ex, "Failed to read uploaded PDF");
                 await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, null, null);
                 TempData["ErrorMessage"] = Loc.T("PdfExtractFailed");
                 return RedirectToAction(nameof(Upload));
             }
 
-            if (string.IsNullOrWhiteSpace(extractedText) || extractedText.Length < 50)
+            // For the OpenAI path we also need a text extraction.
+            // For the Gemini path we still extract text - purely as a DEBUG attachment.
+            string extractedText;
+            try
+            {
+                using var ms = new MemoryStream(pdfBytes);
+                extractedText = PdfTextExtractor.Extract(ms);
+            }
+            catch (Exception ex)
+            {
+                if (!useGemini)
+                {
+                    // OpenAI path needs the text - hard fail
+                    _logger.LogError(ex, "Failed to extract text from PDF (OpenAI path)");
+                    await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, null, null);
+                    TempData["ErrorMessage"] = Loc.T("PdfExtractFailed");
+                    return RedirectToAction(nameof(Upload));
+                }
+                // Gemini path - text is only for debug, swallow the error
+                _logger.LogWarning(ex, "PdfTextExtractor failed (Gemini path - non-fatal). Continuing without DEBUG text.");
+                extractedText = "(text extraction failed - Gemini reads the PDF directly)";
+            }
+
+            if (!useGemini && (string.IsNullOrWhiteSpace(extractedText) || extractedText.Length < 50))
             {
                 await SaveHistory(user.Email, originalFileName, languageCode, "rejected", "Empty or too short", 0, null, null);
                 TempData["ErrorMessage"] = Loc.T("PdfEmptyText");
                 return RedirectToAction(nameof(Upload));
             }
 
-            // 2) Call OpenAI for interpretation - with auto-retry on transient errors (timeout, network)
+            // 2) Call AI provider for interpretation - with auto-retry on transient errors
             InterpretationResult result;
             int inputTokens, outputTokens;
             string rawGptResponse;
@@ -141,25 +174,38 @@ namespace MedicalApp.Controllers
                 attempt++;
                 try
                 {
-                    (result, inputTokens, outputTokens, rawGptResponse) = await _ai.InterpretAsync(extractedText, languageCode);
+                    if (useGemini)
+                    {
+                        using var pdfMs = new MemoryStream(pdfBytes);
+                        (result, inputTokens, outputTokens, rawGptResponse) =
+                            await _ai.InterpretPdfAsync(pdfMs, originalFileName, languageCode);
+                    }
+                    else
+                    {
+                        (result, inputTokens, outputTokens, rawGptResponse) =
+                            await _ai.InterpretAsync(extractedText, languageCode);
+                    }
                     break; // success
                 }
                 catch (OperationCanceledException ex) when (attempt < maxAttempts)
                 {
                     // Timeout or network cancellation -> retry once
-                    _logger.LogWarning(ex, "OpenAI call timed out (attempt {Attempt}/{Max}). Retrying...", attempt, maxAttempts);
+                    _logger.LogWarning(ex, "{Provider} call timed out (attempt {Attempt}/{Max}). Retrying...",
+                        providerName, attempt, maxAttempts);
                     lastException = ex;
                     await Task.Delay(2000); // small backoff
                 }
                 catch (HttpRequestException ex) when (attempt < maxAttempts)
                 {
-                    _logger.LogWarning(ex, "OpenAI HTTP error (attempt {Attempt}/{Max}). Retrying...", attempt, maxAttempts);
+                    _logger.LogWarning(ex, "{Provider} HTTP error (attempt {Attempt}/{Max}). Retrying...",
+                        providerName, attempt, maxAttempts);
                     lastException = ex;
                     await Task.Delay(2000);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "OpenAI interpretation failed after {Attempt} attempt(s)", attempt);
+                    _logger.LogError(ex, "{Provider} interpretation failed after {Attempt} attempt(s)",
+                        providerName, attempt);
                     await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, null, null);
                     var msgKey = (ex is OperationCanceledException || ex is HttpRequestException)
                         ? "InterpretationTimeout"
@@ -210,9 +256,9 @@ namespace MedicalApp.Controllers
                         $"DEBUG_01_extracted_text_{timestamp}.txt",
                         "text/plain"),
 
-                    // DEBUG #2 – raw JSON returned by GPT, exactly as received (before deserialization).
+                    // DEBUG #2 – raw JSON returned by the AI provider, exactly as received (before deserialization).
                     (System.Text.Encoding.UTF8.GetBytes(rawGptResponse ?? string.Empty),
-                        $"DEBUG_02_gpt_raw_response_{timestamp}.json",
+                        $"DEBUG_02_{providerName}_raw_response_{timestamp}.json",
                         "application/json"),
                 };
 

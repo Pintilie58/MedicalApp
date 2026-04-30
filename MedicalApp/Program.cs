@@ -32,9 +32,31 @@ builder.Services.Configure<AdminSettings>(builder.Configuration.GetSection("Admi
 builder.Services.Configure<DailySummarySettings>(builder.Configuration.GetSection("DailySummarySettings"));
 builder.Services.AddHostedService<DailySummaryService>();
 
-// OpenAI service configuration
+// HttpClient factory (used by Gemini service for direct REST calls)
+builder.Services.AddHttpClient();
+
+// OpenAI service configuration (kept as fallback)
 builder.Services.Configure<OpenAISettings>(builder.Configuration.GetSection("OpenAI"));
-builder.Services.AddScoped<IMedicalInterpretationService, MedicalInterpretationService>();
+
+// Gemini service configuration (primary interpretation provider)
+builder.Services.Configure<GeminiSettings>(builder.Configuration.GetSection("Gemini"));
+
+// Interpretation provider toggle (Gemini default, OpenAI fallback)
+builder.Services.Configure<InterpretationSettings>(builder.Configuration.GetSection("Interpretation"));
+
+// Register both concrete providers + a keyed factory that picks one based on settings.
+builder.Services.AddScoped<MedicalInterpretationService>();        // OpenAI implementation
+builder.Services.AddScoped<GeminiMedicalInterpretationService>();  // Gemini implementation
+builder.Services.AddScoped<IMedicalInterpretationProvider>(sp =>
+{
+    var cfg = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<InterpretationSettings>>().Value;
+    var provider = (cfg.Provider ?? "Gemini").Trim();
+    if (string.Equals(provider, "OpenAI", StringComparison.OrdinalIgnoreCase))
+        return sp.GetRequiredService<MedicalInterpretationService>();
+    // default = Gemini
+    return sp.GetRequiredService<GeminiMedicalInterpretationService>();
+});
+
 builder.Services.AddSingleton<PdfReportGenerator>();
 
 // Pending registrations (in-memory, singleton)

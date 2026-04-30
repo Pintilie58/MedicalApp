@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace MedicalApp.Services
 {
-    public class MedicalInterpretationService : IMedicalInterpretationService
+    public class MedicalInterpretationService : IMedicalInterpretationProvider
     {
         private readonly OpenAISettings _settings;
         private readonly ILogger<MedicalInterpretationService> _logger;
@@ -27,6 +27,12 @@ namespace MedicalApp.Services
             _settings = options.Value;
             _logger = logger;
         }
+
+        /// <summary>OpenAI provider does NOT accept PDFs directly - PdfPig extracts text first.</summary>
+        public Task<(InterpretationResult Result, int InputTokens, int OutputTokens, string RawResponse)> InterpretPdfAsync(
+            Stream pdfStream, string fileName, string languageCode, CancellationToken ct = default)
+            => throw new NotSupportedException(
+                "MedicalInterpretationService (OpenAI) does not accept PDF streams. The controller must call InterpretAsync(text) for the OpenAI provider.");
 
         public async Task<(InterpretationResult Result, int InputTokens, int OutputTokens, string RawResponse)> InterpretAsync(
             string extractedText, string languageCode, CancellationToken ct = default)
