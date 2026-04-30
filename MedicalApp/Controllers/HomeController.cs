@@ -9,6 +9,10 @@ namespace MedicalApp.Controllers
     {
         public IActionResult Index()
         {
+            // If already logged in, go straight to Dashboard (skip login form).
+            if (!string.IsNullOrEmpty(HttpContext.Session.GetString("UserEmail")))
+                return RedirectToAction("Dashboard", "Account");
+
             ViewData["LoginModel"] = new LoginViewModel();
             ViewData["RegisterModel"] = new RegisterViewModel();
             return View();

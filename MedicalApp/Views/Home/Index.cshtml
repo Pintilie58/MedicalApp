@@ -69,18 +69,18 @@
                     <div class="tab-content">
                         <!-- Login Form -->
                         <div id="loginPane" class="tab-pane fade @(activeTab == "login" ? "show active" : "")">
-                            <form asp-controller="Account" asp-action="Login" method="post">
+                            <form asp-controller="Account" asp-action="Login" method="post" autocomplete="off">
                                 @Html.AntiForgeryToken()
                                 <div asp-validation-summary="All" class="text-danger small mb-2"></div>
 
                                 <div class="mb-3">
                                     <label asp-for="@loginModel.Email" class="form-label">@Loc.T("Email")</label>
-                                    <input asp-for="@loginModel.Email" name="Email" class="form-control" autocomplete="email" />
+                                    <input asp-for="@loginModel.Email" name="Email" class="form-control" autocomplete="off" value="" />
                                     <span asp-validation-for="@loginModel.Email" class="text-danger small"></span>
                                 </div>
                                 <div class="mb-3">
                                     <label asp-for="@loginModel.Parola" class="form-label">@Loc.T("Password")</label>
-                                    <input asp-for="@loginModel.Parola" name="Parola" type="password" class="form-control" autocomplete="current-password" />
+                                    <input asp-for="@loginModel.Parola" name="Parola" type="password" class="form-control" autocomplete="new-password" value="" />
                                     <span asp-validation-for="@loginModel.Parola" class="text-danger small"></span>
                                 </div>
                                 <button type="submit" class="btn btn-primary w-100">@Loc.T("LoginButton")</button>
@@ -133,6 +133,18 @@
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jquery-validation@1.19.5/dist/jquery.validate.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jquery-validation-unobtrusive@4.0.0/dist/jquery.validate.unobtrusive.min.js"></script>
+    <script>
+        // ----- Force-clear login/register fields on page load (bypasses browser autofill) -----
+        window.addEventListener('pageshow', function () {
+            var ids = ['loginPane', 'registerPane'];
+            ids.forEach(function (paneId) {
+                var pane = document.getElementById(paneId);
+                if (!pane) return;
+                var inputs = pane.querySelectorAll('input[type="text"], input[type="email"], input[type="password"], input:not([type])');
+                inputs.forEach(function (i) { i.value = ''; });
+            });
+        });
+    </script>
     <script>
         // ----- Live promo code validation on register form -----
         (function () {

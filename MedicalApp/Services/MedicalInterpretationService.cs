@@ -172,8 +172,8 @@ CONTENT GUIDELINES:
 - ""summary"": 2-3 sentences overviewing what was analyzed.
 - ""key_results"": THE COMPLETE LIST (re-read the rule above) of ALL measured parameters. Each with a clear, simple explanation.
 - ""abnormal_findings"": EVERY value outside the normal range. Explain possible causes in educational terms.
-- ""correlations"": explain meaningful combinations (e.g. low hemoglobin + low ferritin = possible iron-deficiency anemia).
-- ""recommendations"": general lifestyle/dietary advice, when to repeat tests, when to see a doctor. NO specific medications or doses.
+- ""correlations"": MANDATORY MINIMUM 5-6 full sentences. Explain meaningful combinations of results (e.g. low hemoglobin + low ferritin = possible iron-deficiency anemia; elevated Gamma GT + normal transaminases = possible cholestatic pattern or alcohol use; high ferritin + normal iron saturation = possible inflammatory marker rather than iron overload, etc.). Discuss at least 2-3 different combinations across different systems (hematology, liver, kidney, lipid, thyroid, iron metabolism) when multiple panels are present. Be educational and thorough.
+- ""recommendations"": MANDATORY MINIMUM 5-6 full sentences. Provide concrete, general guidance spanning: (1) lifestyle/dietary advice tailored to the findings, (2) hydration and physical activity notes when relevant, (3) when to repeat the tests and which specific parameters to monitor, (4) which medical specialty or type of doctor to consult, (5) red-flag symptoms that would warrant urgent consultation, (6) reassurance about the normal findings. NEVER mention specific medications, doses, or treatments.
 - ""disclaimer"": explicit statement that this is educational only, NOT a medical diagnosis, and a qualified doctor must be consulted.
 
 OUTPUT FORMAT:
