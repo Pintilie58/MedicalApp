@@ -225,10 +225,10 @@ namespace MedicalApp.Controllers
             }
 
             // 4) Generate PDF report
-            byte[] pdfBytes;
+            byte[] reportPdfBytes;
             try
             {
-                pdfBytes = _pdfGenerator.Generate(result, BuildLabels(languageCode));
+                reportPdfBytes = _pdfGenerator.Generate(result, BuildLabels(languageCode));
             }
             catch (Exception ex)
             {
@@ -247,7 +247,7 @@ namespace MedicalApp.Controllers
 
                 var attachments = new List<(byte[] Bytes, string FileName, string MimeType)>
                 {
-                    (pdfBytes,
+                    (reportPdfBytes,
                         $"MedicalApp_Interpretation_{timestamp}.pdf",
                         "application/pdf"),
 
