@@ -139,7 +139,6 @@ namespace MedicalApp.Services
 
         /// <summary>Public entry point so the Admin "Send now" button can trigger a send manually.</summary>
         public Task RunNowAsync(CancellationToken ct = default) => SendSummaryAsync(ct);
-        }
 
         private async Task SendSummaryAsync(CancellationToken ct)
         {
