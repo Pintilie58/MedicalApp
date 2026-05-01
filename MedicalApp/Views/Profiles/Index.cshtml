@@ -8,8 +8,11 @@
 <div class="container py-5">
     <div class="row justify-content-center">
         <div class="col-lg-10">
-            <div class="d-flex align-items-center mb-4">
+            <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
                 <h2 class="text-primary fw-bold mb-0">&#128106; Profilele mele</h2>
+                <span class="badge bg-secondary align-self-center" data-testid="profiles-total-count">
+                    @Model.Profiles.Count total
+                </span>
                 <a asp-action="Create" class="btn btn-primary ms-auto" data-testid="btn-create-profile">
                     &#43; Adaugă profil nou
                 </a>
@@ -30,6 +33,26 @@
                 <div class="alert alert-danger" data-testid="profile-error-msg">@errorMessage</div>
             }
 
+            @* Search bar - shows only when there are at least 4 profiles, to keep the
+               UI clean for small lists. Filters client-side (instant, no server calls). *@
+            @if (Model.Profiles.Count >= 4)
+            {
+                <div class="mb-4">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white">&#128269;</span>
+                        <input type="search" id="profileSearch" class="form-control"
+                               placeholder="Caută după nume, relație sau note..."
+                               autocomplete="off" data-testid="profile-search-input" />
+                        <button type="button" class="btn btn-outline-secondary" id="profileSearchClear"
+                                title="Șterge filtrul" data-testid="profile-search-clear">
+                            &times;
+                        </button>
+                    </div>
+                    <div class="small text-muted mt-2" id="profileSearchInfo"
+                         data-testid="profile-search-info"></div>
+                </div>
+            }
+
             @if (!Model.Profiles.Any())
             {
                 <div class="alert alert-info">
@@ -39,13 +62,16 @@
             }
             else
             {
-                <div class="row g-3" data-testid="profiles-grid">
+                <div class="row g-3" data-testid="profiles-grid" id="profilesGrid">
                     @foreach (var p in Model.Profiles)
                     {
                         var badgeClass = p.IsDefault ? "bg-primary" : "bg-secondary";
                         var badgeLabel = p.IsDefault ? "Implicit" : (p.Relationship ?? "Profil");
 
-                        <div class="col-md-6 col-lg-4">
+                        <div class="col-md-6 col-lg-4 profile-card-wrapper"
+                             data-name="@p.Name.ToLower()"
+                             data-relationship="@(p.Relationship ?? "")"
+                             data-notes="@((p.Notes ?? "").ToLower())">
                             <div class="card h-100 shadow-sm" data-testid="profile-card">
                                 <div class="card-body">
                                     <div class="d-flex align-items-start mb-2">
@@ -112,3 +138,52 @@
         </div>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        // Client-side live filter for the profiles grid.
+        (function () {
+            var input = document.getElementById('profileSearch');
+            if (!input) return; // hidden when fewer than 4 profiles
+            var clearBtn = document.getElementById('profileSearchClear');
+            var info = document.getElementById('profileSearchInfo');
+            var cards = document.querySelectorAll('.profile-card-wrapper');
+            var total = cards.length;
+
+            function normalize(s) {
+                // lowercase + strip Romanian/French diacritics for forgiving search
+                return (s || '').toString().toLowerCase()
+                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            }
+
+            function applyFilter() {
+                var q = normalize(input.value.trim());
+                var visible = 0;
+                cards.forEach(function (card) {
+                    var hay = normalize(
+                        (card.getAttribute('data-name') || '') + ' ' +
+                        (card.getAttribute('data-relationship') || '') + ' ' +
+                        (card.getAttribute('data-notes') || '')
+                    );
+                    var show = q === '' || hay.indexOf(q) !== -1;
+                    card.style.display = show ? '' : 'none';
+                    if (show) visible++;
+                });
+                if (info) {
+                    info.textContent = q === ''
+                        ? ''
+                        : (visible + ' din ' + total + ' profile se potrivesc cu „' + input.value + '”');
+                }
+            }
+
+            input.addEventListener('input', applyFilter);
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function () {
+                    input.value = '';
+                    applyFilter();
+                    input.focus();
+                });
+            }
+        })();
+    </script>
+}
