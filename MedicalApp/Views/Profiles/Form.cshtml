@@ -1,0 +1,91 @@
+@model MedicalApp.Models.ProfileFormViewModel
+@{
+    var isEdit = Model.Id.HasValue;
+    ViewData["Title"] = isEdit ? "Editare profil" : "Profil nou";
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <h3 class="text-primary fw-bold mb-4">
+                @(isEdit ? "&#9998; Editează profil" : "&#43; Adaugă profil nou")
+            </h3>
+
+            <form asp-action="@(isEdit ? "Edit" : "Create")" method="post" autocomplete="off">
+                @Html.AntiForgeryToken()
+                @if (isEdit) { <input type="hidden" asp-for="Id" /> }
+                <input type="hidden" asp-for="IsDefault" />
+
+                <div asp-validation-summary="All" class="text-danger small mb-2"></div>
+
+                <div class="mb-3">
+                    <label asp-for="Name" class="form-label fw-semibold">Nume profil *</label>
+                    <input asp-for="Name" class="form-control" placeholder="Mama, Tata, Viorel, Copil..."
+                           autocomplete="off" data-testid="profile-name" />
+                    <span asp-validation-for="Name" class="text-danger small"></span>
+                    @if (Model.IsDefault)
+                    {
+                        <div class="form-text">
+                            Acesta este profilul tău implicit (&quot;Eu&quot;). Îl poți redenumi, dar nu poate fi șters.
+                        </div>
+                    }
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label asp-for="Relationship" class="form-label">Relație</label>
+                        <select asp-for="Relationship" class="form-select" data-testid="profile-relationship">
+                            <option value="">-- opțional --</option>
+                            <option value="self">Eu (self)</option>
+                            <option value="mother">Mamă</option>
+                            <option value="father">Tată</option>
+                            <option value="child">Copil</option>
+                            <option value="sibling">Frate / Soră</option>
+                            <option value="partner">Partener(ă)</option>
+                            <option value="friend">Prieten(ă)</option>
+                            <option value="other">Alt (rude, vecin...)</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label asp-for="Gender" class="form-label">Sex</label>
+                        <select asp-for="Gender" class="form-select" data-testid="profile-gender">
+                            <option value="">-- opțional --</option>
+                            <option value="M">Masculin</option>
+                            <option value="F">Feminin</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="BirthYear" class="form-label">An naștere</label>
+                    <input asp-for="BirthYear" type="number" min="1900" max="2100" class="form-control"
+                           placeholder="1965" data-testid="profile-birthyear" />
+                    <span asp-validation-for="BirthYear" class="text-danger small"></span>
+                    <div class="form-text">
+                        Util pentru analizele cu intervale de referință dependente de vârstă (PSA etc.).
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label asp-for="Notes" class="form-label">Note</label>
+                    <textarea asp-for="Notes" class="form-control" rows="3"
+                              placeholder="Ex: Hipertensiv, alergic la penicilină..."
+                              data-testid="profile-notes"></textarea>
+                    <span asp-validation-for="Notes" class="text-danger small"></span>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary" data-testid="profile-submit">
+                        @(isEdit ? "Salvează modificările" : "Creează profil")
+                    </button>
+                    <a asp-action="Index" class="btn btn-outline-secondary">Renunță</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

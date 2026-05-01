@@ -53,6 +53,17 @@
                                 &#9881; Admin
                             </a>
                         }
+
+                        @* Profiles quick link - only for logged-in users *@
+                        if (_layoutUser != null)
+                        {
+                            <a asp-controller="Profiles" asp-action="Index"
+                               class="btn btn-sm btn-outline-light" data-testid="nav-profiles-link"
+                               title="Profile (Eu, Mama, Tata...)">
+                                &#128106; Profile
+                            </a>
+                        }
+
                         <span class="text-white small me-2">@_layoutEmail</span>
                         <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
                             @Html.AntiForgeryToken()

@@ -1,0 +1,114 @@
+@model MedicalApp.Models.ProfilesIndexViewModel
+@{
+    ViewData["Title"] = "Profile";
+    var successMessage = TempData["SuccessMessage"] as string;
+    var errorMessage = TempData["ErrorMessage"] as string;
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="d-flex align-items-center mb-4">
+                <h2 class="text-primary fw-bold mb-0">&#128106; Profilele mele</h2>
+                <a asp-action="Create" class="btn btn-primary ms-auto" data-testid="btn-create-profile">
+                    &#43; Adaugă profil nou
+                </a>
+            </div>
+
+            <p class="text-muted mb-4">
+                Profilele îți permit să interpretezi analize pentru tine și pentru cei apropiați
+                (mama, tata, copii, prieteni) folosind aceleași credite. Fiecare profil are
+                istoric separat și permite urmărirea evoluției în timp.
+            </p>
+
+            @if (!string.IsNullOrEmpty(successMessage))
+            {
+                <div class="alert alert-success" data-testid="profile-success-msg">@successMessage</div>
+            }
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger" data-testid="profile-error-msg">@errorMessage</div>
+            }
+
+            @if (!Model.Profiles.Any())
+            {
+                <div class="alert alert-info">
+                    Nu ai niciun profil. Cum fiecare cont are automat un profil &quot;Eu&quot; la creare, 
+                    dacă vezi acest mesaj te rugăm să raportezi la admin.
+                </div>
+            }
+            else
+            {
+                <div class="row g-3" data-testid="profiles-grid">
+                    @foreach (var p in Model.Profiles)
+                    {
+                        var badgeClass = p.IsDefault ? "bg-primary" : "bg-secondary";
+                        var badgeLabel = p.IsDefault ? "Implicit" : (p.Relationship ?? "Profil");
+
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card h-100 shadow-sm" data-testid="profile-card">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-start mb-2">
+                                        <h5 class="card-title fw-bold mb-0">
+                                            @p.Name
+                                        </h5>
+                                        <span class="badge @badgeClass ms-auto">@badgeLabel</span>
+                                    </div>
+
+                                    <dl class="row small text-muted mb-3 mt-3">
+                                        @if (!string.IsNullOrWhiteSpace(p.Gender))
+                                        {
+                                            <dt class="col-5">Sex</dt><dd class="col-7">@p.Gender</dd>
+                                        }
+                                        @if (p.BirthYear.HasValue)
+                                        {
+                                            <dt class="col-5">An naștere</dt><dd class="col-7">@p.BirthYear</dd>
+                                        }
+                                        <dt class="col-5">Interpretări</dt>
+                                        <dd class="col-7 fw-bold text-dark">@p.InterpretationsCount</dd>
+                                    </dl>
+
+                                    @if (!string.IsNullOrWhiteSpace(p.Notes))
+                                    {
+                                        <div class="small bg-light border rounded p-2 mb-3" style="max-height:72px;overflow:hidden;">
+                                            @p.Notes
+                                        </div>
+                                    }
+                                </div>
+                                <div class="card-footer bg-white border-0 pb-3">
+                                    <div class="d-flex gap-2">
+                                        <a asp-action="Edit" asp-route-id="@p.Id"
+                                           class="btn btn-sm btn-outline-primary flex-grow-1"
+                                           data-testid="btn-edit-profile-@p.Id">
+                                            &#9998; Editează
+                                        </a>
+                                        @if (!p.IsDefault)
+                                        {
+                                            <form asp-action="Delete" method="post"
+                                                  onsubmit="return confirm('Sigur vrei să ștergi profilul &quot;@p.Name&quot;? Această acțiune nu poate fi anulată.');"
+                                                  class="m-0">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@p.Id" />
+                                                <button type="submit"
+                                                        class="btn btn-sm btn-outline-danger"
+                                                        data-testid="btn-delete-profile-@p.Id">
+                                                    &#128465; Șterge
+                                                </button>
+                                            </form>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+
+            <div class="mt-4">
+                <a asp-controller="Account" asp-action="Dashboard" class="btn btn-link">
+                    &larr; Înapoi la Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
