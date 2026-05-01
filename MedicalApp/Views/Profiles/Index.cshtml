@@ -13,9 +13,15 @@
                 <span class="badge bg-secondary align-self-center" data-testid="profiles-total-count">
                     @Model.Profiles.Count total
                 </span>
-                <a asp-action="Create" class="btn btn-primary ms-auto" data-testid="btn-create-profile">
-                    &#43; Adaugă profil nou
-                </a>
+                <div class="ms-auto d-flex gap-2">
+                    <a asp-controller="Account" asp-action="Dashboard"
+                       class="btn btn-outline-secondary" data-testid="btn-back-dashboard">
+                        &larr; Dashboard
+                    </a>
+                    <a asp-action="Create" class="btn btn-primary" data-testid="btn-create-profile">
+                        &#43; Adaugă profil nou
+                    </a>
+                </div>
             </div>
 
             <p class="text-muted mb-4">
@@ -131,9 +137,6 @@
             }
 
             <div class="mt-4">
-                <a asp-controller="Account" asp-action="Dashboard" class="btn btn-link">
-                    &larr; Înapoi la Dashboard
-                </a>
             </div>
         </div>
     </div>
