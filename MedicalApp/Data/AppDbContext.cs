@@ -11,6 +11,7 @@ namespace MedicalApp.Data
         public DbSet<InterpretationHistory> InterpretationHistories { get; set; } = null!;
         public DbSet<Purchase> Purchases { get; set; } = null!;
         public DbSet<PromoCode> PromoCodes { get; set; } = null!;
+        public DbSet<Profile> Profiles { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -54,6 +55,17 @@ namespace MedicalApp.Data
                 entity.Property(p => p.ValidFrom).HasColumnType("datetime2");
                 entity.Property(p => p.ValidUntil).HasColumnType("datetime2");
                 entity.Property(p => p.CreatedAt).HasColumnType("datetime2");
+            });
+
+            modelBuilder.Entity<Profile>(entity =>
+            {
+                entity.ToTable("Profiles");
+                entity.HasKey(p => p.Id);
+                entity.Property(p => p.UserEmail).HasMaxLength(200).IsRequired();
+                entity.Property(p => p.Name).HasMaxLength(100).IsRequired();
+                entity.Property(p => p.CreatedAt).HasColumnType("datetime2");
+                entity.HasIndex(p => new { p.UserEmail, p.Name }).IsUnique();
+                entity.HasIndex(p => p.UserEmail);
             });
         }
     }

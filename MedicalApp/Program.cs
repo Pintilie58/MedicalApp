@@ -85,6 +85,21 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
 
 var app = builder.Build();
 
+// Run idempotent startup seed tasks (creates "Eu" profile for existing users).
+using (var scopedServices = app.Services.CreateScope())
+{
+    var seedLogger = scopedServices.ServiceProvider.GetRequiredService<ILoggerFactory>()
+        .CreateLogger("StartupSeed");
+    try
+    {
+        await StartupSeed.EnsureDefaultProfilesAsync(app.Services, seedLogger);
+    }
+    catch (Exception ex)
+    {
+        seedLogger.LogError(ex, "StartupSeed failed (app will continue running).");
+    }
+}
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
