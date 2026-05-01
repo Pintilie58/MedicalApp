@@ -28,9 +28,12 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 // Admin settings (list of admin emails)
 builder.Services.Configure<AdminSettings>(builder.Configuration.GetSection("AdminSettings"));
 
-// Daily summary email to admins (background job, default 09:00 local)
+// Daily summary email to admins (background job, default 09:00 local).
+// Registered as Singleton so the AdminController can reach it via DI and trigger
+// a manual "send now" run.
 builder.Services.Configure<DailySummarySettings>(builder.Configuration.GetSection("DailySummarySettings"));
-builder.Services.AddHostedService<DailySummaryService>();
+builder.Services.AddSingleton<DailySummaryService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<DailySummaryService>());
 
 // HttpClient factory (used by Gemini service for direct REST calls)
 builder.Services.AddHttpClient();

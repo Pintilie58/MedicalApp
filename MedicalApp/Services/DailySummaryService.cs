@@ -42,6 +42,30 @@ namespace MedicalApp.Services
             var hour = Math.Clamp(_settings.HourOfDayLocal, 0, 23);
             _logger.LogInformation("Daily summary service started. Will run every day at {Hour:00}:00 local time.", hour);
 
+            // ---- CATCH-UP on startup ----
+            // Local apps are not always running - if the app was off at 09:00, we miss
+            // the trigger. To compensate, on startup we check whether today's summary
+            // has already been sent. If not, AND we're already past the configured
+            // hour for today, we send it immediately.
+            try
+            {
+                if (DateTime.Now.Hour >= hour && !HasSummaryBeenSentToday())
+                {
+                    _logger.LogInformation(
+                        "Catch-up: today's daily summary was not sent yet. Sending now.");
+                    await SendSummaryAsync(stoppingToken);
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "Catch-up: no action needed (already sent today or before scheduled hour).");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Catch-up daily summary failed. Will try at scheduled time.");
+            }
+
             while (!stoppingToken.IsCancellationRequested)
             {
                 var nextRun = ComputeNextRun(hour);
@@ -62,7 +86,14 @@ namespace MedicalApp.Services
 
                 try
                 {
-                    await SendSummaryAsync(stoppingToken);
+                    if (HasSummaryBeenSentToday())
+                    {
+                        _logger.LogInformation("Daily summary already sent today (by catch-up). Skipping scheduled run.");
+                    }
+                    else
+                    {
+                        await SendSummaryAsync(stoppingToken);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -78,6 +109,36 @@ namespace MedicalApp.Services
             var target = now.Date.AddHours(hour);
             if (target <= now) target = target.AddDays(1);
             return target;
+        }
+
+        // -------------------------------------------------------------------
+        // "Already sent today?" tracking - simple flat file in TEMP folder.
+        // -------------------------------------------------------------------
+        private static string MarkerFilePath =>
+            Path.Combine(Path.GetTempPath(), "MedicalApp_DailySummary_LastSent.txt");
+
+        private static bool HasSummaryBeenSentToday()
+        {
+            try
+            {
+                if (!File.Exists(MarkerFilePath)) return false;
+                var content = File.ReadAllText(MarkerFilePath).Trim();
+                return DateTime.TryParse(content, out var dt) && dt.Date == DateTime.Now.Date;
+            }
+            catch { return false; }
+        }
+
+        private static void MarkSummaryAsSentToday()
+        {
+            try
+            {
+                File.WriteAllText(MarkerFilePath, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            }
+            catch { /* swallow - non-critical */ }
+        }
+
+        /// <summary>Public entry point so the Admin "Send now" button can trigger a send manually.</summary>
+        public Task RunNowAsync(CancellationToken ct = default) => SendSummaryAsync(ct);
         }
 
         private async Task SendSummaryAsync(CancellationToken ct)
@@ -156,17 +217,26 @@ namespace MedicalApp.Services
             var subject = $"[MedicalApp] Rezumat zilnic - {DateTime.Now:dd/MM/yyyy}";
             var body = BuildEmailBody(summary);
 
+            int sentCount = 0;
             foreach (var adminEmail in admins)
             {
                 try
                 {
                     await emailService.SendEmailAsync(adminEmail, subject, body);
+                    sentCount++;
                     _logger.LogInformation("Daily summary sent to admin {Admin}", adminEmail);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "Failed to send daily summary to admin {Admin}", adminEmail);
                 }
+            }
+
+            // Only mark as sent if at least one admin received it - otherwise we want
+            // the next startup catch-up to retry.
+            if (sentCount > 0)
+            {
+                MarkSummaryAsSentToday();
             }
         }
 

@@ -12,16 +12,41 @@ namespace MedicalApp.Controllers
     {
         private readonly AppDbContext _db;
         private readonly IEmailService _emailService;
+        private readonly DailySummaryService _dailySummaryService;
         private readonly ILogger<AdminController> _logger;
 
         public AdminController(
             AppDbContext db,
             IEmailService emailService,
+            DailySummaryService dailySummaryService,
             ILogger<AdminController> logger)
         {
             _db = db;
             _emailService = emailService;
+            _dailySummaryService = dailySummaryService;
             _logger = logger;
+        }
+
+        // =====================================================================
+        //  Manual trigger for the daily summary email (runs the same job that
+        //  fires automatically at the configured local hour, useful for tests
+        //  and for catching up after the app was offline at the scheduled time).
+        // =====================================================================
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SendDailySummaryNow()
+        {
+            try
+            {
+                await _dailySummaryService.RunNowAsync();
+                TempData["AdminFlash"] = "Daily summary email triggered manually. Check the admin inbox in ~1 minute.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Manual daily summary trigger failed.");
+                TempData["AdminFlash"] = "Daily summary failed: " + ex.Message;
+            }
+            return RedirectToAction(nameof(Index));
         }
 
         // =====================================================================

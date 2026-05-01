@@ -12,6 +12,14 @@
             <a asp-action="Users" class="btn btn-outline-primary btn-sm">Users</a>
             <a asp-action="SendEmail" class="btn btn-outline-primary btn-sm">Bulk email</a>
             <a asp-action="PromoCodes" class="btn btn-outline-primary btn-sm">Promo codes</a>
+            <form asp-action="SendDailySummaryNow" method="post" class="d-inline">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-outline-success btn-sm"
+                        title="Trimite acum rezumatul zilnic catre toti adminii"
+                        data-testid="send-daily-summary-now-btn">
+                    &#128231; Send daily summary now
+                </button>
+            </form>
         </div>
     </div>
 
@@ -22,6 +30,10 @@
     @if (TempData["ErrorMessage"] != null)
     {
         <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+    }
+    @if (TempData["AdminFlash"] != null)
+    {
+        <div class="alert alert-info">@TempData["AdminFlash"]</div>
     }
 
     <!-- STATS CARDS -->
