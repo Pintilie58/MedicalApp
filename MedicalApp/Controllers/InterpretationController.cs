@@ -403,31 +403,6 @@ namespace MedicalApp.Controllers
 </div>";
         }
 
-        private static LocalizedLabels BuildLabels(string _)
-            => new()
-            {
-                BrandTitle = "MedicalApp",
-                BrandSubtitle = Loc.T("BrandSubtitle"),
-                Tagline = Loc.T("Tagline"),
-                PatientInfo = Loc.T("PatientInfoSection"),
-                Name = Loc.T("PatientName"),
-                Age = Loc.T("PatientAge"),
-                Sex = Loc.T("PatientSex"),
-                DateTaken = Loc.T("DateTaken"),
-                Laboratory = Loc.T("Laboratory"),
-                DoctorRequesting = Loc.T("DoctorRequesting"),
-                Summary = Loc.T("SummarySection"),
-                KeyResults = Loc.T("KeyResultsSection"),
-                Parameter = Loc.T("Parameter"),
-                Value = Loc.T("ValueLabel"),
-                Reference = Loc.T("ReferenceRange"),
-                Status = Loc.T("Status"),
-                AbnormalFindings = Loc.T("AbnormalFindingsSection"),
-                Correlations = Loc.T("CorrelationsSection"),
-                Recommendations = Loc.T("RecommendationsSection"),
-                Disclaimer = Loc.T("DisclaimerSection"),
-                GeneratedOn = Loc.T("GeneratedOn"),
-                Page = Loc.T("Page")
-            };
+        private static LocalizedLabels BuildLabels(string _) => LocalizedLabels.ForCurrentUi();
     }
 }

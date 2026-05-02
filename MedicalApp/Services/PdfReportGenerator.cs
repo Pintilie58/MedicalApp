@@ -295,5 +295,32 @@ namespace MedicalApp.Services
         public string Disclaimer { get; set; } = "";
         public string GeneratedOn { get; set; } = "";
         public string Page { get; set; } = "";
+
+        /// <summary>Builds the label set using the current UI culture's translations.</summary>
+        public static LocalizedLabels ForCurrentUi() => new()
+        {
+            BrandTitle = "MedicalApp",
+            BrandSubtitle = Loc.T("BrandSubtitle"),
+            Tagline = Loc.T("Tagline"),
+            PatientInfo = Loc.T("PatientInfoSection"),
+            Name = Loc.T("PatientName"),
+            Age = Loc.T("PatientAge"),
+            Sex = Loc.T("PatientSex"),
+            DateTaken = Loc.T("DateTaken"),
+            Laboratory = Loc.T("Laboratory"),
+            DoctorRequesting = Loc.T("DoctorRequesting"),
+            Summary = Loc.T("SummarySection"),
+            KeyResults = Loc.T("KeyResultsSection"),
+            Parameter = Loc.T("Parameter"),
+            Value = Loc.T("ValueLabel"),
+            Reference = Loc.T("ReferenceRange"),
+            Status = Loc.T("Status"),
+            AbnormalFindings = Loc.T("AbnormalFindingsSection"),
+            Correlations = Loc.T("CorrelationsSection"),
+            Recommendations = Loc.T("RecommendationsSection"),
+            Disclaimer = Loc.T("DisclaimerSection"),
+            GeneratedOn = Loc.T("GeneratedOn"),
+            Page = Loc.T("Page")
+        };
     }
 }

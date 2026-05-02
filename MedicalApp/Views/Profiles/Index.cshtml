@@ -108,9 +108,15 @@
                                     }
                                 </div>
                                 <div class="card-footer bg-white border-0 pb-3">
-                                    <div class="d-flex gap-2">
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <a asp-action="History" asp-route-id="@p.Id"
+                                           class="btn btn-sm btn-outline-info flex-grow-1"
+                                           data-testid="btn-history-profile-@p.Id"
+                                           title="Vezi arhiva interpretărilor pentru acest profil">
+                                            &#128218; Arhivă (@p.InterpretationsCount)
+                                        </a>
                                         <a asp-action="Edit" asp-route-id="@p.Id"
-                                           class="btn btn-sm btn-outline-primary flex-grow-1"
+                                           class="btn btn-sm btn-outline-primary"
                                            data-testid="btn-edit-profile-@p.Id">
                                             &#9998; Editează
                                         </a>
