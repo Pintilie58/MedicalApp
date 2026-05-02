@@ -39,7 +39,17 @@ namespace MedicalApp.Controllers
                 .ThenBy(p => p.Name)
                 .ToListAsync();
 
-            // Interpretations count per profile placeholder (0 until P1.4 wires the FK).
+            // Interpretation counts per profile (successful ones only).
+            var profileIds = profiles.Select(p => p.Id).ToList();
+            var counts = await _db.InterpretationHistories
+                .AsNoTracking()
+                .Where(h => h.ProfileId.HasValue
+                            && profileIds.Contains(h.ProfileId.Value)
+                            && h.Status == "success")
+                .GroupBy(h => h.ProfileId!.Value)
+                .Select(g => new { ProfileId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.ProfileId, x => x.Count);
+
             var vm = new ProfilesIndexViewModel
             {
                 Profiles = profiles.Select(p => new ProfilesIndexViewModel.ProfileRow
@@ -52,7 +62,7 @@ namespace MedicalApp.Controllers
                     Notes = p.Notes,
                     IsDefault = p.IsDefault,
                     CreatedAt = p.CreatedAt,
-                    InterpretationsCount = 0
+                    InterpretationsCount = counts.TryGetValue(p.Id, out var c) ? c : 0
                 }).ToList()
             };
 
