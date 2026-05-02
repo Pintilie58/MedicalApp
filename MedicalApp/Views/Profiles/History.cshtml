@@ -1,0 +1,125 @@
+@model MedicalApp.Models.ProfileHistoryViewModel
+@{
+    ViewData["Title"] = $"Arhivă - {Model.ProfileName}";
+    var successMessage = TempData["SuccessMessage"] as string;
+    var errorMessage = TempData["ErrorMessage"] as string;
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
+                <h2 class="text-primary fw-bold mb-0" data-testid="history-heading">
+                    &#128218; Arhivă: @Model.ProfileName
+                </h2>
+                @if (!string.IsNullOrWhiteSpace(Model.Relationship))
+                {
+                    <span class="badge bg-secondary align-self-center">@Model.Relationship</span>
+                }
+                <span class="badge bg-info text-dark align-self-center" data-testid="history-total-count">
+                    @Model.Items.Count @(Model.Items.Count == 1 ? "interpretare" : "interpretări")
+                </span>
+                <div class="ms-auto">
+                    <a asp-action="Index" class="btn btn-outline-secondary" data-testid="btn-back-profiles">
+                        &larr; Înapoi la profile
+                    </a>
+                </div>
+            </div>
+
+            <p class="text-muted mb-4">
+                Toate interpretările de succes pentru acest profil. Poți descărca oricând raportul PDF
+                &mdash; îl regenerăm pe loc din datele salvate, fără a consuma credite.
+            </p>
+
+            @if (!string.IsNullOrEmpty(successMessage))
+            {
+                <div class="alert alert-success" data-testid="history-success-msg">@successMessage</div>
+            }
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger" data-testid="history-error-msg">@errorMessage</div>
+            }
+
+            @if (!Model.Items.Any())
+            {
+                <div class="alert alert-info" data-testid="history-empty-state">
+                    Nu există încă nicio interpretare pentru acest profil.
+                    <a asp-controller="Interpretation" asp-action="Upload" class="alert-link">
+                        Încarcă prima analiză
+                    </a>.
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle" data-testid="history-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Data</th>
+                                <th>Fișier original</th>
+                                <th>Data recoltării</th>
+                                <th class="text-center">Parametri</th>
+                                <th class="text-center">Anormalități</th>
+                                <th class="text-end">Acțiuni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var h in Model.Items)
+                            {
+                                <tr data-testid="history-row-@h.Id">
+                                    <td>
+                                        <div class="fw-semibold">@h.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</div>
+                                        <div class="small text-muted">@h.CreatedAt.ToLocalTime().ToString("HH:mm")</div>
+                                    </td>
+                                    <td>
+                                        <span class="text-break">@(h.OriginalFileName ?? "-")</span>
+                                        @if (!string.IsNullOrWhiteSpace(h.Language))
+                                        {
+                                            <span class="badge bg-light text-muted ms-1">@h.Language</span>
+                                        }
+                                    </td>
+                                    <td class="text-muted">@(h.DateTaken ?? "-")</td>
+                                    <td class="text-center">
+                                        @if (h.KeyResultsCount.HasValue)
+                                        {
+                                            <span class="badge bg-primary">@h.KeyResultsCount</span>
+                                        }
+                                        else { <span class="text-muted">-</span> }
+                                    </td>
+                                    <td class="text-center">
+                                        @if (h.AbnormalFindingsCount.HasValue && h.AbnormalFindingsCount.Value > 0)
+                                        {
+                                            <span class="badge bg-danger">@h.AbnormalFindingsCount</span>
+                                        }
+                                        else if (h.AbnormalFindingsCount.HasValue)
+                                        {
+                                            <span class="badge bg-success">0</span>
+                                        }
+                                        else { <span class="text-muted">-</span> }
+                                    </td>
+                                    <td class="text-end">
+                                        @if (h.HasRawJson)
+                                        {
+                                            <a asp-action="DownloadReport" asp-route-id="@h.Id"
+                                               class="btn btn-sm btn-primary"
+                                               data-testid="btn-download-report-@h.Id">
+                                                &#11015; Descarcă PDF
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <span class="small text-muted"
+                                                  title="Această interpretare este anterioară funcției de salvare JSON - nu poate fi regenerată.">
+                                                indisponibil
+                                            </span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>

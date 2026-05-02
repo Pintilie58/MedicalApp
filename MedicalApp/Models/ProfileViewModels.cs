@@ -45,4 +45,27 @@ namespace MedicalApp.Models
 
         public bool IsDefault { get; set; }
     }
+
+    /// <summary>ViewModel for /Profiles/History/{id} - the archive of interpretations
+    /// done for one specific profile. Lists only status=success items, newest first.</summary>
+    public class ProfileHistoryViewModel
+    {
+        public int ProfileId { get; set; }
+        public string ProfileName { get; set; } = string.Empty;
+        public string? Relationship { get; set; }
+        public List<HistoryRow> Items { get; set; } = new();
+
+        public class HistoryRow
+        {
+            public int Id { get; set; }
+            public DateTime CreatedAt { get; set; }
+            public string? OriginalFileName { get; set; }
+            public string? Language { get; set; }
+            public int? AbnormalFindingsCount { get; set; }
+            public int? KeyResultsCount { get; set; }
+            public string? PatientName { get; set; }
+            public string? DateTaken { get; set; }
+            public bool HasRawJson { get; set; }
+        }
+    }
 }

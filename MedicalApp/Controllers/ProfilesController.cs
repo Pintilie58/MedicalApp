@@ -3,6 +3,7 @@ using MedicalApp.Models;
 using MedicalApp.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace MedicalApp.Controllers
 {
@@ -13,11 +14,16 @@ namespace MedicalApp.Controllers
     public class ProfilesController : Controller
     {
         private readonly AppDbContext _db;
+        private readonly PdfReportGenerator _pdfGenerator;
         private readonly ILogger<ProfilesController> _logger;
 
-        public ProfilesController(AppDbContext db, ILogger<ProfilesController> logger)
+        public ProfilesController(
+            AppDbContext db,
+            PdfReportGenerator pdfGenerator,
+            ILogger<ProfilesController> logger)
         {
             _db = db;
+            _pdfGenerator = pdfGenerator;
             _logger = logger;
         }
 
@@ -67,6 +73,142 @@ namespace MedicalApp.Controllers
             };
 
             return View(vm);
+        }
+
+        // ====================================================================
+        // HISTORY (archive) - list interpretations for a specific profile
+        // ====================================================================
+        [HttpGet]
+        public async Task<IActionResult> History(int id)
+        {
+            if (string.IsNullOrEmpty(CurrentEmail))
+                return RedirectToAction("Index", "Home");
+
+            var profile = await _db.Profiles.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == id && p.UserEmail == CurrentEmail);
+            if (profile == null)
+            {
+                TempData["ErrorMessage"] = "Profilul nu a fost găsit.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            var rows = await _db.InterpretationHistories
+                .AsNoTracking()
+                .Where(h => h.UserEmail == CurrentEmail
+                            && h.ProfileId == profile.Id
+                            && h.Status == "success")
+                .OrderByDescending(h => h.CreatedAt)
+                .Select(h => new
+                {
+                    h.Id,
+                    h.CreatedAt,
+                    h.OriginalFileName,
+                    h.Language,
+                    h.RawJsonResult
+                })
+                .ToListAsync();
+
+            var items = new List<ProfileHistoryViewModel.HistoryRow>(rows.Count);
+            foreach (var r in rows)
+            {
+                var row = new ProfileHistoryViewModel.HistoryRow
+                {
+                    Id = r.Id,
+                    CreatedAt = r.CreatedAt,
+                    OriginalFileName = r.OriginalFileName,
+                    Language = r.Language,
+                    HasRawJson = !string.IsNullOrWhiteSpace(r.RawJsonResult)
+                };
+
+                // Lightweight parse only to show counts in the table - never block the page if parsing fails.
+                if (row.HasRawJson)
+                {
+                    try
+                    {
+                        var parsed = JsonSerializer.Deserialize<InterpretationResult>(r.RawJsonResult!,
+                            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        row.KeyResultsCount = parsed?.KeyResults?.Count;
+                        row.AbnormalFindingsCount = parsed?.AbnormalFindings?.Count;
+                        row.PatientName = parsed?.PatientInfo?.Name;
+                        row.DateTaken = parsed?.PatientInfo?.DateTaken;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Could not parse stored RawJsonResult for history id={Id}", r.Id);
+                    }
+                }
+
+                items.Add(row);
+            }
+
+            var vm = new ProfileHistoryViewModel
+            {
+                ProfileId = profile.Id,
+                ProfileName = profile.Name,
+                Relationship = profile.Relationship,
+                Items = items
+            };
+            return View(vm);
+        }
+
+        // ====================================================================
+        // DOWNLOAD REPORT - regenerate PDF from stored JSON on the fly
+        // ====================================================================
+        [HttpGet]
+        public async Task<IActionResult> DownloadReport(int id)
+        {
+            if (string.IsNullOrEmpty(CurrentEmail))
+                return RedirectToAction("Index", "Home");
+
+            var history = await _db.InterpretationHistories
+                .AsNoTracking()
+                .FirstOrDefaultAsync(h => h.Id == id
+                                          && h.UserEmail == CurrentEmail
+                                          && h.Status == "success");
+            if (history == null || string.IsNullOrWhiteSpace(history.RawJsonResult))
+            {
+                TempData["ErrorMessage"] = "Raportul nu a fost găsit sau nu mai are date salvate.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            InterpretationResult? result;
+            try
+            {
+                result = JsonSerializer.Deserialize<InterpretationResult>(history.RawJsonResult,
+                    new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true,
+                        AllowTrailingCommas = true,
+                        ReadCommentHandling = JsonCommentHandling.Skip
+                    });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to deserialize RawJsonResult for history id={Id}", id);
+                TempData["ErrorMessage"] = "Raportul nu a putut fi reconstruit din datele stocate.";
+                return RedirectToAction(nameof(History), new { id = history.ProfileId ?? 0 });
+            }
+
+            if (result == null)
+            {
+                TempData["ErrorMessage"] = "Raportul nu a putut fi reconstruit din datele stocate.";
+                return RedirectToAction(nameof(History), new { id = history.ProfileId ?? 0 });
+            }
+
+            byte[] pdfBytes;
+            try
+            {
+                pdfBytes = _pdfGenerator.Generate(result, LocalizedLabels.ForCurrentUi());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "PDF regeneration failed for history id={Id}", id);
+                TempData["ErrorMessage"] = "Eroare la generarea PDF-ului.";
+                return RedirectToAction(nameof(History), new { id = history.ProfileId ?? 0 });
+            }
+
+            var fileName = $"MedicalApp_{history.CreatedAt:yyyyMMdd_HHmmss}_report.pdf";
+            return File(pdfBytes, "application/pdf", fileName);
         }
 
         // ====================================================================
