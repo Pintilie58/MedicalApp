@@ -44,6 +44,37 @@
                     <form asp-action="Upload" method="post" enctype="multipart/form-data" id="uploadForm">
                         @Html.AntiForgeryToken()
 
+                        <!-- Step 1: Profile selection -->
+                        <div class="mb-4">
+                            <label asp-for="ProfileId" class="form-label fw-semibold">
+                                &#128106; Pentru cine este analiza?
+                            </label>
+                            <div class="input-group">
+                                <select asp-for="ProfileId" class="form-select form-select-lg"
+                                        data-testid="interpret-profile-select" required>
+                                    <option value="">-- Selectează profilul --</option>
+                                    @foreach (var p in Model.AvailableProfiles)
+                                    {
+                                        <option value="@p.Id">
+                                            @p.Name@(p.IsDefault ? " (implicit)" : "")
+                                        </option>
+                                    }
+                                </select>
+                                <a asp-controller="Profiles" asp-action="Create"
+                                   class="btn btn-outline-primary"
+                                   title="Creează profil nou (ex: Mama, Tata)"
+                                   data-testid="interpret-add-profile-btn">
+                                    &#43; Profil nou
+                                </a>
+                            </div>
+                            <span asp-validation-for="ProfileId" class="text-danger small"></span>
+                            <div class="form-text">
+                                Analiza va fi salvată în istoricul profilului selectat. Poți
+                                urmări apoi evoluția parametrilor (ex: VSH-ul Mamei în ultimele 6 luni).
+                            </div>
+                        </div>
+
+                        <!-- Step 2: PDF upload -->
                         <div class="mb-3">
                             <label asp-for="PdfFile" class="form-label fw-semibold">@Loc.T("SelectPdfFile")</label>
                             <input asp-for="PdfFile" type="file" accept="application/pdf,.pdf"
