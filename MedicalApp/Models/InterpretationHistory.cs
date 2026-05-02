@@ -30,5 +30,8 @@ namespace MedicalApp.Models
 
         public int? InputTokens { get; set; }
         public int? OutputTokens { get; set; }
+
+        /// <summary>FK to Profiles.Id - which health profile this interpretation is for.</summary>
+        public int? ProfileId { get; set; }
     }
 }

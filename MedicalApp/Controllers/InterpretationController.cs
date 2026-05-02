@@ -60,7 +60,29 @@ namespace MedicalApp.Controllers
             ViewBag.CreditRest = user.CreditRest;
             ViewBag.BonusCreditsRemaining = user.BonusCreditsRemaining;
             ViewBag.TotalAvailableCredits = user.TotalAvailableCredits;
-            return View(new InterpretationUploadViewModel());
+
+            // Load user's profiles for the dropdown.
+            var profiles = await _db.Profiles
+                .AsNoTracking()
+                .Where(p => p.UserEmail == user.Email)
+                .OrderByDescending(p => p.IsDefault)
+                .ThenBy(p => p.Name)
+                .Select(p => new InterpretationUploadViewModel.ProfileOption
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    IsDefault = p.IsDefault
+                })
+                .ToListAsync();
+
+            var defaultId = profiles.FirstOrDefault(p => p.IsDefault)?.Id
+                         ?? profiles.FirstOrDefault()?.Id;
+
+            return View(new InterpretationUploadViewModel
+            {
+                AvailableProfiles = profiles,
+                ProfileId = defaultId
+            });
         }
 
         [HttpPost]
@@ -84,17 +106,31 @@ namespace MedicalApp.Controllers
                 return RedirectToAction("Buy", "Credits");
             }
 
+            // Validate ProfileId - must exist and belong to the current user.
+            var profile = model.ProfileId.HasValue
+                ? await _db.Profiles.FirstOrDefaultAsync(p =>
+                    p.Id == model.ProfileId.Value && p.UserEmail == user.Email)
+                : null;
+
+            if (profile == null)
+            {
+                ModelState.AddModelError(nameof(model.ProfileId),
+                    "Te rugăm să selectezi un profil valid.");
+                await RepopulateFormViewBags(user, model);
+                return View(model);
+            }
+
             if (model.PdfFile == null || model.PdfFile.Length == 0)
             {
                 ModelState.AddModelError(nameof(model.PdfFile), Loc.T("PdfFileRequired"));
-                ViewBag.CreditRest = user.CreditRest;
+                await RepopulateFormViewBags(user, model);
                 return View(model);
             }
 
             if (model.PdfFile.Length > MaxFileSize)
             {
                 ModelState.AddModelError(nameof(model.PdfFile), Loc.T("FileTooLarge"));
-                ViewBag.CreditRest = user.CreditRest;
+                await RepopulateFormViewBags(user, model);
                 return View(model);
             }
 
@@ -102,7 +138,7 @@ namespace MedicalApp.Controllers
                 && !model.PdfFile.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
             {
                 ModelState.AddModelError(nameof(model.PdfFile), Loc.T("OnlyPdfAllowed"));
-                ViewBag.CreditRest = user.CreditRest;
+                await RepopulateFormViewBags(user, model);
                 return View(model);
             }
 
@@ -125,7 +161,7 @@ namespace MedicalApp.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to read uploaded PDF");
-                await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, null, null);
+                await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, null, null, profile.Id);
                 TempData["ErrorMessage"] = Loc.T("PdfExtractFailed");
                 return RedirectToAction(nameof(Upload));
             }
@@ -144,7 +180,7 @@ namespace MedicalApp.Controllers
                 {
                     // OpenAI path needs the text - hard fail
                     _logger.LogError(ex, "Failed to extract text from PDF (OpenAI path)");
-                    await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, null, null);
+                    await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, null, null, profile.Id);
                     TempData["ErrorMessage"] = Loc.T("PdfExtractFailed");
                     return RedirectToAction(nameof(Upload));
                 }
@@ -155,7 +191,7 @@ namespace MedicalApp.Controllers
 
             if (!useGemini && (string.IsNullOrWhiteSpace(extractedText) || extractedText.Length < 50))
             {
-                await SaveHistory(user.Email, originalFileName, languageCode, "rejected", "Empty or too short", 0, null, null);
+                await SaveHistory(user.Email, originalFileName, languageCode, "rejected", "Empty or too short", 0, null, null, profile.Id);
                 TempData["ErrorMessage"] = Loc.T("PdfEmptyText");
                 return RedirectToAction(nameof(Upload));
             }
@@ -218,7 +254,7 @@ namespace MedicalApp.Controllers
                 {
                     _logger.LogError(ex, "{Provider} interpretation failed after {Attempt} attempt(s)",
                         providerName, attempt);
-                    await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, null, null);
+                    await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, null, null, profile.Id);
                     var msgKey = (ex is OperationCanceledException || ex is HttpRequestException)
                         ? "InterpretationTimeout"
                         : "InterpretationFailed";
@@ -230,7 +266,7 @@ namespace MedicalApp.Controllers
             // 3) If non-medical, reject without consuming credit
             if (!result.IsMedicalAnalysis)
             {
-                await SaveHistory(user.Email, originalFileName, languageCode, "rejected", result.RejectionReason, 0, inputTokens, outputTokens);
+                await SaveHistory(user.Email, originalFileName, languageCode, "rejected", result.RejectionReason, 0, inputTokens, outputTokens, profile.Id);
                 TempData["ErrorMessage"] = string.Format(Loc.T("NotMedicalAnalysisMessage"),
                     result.RejectionReason ?? Loc.T("UnknownReason"));
                 return RedirectToAction(nameof(Upload));
@@ -245,7 +281,7 @@ namespace MedicalApp.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "PDF generation failed");
-                await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, inputTokens, outputTokens);
+                await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, inputTokens, outputTokens, profile.Id);
                 TempData["ErrorMessage"] = Loc.T("PdfGenerationFailed");
                 return RedirectToAction(nameof(Upload));
             }
@@ -253,8 +289,9 @@ namespace MedicalApp.Controllers
             // 5) Send email with attachment (+ debug attachments: extracted text and raw GPT JSON)
             try
             {
-                var subject = Loc.T("ResultEmailSubject");
-                var htmlBody = BuildEmailBody(originalFileName);
+                // Prefix subject with the profile name so inbox is easier to scan when user has many profiles.
+                var subject = $"[{profile.Name}] " + Loc.T("ResultEmailSubject");
+                var htmlBody = BuildEmailBody(originalFileName, profile.Name);
                 var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
 
                 var attachments = new List<(byte[] Bytes, string FileName, string MimeType)>
@@ -280,7 +317,7 @@ namespace MedicalApp.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Sending result email failed");
-                await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, inputTokens, outputTokens);
+                await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, inputTokens, outputTokens, profile.Id);
                 TempData["ErrorMessage"] = Loc.T("EmailSendFailed");
                 return RedirectToAction(nameof(Upload));
             }
@@ -297,14 +334,14 @@ namespace MedicalApp.Controllers
             }
             await _db.SaveChangesAsync();
 
-            await SaveHistory(user.Email, originalFileName, languageCode, "success", null, 1, inputTokens, outputTokens);
+            await SaveHistory(user.Email, originalFileName, languageCode, "success", null, 1, inputTokens, outputTokens, profile.Id);
 
             TempData["SuccessMessage"] = Loc.T("InterpretationEmailedSuccess");
             return RedirectToAction("Dashboard", "Account");
         }
 
         private async Task SaveHistory(string email, string? file, string lang, string status,
-            string? errorMsg, int credits, int? inTok, int? outTok)
+            string? errorMsg, int credits, int? inTok, int? outTok, int? profileId = null)
         {
             _db.InterpretationHistories.Add(new InterpretationHistory
             {
@@ -316,22 +353,45 @@ namespace MedicalApp.Controllers
                 CreditsConsumed = credits,
                 InputTokens = inTok,
                 OutputTokens = outTok,
+                ProfileId = profileId,
                 CreatedAt = DateTime.UtcNow
             });
             await _db.SaveChangesAsync();
         }
 
-        private static string BuildEmailBody(string? originalFileName)
+        /// <summary>Reload dropdown profile list + credit ViewBags when returning View(model) after a validation error.</summary>
+        private async Task RepopulateFormViewBags(User user, InterpretationUploadViewModel model)
+        {
+            ViewBag.CreditRest = user.CreditRest;
+            ViewBag.BonusCreditsRemaining = user.BonusCreditsRemaining;
+            ViewBag.TotalAvailableCredits = user.TotalAvailableCredits;
+            model.AvailableProfiles = await _db.Profiles
+                .AsNoTracking()
+                .Where(p => p.UserEmail == user.Email)
+                .OrderByDescending(p => p.IsDefault)
+                .ThenBy(p => p.Name)
+                .Select(p => new InterpretationUploadViewModel.ProfileOption
+                {
+                    Id = p.Id, Name = p.Name, IsDefault = p.IsDefault
+                })
+                .ToListAsync();
+        }
+
+        private static string BuildEmailBody(string? originalFileName, string? profileName = null)
         {
             var greeting = Loc.T("EmailGreeting");
             var intro = Loc.T("ResultEmailIntro");
             var attached = Loc.T("ResultEmailAttachedNote");
             var tagline = Loc.T("Tagline");
             var regards = Loc.T("EmailRegards");
+            var profileLine = string.IsNullOrWhiteSpace(profileName)
+                ? string.Empty
+                : $"<p style='background:#eef5ff;border-left:4px solid #0d47a1;padding:10px 14px;border-radius:6px;margin:16px 0;'>Interpretare pentru profilul: <strong>{System.Net.WebUtility.HtmlEncode(profileName)}</strong></p>";
             return $@"
 <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
     <h2 style='color: #0d47a1;'>MedicalApp</h2>
     <p>{greeting}</p>
+    {profileLine}
     <p>{intro}</p>
     <p style='color: #6c757d; font-size: 0.9em;'>{attached}</p>
     <p style='font-style: italic; color: #0d47a1;'>{tagline}</p>
