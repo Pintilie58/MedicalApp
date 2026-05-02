@@ -1,15 +1,14 @@
 # MedicalApp – PRD
 
 ## Original problem statement
-Build "MedicalApp", an ASP.NET Core MVC (.NET 9, VS2022) web app where users upload medical analysis PDFs. The app uses AI to interpret the data, generates a nicely formatted localized PDF report and emails it back to the user. Credit-based payment (1 credit per interpretation), user auth, email verification, password reset, 5 languages (EN, RO, FR, ES, DE).
+Build "MedicalApp", an ASP.NET Core MVC (.NET 9, VS2022) web app where users upload medical analysis PDFs. The app uses AI to interpret the data, generates a nicely formatted localized PDF report and emails it back to the user. Credit-based payment (1 credit per interpretation), user auth, email verification, password reset, 5 languages (EN, RO, FR, ES, DE), Admin Dashboard, and multi-Profile support (per family member).
 
 Development workflow: bi-directional Git sync. The agent modifies files in the cloud workspace → user pushes via "Save to GitHub" → user does `Git Pull` in VS2022 → runs with local SQL Server Express (`LENOVO-YOGA2\SQLEXPRESS`).
 
 ## Core stack
 - ASP.NET Core MVC .NET 9, EF Core + SQL Server
 - BCrypt auth, MailKit (Gmail SMTP)
-- OpenAI `gpt-4o-mini` (user-provided API key in **User Secrets**)
-- UglyToad.PdfPig `1.7.0-custom-5` (PDF text extraction)
+- **Google Gemini 2.5 Flash** via direct REST API (native PDF vision, no text extraction) — user-provided API key in User Secrets
 - QuestPDF (PDF report generation)
 - Chart.js (admin revenue chart)
 
@@ -17,61 +16,67 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 ```
 /app/MedicalApp/
 ├── Attributes/ (AdminAuthorizeAttribute)
-├── Controllers/ (Account, Admin, Credits, Home, Interpretation)
+├── Controllers/ (Account, Admin, Credits, Home, Interpretation, Profiles)
 ├── Data/ (AppDbContext)
-├── Models/ (User, Purchase, PromoCode, AdminViewModels, InterpretationHistory, AuthViewModels, CheckoutViewModel, InterpretationResult)
-├── Services/ (AdminSettings, EmailService, Loc, MedicalInterpretationService, OpenAISettings, PasswordGenerator, PdfReportGenerator, PdfTextExtractor, PendingRegistrationStore)
-├── Views/ (Account, Admin, Credits, Home, Interpretation, Shared)
+├── Models/ (User, Purchase, PromoCode, InterpretationHistory, Profile, InterpretationResult, ViewModels)
+├── Services/ (AdminSettings, EmailService, Loc, GeminiMedicalInterpretationService, DailySummaryService, PdfReportGenerator, PdfTextExtractor, StartupSeed, …)
+├── Migrations/
+├── Views/ (Account, Admin, Credits, Home, Interpretation, Profiles, Shared)
 ├── wwwroot/
 ├── appsettings.json
 └── Program.cs
 ```
 
-## DB schema
-- **Users**: Email (PK), Parola, Credite, DataC, CreditConsum, CreditRest, PasswordResetToken, PasswordResetTokenExpiry, **TotalPaid**, **LastLoginAt**, **IsBlocked**, **IsAdmin**
-- **InterpretationHistories**: Id, UserEmail, OriginalFileName, Language, Status, ErrorMessage, CreditsConsumed, InputTokens, OutputTokens, CreatedAt
-- **Purchases** (new): Id, UserEmail, PurchasedAt, AmountEur, CreditsAdded, PaymentMethod, PackageKey, PromoCode
-- **PromoCodes** (new): Id, Code (UQ), CreditsToAdd, ValidFrom, ValidUntil, TimesUsed, MaxUses, IsActive, CreatedAt
+## DB schema (current)
+- **Users**: Email (PK), Parola, Credite, DataC, CreditConsum, CreditRest, PasswordResetToken, PasswordResetTokenExpiry, TotalPaid, LastLoginAt, IsBlocked, IsAdmin, **BonusCredits**, **BonusCreditsConsumed**
+- **Profiles**: Id, UserEmail, Name, Relationship, Gender, BirthYear, Notes, IsDefault, CreatedAt
+- **InterpretationHistories**: Id, UserEmail, OriginalFileName, Language, Status, ErrorMessage, CreditsConsumed, InputTokens, OutputTokens, CreatedAt, **ProfileId (FK)**, **RawJsonResult (NVARCHAR MAX)**
+- **Purchases**: Id, UserEmail, PurchasedAt, AmountEur, CreditsAdded, PaymentMethod, PackageKey, PromoCode
+- **PromoCodes**: Id, Code (UQ), CreditsToAdd, ValidFrom, ValidUntil, TimesUsed, MaxUses, IsActive, CreatedAt
 
 ## Implemented (changelog)
 - ✅ Project scaffolding (.NET 9 MVC) + SQL Server via EF Core
 - ✅ 5-language localization via `Loc.cs`
-- ✅ BCrypt auth + EF Core
-- ✅ Password reset via email link (MailKit)
-- ✅ Registration with 4-digit email verification
-- ✅ Credit system + simulated checkout
-- ✅ PDF text extraction (layout-aware Y/X sort using PdfPig 1.7.0-custom-5)
-- ✅ OpenAI interpretation with strict JSON Schema + Seed + MaxOutputTokens=16000 + mandatory 5-step algorithm prompt (Imunochimie etc.)
-- ✅ Localized PDF report generation (QuestPDF, A4)
-- ✅ Debug email attachments: extracted text + raw GPT JSON
-- ✅ OpenAI ApiKey migrated to User Secrets (not in repo)
-- ✅ Loading overlay "Așteptați câteva secunde!" (5 languages) on interpretation upload
-- ✅ Stronger correlations + recommendations prompts (min 3-5 / 4-6 sentences)
-- ✅ **[Feb 2026] Admin Dashboard** (new):
-  - `AdminController` + `[AdminAuthorize]` attribute (session + IsAdmin flag + not blocked)
-  - `AdminSettings` in appsettings → list of admin emails auto-promoted at register/login
-  - Dashboard: 12 stat cards, Top-10 spenders, 30-day revenue chart (Chart.js)
-  - Users list with search + pagination
-  - User detail page: profile, purchase history, interpretation history, actions (give credits, reset password, block/unblock)
-  - Bulk email with filters (all / paying / with_credits / last 30 days / blocked)
-  - Promo codes CRUD (e.g. `Med3` → +3 credits for new registrations, with ValidFrom/ValidUntil, MaxUses)
-  - Register form accepts optional promo code
-  - Purchase row written on every successful credit purchase + TotalPaid incremented on User
-  - LastLoginAt tracked on every login
-  - Block check on login
+- ✅ BCrypt auth + email verification + password reset
+- ✅ Credit system + simulated checkout + bonus credits (consumed first)
+- ✅ Localized PDF report (QuestPDF A4)
+- ✅ Admin Dashboard (12 stats, revenue chart, users list, bulk email, promo codes, user detail with block/credits/reset)
+- ✅ **[Feb 2026]** AI engine migrated from OpenAI+PdfPig → **Gemini 2.5 Flash native PDF vision** (HttpClient REST, no text extraction)
+- ✅ Robustness: 32k max tokens, 300s timeout, auto-retry, JSON malformation recovery
+- ✅ **DailySummaryService** (09:00 AM background job with catch-up) + admin manual trigger
+- ✅ Admin email notification on credit purchase
+- ✅ Credits widget in navbar (color-coded)
+- ✅ **[P1.1–P1.3]** Family Profiles: `Profiles` table, CRUD UI `/Profiles` with live search, profile selection on interpretation upload, email subject prefixed with profile name, "Arhivă (N)" counter on each profile card
+- ✅ **[P1.4 – Feb 3, 2026]** `InterpretationHistories.RawJsonResult` column added, Gemini JSON persisted in DB on success/rejected
+- ✅ **[P1.5 – Feb 3, 2026]** `/Profiles/History/{id}` archive page: lists successful interpretations per profile (date, filename, parameter count, abnormality count); `/Profiles/DownloadReport/{id}` regenerates PDF on-the-fly from stored RawJsonResult (no credit consumed, no AI call)
+- ✅ **[Feb 3, 2026]** Sandbox/GitHub sync mechanism: `github` remote added so agent can pull user's migrations → prevents push conflicts
 
 ## Pending / Backlog
-### P0 – validation
-- 🧪 User to apply admin dashboard changes via `Save to GitHub → Create Branch & Push`, merge PR on GitHub, then `Git Pull` locally, run EF migration, test all flows.
+
+### P1 – Family profiles (multi-session focus)
+- 🔜 **P1.6**: Denormalize parameters into `AnalysisResults` table on each interpretation (ParameterCode, Value, Unit, Status, SamplingDate, per profile)
+- 🔜 **P1.7**: Canonical dictionary mapping raw parameter names (e.g. "VS 1ère heure", "Vitesse de sédimentation") → canonical code (e.g. "ESR") for cross-lab tracking
+- 🔜 **P1.8**: Parameter evolution view (Chart.js line chart per parameter, per profile)
+- 🔜 **P1.9**: Chronological aggregated list of all tests per profile (consolidated timeline)
 
 ### P2
-- Real payment gateway (Stripe / Netopia / PayPal) replacing the simulated checkout
-- Interpretation history page for users (their own)
+- Search/filter in archive page (by date range, parameter, lab)
+- Export archive to Excel/CSV
 
 ### P3
+- Real payment gateway (Stripe / Netopia / PayPal) replacing the simulated checkout
 - Deploy to Azure App Service + SQL Azure
 - PWA (installable on mobile)
 
 ## Known constraints
-- Cheia OpenAI e în User Secrets (NU în repo). Sandbox-ul cloud nu o are.
+- Gemini API key is in User Secrets (NOT in repo). Sandbox-ul cloud nu o are.
 - Agent cannot run/test the app in cloud sandbox (no .NET SDK, no SQL Server). Validation happens on user's Windows machine.
+
+## Sync procedure (for future sessions)
+Dacă user-ul a făcut `Git → Commit + Push` în VS2022 între sesiuni (migrări noi, modificări locale):
+1. Agent rulează: `cd /app && git fetch github main`
+2. Agent identifică fișierele diferite: `git diff --name-only HEAD github/main`
+3. Agent pull-ează fișierele relevante (migrări, cod local): `git checkout github/main -- <path>`
+4. Apoi începe task-ul nou → Save to Github nu mai dă conflict.
+
+Remote-ul `github` este deja configurat ca `https://github.com/Pintilie58/MedicalApp.git`.
