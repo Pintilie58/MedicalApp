@@ -266,7 +266,7 @@ namespace MedicalApp.Controllers
             // 3) If non-medical, reject without consuming credit
             if (!result.IsMedicalAnalysis)
             {
-                await SaveHistory(user.Email, originalFileName, languageCode, "rejected", result.RejectionReason, 0, inputTokens, outputTokens, profile.Id);
+                await SaveHistory(user.Email, originalFileName, languageCode, "rejected", result.RejectionReason, 0, inputTokens, outputTokens, profile.Id, rawGptResponse);
                 TempData["ErrorMessage"] = string.Format(Loc.T("NotMedicalAnalysisMessage"),
                     result.RejectionReason ?? Loc.T("UnknownReason"));
                 return RedirectToAction(nameof(Upload));
@@ -334,14 +334,15 @@ namespace MedicalApp.Controllers
             }
             await _db.SaveChangesAsync();
 
-            await SaveHistory(user.Email, originalFileName, languageCode, "success", null, 1, inputTokens, outputTokens, profile.Id);
+            await SaveHistory(user.Email, originalFileName, languageCode, "success", null, 1, inputTokens, outputTokens, profile.Id, rawGptResponse);
 
             TempData["SuccessMessage"] = Loc.T("InterpretationEmailedSuccess");
             return RedirectToAction("Dashboard", "Account");
         }
 
         private async Task SaveHistory(string email, string? file, string lang, string status,
-            string? errorMsg, int credits, int? inTok, int? outTok, int? profileId = null)
+            string? errorMsg, int credits, int? inTok, int? outTok, int? profileId = null,
+            string? rawJson = null)
         {
             _db.InterpretationHistories.Add(new InterpretationHistory
             {
@@ -354,6 +355,7 @@ namespace MedicalApp.Controllers
                 InputTokens = inTok,
                 OutputTokens = outTok,
                 ProfileId = profileId,
+                RawJsonResult = rawJson,
                 CreatedAt = DateTime.UtcNow
             });
             await _db.SaveChangesAsync();
