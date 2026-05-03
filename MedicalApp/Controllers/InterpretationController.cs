@@ -404,6 +404,32 @@ namespace MedicalApp.Controllers
 
             await SaveHistory(user.Email, originalFileName, languageCode, "success", null, 1, inputTokens, outputTokens, profile.Id, rawGptResponse, pdfHash);
 
+            // OVERRIDE on force re-interpret: the user explicitly paid for a fresh
+            // run, and we want a single canonical row per (user, profile, pdfHash)
+            // so charts and aggregations are not polluted with duplicates.
+            if (force)
+            {
+                // Find all earlier success rows with the same hash for this user+profile
+                // (excluding the row we just inserted, which is the most recent).
+                var stale = await _db.InterpretationHistories
+                    .Where(h => h.UserEmail == user.Email
+                                && h.ProfileId == profile.Id
+                                && h.Status == "success"
+                                && h.PdfSha256 == pdfHash)
+                    .OrderByDescending(h => h.CreatedAt)
+                    .Skip(1) // keep the newest, drop the rest
+                    .ToListAsync();
+
+                if (stale.Count > 0)
+                {
+                    _db.InterpretationHistories.RemoveRange(stale);
+                    await _db.SaveChangesAsync();
+                    _logger.LogInformation(
+                        "Force re-interpret OVERRIDE: removed {Count} stale row(s) with matching hash for {Email}/profile={Pid}.",
+                        stale.Count, user.Email, profile.Id);
+                }
+            }
+
             TempData["SuccessMessage"] = Loc.T("InterpretationEmailedSuccess");
             return RedirectToAction("Dashboard", "Account");
         }

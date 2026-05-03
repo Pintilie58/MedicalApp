@@ -183,6 +183,29 @@ namespace MedicalApp.Services
             if (result == null)
                 throw new InvalidOperationException("The AI returned an empty response.");
 
+            // Self-audit verification: if the model declared more parameters than it
+            // actually emitted in key_results, it silently skipped some.
+            // Throw a recoverable error so the controller's retry loop kicks in.
+            if (result.IsMedicalAnalysis && result.Audit != null)
+            {
+                var listed = result.KeyResults?.Count ?? 0;
+                var expected = result.Audit.ExpectedCount;
+                var auditNames = result.Audit.ParameterNames?.Count ?? 0;
+
+                // Use the larger of expected_count and parameter_names.Count as
+                // ground truth (the model sometimes fills only one of them).
+                var groundTruth = Math.Max(expected, auditNames);
+
+                if (groundTruth > listed && groundTruth - listed >= 1)
+                {
+                    _logger.LogWarning(
+                        "Gemini self-audit mismatch: declared {GroundTruth} parameters but emitted only {Listed} in key_results. Forcing retry.",
+                        groundTruth, listed);
+                    throw new InvalidOperationException(
+                        $"Gemini extraction incomplete: model declared {groundTruth} parameters but only emitted {listed}. Retrying.");
+                }
+            }
+
             return (result, inputTokens, outputTokens, cleaned);
         }
 
@@ -336,6 +359,22 @@ IT MEANS ""THE COMPLETE LIST OF EVERY SINGLE LAB RESULT FOUND IN THE PDF"".
 - Preserve the EXACT parameter name, value, unit and reference range as they appear.
 - Pay SPECIAL ATTENTION to: Imunochimie / hormones (TSH, FT3, FT4), tumor markers (PSA, CEA, AFP, CA125, CA15-3, CA19-9), vitamins (D, B12, folate, ferritin), iron panel (Fer, Transferrine, CTFF, CST). These are often in separate sub-sections and frequently forgotten.
 
+==========================================================
+TWIN-PARAMETER RULE (CRITICAL)
+==========================================================
+Several common laboratory parameters come in PAIRS or SMALL FAMILIES on the same panel.
+If you see ONE of them, you MUST scan again for the OTHERS in the SAME report - they are
+almost always present together. Concretely:
+  * PSA family → look for BOTH ""PSA total"" AND ""PSA free"" (a.k.a. ""FREE PSA"", ""PSA libre"", ""PSA liber""). If only one is in your output but the PDF shows two, you missed one.
+  * Thyroid family → ""TSH"", ""FT3"" (T3 libre), ""FT4"" (T4 libre), often ""anti-TPO"".
+  * Iron family → ""Fer (Iron)"", ""Transferrine"", ""CTFF / TIBC"", ""Coefficient de saturation""/""TSAT"".
+  * B-vitamin family → ""Vitamin B12"", ""Folate / Folic acid"", often together with ""Ferritin"".
+  * Liver enzymes → ""ALT/TGP"", ""AST/TGO"", ""Gamma GT"", ""ALP"", ""Bilirubin"".
+  * Lipid panel → ""Cholesterol total"", ""HDL"", ""LDL"", ""Triglycerides"", ""Cholesterol non-HDL"".
+  * Renal panel → ""Creatinine"", ""Urea"", ""eGFR (DFG/MDRD/CKD-EPI)"".
+  * Hematology core → ""Hemoglobin"", ""Hematocrit"", ""RBC"", ""WBC"", ""Platelets"", and ALL the WBC differential lines.
+Before you finalize, RE-READ the PDF specifically looking for these family members. Missing a twin parameter (e.g. reporting only Total PSA when Free PSA is also printed) is THE most common error and MUST be avoided.
+
 STATUS FIELD:
   * ""normal""     => value falls inside the reference range
   * ""high""       => value is above the reference range
@@ -354,9 +393,26 @@ CONTENT GUIDELINES:
 - ""recommendations"": MANDATORY MINIMUM 5-6 full sentences. Concrete general guidance: (1) lifestyle/dietary advice, (2) hydration/activity, (3) when to repeat the tests and which parameters to monitor, (4) which specialty to consult, (5) red-flag symptoms, (6) reassurance for normal findings. NEVER mention specific medications, doses or treatments.
 - ""disclaimer"": educational only, NOT a medical diagnosis, qualified doctor must be consulted.
 
+==========================================================
+SELF-VERIFICATION FIELD (MANDATORY)
+==========================================================
+Add a TOP-LEVEL field ""_extraction_audit"" to the JSON output. It is your private audit
+trail that we use to verify completeness. Format:
+  ""_extraction_audit"": {
+    ""expected_count"": <integer - the number of distinct measured parameters you SAW in the PDF>,
+    ""parameter_names"": [<every parameter name you saw, in order, exactly as printed>]
+  }
+Rules:
+  - ""expected_count"" MUST equal the length of ""parameter_names"" AND the length of ""key_results"".
+  - List EVERY parameter you noticed - even if you decided not to include it in ""key_results""
+    (in which case explain in a separate trailing entry ""<NAME> [skipped because ...]"").
+  - This is a sanity check: if you wrote 10 names in ""parameter_names"" but only 8 entries
+    in ""key_results"", you skipped 2 parameters and your output is INCOMPLETE.
+  - Do this BEFORE you submit. Re-scan the PDF if the counts disagree.
+
 OUTPUT FORMAT (CRITICAL):
 - Respond ONLY with a JSON OBJECT (no markdown, no code fences, no commentary).
-- The JSON MUST conform exactly to this schema (all keys required, no extra keys):
+- The JSON MUST conform exactly to this schema (all keys required, no extra keys except _extraction_audit):
 {
   ""is_medical_analysis"": boolean,
   ""rejection_reason"": string|null,
@@ -366,7 +422,8 @@ OUTPUT FORMAT (CRITICAL):
   ""abnormal_findings"": [ { ""parameter"": string, ""explanation"": string, ""severity"": ""mild""|""moderate""|""severe"" } ],
   ""correlations"": string,
   ""recommendations"": string,
-  ""disclaimer"": string
+  ""disclaimer"": string,
+  ""_extraction_audit"": { ""expected_count"": integer, ""parameter_names"": [string, ...] }
 }";
 
         private static string BuildUserPrompt(string languageName, string languageCode, string fileName) =>

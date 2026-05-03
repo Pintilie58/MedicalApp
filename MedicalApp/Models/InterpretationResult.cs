@@ -34,7 +34,24 @@ namespace MedicalApp.Models
 
         [JsonPropertyName("disclaimer")]
         public string? Disclaimer { get; set; }
+
+        /// <summary>
+        /// Self-audit field added by the model so we can detect silent extraction
+        /// gaps. If <see cref="ExtractionAudit.ExpectedCount"/> &gt; the number of
+        /// items in <see cref="KeyResults"/>, the model skipped parameters and we
+        /// retry the call.
+        /// </summary>
+        [JsonPropertyName("_extraction_audit")]
+        public ExtractionAudit? Audit { get; set; }
     }
+
+    public class ExtractionAudit
+    {
+        [JsonPropertyName("expected_count")]
+        public int ExpectedCount { get; set; }
+
+        [JsonPropertyName("parameter_names")]
+        public List<string>? ParameterNames { get; set; }
 
     public class PatientInfo
     {

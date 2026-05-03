@@ -68,12 +68,13 @@
                                     Generează o interpretare nouă (de ex. dacă vrei o a doua părere
                                     sau altă limbă). <strong class="text-danger">Consumă 1 credit.</strong>
                                 </p>
-                                <form asp-action="Upload" method="post" class="m-0">
+                                <form id="forceReinterpretForm" asp-action="Upload" method="post" class="m-0">
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="force" value="true" />
                                     <input type="hidden" name="reuploadToken" value="@Model.ReuploadToken" />
                                     <input type="hidden" name="ProfileId" value="@Model.ProfileId" />
                                     <button type="submit" class="btn btn-outline-warning w-100"
+                                            id="btnForceReinterpret"
                                             data-testid="btn-force-reinterpret">
                                         Re-interpretează (1 credit)
                                     </button>
@@ -92,3 +93,69 @@
         </div>
     </div>
 </div>
+
+<!-- Same processing overlay as on the Upload page so the user sees feedback
+     when they click "Re-interpretează" (the call to Gemini takes 5-30 s). -->
+<div id="processingOverlay" class="processing-overlay" aria-hidden="true" role="status" aria-live="polite">
+    <div class="processing-box">
+        <div class="processing-spinner" aria-hidden="true"></div>
+        <h3 class="processing-title">@Loc.T("PleaseWaitFewSeconds")</h3>
+        <p class="processing-subtitle">@Loc.T("PleaseWaitDoNotClose")</p>
+    </div>
+</div>
+
+<style>
+    .processing-overlay {
+        display: none; position: fixed; inset: 0; z-index: 2000;
+        background: rgba(13, 71, 161, 0.85);
+        backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+        align-items: center; justify-content: center;
+        animation: fadeIn 0.25s ease-out;
+    }
+    .processing-overlay.is-visible { display: flex; }
+    .processing-box {
+        background: #ffffff; border-radius: 16px; padding: 40px 48px;
+        text-align: center; max-width: 440px; width: calc(100% - 40px);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+    }
+    .processing-spinner {
+        width: 72px; height: 72px; margin: 0 auto 24px auto;
+        border: 6px solid #e3f2fd; border-top-color: #0d47a1;
+        border-radius: 50%; animation: spin 0.9s linear infinite;
+    }
+    .processing-title { color: #0d47a1; font-weight: 700; margin: 0 0 12px 0; font-size: 1.5rem; }
+    .processing-subtitle { color: #546e7a; margin: 0; font-size: 0.95rem; line-height: 1.5; }
+    @@keyframes spin { to { transform: rotate(360deg); } }
+    @@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+</style>
+
+@section Scripts {
+    <script>
+        (function () {
+            var form = document.getElementById('forceReinterpretForm');
+            var btn = document.getElementById('btnForceReinterpret');
+            var overlay = document.getElementById('processingOverlay');
+            if (!form || !overlay) return;
+
+            form.addEventListener('submit', function () {
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = '@Loc.T("ProcessingPleaseWait")';
+                }
+                overlay.classList.add('is-visible');
+                overlay.setAttribute('aria-hidden', 'false');
+            });
+
+            window.addEventListener('pageshow', function (ev) {
+                if (ev.persisted) {
+                    overlay.classList.remove('is-visible');
+                    overlay.setAttribute('aria-hidden', 'true');
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = 'Re-interpretează (1 credit)';
+                    }
+                }
+            });
+        })();
+    </script>
+}
