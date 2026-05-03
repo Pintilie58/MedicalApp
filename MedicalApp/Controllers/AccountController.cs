@@ -195,6 +195,7 @@ namespace MedicalApp.Controllers
                 DataC = DateTime.UtcNow,
                 CreditConsum = 0,
                 CreditRest = 0,
+                FreeArchiveUntil = DateTime.UtcNow.Add(MedicalApp.Services.ArchiveAccessService.FreePeriod),
                 IsAdmin = _adminSettings.IsAdminEmail(pending.Email)
             };
 

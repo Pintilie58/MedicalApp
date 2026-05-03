@@ -42,5 +42,14 @@ namespace MedicalApp.Models
         /// produced a valid JSON object with is_medical_analysis=false).
         /// </summary>
         public string? RawJsonResult { get; set; }
+
+        /// <summary>
+        /// SHA-256 hash (hex, 64 chars) of the original uploaded PDF bytes.
+        /// Used for duplicate detection: same (UserEmail, ProfileId, PdfSha256)
+        /// means the exact same file was already interpreted for that profile.
+        /// NULL for interpretations created before duplicate-detection was introduced.
+        /// </summary>
+        [StringLength(64)]
+        public string? PdfSha256 { get; set; }
     }
 }

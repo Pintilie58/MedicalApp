@@ -23,4 +23,26 @@ namespace MedicalApp.Models
             public bool IsDefault { get; set; }
         }
     }
+
+    /// <summary>
+    /// Shown when the uploaded PDF exactly matches (SHA-256) an already-successful
+    /// interpretation for the same user and same profile. Lets the user either
+    /// reuse the existing report for free or force a fresh re-interpretation
+    /// (consuming 1 credit).
+    /// </summary>
+    public class DuplicateDetectedViewModel
+    {
+        public int ExistingHistoryId { get; set; }
+        public DateTime ExistingCreatedAt { get; set; }
+        public string? ExistingFileName { get; set; }
+        public int ProfileId { get; set; }
+        public string ProfileName { get; set; } = string.Empty;
+        public string OriginalFileName { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Server-side cache key pointing to the uploaded PDF bytes kept in session
+        /// until the user picks reuse-existing or force-reinterpret.
+        /// </summary>
+        public string ReuploadToken { get; set; } = string.Empty;
+    }
 }

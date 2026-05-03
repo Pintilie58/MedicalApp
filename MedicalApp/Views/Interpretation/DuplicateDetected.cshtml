@@ -1,0 +1,94 @@
+@model MedicalApp.Models.DuplicateDetectedViewModel
+@{
+    ViewData["Title"] = "Analiză duplicată";
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-warning">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <span style="font-size:2rem;">&#9888;&#65039;</span>
+                        <h3 class="mb-0 ms-3 text-warning fw-bold" data-testid="dup-heading">
+                            Analiză deja interpretată
+                        </h3>
+                    </div>
+
+                    <p class="lead">
+                        Fișierul <strong>@Model.OriginalFileName</strong> pare să fie identic cu o
+                        interpretare existentă pentru profilul
+                        <strong data-testid="dup-profile-name">@Model.ProfileName</strong>.
+                    </p>
+
+                    <div class="alert alert-info d-flex align-items-center" role="alert">
+                        <div>
+                            <div class="small text-muted">Interpretare existentă:</div>
+                            <div class="fw-semibold" data-testid="dup-existing-date">
+                                &#128197; @Model.ExistingCreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(Model.ExistingFileName))
+                            {
+                                <div class="small text-muted">
+                                    fișier original: @Model.ExistingFileName
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <p class="text-muted">
+                        Ce dorești să faci?
+                    </p>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="border rounded p-3 h-100 d-flex flex-column">
+                                <h5 class="text-primary fw-bold">
+                                    &#11015;&#65039; Deschide raportul existent
+                                </h5>
+                                <p class="small text-muted flex-grow-1">
+                                    Descarcă PDF-ul generat la interpretarea anterioară.
+                                    <strong class="text-success">Gratuit</strong> &mdash; nu consumă credit.
+                                </p>
+                                <a asp-controller="Profiles" asp-action="DownloadReport"
+                                   asp-route-id="@Model.ExistingHistoryId"
+                                   class="btn btn-primary w-100"
+                                   data-testid="btn-open-existing-report">
+                                    Deschide raportul existent
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="border rounded p-3 h-100 d-flex flex-column">
+                                <h5 class="text-warning fw-bold">
+                                    &#128260; Re-interpretează
+                                </h5>
+                                <p class="small text-muted flex-grow-1">
+                                    Generează o interpretare nouă (de ex. dacă vrei o a doua părere
+                                    sau altă limbă). <strong class="text-danger">Consumă 1 credit.</strong>
+                                </p>
+                                <form asp-action="Upload" method="post" class="m-0">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="force" value="true" />
+                                    <input type="hidden" name="reuploadToken" value="@Model.ReuploadToken" />
+                                    <input type="hidden" name="ProfileId" value="@Model.ProfileId" />
+                                    <button type="submit" class="btn btn-outline-warning w-100"
+                                            data-testid="btn-force-reinterpret">
+                                        Re-interpretează (1 credit)
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 text-center">
+                        <a asp-action="Upload" class="btn btn-link" data-testid="btn-dup-cancel">
+                            &larr; Anulează și alege alt fișier
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

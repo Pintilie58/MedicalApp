@@ -50,6 +50,23 @@ namespace MedicalApp.Models
         /// <summary>Bonus credits consumed so far. Bonus credits are consumed FIRST.</summary>
         public int BonusCreditsConsumed { get; set; } = 0;
 
+        // ----- Archive premium features (P1.5.5 compare, P1.8 charts, exports) -----
+        // Viewing the archive list and downloading a PDF stay FREE forever
+        // (user's right to their own paid medical data).
+        // Premium archive features are free for 1 year after registration.
+        // After that, the user pays 1 credit for every 3 premium feature uses
+        // (cumulative counter: uses 1,2,3 are free; use 4 consumes 1 credit and
+        // the counter resets to 1; uses 5,6 free; use 7 consumes 1 credit; etc.).
+
+        /// <summary>Date after which premium archive features become billable.
+        /// NULL = not initialized yet (treated as already expired).</summary>
+        public DateTime? FreeArchiveUntil { get; set; }
+
+        /// <summary>Cumulative counter of premium archive feature uses in the current
+        /// 3-use cycle. Resets to 0 after a credit is consumed (or stays 0 during the
+        /// free period).</summary>
+        public int ArchivePremiumCounter { get; set; } = 0;
+
         // ----- Computed (NOT mapped to DB) -----
 
         /// <summary>Bonus credits still available.</summary>
