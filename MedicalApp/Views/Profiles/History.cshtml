@@ -69,9 +69,12 @@
             }
             else
             {
+                @* Outer form is empty (just holds the submit button + hidden fields).
+                   Checkboxes inside the table reference it via the `form` attribute,
+                   so the table can keep its own per-row Delete forms without nested
+                   <form> tags (which are invalid HTML). *@
                 <form id="compareForm" asp-action="Compare" method="get">
                     <input type="hidden" name="profileId" value="@Model.ProfileId" />
-
                     <div class="d-flex align-items-center mb-2 gap-2 flex-wrap">
                         <span class="small text-muted" data-testid="history-compare-hint">
                             Selectează 2 interpretări și apoi apasă „Compară".
@@ -81,13 +84,14 @@
                             &#128200; Compară selectate
                         </button>
                     </div>
+                </form>
 
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle" data-testid="history-table">
-                            <thead class="table-light">
-                                <tr>
-                                    <th style="width:40px;"></th>
-                                    <th>Data</th>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle" data-testid="history-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width:40px;"></th>
+                                <th>Data</th>
                                     <th>Fișier original</th>
                                     <th>Data recoltării</th>
                                     <th class="text-center">Parametri</th>
@@ -103,8 +107,9 @@
                                             @if (h.HasRawJson)
                                             {
                                                 <input type="checkbox" class="form-check-input compare-check"
-                                                       name="ids" value="@h.Id"
-                                                       data-testid="history-check-@h.Id" />
+                                                   form="compareForm"
+                                                   name="ids" value="@h.Id"
+                                                   data-testid="history-check-@h.Id" />
                                             }
                                         </td>
                                         <td>
@@ -153,13 +158,25 @@
                                                     indisponibil
                                                 </span>
                                             }
+                                            <form asp-action="DeleteHistory" method="post"
+                                                  class="d-inline ms-1"
+                                                  onsubmit="return confirm('Sigur vrei să ștergi această interpretare din arhivă? Această acțiune nu poate fi anulată.');">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@h.Id" />
+                                                <input type="hidden" name="profileId" value="@Model.ProfileId" />
+                                                <button type="submit"
+                                                        class="btn btn-sm btn-outline-danger"
+                                                        title="Șterge această interpretare"
+                                                        data-testid="btn-delete-history-@h.Id">
+                                                    &#128465;
+                                                </button>
+                                            </form>
                                         </td>
                                     </tr>
                                 }
                             </tbody>
                         </table>
                     </div>
-                </form>
             }
         </div>
     </div>

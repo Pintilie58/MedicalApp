@@ -227,6 +227,36 @@ namespace MedicalApp.Controllers
         }
 
         // ====================================================================
+        // DELETE one interpretation from the archive (with explicit user confirmation
+        // submitted from the History page).
+        // ====================================================================
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteHistory(int id, int profileId)
+        {
+            if (string.IsNullOrEmpty(CurrentEmail))
+                return RedirectToAction("Index", "Home");
+
+            var history = await _db.InterpretationHistories
+                .FirstOrDefaultAsync(h => h.Id == id && h.UserEmail == CurrentEmail);
+            if (history == null)
+            {
+                TempData["ErrorMessage"] = "Interpretarea nu a fost găsită.";
+                return RedirectToAction(nameof(History), new { id = profileId });
+            }
+
+            _db.InterpretationHistories.Remove(history);
+            await _db.SaveChangesAsync();
+
+            _logger.LogInformation(
+                "User {Email} deleted interpretation history id={Id} (profile={Pid}, file={File}).",
+                CurrentEmail, id, history.ProfileId, history.OriginalFileName);
+
+            TempData["SuccessMessage"] = "Interpretarea a fost ștearsă din arhivă.";
+            return RedirectToAction(nameof(History), new { id = profileId });
+        }
+
+        // ====================================================================
         // COMPARE two interpretations side-by-side (P1.5.5, premium feature)
         // ====================================================================
         [HttpGet]
