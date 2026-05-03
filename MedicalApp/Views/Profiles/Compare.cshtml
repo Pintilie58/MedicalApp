@@ -1,0 +1,169 @@
+@model MedicalApp.Models.CompareInterpretationsViewModel
+@{
+    ViewData["Title"] = $"Comparație - {Model.ProfileName}";
+
+    string DirectionClass(string d) => d switch
+    {
+        "risen"      => "table-danger",
+        "fallen"     => "table-info",
+        "unchanged"  => "",
+        "only_left"  => "table-warning",
+        "only_right" => "table-warning",
+        "unparsable" => "table-secondary",
+        _ => ""
+    };
+    string DirectionIcon(string d) => d switch
+    {
+        "risen"      => "&#8599;",   // ↗
+        "fallen"     => "&#8600;",   // ↘
+        "unchanged"  => "&#61;",
+        "only_left"  => "&#9664;",   // ◀
+        "only_right" => "&#9654;",   // ▶
+        _ => "?"
+    };
+    string StatusBadge(string? status) => status?.ToLowerInvariant() switch
+    {
+        "high"       => "<span class=\"badge bg-danger\">&#8593;</span>",
+        "low"        => "<span class=\"badge bg-primary\">&#8595;</span>",
+        "borderline" => "<span class=\"badge bg-warning text-dark\">&#8776;</span>",
+        "normal"     => "<span class=\"badge bg-success\">&#10003;</span>",
+        _ => ""
+    };
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-xl-11">
+            <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
+                <h2 class="text-primary fw-bold mb-0" data-testid="compare-heading">
+                    &#128200; Comparație: @Model.ProfileName
+                </h2>
+                <div class="ms-auto">
+                    <a asp-action="History" asp-route-id="@Model.ProfileId"
+                       class="btn btn-outline-secondary" data-testid="btn-back-history">
+                        &larr; Înapoi la arhivă
+                    </a>
+                </div>
+            </div>
+
+            @if (Model.CreditConsumed)
+            {
+                <div class="alert alert-warning" data-testid="compare-credit-consumed-msg">
+                    &#128181; A fost consumat 1 credit pentru această comparație (pachetul de 3 comparații gratuite a fost epuizat).
+                </div>
+            }
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="card border-primary h-100">
+                        <div class="card-body">
+                            <div class="small text-muted">Interpretarea 1 (mai veche)</div>
+                            <h5 class="fw-bold text-primary" data-testid="compare-left-date">
+                                @Model.Left.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")
+                            </h5>
+                            @if (!string.IsNullOrWhiteSpace(Model.Left.DateTaken))
+                            {
+                                <div class="small">Data recoltării: <strong>@Model.Left.DateTaken</strong></div>
+                            }
+                            <div class="small text-muted">
+                                @Model.Left.KeyResultsCount parametri · @Model.Left.AbnormalFindingsCount anormalități
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card border-success h-100">
+                        <div class="card-body">
+                            <div class="small text-muted">Interpretarea 2 (mai recentă)</div>
+                            <h5 class="fw-bold text-success" data-testid="compare-right-date">
+                                @Model.Right.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")
+                            </h5>
+                            @if (!string.IsNullOrWhiteSpace(Model.Right.DateTaken))
+                            {
+                                <div class="small">Data recoltării: <strong>@Model.Right.DateTaken</strong></div>
+                            }
+                            <div class="small text-muted">
+                                @Model.Right.KeyResultsCount parametri · @Model.Right.AbnormalFindingsCount anormalități
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 mb-3" data-testid="compare-summary-badges">
+                <span class="badge bg-danger">&#8599; Crescute: @Model.RisenCount</span>
+                <span class="badge bg-info text-dark">&#8600; Scăzute: @Model.FallenCount</span>
+                <span class="badge bg-success">= Neschimbate: @Model.UnchangedCount</span>
+                @if (Model.OnlyLeftCount > 0)
+                {
+                    <span class="badge bg-warning text-dark">&#9664; Doar în 1: @Model.OnlyLeftCount</span>
+                }
+                @if (Model.OnlyRightCount > 0)
+                {
+                    <span class="badge bg-warning text-dark">&#9654; Doar în 2: @Model.OnlyRightCount</span>
+                }
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover align-middle" data-testid="compare-table">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="min-width:180px;">Parametru</th>
+                            <th class="text-center">Valoare 1</th>
+                            <th class="text-center"></th>
+                            <th class="text-center">Valoare 2</th>
+                            <th class="text-end">Variație</th>
+                            <th class="text-muted small">Referință</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in Model.Rows)
+                        {
+                            <tr class="@DirectionClass(row.Direction)" data-testid="compare-row-@row.Parameter.Replace(" ", "-")">
+                                <td class="fw-semibold">@row.Parameter</td>
+                                <td class="text-center">
+                                    <span>@(row.LeftValue ?? "-")</span>
+                                    @if (!string.IsNullOrWhiteSpace(row.Unit))
+                                    { <span class="small text-muted">@row.Unit</span> }
+                                    @Html.Raw(StatusBadge(row.LeftStatus))
+                                </td>
+                                <td class="text-center fs-5">
+                                    @Html.Raw(DirectionIcon(row.Direction))
+                                </td>
+                                <td class="text-center">
+                                    <span>@(row.RightValue ?? "-")</span>
+                                    @if (!string.IsNullOrWhiteSpace(row.Unit))
+                                    { <span class="small text-muted">@row.Unit</span> }
+                                    @Html.Raw(StatusBadge(row.RightStatus))
+                                </td>
+                                <td class="text-end">
+                                    @if (row.NumericDelta.HasValue)
+                                    {
+                                        var sign = row.NumericDelta.Value >= 0 ? "+" : "";
+                                        <div class="fw-semibold">@sign@row.NumericDelta.Value.ToString("0.##")</div>
+                                        if (row.PercentDelta.HasValue)
+                                        {
+                                            <div class="small text-muted">@sign@row.PercentDelta.Value.ToString("0.#")%</div>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">-</span>
+                                    }
+                                </td>
+                                <td class="small text-muted">@(row.ReferenceRange ?? "-")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <p class="small text-muted mt-3">
+                &#8599; roșu = valoare crescută &nbsp;·&nbsp;
+                &#8600; albastru = valoare scăzută &nbsp;·&nbsp;
+                = verde = neschimbat &nbsp;·&nbsp;
+                galben = parametru prezent doar într-o interpretare
+            </p>
+        </div>
+    </div>
+</div>

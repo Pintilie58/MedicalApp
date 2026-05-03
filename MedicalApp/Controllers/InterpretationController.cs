@@ -3,9 +3,11 @@ using MedicalApp.Models;
 using MedicalApp.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using System.Globalization;
 using System.Net.Http;
+using System.Security.Cryptography;
 
 namespace MedicalApp.Controllers
 {
@@ -16,9 +18,12 @@ namespace MedicalApp.Controllers
         private readonly InterpretationSettings _interpretationSettings;
         private readonly IEmailService _emailService;
         private readonly PdfReportGenerator _pdfGenerator;
+        private readonly IMemoryCache _cache;
         private readonly ILogger<InterpretationController> _logger;
 
         private const long MaxFileSize = 10 * 1024 * 1024; // 10 MB
+        private const string DupCacheKeyPrefix = "dup_pdf:";
+        private static readonly TimeSpan DupCacheLifetime = TimeSpan.FromMinutes(15);
 
         public InterpretationController(
             AppDbContext db,
@@ -26,6 +31,7 @@ namespace MedicalApp.Controllers
             IOptions<InterpretationSettings> interpretationOptions,
             IEmailService emailService,
             PdfReportGenerator pdfGenerator,
+            IMemoryCache cache,
             ILogger<InterpretationController> logger)
         {
             _db = db;
@@ -33,6 +39,7 @@ namespace MedicalApp.Controllers
             _interpretationSettings = interpretationOptions.Value;
             _emailService = emailService;
             _pdfGenerator = pdfGenerator;
+            _cache = cache;
             _logger = logger;
         }
 
@@ -88,7 +95,7 @@ namespace MedicalApp.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [RequestSizeLimit(MaxFileSize)]
-        public async Task<IActionResult> Upload(InterpretationUploadViewModel model)
+        public async Task<IActionResult> Upload(InterpretationUploadViewModel model, bool force = false, string? reuploadToken = null)
         {
             if (string.IsNullOrEmpty(CurrentEmail))
                 return RedirectToAction("Index", "Home");
@@ -120,50 +127,111 @@ namespace MedicalApp.Controllers
                 return View(model);
             }
 
-            if (model.PdfFile == null || model.PdfFile.Length == 0)
-            {
-                ModelState.AddModelError(nameof(model.PdfFile), Loc.T("PdfFileRequired"));
-                await RepopulateFormViewBags(user, model);
-                return View(model);
-            }
+            // Obtain the PDF bytes. Two sources:
+            //   1) Normal upload path: bytes come from model.PdfFile.
+            //   2) "Force re-interpret" path (user clicked the button on the
+            //      duplicate-detected page): bytes were cached under reuploadToken.
+            byte[] pdfBytes;
+            string originalFileName;
 
-            if (model.PdfFile.Length > MaxFileSize)
+            if (!string.IsNullOrWhiteSpace(reuploadToken)
+                && _cache.TryGetValue<CachedUpload>(DupCacheKeyPrefix + reuploadToken, out var cached)
+                && cached != null
+                && cached.UserEmail == user.Email
+                && cached.ProfileId == profile.Id)
             {
-                ModelState.AddModelError(nameof(model.PdfFile), Loc.T("FileTooLarge"));
-                await RepopulateFormViewBags(user, model);
-                return View(model);
+                pdfBytes = cached.PdfBytes;
+                originalFileName = cached.FileName;
+                // One-shot: consume so the token cannot be reused.
+                _cache.Remove(DupCacheKeyPrefix + reuploadToken);
             }
-
-            if (!model.PdfFile.ContentType.Contains("pdf", StringComparison.OrdinalIgnoreCase)
-                && !model.PdfFile.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+            else
             {
-                ModelState.AddModelError(nameof(model.PdfFile), Loc.T("OnlyPdfAllowed"));
-                await RepopulateFormViewBags(user, model);
-                return View(model);
+                if (model.PdfFile == null || model.PdfFile.Length == 0)
+                {
+                    ModelState.AddModelError(nameof(model.PdfFile), Loc.T("PdfFileRequired"));
+                    await RepopulateFormViewBags(user, model);
+                    return View(model);
+                }
+
+                if (model.PdfFile.Length > MaxFileSize)
+                {
+                    ModelState.AddModelError(nameof(model.PdfFile), Loc.T("FileTooLarge"));
+                    await RepopulateFormViewBags(user, model);
+                    return View(model);
+                }
+
+                if (!model.PdfFile.ContentType.Contains("pdf", StringComparison.OrdinalIgnoreCase)
+                    && !model.PdfFile.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                {
+                    ModelState.AddModelError(nameof(model.PdfFile), Loc.T("OnlyPdfAllowed"));
+                    await RepopulateFormViewBags(user, model);
+                    return View(model);
+                }
+
+                originalFileName = Path.GetFileName(model.PdfFile.FileName);
+
+                try
+                {
+                    using var stream = model.PdfFile.OpenReadStream();
+                    using var ms = new MemoryStream();
+                    await stream.CopyToAsync(ms);
+                    pdfBytes = ms.ToArray();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to read uploaded PDF");
+                    await SaveHistory(user.Email, null, null, "error", ex.Message, 0, null, null, profile.Id, null, null);
+                    TempData["ErrorMessage"] = Loc.T("PdfExtractFailed");
+                    return RedirectToAction(nameof(Upload));
+                }
             }
 
             var languageCode = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
-            var originalFileName = Path.GetFileName(model.PdfFile.FileName);
             var providerName = (_interpretationSettings.Provider ?? "Gemini").Trim();
             var useGemini = !string.Equals(providerName, "OpenAI", StringComparison.OrdinalIgnoreCase);
 
-            // 1) Read the PDF stream into memory once - we need it twice
-            //    (a) for the AI provider, (b) for OpenAI's text-extraction path,
-            //    plus we keep it as DEBUG attachment when using Gemini.
-            byte[] pdfBytes;
-            try
+            // Compute SHA-256 hash of the uploaded PDF for duplicate detection.
+            string pdfHash = ComputeSha256(pdfBytes);
+
+            // If the user did not explicitly force a re-interpretation, check
+            // whether the exact same PDF (by hash) was already interpreted
+            // successfully for this SAME profile.
+            if (!force)
             {
-                using var stream = model.PdfFile.OpenReadStream();
-                using var ms = new MemoryStream();
-                await stream.CopyToAsync(ms);
-                pdfBytes = ms.ToArray();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to read uploaded PDF");
-                await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, null, null, profile.Id);
-                TempData["ErrorMessage"] = Loc.T("PdfExtractFailed");
-                return RedirectToAction(nameof(Upload));
+                var dup = await _db.InterpretationHistories
+                    .AsNoTracking()
+                    .Where(h => h.UserEmail == user.Email
+                                && h.ProfileId == profile.Id
+                                && h.Status == "success"
+                                && h.PdfSha256 == pdfHash
+                                && h.RawJsonResult != null)
+                    .OrderByDescending(h => h.CreatedAt)
+                    .Select(h => new { h.Id, h.CreatedAt, h.OriginalFileName })
+                    .FirstOrDefaultAsync();
+
+                if (dup != null)
+                {
+                    // Cache the PDF bytes under a short-lived token so the user can
+                    // force a re-interpretation with a single click, without being
+                    // asked to re-select the file.
+                    var token = Guid.NewGuid().ToString("N");
+                    _cache.Set(DupCacheKeyPrefix + token,
+                        new CachedUpload(user.Email, profile.Id, pdfBytes, originalFileName),
+                        DupCacheLifetime);
+
+                    var dupVm = new DuplicateDetectedViewModel
+                    {
+                        ExistingHistoryId = dup.Id,
+                        ExistingCreatedAt = dup.CreatedAt,
+                        ExistingFileName = dup.OriginalFileName,
+                        ProfileId = profile.Id,
+                        ProfileName = profile.Name,
+                        OriginalFileName = originalFileName,
+                        ReuploadToken = token
+                    };
+                    return View("DuplicateDetected", dupVm);
+                }
             }
 
             // For the OpenAI path we also need a text extraction.
@@ -266,7 +334,7 @@ namespace MedicalApp.Controllers
             // 3) If non-medical, reject without consuming credit
             if (!result.IsMedicalAnalysis)
             {
-                await SaveHistory(user.Email, originalFileName, languageCode, "rejected", result.RejectionReason, 0, inputTokens, outputTokens, profile.Id, rawGptResponse);
+                await SaveHistory(user.Email, originalFileName, languageCode, "rejected", result.RejectionReason, 0, inputTokens, outputTokens, profile.Id, rawGptResponse, pdfHash);
                 TempData["ErrorMessage"] = string.Format(Loc.T("NotMedicalAnalysisMessage"),
                     result.RejectionReason ?? Loc.T("UnknownReason"));
                 return RedirectToAction(nameof(Upload));
@@ -334,15 +402,15 @@ namespace MedicalApp.Controllers
             }
             await _db.SaveChangesAsync();
 
-            await SaveHistory(user.Email, originalFileName, languageCode, "success", null, 1, inputTokens, outputTokens, profile.Id, rawGptResponse);
+            await SaveHistory(user.Email, originalFileName, languageCode, "success", null, 1, inputTokens, outputTokens, profile.Id, rawGptResponse, pdfHash);
 
             TempData["SuccessMessage"] = Loc.T("InterpretationEmailedSuccess");
             return RedirectToAction("Dashboard", "Account");
         }
 
-        private async Task SaveHistory(string email, string? file, string lang, string status,
+        private async Task SaveHistory(string email, string? file, string? lang, string status,
             string? errorMsg, int credits, int? inTok, int? outTok, int? profileId = null,
-            string? rawJson = null)
+            string? rawJson = null, string? pdfSha256 = null)
         {
             _db.InterpretationHistories.Add(new InterpretationHistory
             {
@@ -356,10 +424,25 @@ namespace MedicalApp.Controllers
                 OutputTokens = outTok,
                 ProfileId = profileId,
                 RawJsonResult = rawJson,
+                PdfSha256 = pdfSha256,
                 CreatedAt = DateTime.UtcNow
             });
             await _db.SaveChangesAsync();
         }
+
+        /// <summary>Returns the hex SHA-256 (64 lowercase chars) of the PDF bytes.</summary>
+        private static string ComputeSha256(byte[] bytes)
+        {
+            var hash = SHA256.HashData(bytes);
+            return Convert.ToHexString(hash).ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Holds the uploaded PDF bytes in memory so the user can trigger a
+        /// "force re-interpret" without being asked to re-select the file.
+        /// Short-lived (see DupCacheLifetime) and one-shot.
+        /// </summary>
+        private sealed record CachedUpload(string UserEmail, int ProfileId, byte[] PdfBytes, string FileName);
 
         /// <summary>Reload dropdown profile list + credit ViewBags when returning View(model) after a validation error.</summary>
         private async Task RepopulateFormViewBags(User user, InterpretationUploadViewModel model)

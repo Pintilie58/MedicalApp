@@ -55,6 +55,13 @@ namespace MedicalApp.Models
         public string? Relationship { get; set; }
         public List<HistoryRow> Items { get; set; } = new();
 
+        /// <summary>True when the user is still inside the 1-year free premium period.</summary>
+        public bool IsInFreePeriod { get; set; }
+        /// <summary>When the free period for premium archive features expires.</summary>
+        public DateTime FreeUntil { get; set; }
+        /// <summary>Remaining free uses in the current 3-use bundle (only meaningful when IsInFreePeriod == false).</summary>
+        public int FreeUsesLeftInBundle { get; set; }
+
         public class HistoryRow
         {
             public int Id { get; set; }
@@ -66,6 +73,59 @@ namespace MedicalApp.Models
             public string? PatientName { get; set; }
             public string? DateTaken { get; set; }
             public bool HasRawJson { get; set; }
+        }
+    }
+
+    /// <summary>ViewModel for /Profiles/Compare - side-by-side comparison of two
+    /// interpretations for the same profile. Parameters are joined on a canonical
+    /// name key (case-insensitive, whitespace-trimmed) so the same parameter shows
+    /// on the same row even if the labs used slightly different label spacing.</summary>
+    public class CompareInterpretationsViewModel
+    {
+        public int ProfileId { get; set; }
+        public string ProfileName { get; set; } = string.Empty;
+
+        public Side Left { get; set; } = new();
+        public Side Right { get; set; } = new();
+
+        public List<ComparisonRow> Rows { get; set; } = new();
+
+        public int RisenCount { get; set; }
+        public int FallenCount { get; set; }
+        public int UnchangedCount { get; set; }
+        public int OnlyLeftCount { get; set; }
+        public int OnlyRightCount { get; set; }
+
+        public bool CreditConsumed { get; set; }
+
+        public class Side
+        {
+            public int HistoryId { get; set; }
+            public DateTime CreatedAt { get; set; }
+            public string? OriginalFileName { get; set; }
+            public string? DateTaken { get; set; }
+            public int KeyResultsCount { get; set; }
+            public int AbnormalFindingsCount { get; set; }
+        }
+
+        public class ComparisonRow
+        {
+            public string Parameter { get; set; } = string.Empty;
+            public string? Unit { get; set; }
+            public string? ReferenceRange { get; set; }
+
+            public string? LeftValue { get; set; }
+            public string? LeftStatus { get; set; }
+            public string? RightValue { get; set; }
+            public string? RightStatus { get; set; }
+
+            /// <summary>risen | fallen | unchanged | only_left | only_right | unparsable</summary>
+            public string Direction { get; set; } = "unchanged";
+
+            /// <summary>Nullable numeric delta (Right - Left) when both values parse.</summary>
+            public double? NumericDelta { get; set; }
+            /// <summary>Percent change relative to Left when Left is non-zero.</summary>
+            public double? PercentDelta { get; set; }
         }
     }
 }

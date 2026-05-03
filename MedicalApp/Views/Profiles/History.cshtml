@@ -26,10 +26,28 @@
                 </div>
             </div>
 
-            <p class="text-muted mb-4">
-                Toate interpretările de succes pentru acest profil. Poți descărca oricând raportul PDF
+            <p class="text-muted mb-3">
+                Toate interpretările de succes pentru acest profil. Descarcă oricând raportul PDF
                 &mdash; îl regenerăm pe loc din datele salvate, fără a consuma credite.
             </p>
+
+            @* Premium info banner *@
+            @if (Model.IsInFreePeriod)
+            {
+                <div class="alert alert-success py-2 small" data-testid="premium-free-period-banner">
+                    &#127873; Funcțiile avansate (comparație, grafice) sunt
+                    <strong>gratuite până pe @Model.FreeUntil.ToLocalTime().ToString("dd MMM yyyy")</strong>
+                    (1 an de la înregistrare).
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-info py-2 small" data-testid="premium-paid-period-banner">
+                    &#128176; Funcțiile avansate consumă 1 credit la fiecare 3 utilizări.
+                    Mai ai <strong>@Model.FreeUsesLeftInBundle</strong>
+                    @(Model.FreeUsesLeftInBundle == 1 ? "utilizare gratuită" : "utilizări gratuite") în pachetul curent.
+                </div>
+            }
 
             @if (!string.IsNullOrEmpty(successMessage))
             {
@@ -51,75 +69,140 @@
             }
             else
             {
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle" data-testid="history-table">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Data</th>
-                                <th>Fișier original</th>
-                                <th>Data recoltării</th>
-                                <th class="text-center">Parametri</th>
-                                <th class="text-center">Anormalități</th>
-                                <th class="text-end">Acțiuni</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var h in Model.Items)
-                            {
-                                <tr data-testid="history-row-@h.Id">
-                                    <td>
-                                        <div class="fw-semibold">@h.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</div>
-                                        <div class="small text-muted">@h.CreatedAt.ToLocalTime().ToString("HH:mm")</div>
-                                    </td>
-                                    <td>
-                                        <span class="text-break">@(h.OriginalFileName ?? "-")</span>
-                                        @if (!string.IsNullOrWhiteSpace(h.Language))
-                                        {
-                                            <span class="badge bg-light text-muted ms-1">@h.Language</span>
-                                        }
-                                    </td>
-                                    <td class="text-muted">@(h.DateTaken ?? "-")</td>
-                                    <td class="text-center">
-                                        @if (h.KeyResultsCount.HasValue)
-                                        {
-                                            <span class="badge bg-primary">@h.KeyResultsCount</span>
-                                        }
-                                        else { <span class="text-muted">-</span> }
-                                    </td>
-                                    <td class="text-center">
-                                        @if (h.AbnormalFindingsCount.HasValue && h.AbnormalFindingsCount.Value > 0)
-                                        {
-                                            <span class="badge bg-danger">@h.AbnormalFindingsCount</span>
-                                        }
-                                        else if (h.AbnormalFindingsCount.HasValue)
-                                        {
-                                            <span class="badge bg-success">0</span>
-                                        }
-                                        else { <span class="text-muted">-</span> }
-                                    </td>
-                                    <td class="text-end">
-                                        @if (h.HasRawJson)
-                                        {
-                                            <a asp-action="DownloadReport" asp-route-id="@h.Id"
-                                               class="btn btn-sm btn-primary"
-                                               data-testid="btn-download-report-@h.Id">
-                                                &#11015; Descarcă PDF
-                                            </a>
-                                        }
-                                        else
-                                        {
-                                            <span class="small text-muted"
-                                                  title="Această interpretare este anterioară funcției de salvare JSON - nu poate fi regenerată.">
-                                                indisponibil
-                                            </span>
-                                        }
-                                    </td>
+                <form id="compareForm" asp-action="Compare" method="get">
+                    <input type="hidden" name="profileId" value="@Model.ProfileId" />
+
+                    <div class="d-flex align-items-center mb-2 gap-2 flex-wrap">
+                        <span class="small text-muted" data-testid="history-compare-hint">
+                            Selectează 2 interpretări și apoi apasă „Compară".
+                        </span>
+                        <button type="submit" id="btnCompare" class="btn btn-primary btn-sm ms-auto"
+                                disabled data-testid="btn-compare-selected">
+                            &#128200; Compară selectate
+                        </button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle" data-testid="history-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width:40px;"></th>
+                                    <th>Data</th>
+                                    <th>Fișier original</th>
+                                    <th>Data recoltării</th>
+                                    <th class="text-center">Parametri</th>
+                                    <th class="text-center">Anormalități</th>
+                                    <th class="text-end">Acțiuni</th>
                                 </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
+                            </thead>
+                            <tbody>
+                                @foreach (var h in Model.Items)
+                                {
+                                    <tr data-testid="history-row-@h.Id">
+                                        <td>
+                                            @if (h.HasRawJson)
+                                            {
+                                                <input type="checkbox" class="form-check-input compare-check"
+                                                       name="ids" value="@h.Id"
+                                                       data-testid="history-check-@h.Id" />
+                                            }
+                                        </td>
+                                        <td>
+                                            <div class="fw-semibold">@h.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</div>
+                                            <div class="small text-muted">@h.CreatedAt.ToLocalTime().ToString("HH:mm")</div>
+                                        </td>
+                                        <td>
+                                            <span class="text-break">@(h.OriginalFileName ?? "-")</span>
+                                            @if (!string.IsNullOrWhiteSpace(h.Language))
+                                            {
+                                                <span class="badge bg-light text-muted ms-1">@h.Language</span>
+                                            }
+                                        </td>
+                                        <td class="text-muted">@(h.DateTaken ?? "-")</td>
+                                        <td class="text-center">
+                                            @if (h.KeyResultsCount.HasValue)
+                                            {
+                                                <span class="badge bg-primary">@h.KeyResultsCount</span>
+                                            }
+                                            else { <span class="text-muted">-</span> }
+                                        </td>
+                                        <td class="text-center">
+                                            @if (h.AbnormalFindingsCount.HasValue && h.AbnormalFindingsCount.Value > 0)
+                                            {
+                                                <span class="badge bg-danger">@h.AbnormalFindingsCount</span>
+                                            }
+                                            else if (h.AbnormalFindingsCount.HasValue)
+                                            {
+                                                <span class="badge bg-success">0</span>
+                                            }
+                                            else { <span class="text-muted">-</span> }
+                                        </td>
+                                        <td class="text-end">
+                                            @if (h.HasRawJson)
+                                            {
+                                                <a asp-action="DownloadReport" asp-route-id="@h.Id"
+                                                   class="btn btn-sm btn-primary"
+                                                   data-testid="btn-download-report-@h.Id">
+                                                    &#11015; Descarcă PDF
+                                                </a>
+                                            }
+                                            else
+                                            {
+                                                <span class="small text-muted"
+                                                      title="Această interpretare este anterioară funcției de salvare JSON - nu poate fi regenerată.">
+                                                    indisponibil
+                                                </span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
             }
         </div>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var btn = document.getElementById('btnCompare');
+            var form = document.getElementById('compareForm');
+            if (!btn || !form) return;
+
+            function selected() {
+                return Array.prototype.slice.call(
+                    document.querySelectorAll('.compare-check:checked'));
+            }
+
+            function refresh() {
+                var sel = selected();
+                btn.disabled = sel.length !== 2;
+                // Cap at 2: uncheck the oldest selection when a 3rd is ticked.
+                if (sel.length > 2) {
+                    sel[0].checked = false;
+                }
+            }
+
+            document.querySelectorAll('.compare-check').forEach(function (cb) {
+                cb.addEventListener('change', refresh);
+            });
+
+            // The route expects id1=&id2= but the checkboxes all share name="ids".
+            // Map them on submit.
+            form.addEventListener('submit', function (e) {
+                var sel = selected();
+                if (sel.length !== 2) { e.preventDefault(); return false; }
+                sel.forEach(function (cb) { cb.removeAttribute('name'); });
+                var h1 = document.createElement('input');
+                h1.type = 'hidden'; h1.name = 'id1'; h1.value = sel[0].value;
+                var h2 = document.createElement('input');
+                h2.type = 'hidden'; h2.name = 'id2'; h2.value = sel[1].value;
+                form.appendChild(h1);
+                form.appendChild(h2);
+            });
+        })();
+    </script>
+}

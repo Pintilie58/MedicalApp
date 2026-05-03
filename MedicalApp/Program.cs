@@ -62,6 +62,13 @@ builder.Services.AddScoped<IMedicalInterpretationProvider>(sp =>
 
 builder.Services.AddSingleton<PdfReportGenerator>();
 
+// In-memory cache (used to briefly hold uploaded PDF bytes while the user
+// decides what to do about a duplicate-interpretation detection).
+builder.Services.AddMemoryCache();
+
+// Archive premium access billing (P1.5.5, P1.8, exports).
+builder.Services.AddScoped<ArchiveAccessService>();
+
 // Pending registrations (in-memory, singleton)
 builder.Services.AddSingleton<PendingRegistrationStore>();
 
@@ -93,6 +100,7 @@ using (var scopedServices = app.Services.CreateScope())
     try
     {
         await StartupSeed.EnsureDefaultProfilesAsync(app.Services, seedLogger);
+        await StartupSeed.EnsureFreeArchiveUntilAsync(app.Services, seedLogger);
     }
     catch (Exception ex)
     {
