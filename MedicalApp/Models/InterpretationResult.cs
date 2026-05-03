@@ -52,6 +52,7 @@ namespace MedicalApp.Models
 
         [JsonPropertyName("parameter_names")]
         public List<string>? ParameterNames { get; set; }
+    }
 
     public class PatientInfo
     {
