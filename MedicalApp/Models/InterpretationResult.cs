@@ -53,59 +53,60 @@ namespace MedicalApp.Models
         [JsonPropertyName("parameter_names")]
         public List<string>? ParameterNames { get; set; }
 
-    public class PatientInfo
-    {
-        [JsonPropertyName("name")]
-        public string? Name { get; set; }
+        public class PatientInfo
+        {
+            [JsonPropertyName("name")]
+            public string? Name { get; set; }
 
-        [JsonPropertyName("age")]
-        public string? Age { get; set; }
+            [JsonPropertyName("age")]
+            public string? Age { get; set; }
 
-        [JsonPropertyName("sex")]
-        public string? Sex { get; set; }
+            [JsonPropertyName("sex")]
+            public string? Sex { get; set; }
 
-        [JsonPropertyName("date_taken")]
-        public string? DateTaken { get; set; }
+            [JsonPropertyName("date_taken")]
+            public string? DateTaken { get; set; }
 
-        [JsonPropertyName("laboratory")]
-        public string? Laboratory { get; set; }
+            [JsonPropertyName("laboratory")]
+            public string? Laboratory { get; set; }
 
-        [JsonPropertyName("doctor_requesting")]
-        public string? DoctorRequesting { get; set; }
+            [JsonPropertyName("doctor_requesting")]
+            public string? DoctorRequesting { get; set; }
+        }
+
+        public class KeyResult
+        {
+            [JsonPropertyName("parameter")]
+            public string Parameter { get; set; } = string.Empty;
+
+            [JsonPropertyName("value")]
+            public string? Value { get; set; }
+
+            [JsonPropertyName("unit")]
+            public string? Unit { get; set; }
+
+            [JsonPropertyName("reference_range")]
+            public string? ReferenceRange { get; set; }
+
+            /// <summary>normal | high | low | borderline</summary>
+            [JsonPropertyName("status")]
+            public string Status { get; set; } = "normal";
+
+            [JsonPropertyName("explanation")]
+            public string? Explanation { get; set; }
+        }
+
+        public class AbnormalFinding
+        {
+            [JsonPropertyName("parameter")]
+            public string Parameter { get; set; } = string.Empty;
+
+            [JsonPropertyName("explanation")]
+            public string? Explanation { get; set; }
+
+            /// <summary>mild | moderate | severe</summary>
+            [JsonPropertyName("severity")]
+            public string Severity { get; set; } = "mild";
+        }
     }
 
-    public class KeyResult
-    {
-        [JsonPropertyName("parameter")]
-        public string Parameter { get; set; } = string.Empty;
-
-        [JsonPropertyName("value")]
-        public string? Value { get; set; }
-
-        [JsonPropertyName("unit")]
-        public string? Unit { get; set; }
-
-        [JsonPropertyName("reference_range")]
-        public string? ReferenceRange { get; set; }
-
-        /// <summary>normal | high | low | borderline</summary>
-        [JsonPropertyName("status")]
-        public string Status { get; set; } = "normal";
-
-        [JsonPropertyName("explanation")]
-        public string? Explanation { get; set; }
-    }
-
-    public class AbnormalFinding
-    {
-        [JsonPropertyName("parameter")]
-        public string Parameter { get; set; } = string.Empty;
-
-        [JsonPropertyName("explanation")]
-        public string? Explanation { get; set; }
-
-        /// <summary>mild | moderate | severe</summary>
-        [JsonPropertyName("severity")]
-        public string Severity { get; set; } = "mild";
-    }
-}
