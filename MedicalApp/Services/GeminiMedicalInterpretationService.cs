@@ -375,6 +375,53 @@ almost always present together. Concretely:
   * Hematology core → ""Hemoglobin"", ""Hematocrit"", ""RBC"", ""WBC"", ""Platelets"", and ALL the WBC differential lines.
 Before you finalize, RE-READ the PDF specifically looking for these family members. Missing a twin parameter (e.g. reporting only Total PSA when Free PSA is also printed) is THE most common error and MUST be avoided.
 
+==========================================================
+MULTI-THRESHOLD / TIERED-TARGET RULE (CRITICAL)
+==========================================================
+Some parameters (typically lipid panel: non-HDL cholesterol, LDL, HDL, triglycerides;
+and glucose targets for diabetics) show MULTIPLE reference thresholds stacked in the
+""reference range"" column, each tied to a clinical RISK/TARGET label like:
+   ""<85 mg/dL - pacienți cu risc cardiovascular foarte înalt""
+   ""<100 mg/dL - pacienți cu risc cardiovascular înalt""
+   ""<130 mg/dL - pacienți cu risc cardiovascular moderat""
+When you see a list of thresholds LIKE THIS (the thresholds are ordered from STRICTEST
+to most permissive, and the labels describe RISK categories, NOT patient age), you MUST
+apply the STRICTEST-SATISFIED-THRESHOLD algorithm:
+
+  1. Identify the list of thresholds. First select only the thresholds for the correct
+     age category (adult vs pediatric, based on patient age shown in the PDF).
+  2. Sort the remaining thresholds ASCENDING by numeric cut-off (strictest first).
+  3. Walk them in order. The FIRST threshold T for which (value < T) is the ANSWER:
+     - reference_range = that exact threshold string (e.g. ""<100 mg/dL - risc cardiovascular înalt"")
+     - status = ""high""  IF the chosen label is NOT the most permissive label
+                          (i.e. the value failed at least one stricter threshold first)
+              = ""normal""  IF the chosen label IS the most permissive label
+                            (value satisfies all thresholds AND only the loosest one is ""normal"")
+     - When status = ""high"", ALSO add an entry to abnormal_findings with severity
+       ""severe"" if the selected label is the MOST SEVERE risk-category, ""moderate""
+       if it is a middle risk-category, ""mild"" otherwise.
+  4. If NO threshold is satisfied (value >= all thresholds), status = ""high"" and use
+     the most permissive threshold as reference_range, severity = ""severe"".
+  5. In the ""explanation"" field, spell out the calculation briefly in plain language,
+     e.g.:  ""Valoarea 96.1 mg/dL nu se încadrează sub 85 (țintă pentru risc CV foarte înalt),
+             dar se încadrează sub 100 - țintă pentru risc CV înalt. Valoarea indică deci
+             o poziție în zona de risc cardiovascular înalt, motiv pentru care este
+             marcată ca anormală.""
+
+WORKED EXAMPLE — non-HDL cholesterol = 96.1 mg/dL, adult patient:
+  Adult thresholds (strictest first):  <85 (very high risk), <100 (high risk), <130 (moderate risk)
+  96.1 < 85 ? NO.
+  96.1 < 100 ? YES → SELECT this row.
+  => reference_range = ""<100 mg/dL - risc cardiovascular înalt""
+  => status = ""high"" (chosen label ""înalt"" is NOT the most permissive ""moderat"")
+  => abnormal_findings += { parameter: ""Colesterol non-HDL"", severity: ""moderate"",
+                            explanation: ""Valoarea indică risc cardiovascular înalt..."" }
+
+NOTE: this rule is DIFFERENT from the AGE-DEPENDENT rule (PSA by age bracket, hemoglobin
+in children). For age-dependent ranges, you pick the ROW MATCHING THE PATIENT'S AGE
+and then interpret normally (value-inside-range = normal). The multi-threshold rule
+only applies when the rows are labeled by RISK/TARGET, not by age bracket.
+
 STATUS FIELD:
   * ""normal""     => value falls inside the reference range
   * ""high""       => value is above the reference range
