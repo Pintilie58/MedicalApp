@@ -269,8 +269,18 @@ namespace MedicalApp.Controllers
             int inputTokens, outputTokens;
             string rawGptResponse;
 
-            const int maxAttempts = 3;
+            // Two distinct retry budgets:
+            //  * maxAttemptsTransient: for upstream overload / rate-limit (HTTP 429/503).
+            //    These need long backoffs (Google needs time to free capacity) so we
+            //    retry up to 5 times with 5s, 15s, 30s, 60s pauses (~ 110s total).
+            //  * maxAttemptsModel: for model-side issues (malformed JSON, truncated
+            //    output, audit mismatch). 3 attempts is plenty - retrying does not
+            //    help if the model genuinely cannot produce a valid output.
+            const int maxAttemptsTransient = 5;
+            const int maxAttemptsModel = 3;
             int attempt = 0;
+            int transientAttempts = 0;
+            int modelAttempts = 0;
             Exception? lastException = null;
 
             while (true)
@@ -291,41 +301,81 @@ namespace MedicalApp.Controllers
                     }
                     break; // success
                 }
-                catch (OperationCanceledException ex) when (attempt < maxAttempts)
+                catch (GeminiTransientException ex) when (transientAttempts + 1 < maxAttemptsTransient)
                 {
-                    _logger.LogWarning(ex,
-                        "{Provider} call timed out (attempt {Attempt}/{Max}). Retrying...",
-                        providerName, attempt, maxAttempts);
+                    transientAttempts++;
+                    // Progressive backoff for upstream overload: 5s, 15s, 30s, 60s
+                    int[] delaysMs = { 5_000, 15_000, 30_000, 60_000 };
+                    int wait = delaysMs[Math.Min(transientAttempts - 1, delaysMs.Length - 1)];
+                    _logger.LogWarning(
+                        "Gemini upstream transient {Status} (try {N}/{Max}). Backing off {Wait} ms.",
+                        ex.HttpStatusCode, transientAttempts, maxAttemptsTransient, wait);
                     lastException = ex;
-                    await Task.Delay(2000 * attempt); // 2s, 4s
+                    await Task.Delay(wait);
                 }
-                catch (HttpRequestException ex) when (attempt < maxAttempts)
+                catch (OperationCanceledException ex) when (transientAttempts + 1 < maxAttemptsTransient)
                 {
+                    transientAttempts++;
                     _logger.LogWarning(ex,
-                        "{Provider} HTTP error (attempt {Attempt}/{Max}). Retrying...",
-                        providerName, attempt, maxAttempts);
+                        "{Provider} call timed out (transient try {N}/{Max}). Retrying...",
+                        providerName, transientAttempts, maxAttemptsTransient);
                     lastException = ex;
-                    await Task.Delay(2000 * attempt);
+                    await Task.Delay(5_000 * transientAttempts); // 5s, 10s, 15s, 20s
                 }
-                catch (InvalidOperationException ex) when (attempt < maxAttempts)
+                catch (HttpRequestException ex) when (transientAttempts + 1 < maxAttemptsTransient)
                 {
-                    // Transient model-side issues: malformed JSON, truncated output (MAX_TOKENS),
-                    // empty response, etc. Retrying often succeeds because the model produces a
-                    // different output on the next call.
+                    transientAttempts++;
                     _logger.LogWarning(ex,
-                        "{Provider} produced an invalid/truncated response (attempt {Attempt}/{Max}). Retrying... Reason: {Reason}",
-                        providerName, attempt, maxAttempts, ex.Message);
+                        "{Provider} HTTP error (transient try {N}/{Max}). Retrying...",
+                        providerName, transientAttempts, maxAttemptsTransient);
                     lastException = ex;
-                    await Task.Delay(1500 * attempt); // 1.5s, 3s
+                    await Task.Delay(5_000 * transientAttempts);
+                }
+                catch (InvalidOperationException ex) when (modelAttempts + 1 < maxAttemptsModel)
+                {
+                    modelAttempts++;
+                    // Model-side issues: malformed JSON, truncated output (MAX_TOKENS),
+                    // audit mismatch, empty response. These often succeed on a fresh call.
+                    _logger.LogWarning(ex,
+                        "{Provider} produced an invalid response (model try {N}/{Max}). Retrying... Reason: {Reason}",
+                        providerName, modelAttempts, maxAttemptsModel, ex.Message);
+                    lastException = ex;
+                    await Task.Delay(1500 * modelAttempts); // 1.5s, 3s
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "{Provider} interpretation failed after {Attempt} attempt(s)",
-                        providerName, attempt);
-                    await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, null, null, profile.Id);
-                    var msgKey = (ex is OperationCanceledException || ex is HttpRequestException)
-                        ? "InterpretationTimeout"
-                        : "InterpretationFailed";
+                    _logger.LogError(ex,
+                        "{Provider} interpretation failed (transient={T}/{TMax}, model={M}/{MMax})",
+                        providerName, transientAttempts, maxAttemptsTransient, modelAttempts, maxAttemptsModel);
+
+                    bool isTransient = ex is GeminiTransientException
+                                    || ex is OperationCanceledException
+                                    || ex is HttpRequestException;
+
+                    // For transient upstream failures (Google overloaded, network issues),
+                    // do NOT save a noisy "error" row in the user's archive. The user did
+                    // not produce a bad PDF - Google was busy. Logged in the file only.
+                    if (!isTransient)
+                    {
+                        await SaveHistory(user.Email, originalFileName, languageCode, "error",
+                            ex.Message, 0, null, null, profile.Id);
+                    }
+
+                    string msgKey;
+                    if (ex is GeminiTransientException gex)
+                    {
+                        msgKey = gex.HttpStatusCode == 429
+                            ? "AiRateLimited"
+                            : "AiOverloaded";
+                    }
+                    else if (ex is OperationCanceledException || ex is HttpRequestException)
+                    {
+                        msgKey = "InterpretationTimeout";
+                    }
+                    else
+                    {
+                        msgKey = "InterpretationFailed";
+                    }
                     TempData["ErrorMessage"] = Loc.T(msgKey);
                     return RedirectToAction(nameof(Upload));
                 }
