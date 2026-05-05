@@ -88,8 +88,19 @@ namespace MedicalApp.Services
             {
                 _logger.LogError("Gemini returned {Status}. Body: {Body}",
                     (int)response.StatusCode, Truncate(responseString, 2000));
+
+                // 429 (rate-limit) and 503 (server overload) are TRANSIENT.
+                // Throw a typed exception so the controller can apply a longer backoff
+                // and a higher attempt count for them.
+                var statusInt = (int)response.StatusCode;
+                if (statusInt == 429 || statusInt == 503)
+                {
+                    throw new GeminiTransientException(statusInt,
+                        $"Gemini API transient error {statusInt}: {Truncate(responseString, 300)}");
+                }
+
                 throw new InvalidOperationException(
-                    $"Gemini API error {(int)response.StatusCode}: {Truncate(responseString, 500)}");
+                    $"Gemini API error {statusInt}: {Truncate(responseString, 500)}");
             }
 
             // 4) Parse the wrapper to extract the JSON the model produced
