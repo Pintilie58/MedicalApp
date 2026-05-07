@@ -49,8 +49,8 @@
                             <label asp-for="ProfileId" class="form-label fw-semibold">
                                 &#128106; Pentru cine este analiza?
                             </label>
-                            <div class="input-group">
-                                <select asp-for="ProfileId" class="form-select form-select-lg"
+                            <div class="input-group profile-select-group">
+                                <select asp-for="ProfileId" class="form-select form-select-lg profile-select-input"
                                         data-testid="interpret-profile-select" required>
                                     <option value="">-- Selectează profilul --</option>
                                     @foreach (var p in Model.AvailableProfiles)
@@ -118,6 +118,21 @@
 </div>
 
 <style>
+    /* Hover & focus highlight for the "Pentru cine este analiza?" profile selector. */
+    .profile-select-input {
+        transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+        cursor: pointer;
+    }
+    .profile-select-input:hover {
+        border-color: #0d6efd;
+        background-color: #f0f7ff;
+        box-shadow: 0 0 0 0.18rem rgba(13, 110, 253, 0.18);
+    }
+    .profile-select-input:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+
     .processing-overlay {
         display: none;
         position: fixed;
@@ -172,8 +187,7 @@
     @@keyframes spin {
         to {
             transform: rotate(360deg);
-        }
-    }
+        }    }
 
     @@keyframes fadeIn {
         from {

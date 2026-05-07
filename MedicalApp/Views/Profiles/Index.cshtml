@@ -90,14 +90,14 @@
                                     <dl class="row small text-muted mb-3 mt-3">
                                         @if (!string.IsNullOrWhiteSpace(p.Gender))
                                         {
-                                            <dt class="col-5">Sex</dt><dd class="col-7">@p.Gender</dd>
+                                            <dt class="col-6">Sex</dt><dd class="col-6">@p.Gender</dd>
                                         }
                                         @if (p.BirthYear.HasValue)
                                         {
-                                            <dt class="col-5">An naștere</dt><dd class="col-7">@p.BirthYear</dd>
+                                            <dt class="col-6">An naștere</dt><dd class="col-6">@p.BirthYear</dd>
                                         }
-                                        <dt class="col-5">Interpretări</dt>
-                                        <dd class="col-7 fw-bold text-dark">@p.InterpretationsCount</dd>
+                                        <dt class="col-6 text-nowrap">Interpretări</dt>
+                                        <dd class="col-6 fw-bold text-dark">@p.InterpretationsCount</dd>
                                     </dl>
 
                                     @if (!string.IsNullOrWhiteSpace(p.Notes))
@@ -123,8 +123,8 @@
                                         @if (!p.IsDefault)
                                         {
                                             <form asp-action="Delete" method="post"
-                                                  onsubmit="return confirm('Sigur vrei să ștergi profilul &quot;@p.Name&quot;? Această acțiune nu poate fi anulată.');"
-                                                  class="m-0">
+                                                  class="m-0 js-delete-profile-form"
+                                                  data-profile-name="@p.Name">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="id" value="@p.Id" />
                                                 <button type="submit"
@@ -143,6 +143,40 @@
             }
 
             <div class="mt-4">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete confirmation modal (replaces native confirm() to avoid the
+     "localhost:5001 says" header that browsers prepend to default dialogs). -->
+<div class="modal fade" id="deleteProfileModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger">
+                    &#9888;&#65039; Confirmă ștergerea
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">
+                    Ești sigur că vrei să ștergi profilul <strong id="deleteProfileName">-</strong>?
+                </p>
+                <p class="small text-muted mb-0">
+                    Toate interpretările asociate acestui profil rămân în baza de date,
+                    dar profilul în sine va dispărea. Această acțiune nu poate fi anulată.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                        data-testid="btn-cancel-delete-profile">
+                    Anulează
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteProfileBtn"
+                        data-testid="btn-confirm-delete-profile">
+                    &#128465; Da, șterge
+                </button>
             </div>
         </div>
     </div>
@@ -193,6 +227,40 @@
                     input.focus();
                 });
             }
+        })();
+    </script>
+
+    <script>
+        // Custom delete-confirmation flow (replaces window.confirm() to remove
+        // the "localhost:5001 says" header).
+        (function () {
+            var modalEl = document.getElementById('deleteProfileModal');
+            var nameEl = document.getElementById('deleteProfileName');
+            var confirmBtn = document.getElementById('confirmDeleteProfileBtn');
+            if (!modalEl || !confirmBtn) return;
+            var modal = new bootstrap.Modal(modalEl);
+            var pendingForm = null;
+
+            document.querySelectorAll('.js-delete-profile-form').forEach(function (form) {
+                form.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    pendingForm = form;
+                    if (nameEl) nameEl.textContent = form.getAttribute('data-profile-name') || '-';
+                    modal.show();
+                });
+            });
+
+            confirmBtn.addEventListener('click', function () {
+                if (pendingForm) {
+                    confirmBtn.disabled = true;
+                    pendingForm.submit();
+                }
+            });
+
+            modalEl.addEventListener('hidden.bs.modal', function () {
+                pendingForm = null;
+                confirmBtn.disabled = false;
+            });
         })();
     </script>
 }
