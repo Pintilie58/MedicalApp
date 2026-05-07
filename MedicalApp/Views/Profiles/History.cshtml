@@ -159,8 +159,9 @@
                                                 </span>
                                             }
                                             <form asp-action="DeleteHistory" method="post"
-                                                  class="d-inline ms-1"
-                                                  onsubmit="return confirm('Sigur vrei să ștergi această interpretare din arhivă? Această acțiune nu poate fi anulată.');">
+                                                  class="d-inline ms-1 js-delete-history-form"
+                                                  data-history-date="@h.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")"
+                                                  data-history-file="@(h.OriginalFileName ?? "")">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="id" value="@h.Id" />
                                                 <input type="hidden" name="profileId" value="@Model.ProfileId" />
@@ -178,6 +179,40 @@
                         </table>
                     </div>
             }
+        </div>
+    </div>
+</div>
+
+<!-- Delete-history confirmation modal (custom, no "localhost says" header). -->
+<div class="modal fade" id="deleteHistoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger">
+                    &#9888;&#65039; Confirmă ștergerea
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">
+                    Vrei să ștergi această interpretare din arhivă?
+                </p>
+                <ul class="small text-muted mb-2">
+                    <li>Data: <strong id="deleteHistoryDate">-</strong></li>
+                    <li>Fișier: <strong id="deleteHistoryFile">-</strong></li>
+                </ul>
+                <p class="small text-muted mb-0">
+                    Această acțiune nu poate fi anulată. Raportul PDF nu va mai putea fi regenerat.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                        data-testid="btn-cancel-delete-history">Anulează</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteHistoryBtn"
+                        data-testid="btn-confirm-delete-history">
+                    &#128465; Da, șterge
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -219,6 +254,41 @@
                 h2.type = 'hidden'; h2.name = 'id2'; h2.value = sel[1].value;
                 form.appendChild(h1);
                 form.appendChild(h2);
+            });
+        })();
+    </script>
+
+    <script>
+        // Custom delete-history confirm modal (no "localhost says" prefix).
+        (function () {
+            var modalEl = document.getElementById('deleteHistoryModal');
+            var dateEl = document.getElementById('deleteHistoryDate');
+            var fileEl = document.getElementById('deleteHistoryFile');
+            var confirmBtn = document.getElementById('confirmDeleteHistoryBtn');
+            if (!modalEl || !confirmBtn) return;
+            var modal = new bootstrap.Modal(modalEl);
+            var pendingForm = null;
+
+            document.querySelectorAll('.js-delete-history-form').forEach(function (form) {
+                form.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    pendingForm = form;
+                    if (dateEl) dateEl.textContent = form.getAttribute('data-history-date') || '-';
+                    if (fileEl) fileEl.textContent = form.getAttribute('data-history-file') || '-';
+                    modal.show();
+                });
+            });
+
+            confirmBtn.addEventListener('click', function () {
+                if (pendingForm) {
+                    confirmBtn.disabled = true;
+                    pendingForm.submit();
+                }
+            });
+
+            modalEl.addEventListener('hidden.bs.modal', function () {
+                pendingForm = null;
+                confirmBtn.disabled = false;
             });
         })();
     </script>
