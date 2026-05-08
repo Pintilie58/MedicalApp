@@ -76,34 +76,42 @@ namespace MedicalApp.Models
         }
     }
 
-    /// <summary>ViewModel for /Profiles/Compare - side-by-side comparison of two
+    /// <summary>ViewModel for /Profiles/Compare - side-by-side comparison of 2 to 4
     /// interpretations for the same profile. Parameters are joined on a canonical
     /// name key (case-insensitive, whitespace-trimmed) so the same parameter shows
-    /// on the same row even if the labs used slightly different label spacing.</summary>
+    /// on the same row even if the labs used slightly different label spacing.
+    /// Columns are ordered LEFT (oldest sampling date) → RIGHT (most recent),
+    /// based on the patient's sampling date (PatientInfo.DateTaken from the JSON);
+    /// when the sampling date can't be parsed we fall back to CreatedAt.
+    /// </summary>
     public class CompareInterpretationsViewModel
     {
+        public const int MinSelections = 2;
+        public const int MaxSelections = 4;
+
         public int ProfileId { get; set; }
         public string ProfileName { get; set; } = string.Empty;
 
-        public Side Left { get; set; } = new();
-        public Side Right { get; set; } = new();
+        /// <summary>Ordered oldest → newest by sampling date.</summary>
+        public List<Column> Columns { get; set; } = new();
 
         public List<ComparisonRow> Rows { get; set; } = new();
 
         public int RisenCount { get; set; }
         public int FallenCount { get; set; }
         public int UnchangedCount { get; set; }
-        public int OnlyLeftCount { get; set; }
-        public int OnlyRightCount { get; set; }
+        public int PartialCount { get; set; }
 
         public bool CreditConsumed { get; set; }
 
-        public class Side
+        public class Column
         {
             public int HistoryId { get; set; }
             public DateTime CreatedAt { get; set; }
             public string? OriginalFileName { get; set; }
             public string? DateTaken { get; set; }
+            /// <summary>Date used for ordering (parsed from DateTaken, fallback CreatedAt).</summary>
+            public DateTime EffectiveDate { get; set; }
             public int KeyResultsCount { get; set; }
             public int AbnormalFindingsCount { get; set; }
         }
@@ -114,18 +122,30 @@ namespace MedicalApp.Models
             public string? Unit { get; set; }
             public string? ReferenceRange { get; set; }
 
-            public string? LeftValue { get; set; }
-            public string? LeftStatus { get; set; }
-            public string? RightValue { get; set; }
-            public string? RightStatus { get; set; }
+            /// <summary>One cell per Column (same length and order as <see cref="Columns"/>).</summary>
+            public List<Cell> Cells { get; set; } = new();
 
-            /// <summary>risen | fallen | unchanged | only_left | only_right | unparsable</summary>
+            /// <summary>
+            /// Aggregate trend across the columns:
+            ///   risen     - last present value &gt; first present value
+            ///   fallen    - last present value &lt; first present value
+            ///   unchanged - all present values numerically equal
+            ///   partial   - parameter only appears in some columns
+            ///   unparsable- present in all but values are not numeric and differ
+            /// </summary>
             public string Direction { get; set; } = "unchanged";
+        }
 
-            /// <summary>Nullable numeric delta (Right - Left) when both values parse.</summary>
-            public double? NumericDelta { get; set; }
-            /// <summary>Percent change relative to Left when Left is non-zero.</summary>
-            public double? PercentDelta { get; set; }
+        public class Cell
+        {
+            public string? Value { get; set; }
+            public string? Status { get; set; }
+            /// <summary>
+            /// Per-cell direction relative to the FIRST cell that contains a value:
+            ///   first | risen | fallen | unchanged | only_here | absent
+            /// Used by the view to color the cell.
+            /// </summary>
+            public string CellDirection { get; set; } = "absent";
         }
     }
 }
