@@ -1,4 +1,8 @@
 @model MedicalApp.Models.ProfilesIndexViewModel
+@*
+    /Profiles - list of the current user's health profiles (Eu, Mama, Tata, …).
+    Each card shows quick stats and links to the archive (History) for that profile.
+*@
 @{
     ViewData["Title"] = "Profile";
     var successMessage = TempData["SuccessMessage"] as string;
