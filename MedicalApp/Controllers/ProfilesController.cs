@@ -144,6 +144,13 @@ namespace MedicalApp.Controllers
                 items.Add(row);
             }
 
+            // Sort by patient's sampling date (newest sampling first), with a tolerant
+            // parser - falls back to CreatedAt when DateTaken is missing or unparsable.
+            items = items
+                .OrderByDescending(r => ParseSamplingDate(r.DateTaken) ?? r.CreatedAt)
+                .ThenByDescending(r => r.CreatedAt)
+                .ToList();
+
             var vm = new ProfileHistoryViewModel
             {
                 ProfileId = profile.Id,
@@ -257,17 +264,29 @@ namespace MedicalApp.Controllers
         }
 
         // ====================================================================
-        // COMPARE two interpretations side-by-side (P1.5.5, premium feature)
+        // COMPARE 2 to 4 interpretations side-by-side (P1.5.5, premium feature).
+        // Columns are ordered oldest → newest by patient's sampling date
+        // (PatientInfo.DateTaken in the stored JSON, with a tolerant parser),
+        // falling back to CreatedAt when the date cannot be parsed.
         // ====================================================================
         [HttpGet]
-        public async Task<IActionResult> Compare(int id1, int id2, int profileId)
+        public async Task<IActionResult> Compare(int profileId, int[]? ids)
         {
             if (string.IsNullOrEmpty(CurrentEmail))
                 return RedirectToAction("Index", "Home");
 
-            if (id1 == id2)
+            // Sanitize: distinct, non-zero ids, max 4.
+            var distinctIds = (ids ?? Array.Empty<int>())
+                .Where(i => i > 0)
+                .Distinct()
+                .Take(CompareInterpretationsViewModel.MaxSelections)
+                .ToArray();
+
+            if (distinctIds.Length < CompareInterpretationsViewModel.MinSelections)
             {
-                TempData["ErrorMessage"] = "Alege două interpretări diferite pentru comparație.";
+                TempData["ErrorMessage"] =
+                    $"Selectează între {CompareInterpretationsViewModel.MinSelections} și " +
+                    $"{CompareInterpretationsViewModel.MaxSelections} interpretări pentru comparație.";
                 return RedirectToAction(nameof(History), new { id = profileId });
             }
 
@@ -288,20 +307,20 @@ namespace MedicalApp.Controllers
 
             var items = await _db.InterpretationHistories
                 .AsNoTracking()
-                .Where(h => (h.Id == id1 || h.Id == id2)
+                .Where(h => distinctIds.Contains(h.Id)
                             && h.UserEmail == CurrentEmail
                             && h.ProfileId == profile.Id
                             && h.Status == "success"
                             && h.RawJsonResult != null)
                 .ToListAsync();
 
-            if (items.Count != 2)
+            if (items.Count != distinctIds.Length)
             {
-                TempData["ErrorMessage"] = "Una sau ambele interpretări selectate nu au fost găsite.";
+                TempData["ErrorMessage"] = "Una sau mai multe interpretări selectate nu au fost găsite.";
                 return RedirectToAction(nameof(History), new { id = profileId });
             }
 
-            // Archive premium billing: check & consume. If refused, redirect with error.
+            // Archive premium billing: 1 use regardless of how many columns are compared.
             var check = _archiveAccess.TryConsume(user, "compare");
             if (!check.Allowed)
             {
@@ -311,19 +330,29 @@ namespace MedicalApp.Controllers
             }
             await _db.SaveChangesAsync();
 
-            // Deserialize both JSONs.
-            var left = items.OrderBy(h => h.CreatedAt).First();
-            var right = items.OrderBy(h => h.CreatedAt).Last();
-
-            var leftResult = DeserializeSafe(left.RawJsonResult);
-            var rightResult = DeserializeSafe(right.RawJsonResult);
-            if (leftResult == null || rightResult == null)
+            // Deserialize each JSON; drop any that fail to parse.
+            var parsed = new List<(InterpretationHistory h, InterpretationResult r)>();
+            foreach (var h in items)
+            {
+                var r = DeserializeSafe(h.RawJsonResult);
+                if (r != null) parsed.Add((h, r));
+            }
+            if (parsed.Count < CompareInterpretationsViewModel.MinSelections)
             {
                 TempData["ErrorMessage"] = "Comparația nu a putut fi generată din datele stocate.";
                 return RedirectToAction(nameof(History), new { id = profileId });
             }
 
-            var vm = BuildComparison(profile, left, right, leftResult, rightResult);
+            // Sort oldest → newest by patient's SAMPLING date (PatientInfo.DateTaken).
+            // Fallback to CreatedAt when DateTaken is missing or unparsable.
+            parsed = parsed
+                .Select(t => (t.h, t.r,
+                              eff: ParseSamplingDate(t.r.PatientInfo?.DateTaken) ?? t.h.CreatedAt))
+                .OrderBy(t => t.eff)
+                .Select(t => (t.h, t.r))
+                .ToList();
+
+            var vm = BuildComparison(profile, parsed);
             vm.CreditConsumed = check.CreditConsumed;
             return View(vm);
         }
@@ -347,106 +376,181 @@ namespace MedicalApp.Controllers
             }
         }
 
+        /// <summary>
+        /// Tolerantly parses the various date formats labs print on PDFs. Examples we want
+        /// to handle: "27/01/2014", "27.01.2014", "27-01-2014", "2014-01-27", "01/27/2014",
+        /// "27/01/2014 14:30", "27 Jan 2014" etc. Returns null when no parse succeeds.
+        /// </summary>
+        private static DateTime? ParseSamplingDate(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+            var s = raw.Trim();
+
+            string[] formats =
+            {
+                "yyyy-MM-dd",
+                "yyyy/MM/dd",
+                "dd/MM/yyyy", "dd-MM-yyyy", "dd.MM.yyyy",
+                "d/M/yyyy",  "d-M-yyyy",  "d.M.yyyy",
+                "MM/dd/yyyy",
+                "dd/MM/yyyy HH:mm", "dd-MM-yyyy HH:mm", "dd.MM.yyyy HH:mm",
+                "yyyy-MM-dd HH:mm", "yyyy-MM-ddTHH:mm:ss",
+                "dd MMM yyyy", "dd MMMM yyyy",
+                "MMM dd, yyyy", "MMMM dd, yyyy"
+            };
+
+            // Try several culture-specific parses (locales used by the lab PDFs we see).
+            string[] cultures = { "en-US", "ro-RO", "fr-FR", "es-ES", "de-DE" };
+            foreach (var cult in cultures)
+            {
+                var ci = System.Globalization.CultureInfo.GetCultureInfo(cult);
+                if (DateTime.TryParseExact(s, formats, ci,
+                        System.Globalization.DateTimeStyles.AssumeLocal, out var d))
+                    return d;
+            }
+            // Last-ditch generic parse.
+            return DateTime.TryParse(s,
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AssumeLocal, out var any) ? any : (DateTime?)null;
+        }
+
         private static CompareInterpretationsViewModel BuildComparison(
             Profile profile,
-            InterpretationHistory leftH, InterpretationHistory rightH,
-            InterpretationResult left, InterpretationResult right)
+            List<(InterpretationHistory h, InterpretationResult r)> sortedOldestFirst)
         {
             static string Key(string param) =>
                 (param ?? string.Empty).Trim().ToLowerInvariant();
 
-            var leftMap = (left.KeyResults ?? new())
-                .Where(r => !string.IsNullOrWhiteSpace(r.Parameter))
-                .GroupBy(r => Key(r.Parameter))
-                .ToDictionary(g => g.Key, g => g.First());
-            var rightMap = (right.KeyResults ?? new())
-                .Where(r => !string.IsNullOrWhiteSpace(r.Parameter))
-                .GroupBy(r => Key(r.Parameter))
-                .ToDictionary(g => g.Key, g => g.First());
+            int n = sortedOldestFirst.Count;
 
-            var allKeys = leftMap.Keys.Union(rightMap.Keys).OrderBy(k => k).ToList();
+            // Build per-column key→KeyResult dictionaries.
+            var keyMaps = sortedOldestFirst
+                .Select(t => (t.r.KeyResults ?? new())
+                    .Where(k => !string.IsNullOrWhiteSpace(k.Parameter))
+                    .GroupBy(k => Key(k.Parameter))
+                    .ToDictionary(g => g.Key, g => g.First()))
+                .ToList();
 
-            int risen = 0, fallen = 0, unchanged = 0, onlyLeft = 0, onlyRight = 0;
+            var allKeys = keyMaps.SelectMany(m => m.Keys).Distinct().OrderBy(k => k).ToList();
+
+            int risen = 0, fallen = 0, unchanged = 0, partial = 0;
 
             var rows = new List<CompareInterpretationsViewModel.ComparisonRow>(allKeys.Count);
             foreach (var k in allKeys)
             {
-                leftMap.TryGetValue(k, out var l);
-                rightMap.TryGetValue(k, out var r);
+                // Find a representative parameter object for the row's metadata
+                // (latest column wins, falls back through earlier columns).
+                KeyResult? meta = null;
+                for (int i = n - 1; i >= 0 && meta == null; i--)
+                    keyMaps[i].TryGetValue(k, out meta);
 
                 var row = new CompareInterpretationsViewModel.ComparisonRow
                 {
-                    Parameter = r?.Parameter ?? l?.Parameter ?? k,
-                    Unit = r?.Unit ?? l?.Unit,
-                    ReferenceRange = r?.ReferenceRange ?? l?.ReferenceRange,
-                    LeftValue = l?.Value,
-                    LeftStatus = l?.Status,
-                    RightValue = r?.Value,
-                    RightStatus = r?.Status
+                    Parameter = meta?.Parameter ?? k,
+                    Unit = meta?.Unit,
+                    ReferenceRange = meta?.ReferenceRange
                 };
 
-                if (l == null)
+                // First numeric value index (used as the baseline for "risen/fallen").
+                int? baseIdx = null;
+                double baseValue = 0;
+                int presentCount = 0;
+                int numericCount = 0;
+
+                for (int i = 0; i < n; i++)
                 {
-                    row.Direction = "only_right";
-                    onlyRight++;
-                }
-                else if (r == null)
-                {
-                    row.Direction = "only_left";
-                    onlyLeft++;
-                }
-                else
-                {
-                    var (lv, lok) = ParseNumeric(l.Value);
-                    var (rv, rok) = ParseNumeric(r.Value);
-                    if (lok && rok)
+                    var cell = new CompareInterpretationsViewModel.Cell();
+                    if (keyMaps[i].TryGetValue(k, out var kr))
                     {
-                        row.NumericDelta = rv - lv;
-                        row.PercentDelta = lv != 0 ? (rv - lv) / Math.Abs(lv) * 100.0 : (double?)null;
-                        if (Math.Abs(rv - lv) < 1e-9) { row.Direction = "unchanged"; unchanged++; }
-                        else if (rv > lv) { row.Direction = "risen"; risen++; }
-                        else { row.Direction = "fallen"; fallen++; }
+                        presentCount++;
+                        cell.Value = kr.Value;
+                        cell.Status = kr.Status;
+                        cell.CellDirection = "unchanged"; // refined below
+                        var (v, ok) = ParseNumeric(kr.Value);
+                        if (ok)
+                        {
+                            numericCount++;
+                            if (baseIdx == null)
+                            {
+                                baseIdx = i;
+                                baseValue = v;
+                                cell.CellDirection = "first";
+                            }
+                            else
+                            {
+                                if (Math.Abs(v - baseValue) < 1e-9) cell.CellDirection = "unchanged";
+                                else if (v > baseValue) cell.CellDirection = "risen";
+                                else cell.CellDirection = "fallen";
+                            }
+                        }
+                        else
+                        {
+                            cell.CellDirection = baseIdx == null ? "first" : "unchanged";
+                        }
                     }
                     else
                     {
-                        // Non-numeric values (e.g. "negativ" / "pozitiv"): string compare.
-                        var same = string.Equals(l.Value?.Trim(), r.Value?.Trim(),
-                            StringComparison.OrdinalIgnoreCase);
-                        if (same) { row.Direction = "unchanged"; unchanged++; }
-                        else { row.Direction = "unparsable"; }
+                        cell.CellDirection = "absent";
                     }
+                    row.Cells.Add(cell);
                 }
+
+                // Aggregate row-level direction.
+                if (presentCount < n)
+                {
+                    row.Direction = "partial";
+                    partial++;
+                }
+                else if (numericCount == n && baseIdx != null)
+                {
+                    // Compare LAST numeric vs the baseline (first numeric).
+                    var lastNumeric = row.Cells
+                        .Select((c, idx) => (c, idx))
+                        .Where(t => t.c.CellDirection != "absent" && ParseNumeric(t.c.Value).ok)
+                        .Select(t => ParseNumeric(t.c.Value).value)
+                        .Last();
+                    if (Math.Abs(lastNumeric - baseValue) < 1e-9) { row.Direction = "unchanged"; unchanged++; }
+                    else if (lastNumeric > baseValue) { row.Direction = "risen"; risen++; }
+                    else { row.Direction = "fallen"; fallen++; }
+                }
+                else
+                {
+                    // All cells present but at least one non-numeric: compare strings.
+                    var first = row.Cells[0].Value?.Trim();
+                    bool allEqual = row.Cells.All(c =>
+                        string.Equals(c.Value?.Trim(), first, StringComparison.OrdinalIgnoreCase));
+                    if (allEqual) { row.Direction = "unchanged"; unchanged++; }
+                    else { row.Direction = "unparsable"; }
+                }
+
                 rows.Add(row);
             }
+
+            var columns = sortedOldestFirst.Select(t =>
+            {
+                var eff = ParseSamplingDate(t.r.PatientInfo?.DateTaken) ?? t.h.CreatedAt;
+                return new CompareInterpretationsViewModel.Column
+                {
+                    HistoryId = t.h.Id,
+                    CreatedAt = t.h.CreatedAt,
+                    OriginalFileName = t.h.OriginalFileName,
+                    DateTaken = t.r.PatientInfo?.DateTaken,
+                    EffectiveDate = eff,
+                    KeyResultsCount = t.r.KeyResults?.Count ?? 0,
+                    AbnormalFindingsCount = t.r.AbnormalFindings?.Count ?? 0
+                };
+            }).ToList();
 
             return new CompareInterpretationsViewModel
             {
                 ProfileId = profile.Id,
                 ProfileName = profile.Name,
-                Left = new CompareInterpretationsViewModel.Side
-                {
-                    HistoryId = leftH.Id,
-                    CreatedAt = leftH.CreatedAt,
-                    OriginalFileName = leftH.OriginalFileName,
-                    DateTaken = left.PatientInfo?.DateTaken,
-                    KeyResultsCount = left.KeyResults?.Count ?? 0,
-                    AbnormalFindingsCount = left.AbnormalFindings?.Count ?? 0
-                },
-                Right = new CompareInterpretationsViewModel.Side
-                {
-                    HistoryId = rightH.Id,
-                    CreatedAt = rightH.CreatedAt,
-                    OriginalFileName = rightH.OriginalFileName,
-                    DateTaken = right.PatientInfo?.DateTaken,
-                    KeyResultsCount = right.KeyResults?.Count ?? 0,
-                    AbnormalFindingsCount = right.AbnormalFindings?.Count ?? 0
-                },
+                Columns = columns,
                 Rows = rows,
                 RisenCount = risen,
                 FallenCount = fallen,
                 UnchangedCount = unchanged,
-                OnlyLeftCount = onlyLeft,
-                OnlyRightCount = onlyRight
+                PartialCount = partial
             };
         }
 

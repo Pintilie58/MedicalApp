@@ -77,7 +77,9 @@
                     <input type="hidden" name="profileId" value="@Model.ProfileId" />
                     <div class="d-flex align-items-center mb-2 gap-2 flex-wrap">
                         <span class="small text-muted" data-testid="history-compare-hint">
-                            Selectează 2 interpretări și apoi apasă „Compară".
+                            Selectează între 2 și 4 interpretări apoi apasă „Compară".
+                            <span id="compareSelCount" class="badge bg-secondary ms-2"
+                                  data-testid="history-selected-count">0</span>
                         </span>
                         <button type="submit" id="btnCompare" class="btn btn-primary btn-sm ms-auto"
                                 disabled data-testid="btn-compare-selected">
@@ -222,7 +224,10 @@
         (function () {
             var btn = document.getElementById('btnCompare');
             var form = document.getElementById('compareForm');
+            var counter = document.getElementById('compareSelCount');
             if (!btn || !form) return;
+
+            var MIN = 2, MAX = 4;
 
             function selected() {
                 return Array.prototype.slice.call(
@@ -231,29 +236,30 @@
 
             function refresh() {
                 var sel = selected();
-                btn.disabled = sel.length !== 2;
-                // Cap at 2: uncheck the oldest selection when a 3rd is ticked.
-                if (sel.length > 2) {
+                // Cap at MAX: uncheck the oldest selection when the next one is ticked.
+                while (sel.length > MAX) {
                     sel[0].checked = false;
+                    sel = selected();
+                }
+                btn.disabled = sel.length < MIN || sel.length > MAX;
+                if (counter) {
+                    counter.textContent = sel.length + '/' + MAX;
+                    counter.className = 'badge ms-2 ' +
+                        (sel.length >= MIN && sel.length <= MAX ? 'bg-primary' : 'bg-secondary');
                 }
             }
 
             document.querySelectorAll('.compare-check').forEach(function (cb) {
                 cb.addEventListener('change', refresh);
             });
+            refresh();
 
-            // The route expects id1=&id2= but the checkboxes all share name="ids".
-            // Map them on submit.
+            // The route accepts ids[] (param name: "ids"). The checkboxes already
+            // have name="ids", so default form submit yields ?ids=12&ids=15&...
+            // We just keep the unchecked ones from being sent (browser handles that).
             form.addEventListener('submit', function (e) {
                 var sel = selected();
-                if (sel.length !== 2) { e.preventDefault(); return false; }
-                sel.forEach(function (cb) { cb.removeAttribute('name'); });
-                var h1 = document.createElement('input');
-                h1.type = 'hidden'; h1.name = 'id1'; h1.value = sel[0].value;
-                var h2 = document.createElement('input');
-                h2.type = 'hidden'; h2.name = 'id2'; h2.value = sel[1].value;
-                form.appendChild(h1);
-                form.appendChild(h2);
+                if (sel.length < MIN || sel.length > MAX) { e.preventDefault(); return false; }
             });
         })();
     </script>

@@ -2,24 +2,23 @@
 @{
     ViewData["Title"] = $"Comparație - {Model.ProfileName}";
 
-    string DirectionClass(string d) => d switch
+    string CellClass(string d) => d switch
     {
-        "risen"      => "table-danger",
-        "fallen"     => "table-info",
-        "unchanged"  => "",
-        "only_left"  => "table-warning",
-        "only_right" => "table-warning",
-        "unparsable" => "table-secondary",
+        "first"     => "table-light",
+        "risen"     => "table-danger",
+        "fallen"    => "table-info",
+        "unchanged" => "",
+        "absent"    => "table-warning text-muted fst-italic",
         _ => ""
     };
-    string DirectionIcon(string d) => d switch
+    string CellIcon(string d) => d switch
     {
-        "risen"      => "&#8599;",   // ↗
-        "fallen"     => "&#8600;",   // ↘
-        "unchanged"  => "&#61;",
-        "only_left"  => "&#9664;",   // ◀
-        "only_right" => "&#9654;",   // ▶
-        _ => "?"
+        "risen"     => "&#8599;",   // ↗
+        "fallen"    => "&#8600;",   // ↘
+        "unchanged" => "",
+        "first"     => "",
+        "absent"    => "—",
+        _ => ""
     };
     string StatusBadge(string? status) => status?.ToLowerInvariant() switch
     {
@@ -31,13 +30,16 @@
     };
 }
 
-<div class="container py-5">
+<div class="container-fluid py-5">
     <div class="row justify-content-center">
-        <div class="col-xl-11">
+        <div class="col-12 col-xxl-11">
             <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
                 <h2 class="text-primary fw-bold mb-0" data-testid="compare-heading">
                     &#128200; Comparație: @Model.ProfileName
                 </h2>
+                <span class="badge bg-secondary align-self-center" data-testid="compare-column-count">
+                    @Model.Columns.Count interpretări
+                </span>
                 <div class="ms-auto">
                     <a asp-action="History" asp-route-id="@Model.ProfileId"
                        class="btn btn-outline-secondary" data-testid="btn-back-history">
@@ -49,58 +51,59 @@
             @if (Model.CreditConsumed)
             {
                 <div class="alert alert-warning" data-testid="compare-credit-consumed-msg">
-                    &#128181; A fost consumat 1 credit pentru această comparație (pachetul de 3 comparații gratuite a fost epuizat).
+                    &#128181; A fost consumat 1 credit pentru această comparație
+                    (pachetul de 3 utilizări gratuite a fost epuizat).
                 </div>
             }
 
-            <div class="row g-3 mb-4">
-                <div class="col-md-6">
-                    <div class="card border-primary h-100">
-                        <div class="card-body">
-                            <div class="small text-muted">Interpretarea 1 (mai veche)</div>
-                            <h5 class="fw-bold text-primary" data-testid="compare-left-date">
-                                @Model.Left.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")
-                            </h5>
-                            @if (!string.IsNullOrWhiteSpace(Model.Left.DateTaken))
-                            {
-                                <div class="small">Data recoltării: <strong>@Model.Left.DateTaken</strong></div>
-                            }
-                            <div class="small text-muted">
-                                @Model.Left.KeyResultsCount parametri · @Model.Left.AbnormalFindingsCount anormalități
+            <p class="text-muted small mb-3">
+                Coloanele sunt ordonate cronologic, <strong>de la stânga (mai vechi)</strong>
+                la <strong>dreapta (mai recent)</strong>, după <strong>data recoltării</strong>
+                (sau, dacă lipsește, după data interpretării).
+            </p>
+
+            @* Column headers as cards *@
+            <div class="row g-2 mb-3">
+                @{
+                    var colorByIdx = new[] { "border-primary", "border-info", "border-warning", "border-success" };
+                }
+                @for (int i = 0; i < Model.Columns.Count; i++)
+                {
+                    var col = Model.Columns[i];
+                    var border = colorByIdx[i % colorByIdx.Length];
+                    <div class="col-12 col-md-6 col-xl-3">
+                        <div class="card @border h-100" data-testid="compare-col-card-@i">
+                            <div class="card-body py-2">
+                                <div class="small text-muted">Interpretarea @(i + 1)</div>
+                                <h6 class="fw-bold mb-1" data-testid="compare-col-sampled-@i">
+                                    Recoltare:
+                                    <span class="text-dark">
+                                        @(string.IsNullOrWhiteSpace(col.DateTaken)
+                                            ? col.EffectiveDate.ToLocalTime().ToString("dd MMM yyyy")
+                                            : col.DateTaken)
+                                    </span>
+                                </h6>
+                                <div class="small text-muted">
+                                    Interpretat: @col.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")
+                                </div>
+                                <div class="small text-muted">
+                                    @col.KeyResultsCount parametri · @col.AbnormalFindingsCount anormalități
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="card border-success h-100">
-                        <div class="card-body">
-                            <div class="small text-muted">Interpretarea 2 (mai recentă)</div>
-                            <h5 class="fw-bold text-success" data-testid="compare-right-date">
-                                @Model.Right.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")
-                            </h5>
-                            @if (!string.IsNullOrWhiteSpace(Model.Right.DateTaken))
-                            {
-                                <div class="small">Data recoltării: <strong>@Model.Right.DateTaken</strong></div>
-                            }
-                            <div class="small text-muted">
-                                @Model.Right.KeyResultsCount parametri · @Model.Right.AbnormalFindingsCount anormalități
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                }
             </div>
 
             <div class="d-flex flex-wrap gap-2 mb-3" data-testid="compare-summary-badges">
                 <span class="badge bg-danger">&#8599; Crescute: @Model.RisenCount</span>
                 <span class="badge bg-info text-dark">&#8600; Scăzute: @Model.FallenCount</span>
                 <span class="badge bg-success">= Neschimbate: @Model.UnchangedCount</span>
-                @if (Model.OnlyLeftCount > 0)
+                @if (Model.PartialCount > 0)
                 {
-                    <span class="badge bg-warning text-dark">&#9664; Doar în 1: @Model.OnlyLeftCount</span>
-                }
-                @if (Model.OnlyRightCount > 0)
-                {
-                    <span class="badge bg-warning text-dark">&#9654; Doar în 2: @Model.OnlyRightCount</span>
+                    <span class="badge bg-warning text-dark" data-testid="compare-partial-badge">
+                        &#9888; Doar parțial: @Model.PartialCount
+                    </span>
                 }
             </div>
 
@@ -109,48 +112,42 @@
                     <thead class="table-light">
                         <tr>
                             <th style="min-width:180px;">Parametru</th>
-                            <th class="text-center">Valoare 1</th>
-                            <th class="text-center"></th>
-                            <th class="text-center">Valoare 2</th>
-                            <th class="text-end">Variație</th>
+                            @for (int i = 0; i < Model.Columns.Count; i++)
+                            {
+                                var col = Model.Columns[i];
+                                <th class="text-center" style="min-width:140px;">
+                                    @(string.IsNullOrWhiteSpace(col.DateTaken)
+                                        ? col.EffectiveDate.ToLocalTime().ToString("dd MMM yyyy")
+                                        : col.DateTaken)
+                                </th>
+                            }
                             <th class="text-muted small">Referință</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var row in Model.Rows)
                         {
-                            <tr class="@DirectionClass(row.Direction)" data-testid="compare-row-@row.Parameter.Replace(" ", "-")">
-                                <td class="fw-semibold">@row.Parameter</td>
-                                <td class="text-center">
-                                    <span>@(row.LeftValue ?? "-")</span>
+                            <tr data-testid="compare-row-@row.Parameter.Replace(" ", "-")">
+                                <td class="fw-semibold">
+                                    @row.Parameter
                                     @if (!string.IsNullOrWhiteSpace(row.Unit))
-                                    { <span class="small text-muted">@row.Unit</span> }
-                                    @Html.Raw(StatusBadge(row.LeftStatus))
+                                    { <span class="small text-muted">(@row.Unit)</span> }
                                 </td>
-                                <td class="text-center fs-5">
-                                    @Html.Raw(DirectionIcon(row.Direction))
-                                </td>
-                                <td class="text-center">
-                                    <span>@(row.RightValue ?? "-")</span>
-                                    @if (!string.IsNullOrWhiteSpace(row.Unit))
-                                    { <span class="small text-muted">@row.Unit</span> }
-                                    @Html.Raw(StatusBadge(row.RightStatus))
-                                </td>
-                                <td class="text-end">
-                                    @if (row.NumericDelta.HasValue)
-                                    {
-                                        var sign = row.NumericDelta.Value >= 0 ? "+" : "";
-                                        <div class="fw-semibold">@sign@row.NumericDelta.Value.ToString("0.##")</div>
-                                        if (row.PercentDelta.HasValue)
+                                @foreach (var cell in row.Cells)
+                                {
+                                    <td class="text-center @CellClass(cell.CellDirection)">
+                                        @if (cell.CellDirection == "absent")
                                         {
-                                            <div class="small text-muted">@sign@row.PercentDelta.Value.ToString("0.#")%</div>
+                                            <span>—</span>
                                         }
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted small">-</span>
-                                    }
-                                </td>
+                                        else
+                                        {
+                                            <span>@(cell.Value ?? "-")</span>
+                                            @Html.Raw(StatusBadge(cell.Status))
+                                            <div class="fs-6">@Html.Raw(CellIcon(cell.CellDirection))</div>
+                                        }
+                                    </td>
+                                }
                                 <td class="small text-muted">@(row.ReferenceRange ?? "-")</td>
                             </tr>
                         }
@@ -159,10 +156,11 @@
             </div>
 
             <p class="small text-muted mt-3">
-                &#8599; roșu = valoare crescută &nbsp;·&nbsp;
-                &#8600; albastru = valoare scăzută &nbsp;·&nbsp;
-                = verde = neschimbat &nbsp;·&nbsp;
-                galben = parametru prezent doar într-o interpretare
+                Prima coloană (cea cu fundal gri) este referința.
+                &#8599; roșu = valoare crescută față de prima coloană &nbsp;·&nbsp;
+                &#8600; albastru = scăzută &nbsp;·&nbsp;
+                = neschimbat &nbsp;·&nbsp;
+                galben „—" = parametru lipsă în interpretarea respectivă.
             </p>
         </div>
     </div>
