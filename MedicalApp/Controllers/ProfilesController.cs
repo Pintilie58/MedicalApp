@@ -747,4 +747,3 @@ namespace MedicalApp.Controllers
         }
     }
 }
-}
