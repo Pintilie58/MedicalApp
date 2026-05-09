@@ -47,7 +47,8 @@ namespace MedicalApp.Services
         }
 
         public async Task<(InterpretationResult Result, int InputTokens, int OutputTokens, string RawResponse)> InterpretPdfAsync(
-            Stream pdfStream, string fileName, string languageCode, CancellationToken ct = default)
+            Stream pdfStream, string fileName, string languageCode,
+            PatientContext? patientContext = null, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(_settings.ApiKey))
                 throw new InvalidOperationException(
@@ -66,7 +67,7 @@ namespace MedicalApp.Services
 
             // 2) Build the request body
             var systemPrompt = BuildSystemPrompt();
-            var userPrompt = BuildUserPrompt(languageName, languageCode, fileName);
+            var userPrompt = BuildUserPrompt(languageName, languageCode, fileName, patientContext);
             var requestBody = BuildRequestBody(systemPrompt, userPrompt, pdfBase64);
 
             var url = string.Format(EndpointFormat, _settings.Model, _settings.ApiKey);
@@ -484,16 +485,60 @@ OUTPUT FORMAT (CRITICAL):
   ""_extraction_audit"": { ""expected_count"": integer, ""parameter_names"": [string, ...] }
 }";
 
-        private static string BuildUserPrompt(string languageName, string languageCode, string fileName) =>
-$@"RESPONSE LANGUAGE: {languageName} (code: {languageCode})
+        private static string BuildUserPrompt(string languageName, string languageCode, string fileName,
+            PatientContext? ctx = null)
+        {
+            // Build the patient-context block. If we know nothing, omit it entirely
+            // so the model falls back to its general multi-threshold rule.
+            string patientBlock = "";
+            if (ctx != null && (ctx.CardiovascularRisk != null || ctx.AgeYears.HasValue || !string.IsNullOrWhiteSpace(ctx.Gender)))
+            {
+                patientBlock += "\nPATIENT CONTEXT (declared by the app's owner — use this to pick the correct lipid targets and to mention it in 'summary' and 'recommendations'):\n";
+                if (ctx.AgeYears.HasValue)
+                    patientBlock += $"- Age: {ctx.AgeYears} years\n";
+                if (!string.IsNullOrWhiteSpace(ctx.Gender))
+                    patientBlock += $"- Gender: {(ctx.Gender == "M" ? "Male" : ctx.Gender == "F" ? "Female" : ctx.Gender)}\n";
+                if (!string.IsNullOrWhiteSpace(ctx.CardiovascularRisk))
+                {
+                    var label = ctx.CardiovascularRisk switch
+                    {
+                        "very_high"    => "VERY HIGH cardiovascular risk",
+                        "high"         => "HIGH cardiovascular risk",
+                        "low_moderate" => "LOW or MODERATE cardiovascular risk",
+                        _              => "(unknown)"
+                    };
+                    patientBlock += $"- Declared cardiovascular risk: **{label}**\n";
+                    patientBlock += "  Therefore the lipid-panel targets to use for THIS patient are:\n";
+                    patientBlock += ctx.CardiovascularRisk switch
+                    {
+                        "very_high"    => "    * LDL-C target:    <55 mg/dL  (or <1.4 mmol/L)\n    * non-HDL target: <85 mg/dL  (or <2.2 mmol/L)\n    * Triglycerides target: <150 mg/dL\n",
+                        "high"         => "    * LDL-C target:    <70 mg/dL  (or <1.8 mmol/L)\n    * non-HDL target: <100 mg/dL (or <2.6 mmol/L)\n    * Triglycerides target: <150 mg/dL\n",
+                        "low_moderate" => "    * LDL-C target:    <100 mg/dL (or <2.6 mmol/L)\n    * non-HDL target: <130 mg/dL (or <3.4 mmol/L)\n    * Triglycerides target: <150 mg/dL\n",
+                        _              => ""
+                    };
+                    patientBlock += "  When evaluating LDL-C, non-HDL or Triglycerides:\n";
+                    patientBlock += "    * Use the target above as the SINGLE applicable threshold for this patient.\n";
+                    patientBlock += "    * status='normal' if value is BELOW the target.\n";
+                    patientBlock += "    * status='high' if value is AT OR ABOVE the target — even by a small margin.\n";
+                    patientBlock += "    * Add it to abnormal_findings when status='high'. Severity = 'severe' for very_high risk, 'moderate' for high risk, 'mild' for low_moderate.\n";
+                    patientBlock += "    * In 'reference_range' write: '<TARGET mg/dL — țintă pentru risc cardiovascular CATEGORY' (in the response language).\n";
+                    patientBlock += "    * In 'explanation' EXPLICITLY mention the patient's declared CV-risk category and how that determined the chosen target.\n";
+                    patientBlock += "    * In 'summary' AND 'recommendations' mention that the interpretation used the user-declared cardiovascular risk category.\n";
+                    patientBlock += "    * Do NOT apply the multi-threshold-strictest-satisfied rule for these three parameters when a CV-risk category is declared — the category alone selects the target.\n";
+                }
+            }
+
+            return $@"RESPONSE LANGUAGE: {languageName} (code: {languageCode})
 
 The patient's medical PDF is attached as inline data (file name: {fileName}).
-
+{patientBlock}
 Task:
 1. Read the PDF visually and identify every section header it contains (Hematology, Biochemistry, Immunochemistry, Lipid panel, Coagulation, ESR/VSH, Urinalysis, Hormones, Tumor markers, Vitamins, etc.).
 2. For each section, extract EVERY measured parameter with its value, unit and reference range exactly as printed. Pay extra attention to Immunochemistry (hormones, tumor markers, vitamins) which is often forgotten.
 3. Apply the value-vs-reference pairing rules from the system instructions (WBC differential, age-dependent ranges, dual-unit rows, mismatched magnitudes).
 4. Determine each parameter's status (normal/high/low/borderline).
-5. Produce the structured JSON object exactly per the schema in the system instructions, written entirely in {languageName}. Do NOT wrap it in markdown fences.";
+5. If a cardiovascular-risk category was declared above, USE THE PROVIDED LIPID TARGETS for LDL-C, non-HDL and Triglycerides INSTEAD OF the multi-threshold rule, and explicitly mention the declared risk category in 'summary', 'explanation' for those parameters, and 'recommendations'.
+6. Produce the structured JSON object exactly per the schema in the system instructions, written entirely in {languageName}. Do NOT wrap it in markdown fences.";
+        }
     }
 }

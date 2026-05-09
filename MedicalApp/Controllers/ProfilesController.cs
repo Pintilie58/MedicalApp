@@ -625,6 +625,7 @@ namespace MedicalApp.Controllers
                 Gender = string.IsNullOrWhiteSpace(model.Gender) ? null : model.Gender.Trim(),
                 BirthYear = model.BirthYear,
                 Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim(),
+                CardiovascularRisk = NormalizeCvRisk(model.CardiovascularRisk),
                 IsDefault = false,
                 CreatedAt = DateTime.UtcNow
             });
@@ -655,6 +656,7 @@ namespace MedicalApp.Controllers
                 Gender = profile.Gender,
                 BirthYear = profile.BirthYear,
                 Notes = profile.Notes,
+                CardiovascularRisk = profile.CardiovascularRisk,
                 IsDefault = profile.IsDefault
             };
             return View("Form", vm);
@@ -691,6 +693,7 @@ namespace MedicalApp.Controllers
             profile.Gender = string.IsNullOrWhiteSpace(model.Gender) ? null : model.Gender.Trim();
             profile.BirthYear = model.BirthYear;
             profile.Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim();
+            profile.CardiovascularRisk = NormalizeCvRisk(model.CardiovascularRisk);
 
             await _db.SaveChangesAsync();
             TempData["SuccessMessage"] = $"Profilul \"{trimmedName}\" a fost actualizat.";
@@ -723,5 +726,25 @@ namespace MedicalApp.Controllers
             TempData["SuccessMessage"] = $"Profilul \"{profile.Name}\" a fost șters.";
             return RedirectToAction(nameof(Index));
         }
+
+        /// <summary>
+        /// Validates and normalizes the cardiovascular-risk dropdown value.
+        /// Accepts only the three known categories; everything else (including the
+        /// "unknown" placeholder) is mapped to null so the AI prompt can fall back
+        /// to its multi-threshold rule.
+        /// </summary>
+        private static string? NormalizeCvRisk(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+            var v = raw.Trim().ToLowerInvariant();
+            return v switch
+            {
+                "low_moderate" => "low_moderate",
+                "high"         => "high",
+                "very_high"    => "very_high",
+                _              => null
+            };
+        }
     }
+}
 }

@@ -67,6 +67,25 @@
                     </div>
                 </div>
 
+                <div class="mb-3">
+                    <label asp-for="CardiovascularRisk" class="form-label">
+                        &#129000; Risc cardiovascular
+                    </label>
+                    <select asp-for="CardiovascularRisk" class="form-select"
+                            data-testid="profile-cv-risk">
+                        <option value="">-- nedeclarat / nu știu --</option>
+                        <option value="low_moderate">Scăzut / moderat</option>
+                        <option value="high">Înalt</option>
+                        <option value="very_high">Foarte înalt</option>
+                    </select>
+                    <div class="form-text">
+                        Determină pragul țintă pentru lipide (LDL, non-HDL).
+                        Stabilit de medic pe baza factorilor: diabet, hipertensiune, fumat,
+                        antecedente cardiace etc. Dacă nu știi, lasă „nedeclarat" – sistemul va folosi
+                        intervalele standard din PDF.
+                    </div>
+                </div>
+
                 <div class="mb-4">
                     <label asp-for="Notes" class="form-label">Note</label>
                     <textarea asp-for="Notes" class="form-control" rows="3"

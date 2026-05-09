@@ -269,6 +269,15 @@ namespace MedicalApp.Controllers
             int inputTokens, outputTokens;
             string rawGptResponse;
 
+            // Build the patient context the AI uses to pick risk-tiered lipid targets.
+            int? ageYears = profile.BirthYear.HasValue
+                ? Math.Max(0, DateTime.UtcNow.Year - profile.BirthYear.Value)
+                : (int?)null;
+            var patientCtx = new PatientContext(
+                CardiovascularRisk: profile.CardiovascularRisk,
+                AgeYears: ageYears,
+                Gender: profile.Gender);
+
             // Two distinct retry budgets:
             //  * maxAttemptsTransient: for upstream overload / rate-limit (HTTP 429/503).
             //    These need long backoffs (Google needs time to free capacity) so we
@@ -292,7 +301,7 @@ namespace MedicalApp.Controllers
                     {
                         using var pdfMs = new MemoryStream(pdfBytes);
                         (result, inputTokens, outputTokens, rawGptResponse) =
-                            await _ai.InterpretPdfAsync(pdfMs, originalFileName, languageCode);
+                            await _ai.InterpretPdfAsync(pdfMs, originalFileName, languageCode, patientCtx);
                     }
                     else
                     {

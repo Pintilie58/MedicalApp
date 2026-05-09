@@ -14,7 +14,8 @@ namespace MedicalApp.Services
     public interface IMedicalInterpretationProvider
     {
         Task<(InterpretationResult Result, int InputTokens, int OutputTokens, string RawResponse)> InterpretPdfAsync(
-            Stream pdfStream, string fileName, string languageCode, CancellationToken ct = default);
+            Stream pdfStream, string fileName, string languageCode,
+            PatientContext? patientContext = null, CancellationToken ct = default);
 
         Task<(InterpretationResult Result, int InputTokens, int OutputTokens, string RawResponse)> InterpretAsync(
             string extractedText, string languageCode, CancellationToken ct = default);

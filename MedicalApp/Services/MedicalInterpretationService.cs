@@ -30,7 +30,8 @@ namespace MedicalApp.Services
 
         /// <summary>OpenAI provider does NOT accept PDFs directly - PdfPig extracts text first.</summary>
         public Task<(InterpretationResult Result, int InputTokens, int OutputTokens, string RawResponse)> InterpretPdfAsync(
-            Stream pdfStream, string fileName, string languageCode, CancellationToken ct = default)
+            Stream pdfStream, string fileName, string languageCode,
+            PatientContext? patientContext = null, CancellationToken ct = default)
             => throw new NotSupportedException(
                 "MedicalInterpretationService (OpenAI) does not accept PDF streams. The controller must call InterpretAsync(text) for the OpenAI provider.");
 

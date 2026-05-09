@@ -43,6 +43,11 @@ namespace MedicalApp.Models
         [StringLength(500)]
         public string? Notes { get; set; }
 
+        /// <summary>"low_moderate" | "high" | "very_high" | null. Used by AI prompt
+        /// to pick the right target for lipid panel (LDL, non-HDL).</summary>
+        [StringLength(20)]
+        public string? CardiovascularRisk { get; set; }
+
         public bool IsDefault { get; set; }
     }
 

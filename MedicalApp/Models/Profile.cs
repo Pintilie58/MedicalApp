@@ -39,6 +39,16 @@ namespace MedicalApp.Models
         [StringLength(500)]
         public string? Notes { get; set; }
 
+        /// <summary>
+        /// Patient's declared cardiovascular-risk category. Used by the AI
+        /// interpretation prompt to pick the correct target threshold for
+        /// lipid panel parameters (LDL, non-HDL, etc.) per the European
+        /// Society of Cardiology / EAS Dyslipidaemia Guidelines.
+        /// Values: "low_moderate" | "high" | "very_high" | null (unknown).
+        /// </summary>
+        [StringLength(20)]
+        public string? CardiovascularRisk { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         /// <summary>True for the auto-generated "Eu" profile. Cannot be deleted.</summary>
