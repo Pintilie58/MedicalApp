@@ -446,8 +446,27 @@ If the PDF is NOT a medical analysis (wrong document type, empty, unintelligible
 
 CONTENT GUIDELINES:
 - ""summary"": 2-3 sentences overviewing what was analyzed.
-- ""key_results"": THE COMPLETE LIST of all measured parameters with simple explanations.
-- ""abnormal_findings"": EVERY value outside the normal range, with educational explanations of possible causes.
+- ""key_results"": THE COMPLETE LIST of all measured parameters. EACH ENTRY's ""explanation""
+  field MUST be **AT LEAST 3 FULL SENTENCES, written in clear lay-person language**, AND it
+  MUST be filled with substantive content REGARDLESS of whether the value is normal or abnormal.
+  Concretely, every ""explanation"" must include all four of the following:
+    (1) WHAT this parameter measures and where in the body / which system it relates to
+        (e.g. ""Hemoglobina este proteina din globulele roșii care transportă oxigenul de la
+         plămâni către țesuturi"").
+    (2) WHY this measurement matters clinically (what doctors look for when they see it).
+    (3) HOW this specific value compares with the reference range (whether it falls inside or
+        outside, and how close to the limits it is). For normal values, reassure clearly;
+        for abnormal values, mention what high or low typically points to in plain terms,
+        WITHOUT giving a diagnosis.
+    (4) A short suggestion of what kind of follow-up or context the patient should consider
+        (e.g. ""Dacă valoarea rămâne stabilă la analize repetate, e un semn liniștitor"" or
+         ""Discutați cu medicul împreună cu valorile XYZ pentru o imagine completă"").
+  AVOID one-line stubs like ""Valoarea este în limite normale"" or ""Procentul este în
+  limite normale"". Such terse explanations are NOT acceptable - if you find yourself writing
+  one, expand it with the four points above.
+- ""abnormal_findings"": EVERY value outside the normal range, with educational explanations
+  of possible causes (multi-sentence, even more detailed than the key_results explanation
+  for the same parameter).
 - ""correlations"": MANDATORY MINIMUM 5-6 full sentences. Explain meaningful combinations (e.g. low Hb + low ferritin = possible iron-deficiency anemia; elevated Gamma GT + normal transaminases = possible cholestatic pattern or alcohol use; high ferritin + normal iron saturation = inflammation rather than overload). Discuss 2-3 different combinations across panels (hematology, liver, kidney, lipid, thyroid, iron) when present.
 - ""recommendations"": MANDATORY MINIMUM 5-6 full sentences. Concrete general guidance: (1) lifestyle/dietary advice, (2) hydration/activity, (3) when to repeat the tests and which parameters to monitor, (4) which specialty to consult, (5) red-flag symptoms, (6) reassurance for normal findings. NEVER mention specific medications, doses or treatments.
 - ""disclaimer"": educational only, NOT a medical diagnosis, qualified doctor must be consulted.
