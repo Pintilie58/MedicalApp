@@ -278,6 +278,21 @@ namespace MedicalApp.Controllers
                 AgeYears: ageYears,
                 Gender: profile.Gender);
 
+            // Choose Gemini path:
+            //  * TEXT-MODE (preferred when text extraction succeeded): the layout-aware
+            //    PdfPig extractor reads the PDF's text layer directly, so digits are
+            //    literal — eliminates OCR hallucinations like 33.9->33.7 or 0-0.2->0-2.
+            //  * VISION-MODE (fallback): used only when PdfTextExtractor returned
+            //    nothing useful (image-only PDFs / scans). Gemini then renders pages
+            //    and reads pixels.
+            //
+            // The 200-char threshold rules out trivially-short extractions that would
+            // not represent a real lab report.
+            bool geminiUseTextMode = useGemini
+                && !string.IsNullOrWhiteSpace(extractedText)
+                && extractedText.Length >= 200
+                && !extractedText.StartsWith("(text extraction failed");
+
             // Two distinct retry budgets:
             //  * maxAttemptsTransient: for upstream overload / rate-limit (HTTP 429/503).
             //    These need long backoffs (Google needs time to free capacity) so we
@@ -299,9 +314,20 @@ namespace MedicalApp.Controllers
                 {
                     if (useGemini)
                     {
-                        using var pdfMs = new MemoryStream(pdfBytes);
-                        (result, inputTokens, outputTokens, rawGptResponse) =
-                            await _ai.InterpretPdfAsync(pdfMs, originalFileName, languageCode, patientCtx);
+                        if (geminiUseTextMode)
+                        {
+                            // TEXT-mode: send extracted text only - no PDF base64 - so
+                            // values/units/refs are literal (no vision OCR hallucination).
+                            (result, inputTokens, outputTokens, rawGptResponse) =
+                                await _ai.InterpretTextAsync(extractedText, originalFileName, languageCode, patientCtx);
+                        }
+                        else
+                        {
+                            // VISION-mode fallback (scanned PDFs / extraction failed).
+                            using var pdfMs = new MemoryStream(pdfBytes);
+                            (result, inputTokens, outputTokens, rawGptResponse) =
+                                await _ai.InterpretPdfAsync(pdfMs, originalFileName, languageCode, patientCtx);
+                        }
                     }
                     else
                     {

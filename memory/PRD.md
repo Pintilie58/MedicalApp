@@ -59,10 +59,26 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - ✅ **[Feb 2026]** **`StatusValidator`** post-LLM mathematical validator (`Services/StatusValidator.cs`):
   parses ranges (`X-Y`, `<X`, `≤X`, `>X`, `≥X`, with optional unit-after-slash), recomputes
   `normal`/`high`/`low`/`borderline` (5% tolerance band) from value+range in plain C#, rebuilds
-  `abnormal_findings` to match. **Status: implemented as a static class but NOT hook-uit
-  yet** — initial integration into `InterpretationController` was reverted at user's request
-  pending root-cause analysis on a separate Gemini self-audit retry issue. File stays on disk
-  for future activation.
+  `abnormal_findings` to match. **Status: implemented as a static class but NOT hooked up
+  yet** — file stays on disk for future activation as a 2nd-line safety net.
+- ✅ **[Feb 2026 — Plan A]** **TEXT-BASED Gemini hybrid pipeline** (anti-OCR-hallucination):
+  - Root cause identified: Gemini Files API does NOT read the PDF text layer, it RENDERS the
+    PDF as images and runs vision OCR on pixels — so even on perfect digital PDFs, digits
+    can be hallucinated (`33.9 → 33.7`, `0-0.2 → 0-2`). Vision hallucination rate ~88%
+    persists even on Gemini 3 Pro per Feb 2026 benchmarks.
+  - Solution: when `PdfTextExtractor` (PdfPig, deterministic text-layer reader) yields ≥200
+    characters of clean text, we send the extracted text to Gemini instead of the PDF
+    base64 — Gemini then focuses on medical reasoning, not pixel reading. Digits are LITERAL.
+  - Architecture: `IMedicalInterpretationProvider` gains `InterpretTextAsync(text, fileName,
+    lang, ctx)`. Shared private `CallGeminiAsync(pdfBase64?, extractedText?)` does the heavy
+    lifting. `BuildRequestBody` and `BuildUserPrompt` adapt to the modality (no `inline_data`
+    in TEXT mode; a `<PDF_TEXT>...</PDF_TEXT>` block embedded in the user prompt with explicit
+    "digits are LITERAL, do NOT re-read" instruction). System prompt rewritten with
+    `INPUT SOURCE — TWO POSSIBLE MODES` (Mode A vision, Mode B literal text).
+  - Controller path selection: `geminiUseTextMode = useGemini && extractedText.Length ≥ 200`;
+    when false, falls back to vision (scanned/image-only PDFs).
+  - Bonus: ~10× fewer tokens per call → expected latency drop from ~115s to ~30-50s + cost
+    reduction; all retry/backoff logic preserved.
 
 ## Pending / Backlog
 

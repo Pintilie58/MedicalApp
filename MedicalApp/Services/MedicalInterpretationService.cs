@@ -35,6 +35,16 @@ namespace MedicalApp.Services
             => throw new NotSupportedException(
                 "MedicalInterpretationService (OpenAI) does not accept PDF streams. The controller must call InterpretAsync(text) for the OpenAI provider.");
 
+        /// <summary>
+        /// OpenAI text path with optional fileName + patient context.
+        /// fileName and patientContext are accepted for interface compatibility but
+        /// not currently used by the OpenAI provider (the prompt does not reference them).
+        /// </summary>
+        public Task<(InterpretationResult Result, int InputTokens, int OutputTokens, string RawResponse)> InterpretTextAsync(
+            string extractedText, string fileName, string languageCode,
+            PatientContext? patientContext = null, CancellationToken ct = default)
+            => InterpretAsync(extractedText, languageCode, ct);
+
         public async Task<(InterpretationResult Result, int InputTokens, int OutputTokens, string RawResponse)> InterpretAsync(
             string extractedText, string languageCode, CancellationToken ct = default)
         {

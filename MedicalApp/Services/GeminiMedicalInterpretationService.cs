@@ -54,8 +54,6 @@ namespace MedicalApp.Services
                 throw new InvalidOperationException(
                     "Gemini API key is not configured. Run: dotnet user-secrets set \"Gemini:ApiKey\" \"<your-key>\"");
 
-            var languageName = LanguageNames.TryGetValue(languageCode, out var n) ? n : "English";
-
             // 1) Read the PDF into memory and Base64-encode it for inline_data
             byte[] pdfBytes;
             using (var ms = new MemoryStream())
@@ -65,9 +63,70 @@ namespace MedicalApp.Services
             }
             var pdfBase64 = Convert.ToBase64String(pdfBytes);
 
+            return await CallGeminiAsync(
+                languageCode: languageCode,
+                fileName: fileName,
+                patientContext: patientContext,
+                pdfBase64: pdfBase64,
+                pdfBytesLength: pdfBytes.Length,
+                extractedText: null,
+                ct: ct);
+        }
+
+        /// <summary>
+        /// TEXT-BASED interpretation path.
+        /// The PDF text is extracted upstream by <see cref="PdfTextExtractor"/> (PdfPig reads
+        /// the PDF's text layer directly, so digits are LITERAL — no OCR hallucination
+        /// possible like with the vision pipeline). Gemini then receives only the extracted
+        /// text and focuses on medical reasoning, not on reading pixels. This dramatically
+        /// reduces hallucinations on values, reference ranges and unit signs for digital PDFs.
+        /// </summary>
+        public Task<(InterpretationResult Result, int InputTokens, int OutputTokens, string RawResponse)> InterpretAsync(
+            string extractedText, string languageCode, CancellationToken ct = default)
+            => InterpretTextAsync(extractedText, fileName: "(text extracted from PDF)",
+                                  languageCode: languageCode, patientContext: null, ct: ct);
+
+        /// <summary>Internal text-based interpretation with optional patient context.</summary>
+        public async Task<(InterpretationResult Result, int InputTokens, int OutputTokens, string RawResponse)> InterpretTextAsync(
+            string extractedText, string fileName, string languageCode,
+            PatientContext? patientContext = null, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(_settings.ApiKey))
+                throw new InvalidOperationException(
+                    "Gemini API key is not configured. Run: dotnet user-secrets set \"Gemini:ApiKey\" \"<your-key>\"");
+
+            if (string.IsNullOrWhiteSpace(extractedText) || extractedText.Length < 50)
+                throw new InvalidOperationException(
+                    "Extracted text is empty or too short for text-based Gemini interpretation.");
+
+            return await CallGeminiAsync(
+                languageCode: languageCode,
+                fileName: fileName,
+                patientContext: patientContext,
+                pdfBase64: null,
+                pdfBytesLength: 0,
+                extractedText: extractedText,
+                ct: ct);
+        }
+
+        /// <summary>
+        /// Shared core that builds the Gemini request and parses the response. Either a
+        /// base64 PDF (vision path) OR an extracted-text string (text path) is provided,
+        /// never both. The same prompt and JSON schema are used in either case; only the
+        /// input modality and a couple of lines in the user prompt differ.
+        /// </summary>
+        private async Task<(InterpretationResult Result, int InputTokens, int OutputTokens, string RawResponse)> CallGeminiAsync(
+            string languageCode, string fileName, PatientContext? patientContext,
+            string? pdfBase64, int pdfBytesLength,
+            string? extractedText, CancellationToken ct)
+        {
+            var languageName = LanguageNames.TryGetValue(languageCode, out var n) ? n : "English";
+
             // 2) Build the request body
             var systemPrompt = BuildSystemPrompt();
-            var userPrompt = BuildUserPrompt(languageName, languageCode, fileName, patientContext);
+            var userPrompt = BuildUserPrompt(languageName, languageCode, fileName, patientContext,
+                                             hasInlinePdf: pdfBase64 != null,
+                                             extractedText: extractedText);
             var requestBody = BuildRequestBody(systemPrompt, userPrompt, pdfBase64);
 
             var url = string.Format(EndpointFormat, _settings.Model, _settings.ApiKey);
@@ -78,9 +137,18 @@ namespace MedicalApp.Services
 
             using var content = new StringContent(requestBody, Encoding.UTF8, "application/json");
 
-            _logger.LogInformation(
-                "Calling Gemini {Model} for {Language}. PDF bytes: {Bytes}, base64 length: {B64}",
-                _settings.Model, languageCode, pdfBytes.Length, pdfBase64.Length);
+            if (pdfBase64 != null)
+            {
+                _logger.LogInformation(
+                    "Calling Gemini {Model} for {Language} (VISION mode). PDF bytes: {Bytes}, base64 length: {B64}",
+                    _settings.Model, languageCode, pdfBytesLength, pdfBase64.Length);
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "Calling Gemini {Model} for {Language} (TEXT mode). Extracted text chars: {Chars}",
+                    _settings.Model, languageCode, extractedText?.Length ?? 0);
+            }
 
             using var response = await http.PostAsync(url, content, ct);
             var responseString = await response.Content.ReadAsStringAsync(ct);
@@ -222,20 +290,43 @@ namespace MedicalApp.Services
         }
 
         /// <summary>Not implemented for Gemini provider - use InterpretPdfAsync instead.</summary>
-        public Task<(InterpretationResult Result, int InputTokens, int OutputTokens, string RawResponse)> InterpretAsync(
-            string extractedText, string languageCode, CancellationToken ct = default)
-            => throw new NotSupportedException(
-                "GeminiMedicalInterpretationService does not accept pre-extracted text. Use InterpretPdfAsync(stream).");
+        // (Old vision-only stub removed - InterpretAsync is now implemented as the text-based path
+        //  pointing to InterpretTextAsync, see above.)
 
         // =========================================================================
         // Request body construction
         // =========================================================================
-        private string BuildRequestBody(string systemPrompt, string userPrompt, string pdfBase64)
+        private string BuildRequestBody(string systemPrompt, string userPrompt, string? pdfBase64)
         {
             // We rely on responseMimeType=application/json (Gemini's "JSON mode") plus a
             // detailed schema described in the prompt. Gemini also supports responseSchema,
             // but mixing it with PDF inline_data is brittle - JSON mode + a strict prompt
             // is sufficient and more flexible.
+            //
+            // Build the user-message parts: always the prompt text; optionally the PDF
+            // as inline_data (vision path).
+            object[] userParts;
+            if (pdfBase64 != null)
+            {
+                userParts = new object[]
+                {
+                    new { text = userPrompt },
+                    new
+                    {
+                        inline_data = new
+                        {
+                            mime_type = "application/pdf",
+                            data = pdfBase64
+                        }
+                    }
+                };
+            }
+            else
+            {
+                // Text-only path: the extracted text is embedded inside userPrompt itself.
+                userParts = new object[] { new { text = userPrompt } };
+            }
+
             var payload = new
             {
                 systemInstruction = new
@@ -247,18 +338,7 @@ namespace MedicalApp.Services
                     new
                     {
                         role = "user",
-                        parts = new object[]
-                        {
-                            new { text = userPrompt },
-                            new
-                            {
-                                inline_data = new
-                                {
-                                    mime_type = "application/pdf",
-                                    data = pdfBase64
-                                }
-                            }
-                        }
+                        parts = userParts
                     }
                 },
                 generationConfig = new
@@ -339,23 +419,35 @@ namespace MedicalApp.Services
         // =========================================================================
         // PROMPTS - adapted from the OpenAI version, with Gemini-specific reminders
         // =========================================================================
-        private static string BuildSystemPrompt() => @"You are MedicalApp's medical analysis interpretation assistant. Your role is to provide an EDUCATIONAL and INFORMATIVE interpretation of laboratory medical results extracted DIRECTLY from a PDF file you can read natively.
+        private static string BuildSystemPrompt() => @"You are MedicalApp's medical analysis interpretation assistant. Your role is to provide an EDUCATIONAL and INFORMATIVE interpretation of laboratory medical results extracted from a PDF lab report.
 
 STRICT RULES - you MUST follow ALL of them:
 1. Respond ENTIRELY in the language specified by the user in their message.
 2. You are NOT a doctor. You do NOT give medical diagnoses.
 3. You do NOT recommend specific medications, doses, or treatments.
 4. You ALWAYS recommend consulting a qualified physician.
-5. You do NOT invent values - if a parameter is missing from the PDF, do NOT include it.
+5. You do NOT invent values - if a parameter is missing from the input, do NOT include it.
 6. Use an empathetic, professional, CALM tone - never alarming.
 7. Use SIMPLE language, accessible to a non-medical reader.
 8. Provide a DETAILED interpretation (not a short one) - include thorough explanations.
 
 ==========================================================
-PDF READING - YOU SEE THE PDF VISUALLY
+INPUT SOURCE — TWO POSSIBLE MODES
 ==========================================================
-You receive the original PDF as native input. Read it visually as a human radiographer would:
-- Respect tabular layouts: each row is one parameter, columns are usually [Parameter | Value | Unit | Reference range | Previous value].
+You receive the lab report in ONE of two forms (the user message will tell you which):
+
+MODE A — INLINE PDF (visual): The PDF is attached as inline_data and you read it
+visually as a human radiographer would, respecting tabular layouts (each row is one
+parameter, columns are usually [Parameter | Value | Unit | Reference range | Previous value]).
+
+MODE B — EXTRACTED TEXT (literal): A layout-aware extractor (PdfPig) has already converted
+the PDF text-layer to plain text and grouped words into visual rows. Multiple spaces
+separate columns. Each visible row of the PDF appears on its own line of text.
+**WHEN IN MODE B THE NUMBERS ARE LITERAL — copy them character-for-character. NEVER
+""correct"" a digit because it looks unusual. The extractor reads the file's text layer
+directly, so values, units and reference ranges are exactly what the lab printed.**
+
+In BOTH modes apply the following parsing rules:
 - For parameters reported as TWO SEPARATE ROWS (each row has its own value AND its own reference range) - typically a WBC differential printed as both COUNTS and PERCENTS, e.g.
       ""Numar total de neutrofile: 5.73 10^3/mm3 (ref 2-8 / 10^3/mm3)""
       ""Procent de neutrofile:    59.3 %       (ref 45-80 / %)""
@@ -519,7 +611,9 @@ OUTPUT FORMAT (CRITICAL):
 }";
 
         private static string BuildUserPrompt(string languageName, string languageCode, string fileName,
-            PatientContext? ctx = null)
+            PatientContext? ctx = null,
+            bool hasInlinePdf = true,
+            string? extractedText = null)
         {
             // Build the patient-context block. If we know nothing, omit it entirely
             // so the model falls back to its general multi-threshold rule.
@@ -561,12 +655,40 @@ OUTPUT FORMAT (CRITICAL):
                 }
             }
 
+            // Source-modality block: either tell the model the PDF is attached
+            // visually, or embed the literally extracted text so the model never
+            // has to OCR the digits itself (this is the key anti-hallucination move).
+            string sourceBlock;
+            string sourceInstruction;
+            if (hasInlinePdf)
+            {
+                sourceBlock = $"The patient's medical PDF is attached as inline data (file name: {fileName}).";
+                sourceInstruction = "Read the PDF visually and identify every section header it contains";
+            }
+            else
+            {
+                // Trim text to avoid blowing past Gemini's context budget on absurdly long PDFs.
+                // 200_000 chars ~ 50k tokens, which is well within Gemini's 1M-token context.
+                var text = extractedText ?? "";
+                if (text.Length > 200_000) text = text[..200_000] + "\n...[truncated]";
+                sourceBlock =
+                    $"The patient's medical PDF has been parsed by a layout-aware text extractor (file name: {fileName})."
+                    + " The extracted text is provided verbatim below between the <PDF_TEXT> tags."
+                    + " VALUES, UNITS AND REFERENCE RANGES ARE LITERAL - DO NOT RE-READ OR SECOND-GUESS THEM."
+                    + " If a digit looks unusual, TRUST IT - it is what the lab printed."
+                    + " The extractor preserves visual row-and-column order, so each lab row appears as a sequence"
+                    + " of tokens like: \"Parameter name <spaces> value <spaces> unit <spaces> reference range\"."
+                    + "\n\n<PDF_TEXT>\n" + text + "\n</PDF_TEXT>";
+                sourceInstruction =
+                    "Read the extracted text above carefully and identify every section header it contains";
+            }
+
             return $@"RESPONSE LANGUAGE: {languageName} (code: {languageCode})
 
-The patient's medical PDF is attached as inline data (file name: {fileName}).
+{sourceBlock}
 {patientBlock}
 Task:
-1. Read the PDF visually and identify every section header it contains (Hematology, Biochemistry, Immunochemistry, Lipid panel, Coagulation, ESR/VSH, Urinalysis, Hormones, Tumor markers, Vitamins, etc.).
+1. {sourceInstruction} (Hematology, Biochemistry, Immunochemistry, Lipid panel, Coagulation, ESR/VSH, Urinalysis, Hormones, Tumor markers, Vitamins, etc.).
 2. For each section, extract EVERY measured parameter with its value, unit and reference range exactly as printed. Pay extra attention to Immunochemistry (hormones, tumor markers, vitamins) which is often forgotten.
 3. Apply the value-vs-reference pairing rules from the system instructions (WBC differential, age-dependent ranges, dual-unit rows, mismatched magnitudes).
 4. Determine each parameter's status (normal/high/low/borderline).
