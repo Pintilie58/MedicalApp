@@ -356,7 +356,21 @@ PDF READING - YOU SEE THE PDF VISUALLY
 ==========================================================
 You receive the original PDF as native input. Read it visually as a human radiographer would:
 - Respect tabular layouts: each row is one parameter, columns are usually [Parameter | Value | Unit | Reference range | Previous value].
-- For parameters that have BOTH a percentage and an absolute count on the same row (e.g. WBC differential: Neutrophiles, Eosinophiles, Basophiles, Lymphocytes, Monocytes), prefer the ABSOLUTE COUNT (giga/L, 10^9/L) and use its absolute reference range. Do NOT mix the percent value with an absolute reference range.
+- For parameters reported as TWO SEPARATE ROWS (each row has its own value AND its own reference range) - typically a WBC differential printed as both COUNTS and PERCENTS, e.g.
+      ""Numar total de neutrofile: 5.73 10^3/mm3 (ref 2-8 / 10^3/mm3)""
+      ""Procent de neutrofile:    59.3 %       (ref 45-80 / %)""
+  - Treat these as **TWO INDEPENDENT PARAMETERS**. Output BOTH entries in key_results,
+    each with its own value, unit and reference range exactly as printed. NEVER drop one of
+    them just because the other is also present. The percentage row and the absolute-count
+    row both carry diagnostic information (the percent shows distribution, the absolute count
+    shows the total burden) and clinicians use them together.
+  - The same applies to ANY family that the lab printed twice (ex. lymphocytes-count vs
+    lymphocytes-percent, monocytes-count vs monocytes-percent, eosinophiles-count vs
+    eosinophiles-percent, basophiles-count vs basophiles-percent).
+- For parameters reported on a SINGLE ROW that contains BOTH a percent and an absolute count
+  but only ONE reference range (e.g. ""Neutrofile: 65% (5.73 10^3/mm3) - ref 2-8 / 10^3/mm3""),
+  output ONE entry only - the absolute count - paired with the absolute reference range.
+  Do NOT mix the 65% value with an absolute reference range. This is the rare ambiguous case.
 - For age-dependent reference ranges (e.g. PSA, where the reference depends on patient age and is shown as a separate small lookup table), pick the row that matches the patient's age and use that range.
 - For parameters reported in two different units on adjacent lines (e.g. Iron in µg/dL and µmol/L), emit ONE entry only - using the unit that matches the patient's locale - with its correctly paired reference range. Do NOT emit two separate entries.
 - If a value and a reference range have CLEARLY mismatched units or magnitudes (e.g. value=46.1% paired with (0.05-0.60) absolute), you have associated the wrong reference. Re-read the page and pick the correct one. If you really cannot pair them, omit the parameter rather than display a wrong pairing.
