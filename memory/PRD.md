@@ -59,11 +59,10 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - ✅ **[Feb 2026]** **`StatusValidator`** post-LLM mathematical validator (`Services/StatusValidator.cs`):
   parses ranges (`X-Y`, `<X`, `≤X`, `>X`, `≥X`, with optional unit-after-slash), recomputes
   `normal`/`high`/`low`/`borderline` (5% tolerance band) from value+range in plain C#, rebuilds
-  `abnormal_findings` to match, hooked into `InterpretationController` right after the medical
-  check (before PDF/email/DB save); re-serializes corrected JSON into `RawJsonResult` only when
-  corrections were applied. Safe-by-default: parameters with unparseable value or range are
-  skipped (model status preserved). Eliminates LLM math hallucinations (e.g. `0.03` flagged as
-  `High` when reference is `0-0.2`).
+  `abnormal_findings` to match. **Status: implemented as a static class but NOT hook-uit
+  yet** — initial integration into `InterpretationController` was reverted at user's request
+  pending root-cause analysis on a separate Gemini self-audit retry issue. File stays on disk
+  for future activation.
 
 ## Pending / Backlog
 

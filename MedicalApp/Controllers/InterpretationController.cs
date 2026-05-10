@@ -8,8 +8,6 @@ using Microsoft.Extensions.Options;
 using System.Globalization;
 using System.Net.Http;
 using System.Security.Cryptography;
-using System.Text.Encodings.Web;
-using System.Text.Json;
 
 namespace MedicalApp.Controllers
 {
@@ -399,34 +397,6 @@ namespace MedicalApp.Controllers
                 TempData["ErrorMessage"] = string.Format(Loc.T("NotMedicalAnalysisMessage"),
                     result.RejectionReason ?? Loc.T("UnknownReason"));
                 return RedirectToAction(nameof(Upload));
-            }
-
-            // 3.5) POST-LLM mathematical validator.
-            // Gemini occasionally labels a value that is inside its reference range
-            // as "high"/"low" even when it has correctly extracted both the value
-            // and the range (LLM math hallucination). The validator re-computes
-            // every status from the value+range in plain C#. Parameters whose
-            // value or range cannot be parsed (e.g. "negative", "see comment",
-            // or multi-tier text ranges like "Desirable: <200 Borderline 200-239")
-            // are SKIPPED - their status from the model is preserved untouched.
-            var stats = StatusValidator.Validate(result, _logger);
-            _logger.LogInformation(
-                "StatusValidator: parsed {Total} parameter(s), corrected {Corrected}, skipped (unparseable value/range) {Skipped}.",
-                stats.Total, stats.Corrected, stats.Skipped);
-
-            // Re-serialize the corrected InterpretationResult so the JSON we
-            // persist in the DB (RawJsonResult) and ship as DEBUG attachment
-            // reflects the mathematically-corrected statuses. This is critical
-            // for the upcoming P1.6 denormalization (AnalysisResults table) and
-            // P1.8 evolution charts, which both read from RawJsonResult.
-            if (stats.Corrected > 0)
-            {
-                rawGptResponse = JsonSerializer.Serialize(result, new JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-                });
             }
 
             // 4) Generate PDF report
