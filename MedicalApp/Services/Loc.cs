@@ -189,7 +189,9 @@ namespace MedicalApp.Services
                 ["RecommendationsSection"] = "RECOMMENDATIONS",
                 ["DisclaimerSection"] = "MEDICAL DISCLAIMER",
                 ["GeneratedOn"] = "Generated on",
-                ["Page"] = "Page"
+                ["Page"] = "Page",
+                ["ProcessingModeText"] = "Processed in text mode (literal extraction)",
+                ["ProcessingModeVision"] = "Processed in vision mode (image OCR)"
             },
             ["ro"] = new()
             {
@@ -370,7 +372,9 @@ namespace MedicalApp.Services
                 ["RecommendationsSection"] = "RECOMANDĂRI",
                 ["DisclaimerSection"] = "DISCLAIMER MEDICAL",
                 ["GeneratedOn"] = "Generat la",
-                ["Page"] = "Pagina"
+                ["Page"] = "Pagina",
+                ["ProcessingModeText"] = "Procesat în mod text (extragere literală)",
+                ["ProcessingModeVision"] = "Procesat în mod vision (OCR pe imagine)"
             },
             ["fr"] = new()
             {
@@ -551,7 +555,9 @@ namespace MedicalApp.Services
                 ["RecommendationsSection"] = "RECOMMANDATIONS",
                 ["DisclaimerSection"] = "AVERTISSEMENT MÉDICAL",
                 ["GeneratedOn"] = "Généré le",
-                ["Page"] = "Page"
+                ["Page"] = "Page",
+                ["ProcessingModeText"] = "Traité en mode texte (extraction littérale)",
+                ["ProcessingModeVision"] = "Traité en mode vision (OCR sur image)"
             },
             ["es"] = new()
             {
@@ -732,7 +738,9 @@ namespace MedicalApp.Services
                 ["RecommendationsSection"] = "RECOMENDACIONES",
                 ["DisclaimerSection"] = "AVISO MÉDICO",
                 ["GeneratedOn"] = "Generado el",
-                ["Page"] = "Página"
+                ["Page"] = "Página",
+                ["ProcessingModeText"] = "Procesado en modo texto (extracción literal)",
+                ["ProcessingModeVision"] = "Procesado en modo visión (OCR sobre imagen)"
             },
             ["de"] = new()
             {
@@ -913,7 +921,9 @@ namespace MedicalApp.Services
                 ["RecommendationsSection"] = "EMPFEHLUNGEN",
                 ["DisclaimerSection"] = "MEDIZINISCHER HINWEIS",
                 ["GeneratedOn"] = "Erstellt am",
-                ["Page"] = "Seite"
+                ["Page"] = "Seite",
+                ["ProcessingModeText"] = "Im Textmodus verarbeitet (wörtliche Extraktion)",
+                ["ProcessingModeVision"] = "Im Bildmodus verarbeitet (Bild-OCR)"
             }
         };
 

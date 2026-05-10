@@ -59,8 +59,17 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - ✅ **[Feb 2026]** **`StatusValidator`** post-LLM mathematical validator (`Services/StatusValidator.cs`):
   parses ranges (`X-Y`, `<X`, `≤X`, `>X`, `≥X`, with optional unit-after-slash), recomputes
   `normal`/`high`/`low`/`borderline` (5% tolerance band) from value+range in plain C#, rebuilds
-  `abnormal_findings` to match. **Status: implemented as a static class but NOT hooked up
-  yet** — file stays on disk for future activation as a 2nd-line safety net.
+  `abnormal_findings` to match. **Hooked up** in `InterpretationController` right after the
+  medical-check, wrapped in try/catch so a validator bug never breaks the flow. Re-serializes
+  the corrected JSON into `RawJsonResult` (so PDF regeneration, archive, and future evolution
+  charts use corrected statuses). Safe-by-default: parameters with unparseable value or range
+  are skipped (model status preserved). Eliminates LLM math hallucinations (e.g. `0.03`
+  flagged as `High` when reference is `0-0.2`).
+- ✅ **[Feb 2026]** **PDF footer badge** showing the processing mode used:
+  `ProcessingModeText` ("Procesat în mod text — extragere literală") or `ProcessingModeVision`
+  ("Procesat în mod vision — OCR pe imagine"). Localized in all 5 languages. Discreet 7pt
+  italic muted line in the footer. Omitted when regenerating archive PDFs (we don't know the
+  original mode retroactively).
 - ✅ **[Feb 2026 — Plan A]** **TEXT-BASED Gemini hybrid pipeline** (anti-OCR-hallucination):
   - Root cause identified: Gemini Files API does NOT read the PDF text layer, it RENDERS the
     PDF as images and runs vision OCR on pixels — so even on perfect digital PDFs, digits

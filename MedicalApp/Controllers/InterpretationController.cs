@@ -8,6 +8,8 @@ using Microsoft.Extensions.Options;
 using System.Globalization;
 using System.Net.Http;
 using System.Security.Cryptography;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 
 namespace MedicalApp.Controllers
 {
@@ -425,11 +427,52 @@ namespace MedicalApp.Controllers
                 return RedirectToAction(nameof(Upload));
             }
 
+            // 3.5) POST-LLM mathematical validator (safety net for math hallucinations).
+            // Now that we use TEXT-mode for digital PDFs, values are literal and OCR
+            // hallucinations are gone — but the model can still mislabel a status
+            // (e.g. value 0.03 inside range 0-0.2 wrongly flagged "high"). This
+            // recomputes the status from value+range in plain C#. Parameters whose
+            // value or range cannot be parsed (e.g. "negative"/"positive", multi-tier
+            // text ranges) are SKIPPED and the model's status is preserved. The
+            // call is wrapped in try/catch so a validator bug NEVER breaks the flow.
+            try
+            {
+                var stats = StatusValidator.Validate(result, _logger);
+                _logger.LogInformation(
+                    "StatusValidator: parsed {Total} parameter(s), corrected {Corrected}, skipped (unparseable value/range) {Skipped}.",
+                    stats.Total, stats.Corrected, stats.Skipped);
+
+                // Re-serialize the corrected InterpretationResult so the JSON we
+                // persist in the DB (RawJsonResult) reflects the corrected statuses.
+                // This is critical for the upcoming P1.6 denormalization (AnalysisResults
+                // table) and P1.8 evolution charts, which both read from RawJsonResult.
+                if (stats.Corrected > 0)
+                {
+                    rawGptResponse = JsonSerializer.Serialize(result, new JsonSerializerOptions
+                    {
+                        WriteIndented = true,
+                        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+                        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+                    });
+                }
+            }
+            catch (Exception valEx)
+            {
+                // Validator must NEVER break the user's interpretation flow.
+                _logger.LogWarning(valEx,
+                    "StatusValidator threw an unexpected exception. Continuing with the model's original statuses.");
+            }
+
             // 4) Generate PDF report
             byte[] reportPdfBytes;
             try
             {
-                reportPdfBytes = _pdfGenerator.Generate(result, BuildLabels(languageCode));
+                var labels = BuildLabels(languageCode);
+                // Footer badge: tell the reader which pipeline produced this PDF.
+                labels.ProcessingMode = useGemini
+                    ? Loc.T(geminiUseTextMode ? "ProcessingModeText" : "ProcessingModeVision")
+                    : "";
+                reportPdfBytes = _pdfGenerator.Generate(result, labels);
             }
             catch (Exception ex)
             {

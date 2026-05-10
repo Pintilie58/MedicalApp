@@ -152,6 +152,15 @@ namespace MedicalApp.Services
                     text.Span(" / ").FontSize(8).FontColor(MutedText);
                     text.TotalPages().FontSize(8).FontColor(MutedText);
                 });
+
+                // Optional processing-mode badge: tiny, discreet, italic. Helps the user
+                // know whether digits in this report came from a literal text extraction
+                // (rock-solid) or from a vision OCR pass (rare, only for scanned PDFs).
+                if (!string.IsNullOrWhiteSpace(labels.ProcessingMode))
+                {
+                    col.Item().AlignCenter().Text(labels.ProcessingMode)
+                        .FontSize(7).Italic().FontColor(MutedText);
+                }
             });
         }
 
@@ -295,6 +304,13 @@ namespace MedicalApp.Services
         public string Disclaimer { get; set; } = "";
         public string GeneratedOn { get; set; } = "";
         public string Page { get; set; } = "";
+
+        /// <summary>
+        /// Optional footer note describing how the PDF was processed: text-mode (literal
+        /// extraction by PdfPig) vs vision-mode (Gemini visual OCR). Caller sets this
+        /// per-interpretation; if left blank the footer line is omitted entirely.
+        /// </summary>
+        public string ProcessingMode { get; set; } = "";
 
         /// <summary>Builds the label set using the current UI culture's translations.</summary>
         public static LocalizedLabels ForCurrentUi() => new()
