@@ -241,23 +241,55 @@ namespace MedicalApp.Services
             // 5) Strip any accidental markdown fences and extract JSON, then parse
             var cleaned = ExtractJsonObject(modelText);
 
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                AllowTrailingCommas = true,
+                ReadCommentHandling = JsonCommentHandling.Skip
+            };
+
             InterpretationResult? result;
             try
             {
-                result = JsonSerializer.Deserialize<InterpretationResult>(cleaned, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true,
-                    AllowTrailingCommas = true,
-                    ReadCommentHandling = JsonCommentHandling.Skip
-                });
+                result = JsonSerializer.Deserialize<InterpretationResult>(cleaned, jsonOptions);
             }
-            catch (JsonException ex)
+            catch (JsonException firstEx)
             {
-                _logger.LogError(ex,
-                    "Failed to parse Gemini structured JSON. FinishReason={Finish}. Cleaned (first 3000 chars): {Body}",
-                    finishReason, Truncate(cleaned, 3000));
-                throw new InvalidOperationException(
-                    "The AI returned an unparseable response. Please try again.", ex);
+                // Plan A: defensive JSON auto-repair.
+                // On very long Gemini outputs (~6k+ tokens) the model occasionally drops
+                // a closing brace between two adjacent objects in an array (typical
+                // "structural drift" symptom on long structured outputs). The classic
+                // signature is `... "value" , { ... }` instead of `... "value" }, { ... }`.
+                // Before bouncing to the controller's retry-loop (which costs another
+                // ~60s round-trip + tokens), we try a targeted in-place repair.
+                var repaired = TryRepairGeminiJsonDrift(cleaned, firstEx, _logger);
+                if (repaired != null && !ReferenceEquals(repaired, cleaned))
+                {
+                    try
+                    {
+                        result = JsonSerializer.Deserialize<InterpretationResult>(repaired, jsonOptions);
+                        _logger.LogWarning(
+                            "Gemini JSON auto-repair succeeded. Original error: {Err}. The interpretation pipeline continued without a retry.",
+                            firstEx.Message);
+                        cleaned = repaired; // for downstream consumers (re-serialize, debug)
+                    }
+                    catch (JsonException secondEx)
+                    {
+                        _logger.LogError(secondEx,
+                            "Gemini JSON auto-repair FAILED on second parse. FinishReason={Finish}. Original error: {OrigErr}. Cleaned (first 3000 chars): {Body}",
+                            finishReason, firstEx.Message, Truncate(cleaned, 3000));
+                        throw new InvalidOperationException(
+                            "The AI returned an unparseable response. Please try again.", secondEx);
+                    }
+                }
+                else
+                {
+                    _logger.LogError(firstEx,
+                        "Failed to parse Gemini structured JSON. FinishReason={Finish}. Cleaned (first 3000 chars): {Body}",
+                        finishReason, Truncate(cleaned, 3000));
+                    throw new InvalidOperationException(
+                        "The AI returned an unparseable response. Please try again.", firstEx);
+                }
             }
 
             if (result == null)
@@ -414,6 +446,144 @@ namespace MedicalApp.Services
             // Unbalanced (likely truncated by MAX_TOKENS) - return what we have so the
             // JSON parser raises a clear error.
             return t.Substring(start);
+        }
+
+        // =========================================================================
+        // JSON Auto-Repair — defensive last-mile fixer for Gemini structural drift
+        // =========================================================================
+        /// <summary>
+        /// Attempts to repair the most common Gemini JSON malformations observed in
+        /// production. Returns the repaired string when a fix was applied, OR the
+        /// SAME reference as the input when no fix is applicable (caller compares
+        /// references to decide whether to retry parsing).
+        /// </summary>
+        /// <remarks>
+        /// Currently fixes:
+        /// <list type="bullet">
+        ///   <item><b>Missing-close-brace-between-array-objects</b>: pattern
+        ///   <c>"\s*,\s*\n\s*\{</c> where the character before the comma is a closing
+        ///   string quote (i.e. end of a property value). In an object array this
+        ///   means a `}` was dropped just before the comma. Confirmed in
+        ///   production on long outputs (~6.7k tokens) when patient has CV-risk
+        ///   declared (longer prompt → longer output → higher drift risk).</item>
+        /// </list>
+        /// The repair is intentionally conservative: it ONLY inserts a `}` and only
+        /// in positions whose surrounding context clearly identifies the drift. If
+        /// the second parse also fails, the original error is propagated unchanged.
+        /// </remarks>
+        internal static string? TryRepairGeminiJsonDrift(string json, JsonException originalError, ILogger? logger = null)
+        {
+            if (string.IsNullOrEmpty(json)) return json;
+
+            // Heuristic: scan the string for `"<ws>,<ws>{` patterns. For each match,
+            // walk backwards from the position of `"` to make sure it CLOSES a string
+            // value (i.e. not preceded by `\`, and there is a `:` somewhere on the
+            // same line indicating "property: value" syntax). If so, insert `}`
+            // BETWEEN the closing quote and the comma. This converts
+            //    "explanation": "..." , {
+            // into
+            //    "explanation": "..." }, {
+            // which is the well-formed equivalent for object arrays.
+
+            var sb = new StringBuilder(json.Length + 16);
+            int i = 0;
+            int repairsApplied = 0;
+            int len = json.Length;
+
+            while (i < len)
+            {
+                char c = json[i];
+
+                // Look for an UNESCAPED closing quote (not preceded by an odd number
+                // of backslashes).
+                if (c == '"' && !IsEscapedAt(json, i))
+                {
+                    // Tentatively look ahead: whitespace, then comma, then whitespace, then `{`.
+                    int j = i + 1;
+                    while (j < len && char.IsWhiteSpace(json[j])) j++;
+                    if (j < len && json[j] == ',')
+                    {
+                        int afterComma = j + 1;
+                        while (afterComma < len && char.IsWhiteSpace(json[afterComma])) afterComma++;
+                        if (afterComma < len && json[afterComma] == '{')
+                        {
+                            // Confirmed drift pattern. Verify left side: is this `"`
+                            // actually closing a string VALUE (not a property key)?
+                            // A property value `"..."` is preceded by `:` (with possible
+                            // whitespace), e.g. `"explanation": "..."`. A property KEY
+                            // is followed by `:`, e.g. `"explanation":`. We want VALUE.
+                            //
+                            // Find the matching opening `"` of this string (walk back
+                            // until previous unescaped `"`), then look at what's BEFORE
+                            // the opening quote. If it's `:` (after whitespace), the
+                            // string is a value -> repair. Otherwise (e.g. `,` or `{`),
+                            // it's a property key in an empty-object slot — don't touch.
+                            if (LooksLikeValueClosingQuote(json, i))
+                            {
+                                // Emit the closing `"`, then INSERT the missing `}`,
+                                // then let the outer loop continue past the quote.
+                                sb.Append(c);
+                                sb.Append('}');
+                                repairsApplied++;
+                                i++;
+                                continue;
+                            }
+                        }
+                    }
+                }
+
+                sb.Append(c);
+                i++;
+            }
+
+            if (repairsApplied == 0)
+            {
+                logger?.LogDebug(
+                    "JSON auto-repair found no applicable patterns. Original parse error stands: {Err}",
+                    originalError.Message);
+                return json; // same reference — caller treats this as "no repair available"
+            }
+
+            logger?.LogWarning(
+                "JSON auto-repair: inserted {Count} missing closing brace(s) before sibling object(s). Will retry parsing.",
+                repairsApplied);
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Returns true iff the quote at <paramref name="quotePos"/> in <paramref name="json"/>
+        /// is preceded by an EVEN number of consecutive backslashes (i.e. not escaped).
+        /// </summary>
+        private static bool IsEscapedAt(string json, int quotePos)
+        {
+            int backslashes = 0;
+            int k = quotePos - 1;
+            while (k >= 0 && json[k] == '\\') { backslashes++; k--; }
+            return (backslashes % 2) == 1;
+        }
+
+        /// <summary>
+        /// Checks whether the closing quote at <paramref name="closingQuotePos"/> ends a
+        /// JSON string VALUE (preceded by `:` ignoring whitespace before the matching
+        /// opening quote) vs. a property KEY. Repair is only valid for VALUES.
+        /// </summary>
+        private static bool LooksLikeValueClosingQuote(string json, int closingQuotePos)
+        {
+            // Walk backwards to find the matching opening quote.
+            int k = closingQuotePos - 1;
+            while (k >= 0)
+            {
+                if (json[k] == '"' && !IsEscapedAt(json, k))
+                    break;
+                k--;
+            }
+            if (k < 0) return false; // no opening quote found
+
+            // Walk further back from the opening quote, skipping whitespace.
+            int p = k - 1;
+            while (p >= 0 && char.IsWhiteSpace(json[p])) p--;
+            // For a property value, the previous non-whitespace char must be `:`.
+            return p >= 0 && json[p] == ':';
         }
 
         // =========================================================================

@@ -70,6 +70,16 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
   ("Procesat în mod vision — OCR pe imagine"). Localized in all 5 languages. Discreet 7pt
   italic muted line in the footer. Omitted when regenerating archive PDFs (we don't know the
   original mode retroactively).
+- ✅ **[Feb 2026]** **Gemini JSON auto-repair** (`TryRepairGeminiJsonDrift` in
+  `GeminiMedicalInterpretationService.cs`): on very long outputs (~6k+ tokens, typically
+  CV-risk profile + many parameters), Gemini occasionally drops a closing `}` between two
+  adjacent objects in an array (pattern `"..." , {` instead of `"..." }, {`). Before
+  the controller's expensive retry loop kicks in (~60s + tokens), we attempt an in-place
+  targeted repair: scan for closing-quote+ws+comma+ws+`{` patterns, verify the quote
+  actually closes a VALUE (not a property key) by walking back to opening quote then checking
+  for `:` before it, and insert `}` between the quote and the comma. Conservative: zero
+  false positives on legitimate JSON; if second parse fails, original error propagates
+  unchanged. Logged as `warning` when applied so we can monitor frequency.
 - ✅ **[Feb 2026 — Plan A]** **TEXT-BASED Gemini hybrid pipeline** (anti-OCR-hallucination):
   - Root cause identified: Gemini Files API does NOT read the PDF text layer, it RENDERS the
     PDF as images and runs vision OCR on pixels — so even on perfect digital PDFs, digits
