@@ -748,17 +748,23 @@ CONTENT GUIDELINES:
 - ""disclaimer"": educational only, NOT a medical diagnosis, qualified doctor must be consulted.
 
 ==========================================================
-LOINC CODE MAPPING (per parameter)
+LOINC CODE MAPPING (per parameter) — MANDATORY FIELDS
 ==========================================================
 LOINC (Logical Observation Identifiers Names and Codes) is the international
-standard for identifying lab tests. For EACH entry in ""key_results"", add
-THREE optional fields that map the test to its canonical LOINC code:
+standard for identifying lab tests. For EVERY entry in ""key_results"" you MUST
+emit THREE additional fields (the value may be null when you don't know,
+but THE KEY MUST ALWAYS BE PRESENT):
 
   ""loinc_code"":       string|null  - the official LOINC code (e.g. ""2324-2"" for GGT)
   ""loinc_long_name"":  string|null  - the LOINC Long Common Name in English
                                        (e.g. ""Gamma glutamyl transferase [Enzymatic
                                        activity/volume] in Serum or Plasma"")
   ""loinc_confidence"": ""high""|""medium""|""low""|null
+
+CRITICAL: skipping these three keys is INCORRECT output. Every key_results
+entry MUST contain ALL nine fields: parameter, value, unit, reference_range,
+status, explanation, loinc_code, loinc_long_name, loinc_confidence. If you
+do not know the LOINC code, emit explicit nulls — never omit the keys.
 
 GUIDELINES:
 - Identify the test from its name AS PRINTED in the report, its unit, its
@@ -907,7 +913,8 @@ Task:
 3. Apply the value-vs-reference pairing rules from the system instructions (WBC differential, age-dependent ranges, dual-unit rows, mismatched magnitudes).
 4. Determine each parameter's status (normal/high/low/borderline).
 5. If a cardiovascular-risk category was declared above, USE THE PROVIDED LIPID TARGETS for LDL-C, non-HDL and Triglycerides INSTEAD OF the multi-threshold rule, and explicitly mention the declared risk category in 'summary', 'explanation' for those parameters, and 'recommendations'.
-6. Produce the structured JSON object exactly per the schema in the system instructions, written entirely in {languageName}. Do NOT wrap it in markdown fences.";
+6. For EVERY parameter in 'key_results', also emit the three LOINC fields described in the system instructions: 'loinc_code', 'loinc_long_name', 'loinc_confidence'. The keys MUST be present in every entry; their value may be null when you are not sure (do NOT invent codes). Example: ""loinc_code"": ""2324-2"", ""loinc_long_name"": ""Gamma glutamyl transferase [Enzymatic activity/volume] in Serum or Plasma"", ""loinc_confidence"": ""high"".
+7. Produce the structured JSON object exactly per the schema in the system instructions, written entirely in {languageName}. Do NOT wrap it in markdown fences.";
         }
     }
 }
