@@ -95,6 +95,40 @@ namespace MedicalApp.Models
 
             [JsonPropertyName("explanation")]
             public string? Explanation { get; set; }
+
+            // -------- LOINC mapping (Pas 2) --------
+            // The model is asked to identify a LOINC code for each extracted
+            // parameter. The three fields below are OPTIONAL on the wire:
+            // older PDFs re-interpreted on cached prompts may not have them,
+            // and the model is explicitly allowed to emit nulls when it is
+            // not confident. Validation against our LoincDictionary happens
+            // later (Pas 3) - here we only DESERIALIZE what came back.
+
+            /// <summary>
+            /// Official LOINC code chosen by Gemini for this parameter,
+            /// e.g. "2324-2" for GGT. May be null when Gemini is unsure or
+            /// when the test has no LOINC counterpart (rare lab-specific
+            /// indices).
+            /// </summary>
+            [JsonPropertyName("loinc_code")]
+            public string? LoincCode { get; set; }
+
+            /// <summary>
+            /// Long common name of the LOINC code as recalled by Gemini.
+            /// Used by the future validator (Pas 3) to sanity-check the code:
+            /// if the model's <see cref="LoincCode"/> resolves to a different
+            /// long name in our dictionary, the mapping is suspect.
+            /// </summary>
+            [JsonPropertyName("loinc_long_name")]
+            public string? LoincLongName { get; set; }
+
+            /// <summary>
+            /// Self-reported confidence: "high" | "medium" | "low" | null.
+            /// "low" or null = treat the mapping as a guess; do not group
+            /// by code in evolution charts until reviewed.
+            /// </summary>
+            [JsonPropertyName("loinc_confidence")]
+            public string? LoincConfidence { get; set; }
         }
 
         public class AbnormalFinding

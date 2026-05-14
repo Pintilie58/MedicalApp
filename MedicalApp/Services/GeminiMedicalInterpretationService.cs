@@ -748,6 +748,50 @@ CONTENT GUIDELINES:
 - ""disclaimer"": educational only, NOT a medical diagnosis, qualified doctor must be consulted.
 
 ==========================================================
+LOINC CODE MAPPING (per parameter)
+==========================================================
+LOINC (Logical Observation Identifiers Names and Codes) is the international
+standard for identifying lab tests. For EACH entry in ""key_results"", add
+THREE optional fields that map the test to its canonical LOINC code:
+
+  ""loinc_code"":       string|null  - the official LOINC code (e.g. ""2324-2"" for GGT)
+  ""loinc_long_name"":  string|null  - the LOINC Long Common Name in English
+                                       (e.g. ""Gamma glutamyl transferase [Enzymatic
+                                       activity/volume] in Serum or Plasma"")
+  ""loinc_confidence"": ""high""|""medium""|""low""|null
+
+GUIDELINES:
+- Identify the test from its name AS PRINTED in the report, its unit, its
+  reference range, and the section context (Hematology, Lipids, Hormones, ...).
+- Common Romanian/French/etc abbreviations and full names map to ONE LOINC:
+    ""GGT"" / ""Gamma GT"" / ""γ-GT"" / ""Glutamiltranspeptidaza"" / ""Gamma-glutamyl transferase""
+       all -> 2324-2 (Gamma glutamyl transferase in Ser/Plas)
+    ""VSH"" / ""VS"" / ""ESR"" / ""Vitesse de sédimentation"" / ""Erythrocyte sedimentation rate""
+       all -> 4537-7 (Erythrocyte sedimentation rate)
+    ""Glicemie"" / ""Glucoza"" / ""Glucose"" -> 2345-7 (Glucose in Ser/Plas, mass concentration)
+    ""TSH"" / ""Thyrotropin"" -> 3016-3
+    ""LDL"" / ""LDL-Cholesterol"" -> 13457-7 (LDL calculated) or 18262-6 (LDL direct measurement);
+                                    pick the one that matches the reference range or method.
+- CRITICAL distinctions you MUST respect:
+    * Total vs Free (e.g. T4 total = 3026-2  vs FT4 = 3024-7;
+                     PSA total = 2857-1     vs PSA free = 10886-0)
+    * Serum/Plasma vs Whole Blood vs Capillary blood
+    * Mass concentration vs Activity concentration vs Catalytic activity
+  Use the reference range and unit to discriminate. When in doubt, prefer the
+  most common Serum/Plasma quantitative variant.
+- Confidence calibration (BE HONEST - we use it to flag borderline mappings):
+    ""high""   = textbook match, code is unambiguous (~95% of common tests)
+    ""medium"" = code is likely but there are 2-3 plausible LOINC variants
+    ""low""    = guessing; the test name is unusual or the panel is lab-specific
+    null      = no reasonable LOINC; e.g. a derived index, a ratio,
+                a lab proprietary panel, or a multi-test composite score.
+- DO NOT invent codes. If you cannot recall the LOINC for a parameter,
+  emit ""loinc_code"": null and ""loinc_confidence"": null - that is the
+  correct, safe choice. A NULL is always better than a fabricated code.
+- The ""loinc_long_name"" must be the EXACT canonical English name LOINC
+  uses; do not translate or paraphrase. We use it to sanity-check the code.
+
+==========================================================
 SELF-VERIFICATION FIELD (MANDATORY)
 ==========================================================
 Add a TOP-LEVEL field ""_extraction_audit"" to the JSON output. It is your private audit
@@ -772,7 +816,7 @@ OUTPUT FORMAT (CRITICAL):
   ""rejection_reason"": string|null,
   ""patient_info"": { ""name"": string|null, ""age"": string|null, ""sex"": string|null, ""date_taken"": string|null, ""laboratory"": string|null, ""doctor_requesting"": string|null },
   ""summary"": string,
-  ""key_results"": [ { ""parameter"": string, ""value"": string, ""unit"": string, ""reference_range"": string, ""status"": ""normal""|""high""|""low""|""borderline"", ""explanation"": string } ],
+  ""key_results"": [ { ""parameter"": string, ""value"": string, ""unit"": string, ""reference_range"": string, ""status"": ""normal""|""high""|""low""|""borderline"", ""explanation"": string, ""loinc_code"": string|null, ""loinc_long_name"": string|null, ""loinc_confidence"": ""high""|""medium""|""low""|null } ],
   ""abnormal_findings"": [ { ""parameter"": string, ""explanation"": string, ""severity"": ""mild""|""moderate""|""severe"" } ],
   ""correlations"": string,
   ""recommendations"": string,
