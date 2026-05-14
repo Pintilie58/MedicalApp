@@ -12,6 +12,7 @@ namespace MedicalApp.Data
         public DbSet<Purchase> Purchases { get; set; } = null!;
         public DbSet<PromoCode> PromoCodes { get; set; } = null!;
         public DbSet<Profile> Profiles { get; set; } = null!;
+        public DbSet<LoincEntry> LoincDictionary { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -66,6 +67,19 @@ namespace MedicalApp.Data
                 entity.Property(p => p.CreatedAt).HasColumnType("datetime2");
                 entity.HasIndex(p => new { p.UserEmail, p.Name }).IsUnique();
                 entity.HasIndex(p => p.UserEmail);
+            });
+
+            modelBuilder.Entity<LoincEntry>(entity =>
+            {
+                entity.ToTable("LoincDictionary");
+                entity.HasKey(e => e.LoincCode);
+                entity.Property(e => e.LoincCode).HasMaxLength(20);
+                entity.Property(e => e.LongCommonName).HasMaxLength(500).IsRequired();
+                entity.Property(e => e.OrderObs).HasMaxLength(20);
+                // AliasesJson and TranslationsJson stay as nvarchar(max); populated later.
+                entity.Property(e => e.ImportedAt).HasColumnType("datetime2");
+                // Speed up future "find by common-name substring" admin searches.
+                entity.HasIndex(e => e.LongCommonName);
             });
         }
     }

@@ -72,6 +72,9 @@ builder.Services.AddScoped<ArchiveAccessService>();
 // Pending registrations (in-memory, singleton)
 builder.Services.AddSingleton<PendingRegistrationStore>();
 
+// LOINC dictionary - configuration for the optional startup seed.
+builder.Services.Configure<LoincSettings>(builder.Configuration.GetSection("Loinc"));
+
 // Localization - supported cultures
 var supportedCultures = new[]
 {
@@ -101,6 +104,7 @@ using (var scopedServices = app.Services.CreateScope())
     {
         await StartupSeed.EnsureDefaultProfilesAsync(app.Services, seedLogger);
         await StartupSeed.EnsureFreeArchiveUntilAsync(app.Services, seedLogger);
+        await LoincSeeder.EnsureSeededAsync(app.Services, app.Environment, seedLogger);
     }
     catch (Exception ex)
     {
