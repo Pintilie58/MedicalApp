@@ -85,111 +85,126 @@ namespace MedicalApp.Services
                 return;
             }
 
-            // Fast idempotency check: if the table already has the exact same
-            // number of rows as the parsed CSV, assume we are up-to-date.
-            // (A finer-grained check by file hash is possible later if we
-            // ever need to detect partial corruption.)
+            // Fast idempotency check: skip seeding when the table row count
+            // is within 1% of the parsed CSV (tolerates the occasional row
+            // skipped by the parser on malformed lines).
             var existingCount = await db.LoincDictionary.CountAsync();
-            if (existingCount == parsed.Count)
+            var tolerance = Math.Max(10, parsed.Count / 100);
+            if (existingCount > 0 && Math.Abs(existingCount - parsed.Count) <= tolerance)
             {
                 logger.LogInformation(
-                    "LoincSeeder: dictionary already populated ({Count} entries). Skipping.",
-                    existingCount);
+                    "LoincSeeder: dictionary already populated ({ExistingCount} entries, CSV has {ParsedCount}). Skipping.",
+                    existingCount, parsed.Count);
                 return;
             }
 
-            // Upsert: rows whose LoincCode already exists are updated, the rest
-            // are inserted. We rely on EF Core change tracking with a small
-            // batch transaction. ~1500 rows is well within a single transaction.
-            var existingCodes = await db.LoincDictionary
-                .Select(x => x.LoincCode)
-                .ToListAsync();
-            var existingSet = existingCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            var now = DateTime.UtcNow;
-            int inserted = 0, updated = 0;
-
-            foreach (var row in parsed)
+            // Re-seed strategy: when the table contents differ substantially from
+            // the CSV (typically because the operator switched from a small subset
+            // like "Universal Lab Orders" 1520-row to the full Loinc.csv 95k-row),
+            // we TRUNCATE and re-load. This avoids stale rows from the previous
+            // subset that aren't present in the new CSV.
+            //
+            // We use ExecuteSqlRawAsync("DELETE FROM ...") rather than TRUNCATE
+            // because TRUNCATE requires DBO permissions which the runtime user
+            // may not have. DELETE works under standard EF permissions.
+            if (existingCount > 0)
             {
-                if (existingSet.Contains(row.LoincCode))
+                logger.LogWarning(
+                    "LoincSeeder: dictionary count mismatch (DB has {ExistingCount}, CSV has {ParsedCount}). " +
+                    "Clearing and re-seeding from CSV.",
+                    existingCount, parsed.Count);
+                await db.Database.ExecuteSqlRawAsync("DELETE FROM LoincDictionary");
+            }
+
+            // Bulk insert in batches. With ~95k rows from the full Loinc.csv,
+            // EF Core change tracking would be slow if we added them all at once
+            // (huge tracker, large transaction log). 1000-row batches keep memory
+            // bounded and let SQL Server commit incrementally.
+            var now = DateTime.UtcNow;
+            const int batchSize = 1000;
+            int insertedTotal = 0;
+
+            for (int offset = 0; offset < parsed.Count; offset += batchSize)
+            {
+                var slice = parsed.Skip(offset).Take(batchSize).ToList();
+                foreach (var row in slice) row.ImportedAt = now;
+                db.LoincDictionary.AddRange(slice);
+                await db.SaveChangesAsync();
+
+                // Free the change tracker between batches - without this,
+                // tracker memory grows linearly with total seeded rows.
+                db.ChangeTracker.Clear();
+                insertedTotal += slice.Count;
+
+                // Progress log every 10k rows so the operator can see the seed working.
+                if (insertedTotal % 10000 == 0 || insertedTotal == parsed.Count)
                 {
-                    var current = await db.LoincDictionary.FindAsync(row.LoincCode);
-                    if (current != null)
-                    {
-                        // Only refresh the canonical fields; keep Aliases / Translations
-                        // intact (those are populated by later steps, not by the seed).
-                        current.LongCommonName = row.LongCommonName;
-                        current.OrderObs = row.OrderObs;
-                        current.ImportedAt = now;
-                        updated++;
-                    }
-                }
-                else
-                {
-                    row.ImportedAt = now;
-                    db.LoincDictionary.Add(row);
-                    inserted++;
+                    logger.LogInformation(
+                        "LoincSeeder: progress {Inserted}/{Total} rows inserted.",
+                        insertedTotal, parsed.Count);
                 }
             }
 
-            await db.SaveChangesAsync();
             logger.LogInformation(
-                "LoincSeeder: dictionary refreshed from \"{Path}\". Inserted={Ins}, Updated={Upd}, Total now={Tot}.",
-                absolutePath, inserted, updated, await db.LoincDictionary.CountAsync());
+                "LoincSeeder: dictionary refreshed from \"{Path}\". Inserted={Ins}, Total now={Tot}.",
+                absolutePath, insertedTotal, await db.LoincDictionary.CountAsync());
         }
 
         // =====================================================================
         // CSV parsing
         // =====================================================================
         /// <summary>
-        /// Parses LOINC's Universal Lab Orders CSV (RFC 4180 compliant: comma
-        /// separator, double-quote field delimiter, embedded quotes escaped as
-        /// <c>""</c>). Returns one <see cref="LoincEntry"/> per data row.
+        /// Parses a LOINC CSV (RFC 4180 compliant: comma separator, double-quote
+        /// field delimiter, embedded quotes escaped as <c>""</c>, fields may
+        /// contain embedded newlines inside quotes). Returns one
+        /// <see cref="LoincEntry"/> per active row.
+        /// Filters out rows whose STATUS column (if present) is NOT "ACTIVE".
         /// </summary>
         private static List<LoincEntry> ParseUniversalLabOrdersCsv(string path, ILogger logger)
         {
             var rows = new List<LoincEntry>();
             using var reader = new StreamReader(path, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
 
-            // First line = header. Find column indexes so the parser is
-            // resilient to column-order changes in future LOINC releases.
-            var headerLine = reader.ReadLine();
-            if (headerLine == null)
+            // Pull every logical "record" out of the file (a record is one row,
+            // which may span multiple physical lines if it contains a quoted
+            // field with embedded newlines). The full Loinc.csv DOES have such
+            // rows in COMMENTS / RELATEDNAMES2 columns.
+            var allRecords = ReadCsvRecords(reader);
+            if (allRecords.Count == 0)
                 throw new InvalidDataException("LOINC CSV is empty (no header row).");
 
-            var header = SplitCsvLine(headerLine);
+            var header = allRecords[0];
             int idxCode = FindHeader(header, "LOINC_NUM");
             int idxName = FindHeader(header, "LONG_COMMON_NAME");
             int idxOrd = FindHeader(header, "ORDER_OBS");
+            int idxStatus = FindHeader(header, "STATUS");
 
             if (idxCode < 0 || idxName < 0)
                 throw new InvalidDataException(
                     "LOINC CSV header is missing required columns LOINC_NUM and/or LONG_COMMON_NAME.");
 
-            int lineNumber = 1;
-            while (!reader.EndOfStream)
+            int skippedInactive = 0;
+            for (int r = 1; r < allRecords.Count; r++)
             {
-                lineNumber++;
-                var line = reader.ReadLine();
-                if (string.IsNullOrWhiteSpace(line)) continue;
-
-                List<string> cols;
-                try
-                {
-                    cols = SplitCsvLine(line);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex,
-                        "LoincSeeder: skipping malformed line {Line}: \"{Snippet}\"",
-                        lineNumber, line.Length > 120 ? line[..120] + "..." : line);
-                    continue;
-                }
-
+                var cols = allRecords[r];
                 if (cols.Count <= idxCode || cols.Count <= idxName) continue;
                 var code = cols[idxCode].Trim();
                 var name = cols[idxName].Trim();
                 if (code.Length == 0 || name.Length == 0) continue;
+
+                // Filter out non-ACTIVE rows. The full Loinc.csv exposes STATUS
+                // values "ACTIVE", "DEPRECATED", "DISCOURAGED", "TRIAL". We
+                // want ACTIVE only (everything else is either retired or
+                // experimental and would only generate false positives).
+                if (idxStatus >= 0 && cols.Count > idxStatus)
+                {
+                    var status = cols[idxStatus].Trim();
+                    if (status.Length > 0 && !string.Equals(status, "ACTIVE", StringComparison.OrdinalIgnoreCase))
+                    {
+                        skippedInactive++;
+                        continue;
+                    }
+                }
 
                 rows.Add(new LoincEntry
                 {
@@ -199,33 +214,50 @@ namespace MedicalApp.Services
                 });
             }
 
+            logger.LogInformation(
+                "LoincSeeder: parsed {Active} ACTIVE LOINC rows from CSV ({Inactive} non-ACTIVE skipped).",
+                rows.Count, skippedInactive);
+
             return rows;
         }
 
         /// <summary>
-        /// Splits one RFC 4180-style CSV line into fields. Handles quoted
-        /// fields and escaped quotes (<c>""</c> inside a quoted field
-        /// produces a single literal quote).
+        /// Reads a CSV stream and returns one List&lt;string&gt; per record.
+        /// Handles fields that contain embedded newlines inside quotes
+        /// (well-formed RFC 4180). The previous line-by-line implementation
+        /// broke whenever a Loinc.csv comment contained a literal newline,
+        /// silently truncating that row and shifting all column indices
+        /// for subsequent rows.
         /// </summary>
-        private static List<string> SplitCsvLine(string line)
+        private static List<List<string>> ReadCsvRecords(StreamReader reader)
         {
-            var result = new List<string>(8);
-            var sb = new StringBuilder();
+            var records = new List<List<string>>();
+            var current = new List<string>(40);
+            var field = new StringBuilder(128);
             bool inQuotes = false;
 
-            for (int i = 0; i < line.Length; i++)
+            void CommitField() { current.Add(field.ToString()); field.Clear(); }
+            void CommitRecord()
             {
-                char c = line[i];
+                CommitField();
+                records.Add(current);
+                current = new List<string>(40);
+            }
+
+            int chInt;
+            while ((chInt = reader.Read()) != -1)
+            {
+                char c = (char)chInt;
 
                 if (inQuotes)
                 {
                     if (c == '"')
                     {
-                        // Escaped quote ("") inside a quoted field -> literal '"'.
-                        if (i + 1 < line.Length && line[i + 1] == '"')
+                        int next = reader.Peek();
+                        if (next == '"')
                         {
-                            sb.Append('"');
-                            i++;
+                            reader.Read();      // consume the escaped quote
+                            field.Append('"');
                         }
                         else
                         {
@@ -234,28 +266,40 @@ namespace MedicalApp.Services
                     }
                     else
                     {
-                        sb.Append(c);
+                        field.Append(c);
                     }
                 }
                 else
                 {
-                    if (c == ',')
-                    {
-                        result.Add(sb.ToString());
-                        sb.Clear();
-                    }
-                    else if (c == '"' && sb.Length == 0)
+                    if (c == '"' && field.Length == 0)
                     {
                         inQuotes = true;
                     }
+                    else if (c == ',')
+                    {
+                        CommitField();
+                    }
+                    else if (c == '\r')
+                    {
+                        // ignore - the LF that follows will commit the record
+                    }
+                    else if (c == '\n')
+                    {
+                        // End of record (only when we are not inside quotes).
+                        CommitRecord();
+                    }
                     else
                     {
-                        sb.Append(c);
+                        field.Append(c);
                     }
                 }
             }
-            result.Add(sb.ToString());
-            return result;
+
+            // Flush trailing record (no terminating newline).
+            if (field.Length > 0 || current.Count > 0)
+                CommitRecord();
+
+            return records;
         }
 
         private static int FindHeader(List<string> header, string name)
