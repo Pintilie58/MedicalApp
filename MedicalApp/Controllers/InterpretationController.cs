@@ -435,32 +435,56 @@ namespace MedicalApp.Controllers
             // value or range cannot be parsed (e.g. "negative"/"positive", multi-tier
             // text ranges) are SKIPPED and the model's status is preserved. The
             // call is wrapped in try/catch so a validator bug NEVER breaks the flow.
+            bool resultMutated = false;
             try
             {
                 var stats = StatusValidator.Validate(result, _logger);
                 _logger.LogInformation(
                     "StatusValidator: parsed {Total} parameter(s), corrected {Corrected}, skipped (unparseable value/range) {Skipped}.",
                     stats.Total, stats.Corrected, stats.Skipped);
-
-                // Re-serialize the corrected InterpretationResult so the JSON we
-                // persist in the DB (RawJsonResult) reflects the corrected statuses.
-                // This is critical for the upcoming P1.6 denormalization (AnalysisResults
-                // table) and P1.8 evolution charts, which both read from RawJsonResult.
-                if (stats.Corrected > 0)
-                {
-                    rawGptResponse = JsonSerializer.Serialize(result, new JsonSerializerOptions
-                    {
-                        WriteIndented = true,
-                        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-                        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-                    });
-                }
+                if (stats.Corrected > 0) resultMutated = true;
             }
             catch (Exception valEx)
             {
                 // Validator must NEVER break the user's interpretation flow.
                 _logger.LogWarning(valEx,
                     "StatusValidator threw an unexpected exception. Continuing with the model's original statuses.");
+            }
+
+            // 3.6) POST-LLM LOINC validator (Pas 3).
+            // Cross-checks the loinc_code that Gemini emitted against our local
+            // LoincDictionary (1520 entries from the LOINC Universal Lab Orders
+            // Value Set). Catches the well-known LLM pattern of emitting the
+            // SAME code for two different parameters (e.g. 2571-8 for both
+            // Triglyceride AND Lipase). Conservative behaviour:
+            //   - code in DB + long_name head-term matches -> accepted
+            //   - code in DB + long_name disagrees         -> code NULLED, log warning
+            //   - code NOT in DB (outside our subset)      -> kept, log info
+            // Wrapped in try/catch like the StatusValidator: never breaks the flow.
+            try
+            {
+                var loincStats = await LoincValidator.ValidateAsync(result, _db, _cache, _logger);
+                if (loincStats.CorrectedToNull > 0) resultMutated = true;
+            }
+            catch (Exception lvEx)
+            {
+                _logger.LogWarning(lvEx,
+                    "LoincValidator threw an unexpected exception. Continuing with Gemini's LOINC codes unchanged.");
+            }
+
+            // Re-serialize the corrected InterpretationResult so the JSON we
+            // persist in the DB (RawJsonResult) reflects the corrected statuses
+            // AND LOINC nulling. This is critical for the upcoming P1.6
+            // denormalization and P1.8 evolution charts, which both read from
+            // RawJsonResult.
+            if (resultMutated)
+            {
+                rawGptResponse = JsonSerializer.Serialize(result, new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+                });
             }
 
             // 4) Generate PDF report
