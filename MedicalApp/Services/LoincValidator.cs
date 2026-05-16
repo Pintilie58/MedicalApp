@@ -26,6 +26,14 @@ namespace MedicalApp.Services
         /// <summary>Entries whose code disagreed STRONGLY with the long_name - code was nulled out.</summary>
         public int CorrectedToNull { get; set; }
 
+        /// <summary>
+        /// Entries whose Gemini-emitted code was wrong BUT we could find the
+        /// correct code in the DB by searching on the long_name head term.
+        /// These were RECOVERED (code replaced with the DB-derived one)
+        /// instead of being nulled.
+        /// </summary>
+        public int Recovered { get; set; }
+
         /// <summary>Entries with no LOINC code at all (Gemini emitted null).</summary>
         public int NoCode { get; set; }
     }
@@ -74,7 +82,8 @@ namespace MedicalApp.Services
                 return stats;
 
             // Load the dictionary (cached). Key = LOINC code, Value = canonical long name.
-            var dict = await GetDictionaryAsync(db, cache, ct);
+            // Also load a head-term index used by the recovery lookup.
+            var (dict, headIndex) = await GetDictionaryAsync(db, cache, ct);
 
             foreach (var kr in result.KeyResults)
             {
@@ -111,27 +120,49 @@ namespace MedicalApp.Services
                 }
                 else
                 {
-                    // STRONG mismatch: the model emitted a code that does not
-                    // describe the test it labelled. Most likely the code is
-                    // wrong (e.g. 2571-8 paired with "Lipase..." - 2571-8 is
-                    // Triglyceride). Null the code and downgrade confidence.
-                    logger.LogWarning(
-                        "LoincValidator: HEAD-TERM MISMATCH for parameter \"{Param}\". " +
-                        "Gemini said code={Code} long_name=\"{Gemini}\" but our DB says \"{DbName}\". " +
-                        "Nulling code and setting confidence=low.",
-                        kr.Parameter, kr.LoincCode, kr.LoincLongName, dbLongName);
+                    // STRONG mismatch: Gemini emitted a code that does not describe
+                    // the test it labelled. Before nulling, try to RECOVER the
+                    // correct code by searching the DB for entries whose head
+                    // term matches the long_name Gemini provided. The model is
+                    // usually correct about the long_name (it's recalling
+                    // textbook English) but wrong about the digits.
+                    var recoveredCode = TryRecoverByLongName(kr.LoincLongName, dict, headIndex);
+                    if (recoveredCode != null)
+                    {
+                        logger.LogInformation(
+                            "LoincValidator: RECOVERED parameter \"{Param}\". " +
+                            "Gemini said code={WrongCode} long_name=\"{Gemini}\". " +
+                            "DB lookup on long_name found correct code={RightCode}. Replacing.",
+                            kr.Parameter, kr.LoincCode, kr.LoincLongName, recoveredCode);
 
-                    kr.LoincCode = null;
-                    kr.LoincConfidence = "low";
-                    stats.CorrectedToNull++;
+                        kr.LoincCode = recoveredCode;
+                        // Refresh long_name with the canonical DB version too.
+                        kr.LoincLongName = dict[recoveredCode];
+                        // Confidence stays as Gemini emitted it (likely high/medium)
+                        // because the user-visible long_name is now correct.
+                        stats.Recovered++;
+                    }
+                    else
+                    {
+                        logger.LogWarning(
+                            "LoincValidator: HEAD-TERM MISMATCH for parameter \"{Param}\". " +
+                            "Gemini said code={Code} long_name=\"{Gemini}\" but our DB says \"{DbName}\". " +
+                            "No recovery candidate found. Nulling code and setting confidence=low.",
+                            kr.Parameter, kr.LoincCode, kr.LoincLongName, dbLongName);
+
+                        kr.LoincCode = null;
+                        kr.LoincConfidence = "low";
+                        stats.CorrectedToNull++;
+                    }
                 }
             }
 
             // Per-call summary line.
             logger.LogInformation(
-                "LoincValidator summary: total={Total} validated_high={High} mismatch_corrected={Corr} " +
-                "out_of_subset={OOS} no_code={None}.",
-                stats.Total, stats.ValidatedHigh, stats.CorrectedToNull, stats.OutOfSubset, stats.NoCode);
+                "LoincValidator summary: total={Total} validated_high={High} recovered={Rec} " +
+                "mismatch_nulled={Corr} out_of_subset={OOS} no_code={None}.",
+                stats.Total, stats.ValidatedHigh, stats.Recovered, stats.CorrectedToNull,
+                stats.OutOfSubset, stats.NoCode);
 
             return stats;
         }
@@ -139,22 +170,131 @@ namespace MedicalApp.Services
         // =====================================================================
         // Dictionary loading + caching
         // =====================================================================
-        private static async Task<Dictionary<string, string>> GetDictionaryAsync(
-            AppDbContext db, IMemoryCache cache, CancellationToken ct)
+        /// <summary>
+        /// Loads (and caches) the LOINC dictionary as TWO structures:
+        ///  - <c>dict</c>: code -> long_name (used to validate any code Gemini emits)
+        ///  - <c>headIndex</c>: head_term -> list of codes (used by the recovery
+        ///    lookup when Gemini's code is wrong but its long_name is right).
+        /// The index is keyed on the head term ONLY (everything before '[' or '('),
+        /// lowercase, so we get fast O(1) candidate lookup followed by a small
+        /// linear scan to pick the best matching variant.
+        /// </summary>
+        private static async Task<(Dictionary<string, string> dict, Dictionary<string, List<string>> headIndex)>
+            GetDictionaryAsync(AppDbContext db, IMemoryCache cache, CancellationToken ct)
         {
-            if (cache.TryGetValue(CacheKey_ValidCodes, out Dictionary<string, string>? cached) && cached != null)
+            if (cache.TryGetValue(CacheKey_ValidCodes, out (Dictionary<string, string>, Dictionary<string, List<string>>) cached)
+                && cached.Item1 != null)
                 return cached;
 
             var rows = await db.LoincDictionary
                 .Select(e => new { e.LoincCode, e.LongCommonName })
                 .ToListAsync(ct);
+
             var dict = rows.ToDictionary(
                 r => r.LoincCode,
                 r => r.LongCommonName,
                 StringComparer.OrdinalIgnoreCase);
 
-            cache.Set(CacheKey_ValidCodes, dict, CacheTtl);
-            return dict;
+            // Build the head-term index. Many rows share the same head term
+            // (e.g. all "Glucose [...]" variants), so each key maps to a list.
+            var headIndex = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var r in rows)
+            {
+                var head = ExtractHeadTerm(r.LongCommonName);
+                if (string.IsNullOrEmpty(head)) continue;
+                if (!headIndex.TryGetValue(head, out var bucket))
+                {
+                    bucket = new List<string>(2);
+                    headIndex[head] = bucket;
+                }
+                bucket.Add(r.LoincCode);
+            }
+
+            cache.Set(CacheKey_ValidCodes, (dict, headIndex), CacheTtl);
+            return (dict, headIndex);
+        }
+
+        // =====================================================================
+        // Recovery lookup: find the correct code from Gemini's long_name
+        // =====================================================================
+        /// <summary>
+        /// Attempts to recover the correct LOINC code when Gemini emitted a
+        /// long_name that does not match the canonical name of the code it
+        /// also emitted. The model is usually correct about WHICH ANALYTE
+        /// the test measures (the long_name) but wrong about the digits.
+        /// <para>
+        /// Strategy: extract Gemini's head term, find all DB codes that share
+        /// the same head term, then prefer the variant whose full canonical
+        /// name most overlaps with Gemini's long_name (token-overlap score).
+        /// </para>
+        /// Returns null when no head-term candidates exist (i.e. Gemini's
+        /// long_name was also wrong).
+        /// </summary>
+        private static string? TryRecoverByLongName(
+            string? geminiLongName,
+            Dictionary<string, string> dict,
+            Dictionary<string, List<string>> headIndex)
+        {
+            if (string.IsNullOrWhiteSpace(geminiLongName)) return null;
+
+            var head = ExtractHeadTerm(geminiLongName);
+            if (string.IsNullOrEmpty(head)) return null;
+
+            // Exact head-term hit?
+            if (headIndex.TryGetValue(head, out var candidates) && candidates.Count > 0)
+                return PickBestCandidate(geminiLongName, candidates, dict);
+
+            // Fallback: try a permissive token-overlap search across all heads.
+            // Only triggered when no exact head match; cheap enough for ~97k entries.
+            var geminiTokens = TokenSet(head);
+            if (geminiTokens.Count == 0) return null;
+
+            string? bestKey = null; int bestScore = 0;
+            foreach (var kv in headIndex)
+            {
+                var t = TokenSet(kv.Key);
+                int score = t.Intersect(geminiTokens, StringComparer.OrdinalIgnoreCase).Count();
+                if (score > bestScore) { bestScore = score; bestKey = kv.Key; }
+            }
+            if (bestKey == null || bestScore == 0) return null;
+
+            return PickBestCandidate(geminiLongName, headIndex[bestKey], dict);
+        }
+
+        /// <summary>
+        /// When multiple codes share the same head term (e.g. all "Glucose..."
+        /// variants), picks the one whose full canonical name has the most
+        /// token overlap with Gemini's long_name. This lets us discriminate
+        /// "Glucose in Serum" from "Glucose in Urine".
+        /// </summary>
+        private static string PickBestCandidate(
+            string geminiLongName,
+            List<string> codes,
+            Dictionary<string, string> dict)
+        {
+            if (codes.Count == 1) return codes[0];
+
+            var geminiTokens = TokenSet(geminiLongName);
+            string best = codes[0];
+            int bestScore = -1;
+            foreach (var code in codes)
+            {
+                if (!dict.TryGetValue(code, out var name)) continue;
+                int score = TokenSet(name).Intersect(geminiTokens, StringComparer.OrdinalIgnoreCase).Count();
+                if (score > bestScore) { bestScore = score; best = code; }
+            }
+            return best;
+        }
+
+        /// <summary>Tokenize a string into a set of significant words (length &gt;=4, lowercase).</summary>
+        private static HashSet<string> TokenSet(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return new HashSet<string>();
+            return s.ToLowerInvariant()
+                .Split(new[] { ' ', '-', '/', ',', '.', ';', ':', '[', ']', '(', ')' },
+                       StringSplitOptions.RemoveEmptyEntries)
+                .Where(t => t.Length >= 4)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
 
         // =====================================================================

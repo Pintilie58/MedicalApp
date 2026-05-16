@@ -778,6 +778,26 @@ GUIDELINES:
     ""TSH"" / ""Thyrotropin"" -> 3016-3
     ""LDL"" / ""LDL-Cholesterol"" -> 13457-7 (LDL calculated) or 18262-6 (LDL direct measurement);
                                     pick the one that matches the reference range or method.
+    ""Acid uric"" / ""Uric acid"" / ""Urate"" / ""Urat"" -> 3084-1 (Urate [Mass/volume] in Ser/Plas).
+       LOINC uses ""Urate"" as canonical English term even when the lab printed
+       ""Uric acid"". Emit long_name=""Urate [Mass/volume] in Serum or Plasma"".
+    ""ALT"" / ""SGPT"" / ""TGP"" / ""Alaninaminotransferaza"" / ""Alanine aminotransferase""
+       -> 1742-6 (ALT in Ser/Plas, enzymatic activity)
+    ""AST"" / ""SGOT"" / ""TGO"" / ""Aspartataminotransferaza"" / ""Aspartate aminotransferase""
+       -> 1920-8 (AST in Ser/Plas, enzymatic activity)
+    ""Lipaza"" / ""Lipase"" -> 3040-3 (Lipase in Ser/Plas, enzymatic activity). NOT 2571-8 (that is Triglyceride).
+    ""Bazofile"" / ""Basophils"" -> 704-7 (count) or 706-2 (fraction). NEVER 701-3 (that is a microbiology code).
+    ""Neutrofile"" absolute count -> 751-8 ; ""Neutrofile %"" fraction -> 770-8
+    ""Limfocite"" absolute count -> 731-0 ; ""Limfocite %"" fraction -> 736-9
+    ""Monocite"" absolute count -> 742-7 ; ""Monocite %"" fraction -> 5905-5
+    ""Eozinofile"" absolute count -> 711-2 ; ""Eozinofile %"" fraction -> 713-8
+    ""Hematocrit"" -> 4544-3 (volume fraction in Blood, automated count)
+    ""MCV"" / ""Volum eritrocitar mediu"" -> 787-2 (Erythrocyte mean corpuscular volume)
+    ""MCH"" / ""Hemoglobina eritrocitara medie"" -> 785-6
+    ""MCHC"" / ""Concentratie medie a Hb / eritrocit"" -> 786-4
+    ""RDW"" / ""Largimea distributiei eritrocitare"" -> 788-0
+    ""MPV"" / ""Volum trombocitar mediu"" -> 32623-1
+    ""Insulina"" -> 1558-6 (NOT 2044-6 which is sometimes Free insulin)
 - CRITICAL distinctions you MUST respect:
     * Total vs Free (e.g. T4 total = 3026-2  vs FT4 = 3024-7;
                      PSA total = 2857-1     vs PSA free = 10886-0)
@@ -796,6 +816,18 @@ GUIDELINES:
   correct, safe choice. A NULL is always better than a fabricated code.
 - The ""loinc_long_name"" must be the EXACT canonical English name LOINC
   uses; do not translate or paraphrase. We use it to sanity-check the code.
+
+SELF-CONSISTENCY CHECK (CRITICAL - perform this BEFORE submitting):
+For EVERY entry in key_results, re-read silently:
+  ""Does my loinc_long_name actually describe the test from 'parameter'?""
+  Examples of FAILURES that you MUST fix to null:
+    - parameter=""Lipaza""   loinc_long_name=""Triglyceride...""    -> WRONG, set all 3 LOINC fields to null
+    - parameter=""Bazofil"" loinc_long_name=""Yersinia identified..."" -> WRONG, set all 3 LOINC fields to null
+    - parameter=""Sodiu""    loinc_long_name=""Potassium...""        -> WRONG, set all 3 LOINC fields to null
+A simple rule: the head word of the long_name (Triglyceride / Yersinia / Potassium) MUST match the
+analyte in 'parameter'. If you cannot make the head words agree, EMIT NULL FOR ALL THREE LOINC
+FIELDS. A nulled mapping is FAR better than a contradictory one - the C# validator will catch
+contradictions and flag them, costing time. Self-correct here.
 
 ==========================================================
 SELF-VERIFICATION FIELD (MANDATORY)
