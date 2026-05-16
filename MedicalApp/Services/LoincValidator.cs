@@ -40,33 +40,43 @@ namespace MedicalApp.Services
 
     /// <summary>
     /// Pas 3 of the LOINC pipeline: validates the codes Gemini emitted against
-    /// our local <c>LoincDictionary</c> table (1520 entries seeded from the
-    /// LOINC Universal Lab Orders Value Set).
+    /// our local <c>LoincDictionary</c> table (~97k ACTIVE entries seeded from
+    /// the full LOINC release).
     /// <para>
-    /// This validator is CONSERVATIVE by design:
-    ///   1. <b>Code in DB + long_name head-term matches</b> -> accepted, confidence stays.
-    ///   2. <b>Code in DB + long_name head-term differs</b> -> code is nulled out and
-    ///      confidence is downgraded to "low". This catches the well-known LLM
-    ///      pattern where the model emits a code that contradicts its own
-    ///      long_name (e.g. emitting code 2571-8 ""Triglyceride"" for a row whose
-    ///      long_name says ""Lipase""). Better no grouping than wrong grouping.
-    ///   3. <b>Code NOT in DB</b> -> kept as-is. Our DB is only the Universal Lab
-    ///      Orders subset (1520 codes); the LOINC standard has ~95.000 codes
-    ///      total. A code we don't recognise may still be a perfectly valid
-    ///      LOINC term. We just log it for visibility.
+    /// Behaviour (Option A — "trust the code"):
+    ///   1. <b>Code IN DB</b> -> accepted unconditionally. The code is the
+    ///      contract; long_name is just a human-readable label that the model
+    ///      may have phrased differently (e.g. "Erythrocyte mean corpuscular
+    ///      volume" vs the canonical "MCV"). If long_name disagrees we log
+    ///      at debug level for later inspection but never overrule the code.
+    ///   2. <b>Code NOT in DB</b> -> we try to RECOVER it by looking up DB
+    ///      entries whose canonical long_name matches the long_name Gemini
+    ///      provided. Useful when the model emitted a check-digit-shifted
+    ///      variant (e.g. 2085-2 instead of 2085-9 for HDL cholesterol).
+    ///      If recovery succeeds, the code is replaced; otherwise it stays
+    ///      as-is and is logged at info level.
+    ///   3. <b>No code</b> -> counted, untouched.
+    /// </para>
+    /// <para>
+    /// Trade-off accepted: this policy will silently accept a code that
+    /// describes a DIFFERENT analyte than the parameter label (the classical
+    /// "Lipase=2571-8 which is actually Triglyceride" case). We rely on the
+    /// prompt's self-consistency check + few-shot examples to prevent that
+    /// at the source. In return we no longer FALSELY null good codes whose
+    /// long_name simply uses different English wording.
     /// </para>
     /// <para>
     /// The validator mutates the <see cref="InterpretationResult"/> in place
-    /// (only NULL-ing the code on case 2). The caller is expected to re-serialize
-    /// the result after this call if it wants the persisted JSON to reflect
-    /// the corrections.
+    /// (replacing LoincCode / LoincLongName on a successful recovery). The
+    /// caller is expected to re-serialize the result after this call if it
+    /// wants the persisted JSON to reflect the corrections.
     /// </para>
     /// </summary>
     public static class LoincValidator
     {
-        // Cache key for the dictionary of valid LOINC codes. We re-load the
-        // entire dictionary into memory once per process boot (1520 entries
-        // ~ 350 KB) and refresh hourly. Cheap and lookup-fast.
+        // Cache key for the dictionary of valid LOINC codes. We load the
+        // entire dictionary into memory once per process boot (~97k entries
+        // ~ 20 MB) and refresh hourly. Cheap and lookup-fast.
         private const string CacheKey_ValidCodes = "loinc:dictionary_v1";
         private static readonly TimeSpan CacheTtl = TimeSpan.FromHours(1);
 
@@ -97,64 +107,50 @@ namespace MedicalApp.Services
 
                 if (!dict.TryGetValue(kr.LoincCode, out var dbLongName))
                 {
-                    // Code is not in our subset. May still be a valid LOINC term
-                    // somewhere in the ~95.000-strong full standard. We keep it
-                    // and log at Information level (not a problem).
-                    stats.OutOfSubset++;
-                    logger.LogInformation(
-                        "LoincValidator: parameter \"{Param}\" code {Code} not in local subset (kept as-is).",
-                        kr.Parameter, kr.LoincCode);
-                    continue;
-                }
-
-                // Code IS in our subset. Compare head-terms.
-                var headDb = ExtractHeadTerm(dbLongName);
-                var headGemini = ExtractHeadTerm(kr.LoincLongName);
-
-                if (string.IsNullOrEmpty(headGemini) ||
-                    HeadTermsMatch(headDb, headGemini))
-                {
-                    // Match (or Gemini didn't bother to emit a long name -
-                    // we trust the code alone in that case).
-                    stats.ValidatedHigh++;
-                }
-                else
-                {
-                    // STRONG mismatch: Gemini emitted a code that does not describe
-                    // the test it labelled. Before nulling, try to RECOVER the
-                    // correct code by searching the DB for entries whose head
-                    // term matches the long_name Gemini provided. The model is
-                    // usually correct about the long_name (it's recalling
-                    // textbook English) but wrong about the digits.
+                    // Code is not in our subset. Try to RECOVER it by looking up
+                    // a code whose canonical long_name matches Gemini's. This
+                    // helps when the model emitted a check-digit-shifted variant
+                    // (e.g. 2085-2 instead of 2085-9 for HDL cholesterol).
                     var recoveredCode = TryRecoverByLongName(kr.LoincLongName, dict, headIndex);
                     if (recoveredCode != null)
                     {
                         logger.LogInformation(
                             "LoincValidator: RECOVERED parameter \"{Param}\". " +
-                            "Gemini said code={WrongCode} long_name=\"{Gemini}\". " +
-                            "DB lookup on long_name found correct code={RightCode}. Replacing.",
+                            "Gemini said code={WrongCode} long_name=\"{Gemini}\" (not in DB). " +
+                            "Replaced with DB code={RightCode}.",
                             kr.Parameter, kr.LoincCode, kr.LoincLongName, recoveredCode);
 
                         kr.LoincCode = recoveredCode;
-                        // Refresh long_name with the canonical DB version too.
                         kr.LoincLongName = dict[recoveredCode];
-                        // Confidence stays as Gemini emitted it (likely high/medium)
-                        // because the user-visible long_name is now correct.
                         stats.Recovered++;
                     }
                     else
                     {
-                        logger.LogWarning(
-                            "LoincValidator: HEAD-TERM MISMATCH for parameter \"{Param}\". " +
-                            "Gemini said code={Code} long_name=\"{Gemini}\" but our DB says \"{DbName}\". " +
-                            "No recovery candidate found. Nulling code and setting confidence=low.",
-                            kr.Parameter, kr.LoincCode, kr.LoincLongName, dbLongName);
-
-                        kr.LoincCode = null;
-                        kr.LoincConfidence = "low";
-                        stats.CorrectedToNull++;
+                        stats.OutOfSubset++;
+                        logger.LogInformation(
+                            "LoincValidator: parameter \"{Param}\" code {Code} not in local subset (kept as-is).",
+                            kr.Parameter, kr.LoincCode);
                     }
+                    continue;
                 }
+
+                // Code IS in our subset. Option A policy: TRUST THE CODE.
+                // The code is the contract; long_name is just a human-readable
+                // label that the model may have phrased differently (e.g.
+                // "Erythrocyte mean corpuscular volume" vs the canonical "MCV").
+                // We accept the code unconditionally. If the long_name disagrees,
+                // we log at debug level so an operator can investigate later
+                // without polluting the warning stream.
+                var headDb = ExtractHeadTerm(dbLongName);
+                var headGemini = ExtractHeadTerm(kr.LoincLongName);
+                if (!string.IsNullOrEmpty(headGemini) && !HeadTermsMatch(headDb, headGemini))
+                {
+                    logger.LogDebug(
+                        "LoincValidator: code {Code} accepted for \"{Param}\" but long_name disagrees " +
+                        "(Gemini=\"{Gemini}\" vs DB=\"{DbName}\"). Trusting the code per policy.",
+                        kr.LoincCode, kr.Parameter, kr.LoincLongName, dbLongName);
+                }
+                stats.ValidatedHigh++;
             }
 
             // Per-call summary line.
