@@ -816,9 +816,11 @@ GUIDELINES:
         -> ""14804-9""  (Lactate dehydrogenase [Enzymatic activity/volume] in Serum or Plasma by Lactate to pyruvate reaction)
         ALSO accepted aliases: ""LDH total"", ""LDH seric"", ""L-Lactat dehidrogenaza"".
     * eGFR / DFG / RFG estimat / Estimated GFR / Rata estimata a filtrarii glomerulare
-        -> ""62238-1""  (Glomerular filtration rate/1.73 sq M.predicted [Volume Rate/Area] in Serum, Plasma or Blood by Creatinine-based formula (CKD-EPI 2021))
-        Use this code regardless of which CKD-EPI / MDRD formula the lab printed.
-        It is the modern race-free CKD-EPI 2021 LOINC and is preferred for new reports.
+        -> ""62238-1""  (Glomerular filtration rate/1.73 sq M.predicted [Volume Rate/Area] in Serum, Plasma or Blood by Creatinine-based formula (CKD-EPI))
+        Use this code regardless of which CKD-EPI / MDRD formula the lab printed —
+        it is the most widely-used eGFR LOINC code in Romanian labs. NOTE: a newer
+        race-free CKD-EPI 2021 LOINC exists (""98979-8""), but ""62238-1"" remains the
+        canonical anchor here for compatibility with the local LOINC subset.
     * Densitate urinară / Urine specific gravity / Densitatea urinei
         -> ""2965-2""   (Specific gravity of Urine)
     * Non-HDL cholesterol / Colesterol non-HDL / Non-HDL-C
@@ -826,12 +828,15 @@ GUIDELINES:
     * Procentul de protrombină / Activitate protrombinică / Indice de protrombină (%) / Prothrombin time activity (%)
         -> ""5894-1""   (Prothrombin time (PT) actual/normal in Platelet poor plasma by Coagulation assay)
         NOTE: this is the PERCENTAGE result (Quick %), NOT the seconds value (5902-2) and NOT the INR (6301-6).
-    * Celule epiteliale plate / Epiteliu plat / Squamous epithelial cells (urine sediment)
-        -> ""5787-2""   (Epithelial cells.squamous [#/area] in Urine sediment by Microscopy high power field)
+    * Celule epiteliale plate / Epiteliu plat / Squamous epithelial cells / Epithelial cells (urine sediment)
+        -> ""5787-7""   (Epithelial cells [#/area] in Urine sediment by Microscopy high power field)
+        NOTE: this is the GENERAL epithelial-cells code most Romanian/French labs print.
+        Do NOT swap to ""5787-2"" — that code does NOT exist in LOINC.
     * Anti-tiroglobulină / Ac anti-tireoglobulinici / Anti-Tg / Anti-thyroglobulin antibody
         -> ""8098-6""   (Thyroglobulin Ab [Units/volume] in Serum)
     * Calcitonina / Calcitonin
-        -> ""8000-2""   (Calcitonin [Mass/volume] in Serum or Plasma)
+        -> ""1992-7""   (Calcitonin [Mass/volume] in Serum or Plasma)
+        NOTE: do NOT use ""8000-2"" — that is an unrelated LOINC code.
 
   STRICT RULE on these eight anchored mappings:
     1. If you recognize the analyte but you are not 100% sure the unit and

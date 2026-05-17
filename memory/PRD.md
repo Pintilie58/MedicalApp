@@ -106,13 +106,16 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
   recovery was reverted because it produced false matches, e.g. LDH `2532-0 → 5232-4`.)
 - ✅ **[Feb 2026 — LOINC Faza C]** **Anchored LOINC mappings in Gemini system prompt**
   (`GeminiMedicalInterpretationService.cs`): hardcoded official codes for 8 frequently
-  hallucinated Romanian-lab analytes — LDH (14804-9), eGFR / DFG (62238-1 CKD-EPI 2021
-  race-free), Densitate urinară (2965-2), Non-HDL cholesterol (43396-1), Procent
-  protrombină / Quick% (5894-1, NOT INR 6301-6), Celule epiteliale plate urinare
-  (5787-2), Anti-tiroglobulină (8098-6), Calcitonină (8000-2). New Strict Rule #9
-  forbids LOINC fabrication globally and instructs `null` over guessing. Companion
-  STRICT block disallows digit-swap, check-digit "correction" or similar-looking
-  substitutions for the eight anchored codes.
+  hallucinated Romanian-lab analytes — LDH (14804-9), eGFR / DFG (62238-1, CKD-EPI legacy
+  which is the code present in the local seeded LOINC subset; 98979-8 noted as alternative
+  for CKD-EPI 2021 race-free), Densitate urinară (2965-2), Non-HDL cholesterol (43396-1),
+  Procent protrombină / Quick% (5894-1, NOT INR 6301-6), Celule epiteliale plate (5787-7
+  general; initial wrong anchor 5787-2 corrected after first test showed the LOINC
+  validator overriding it via check-digit recovery), Anti-tiroglobulină (8098-6),
+  Calcitonină (1992-7; initial wrong anchor 8000-2 corrected after web-verification
+  against loinc.org). New Strict Rule #9 forbids LOINC fabrication globally and instructs
+  `null` over guessing. Companion STRICT block disallows digit-swap, check-digit
+  ""correction"" or similar-looking substitutions for the eight anchored codes.
 
 ## Pending / Backlog
 
