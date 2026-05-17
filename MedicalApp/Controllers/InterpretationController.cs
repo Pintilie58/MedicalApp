@@ -469,7 +469,8 @@ namespace MedicalApp.Controllers
                 // the DB-persisted RawJsonResult reflects the corrected mapping.
                 if (loincStats.CorrectedToNull > 0 ||
                     loincStats.Recovered > 0 ||
-                    loincStats.RecoveredByCheckDigit > 0)
+                    loincStats.RecoveredByCheckDigit > 0 ||
+                    loincStats.RecoveredByDigitSwap > 0)
                 {
                     resultMutated = true;
                 }
