@@ -215,16 +215,31 @@ namespace MedicalApp.Services
         // =====================================================================
         /// <summary>
         /// Attempts to recover the correct LOINC code when Gemini emitted a
-        /// long_name that does not match the canonical name of the code it
-        /// also emitted. The model is usually correct about WHICH ANALYTE
-        /// the test measures (the long_name) but wrong about the digits.
+        /// code that is NOT in our DB. The model is usually correct about WHICH
+        /// ANALYTE the test measures (the long_name) but sometimes off on
+        /// the check digit or emits a DEPRECATED code we filtered out at seed.
         /// <para>
-        /// Strategy: extract Gemini's head term, find all DB codes that share
-        /// the same head term, then prefer the variant whose full canonical
-        /// name most overlaps with Gemini's long_name (token-overlap score).
+        /// STRICT POLICY (no permissive fallback): we only recover when we
+        /// can prove the swap is safe. The previous "tokens overlap on any
+        /// head" fallback was too aggressive in practice - it collapsed
+        /// multiple distinct urinalysis parameters onto the same "magnet"
+        /// code (95233-3) whenever their long_names shared the word "Urine"
+        /// or "Test strip", and merged Borrelia IgG with Borrelia IgM.
         /// </para>
-        /// Returns null when no head-term candidates exist (i.e. Gemini's
-        /// long_name was also wrong).
+        /// <para>
+        /// New rules:
+        ///   1. Head-term must match EXACTLY one bucket in the head index
+        ///      (no fuzzy fallback).
+        ///   2. Among the candidates that share that head, the best one must
+        ///      score STRICTLY MORE than every other candidate (a unique
+        ///      winner). Ties -> abort. This prevents Borrelia.IgG and
+        ///      Borrelia.IgM from collapsing onto the same recovered code.
+        ///   3. The winning score must be at least 2 (i.e. share at least
+        ///      two significant words with Gemini's long_name). A single
+        ///      shared word like "Urine" is too weak.
+        /// </para>
+        /// Returns null when any rule fails - the caller then keeps the
+        /// original code as "out_of_subset" (better than wrong grouping).
         /// </summary>
         private static string? TryRecoverByLongName(
             string? geminiLongName,
@@ -236,49 +251,38 @@ namespace MedicalApp.Services
             var head = ExtractHeadTerm(geminiLongName);
             if (string.IsNullOrEmpty(head)) return null;
 
-            // Exact head-term hit?
-            if (headIndex.TryGetValue(head, out var candidates) && candidates.Count > 0)
-                return PickBestCandidate(geminiLongName, candidates, dict);
+            // Rule 1: exact head-term hit, no permissive fallback.
+            if (!headIndex.TryGetValue(head, out var candidates) || candidates.Count == 0)
+                return null;
 
-            // Fallback: try a permissive token-overlap search across all heads.
-            // Only triggered when no exact head match; cheap enough for ~97k entries.
-            var geminiTokens = TokenSet(head);
-            if (geminiTokens.Count == 0) return null;
-
-            string? bestKey = null; int bestScore = 0;
-            foreach (var kv in headIndex)
-            {
-                var t = TokenSet(kv.Key);
-                int score = t.Intersect(geminiTokens, StringComparer.OrdinalIgnoreCase).Count();
-                if (score > bestScore) { bestScore = score; bestKey = kv.Key; }
-            }
-            if (bestKey == null || bestScore == 0) return null;
-
-            return PickBestCandidate(geminiLongName, headIndex[bestKey], dict);
-        }
-
-        /// <summary>
-        /// When multiple codes share the same head term (e.g. all "Glucose..."
-        /// variants), picks the one whose full canonical name has the most
-        /// token overlap with Gemini's long_name. This lets us discriminate
-        /// "Glucose in Serum" from "Glucose in Urine".
-        /// </summary>
-        private static string PickBestCandidate(
-            string geminiLongName,
-            List<string> codes,
-            Dictionary<string, string> dict)
-        {
-            if (codes.Count == 1) return codes[0];
-
+            // Rule 2 + 3: unique winner by token-overlap, score >= 2.
             var geminiTokens = TokenSet(geminiLongName);
-            string best = codes[0];
+            if (geminiTokens.Count < 2) return null; // Not enough signal to discriminate.
+
+            string? best = null;
             int bestScore = -1;
-            foreach (var code in codes)
+            int runnerUpScore = -1;
+            foreach (var code in candidates)
             {
                 if (!dict.TryGetValue(code, out var name)) continue;
                 int score = TokenSet(name).Intersect(geminiTokens, StringComparer.OrdinalIgnoreCase).Count();
-                if (score > bestScore) { bestScore = score; best = code; }
+                if (score > bestScore)
+                {
+                    runnerUpScore = bestScore;
+                    bestScore = score;
+                    best = code;
+                }
+                else if (score > runnerUpScore)
+                {
+                    runnerUpScore = score;
+                }
             }
+
+            // Need an unambiguous winner with non-trivial agreement.
+            if (best == null) return null;
+            if (bestScore < 2) return null;                  // Rule 3: too weak.
+            if (bestScore == runnerUpScore) return null;     // Rule 2: tie -> abort.
+
             return best;
         }
 
