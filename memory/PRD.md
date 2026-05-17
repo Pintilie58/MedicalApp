@@ -99,6 +99,20 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
     when false, falls back to vision (scanned/image-only PDFs).
   - Bonus: ~10× fewer tokens per call → expected latency drop from ~115s to ~30-50s + cost
     reduction; all retry/backoff logic preserved.
+- ✅ **[Feb 2026 — LOINC Faza A+B]** Local LOINC dictionary (~97k codes) seeded from
+  CSV into `LoincDictionary` table; `LoincValidator.cs` runs after Gemini with deterministic
+  check-digit recovery (Verhoeff/Mod10 brute force) and strict long-name lookup to repair
+  ~97% of malformed/missing codes WITHOUT introducing false positives. (Earlier digit-swap
+  recovery was reverted because it produced false matches, e.g. LDH `2532-0 → 5232-4`.)
+- ✅ **[Feb 2026 — LOINC Faza C]** **Anchored LOINC mappings in Gemini system prompt**
+  (`GeminiMedicalInterpretationService.cs`): hardcoded official codes for 8 frequently
+  hallucinated Romanian-lab analytes — LDH (14804-9), eGFR / DFG (62238-1 CKD-EPI 2021
+  race-free), Densitate urinară (2965-2), Non-HDL cholesterol (43396-1), Procent
+  protrombină / Quick% (5894-1, NOT INR 6301-6), Celule epiteliale plate urinare
+  (5787-2), Anti-tiroglobulină (8098-6), Calcitonină (8000-2). New Strict Rule #9
+  forbids LOINC fabrication globally and instructs `null` over guessing. Companion
+  STRICT block disallows digit-swap, check-digit "correction" or similar-looking
+  substitutions for the eight anchored codes.
 
 ## Pending / Backlog
 

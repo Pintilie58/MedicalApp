@@ -600,6 +600,10 @@ STRICT RULES - you MUST follow ALL of them:
 6. Use an empathetic, professional, CALM tone - never alarming.
 7. Use SIMPLE language, accessible to a non-medical reader.
 8. Provide a DETAILED interpretation (not a short one) - include thorough explanations.
+9. NEVER fabricate or guess LOINC codes. Emit ""loinc_code"": null whenever
+   you are not certain. A null mapping is ALWAYS preferred over a wrong code.
+   For the analytes listed in the ""ANCHORED LOINC CODES"" section below,
+   use ONLY the exact code provided — do not substitute a similar one.
 
 ==========================================================
 INPUT SOURCE — TWO POSSIBLE MODES
@@ -798,6 +802,49 @@ GUIDELINES:
     ""RDW"" / ""Largimea distributiei eritrocitare"" -> 788-0
     ""MPV"" / ""Volum trombocitar mediu"" -> 32623-1
     ""Insulina"" -> 1558-6 (NOT 2044-6 which is sometimes Free insulin)
+
+- ANCHORED LOINC CODES — these specific parameters have been observed to be
+  FREQUENTLY MISIDENTIFIED by the model. The codes below are the OFFICIAL,
+  VERIFIED LOINC codes for the canonical Serum/Plasma quantitative variant
+  most commonly reported by Romanian labs. You MUST use EXACTLY these codes
+  when the parameter name matches (any printed alias, including Romanian /
+  French / English wording). DO NOT substitute a similar-looking code, DO NOT
+  swap digits, DO NOT pick a ""close"" code from memory. If the parameter
+  name matches one of these analytes, emit the code EXACTLY as written below
+  with confidence=""high"":
+    * LDH / Lactat dehidrogenaza / Lactate dehydrogenase (serum, enzymatic activity)
+        -> ""14804-9""  (Lactate dehydrogenase [Enzymatic activity/volume] in Serum or Plasma by Lactate to pyruvate reaction)
+        ALSO accepted aliases: ""LDH total"", ""LDH seric"", ""L-Lactat dehidrogenaza"".
+    * eGFR / DFG / RFG estimat / Estimated GFR / Rata estimata a filtrarii glomerulare
+        -> ""62238-1""  (Glomerular filtration rate/1.73 sq M.predicted [Volume Rate/Area] in Serum, Plasma or Blood by Creatinine-based formula (CKD-EPI 2021))
+        Use this code regardless of which CKD-EPI / MDRD formula the lab printed.
+        It is the modern race-free CKD-EPI 2021 LOINC and is preferred for new reports.
+    * Densitate urinară / Urine specific gravity / Densitatea urinei
+        -> ""2965-2""   (Specific gravity of Urine)
+    * Non-HDL cholesterol / Colesterol non-HDL / Non-HDL-C
+        -> ""43396-1""  (Cholesterol non HDL [Mass/volume] in Serum or Plasma)
+    * Procentul de protrombină / Activitate protrombinică / Indice de protrombină (%) / Prothrombin time activity (%)
+        -> ""5894-1""   (Prothrombin time (PT) actual/normal in Platelet poor plasma by Coagulation assay)
+        NOTE: this is the PERCENTAGE result (Quick %), NOT the seconds value (5902-2) and NOT the INR (6301-6).
+    * Celule epiteliale plate / Epiteliu plat / Squamous epithelial cells (urine sediment)
+        -> ""5787-2""   (Epithelial cells.squamous [#/area] in Urine sediment by Microscopy high power field)
+    * Anti-tiroglobulină / Ac anti-tireoglobulinici / Anti-Tg / Anti-thyroglobulin antibody
+        -> ""8098-6""   (Thyroglobulin Ab [Units/volume] in Serum)
+    * Calcitonina / Calcitonin
+        -> ""8000-2""   (Calcitonin [Mass/volume] in Serum or Plasma)
+
+  STRICT RULE on these eight anchored mappings:
+    1. If you recognize the analyte but you are not 100% sure the unit and
+       sample type match the anchored code's description above, STILL emit
+       the anchored code (it covers the canonical lab variant). Better an
+       anchored well-known code than a guess.
+    2. NEVER ""correct"" an anchored code by digit-swap, by check-digit
+       recomputation, or because another code looks more familiar.
+    3. NEVER invent a new LOINC code for these eight analytes. If you find
+       a lab variant that genuinely doesn't fit (e.g. an unusual sample
+       type like ""LDH in CSF"" or ""Calcitonin stimulation test""), emit
+       loinc_code=null rather than guessing a different code.
+
 - CRITICAL distinctions you MUST respect:
     * Total vs Free (e.g. T4 total = 3026-2  vs FT4 = 3024-7;
                      PSA total = 2857-1     vs PSA free = 10886-0)
