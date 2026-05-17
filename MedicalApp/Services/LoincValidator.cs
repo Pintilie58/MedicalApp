@@ -140,27 +140,22 @@ namespace MedicalApp.Services
                         continue;
                     }
 
-                    // STEP B: try adjacent digit swaps in the prefix. Gemini
-                    // sometimes scrambles two neighboring digits (e.g.
-                    // "33914-3" instead of the canonical "39134-X"). Each
-                    // swap is followed by a full check-digit brute force.
-                    var swappedCode = TryRecoverByDigitSwap(kr.LoincCode, kr.LoincLongName, dict);
-                    if (swappedCode != null)
-                    {
-                        logger.LogInformation(
-                            "LoincValidator: RECOVERED parameter \"{Param}\" via digit-swap fix. " +
-                            "Gemini said code={WrongCode}, DB has plausible neighbor at code={RightCode}.",
-                            kr.Parameter, kr.LoincCode, swappedCode);
-
-                        kr.LoincCode = swappedCode;
-                        kr.LoincLongName = dict[swappedCode];
-                        stats.RecoveredByDigitSwap++;
-                        continue;
-                    }
-
-                    // STEP C: long-name lookup with strict rules. Catches cases
+                    // STEP B: long-name lookup with strict rules. Catches cases
                     // where the prefix is wildly wrong but the long_name uniquely
                     // identifies a code in our dictionary.
+                    // NOTE (Feb 2026): the previous adjacent-digit-swap step was
+                    // REMOVED here — it produced subtle false positives where a
+                    // valid LOINC code for a DIFFERENT analyte happened to be one
+                    // adjacent-swap away from Gemini's hallucination. Concrete
+                    // production examples that triggered the removal:
+                    //   * Glucoza 2542-3 → 2452-1 (Hypoxanthine in Body fluid)
+                    //   * Urobilinogen 3014-8 → 3104-7 (Urobilin in Urine — a
+                    //     different urinary analyte, not urobilinogen)
+                    // The 2-token safety belt was satisfied because both DB
+                    // analytes share generic words ("Urine", "Body fluid") with
+                    // Gemini's long_name. Instead, those frequently-hallucinated
+                    // analytes are now ANCHORED in the Gemini system prompt so
+                    // the wrong prefix is never emitted in the first place.
                     var recoveredCode = TryRecoverByLongName(kr.LoincLongName, dict, headIndex);
                     if (recoveredCode != null)
                     {
@@ -340,66 +335,12 @@ namespace MedicalApp.Services
         }
 
         // =====================================================================
-        // Adjacent-digit-swap recovery (handles transposition errors)
+        // (Removed: TryRecoverByDigitSwap — produced false positives in
+        // production. See the STEP B comment in ValidateAsync above. Anchored
+        // LOINC codes in the Gemini prompt now prevent the wrong prefixes
+        // from being emitted at the source, which is safer than guessing
+        // a similar-looking neighbour code after the fact.)
         // =====================================================================
-        /// <summary>
-        /// Recovers a LOINC code where Gemini transposed two adjacent digits
-        /// in the prefix (e.g. emitted "33914-3" instead of the canonical
-        /// "39134-X"). Each adjacent swap is followed by a full check-digit
-        /// brute force; we accept the first candidate that exists in the DB
-        /// and whose long_name shares at least 2 tokens with Gemini's
-        /// long_name (same safety belt as check-digit recovery).
-        /// <para>
-        /// Cost: for an N-digit prefix, at most (N-1) * 10 dictionary lookups.
-        /// LOINC prefixes are 1..6 digits, so the worst case is 50 lookups
-        /// (still nanoseconds).
-        /// </para>
-        /// </summary>
-        private static string? TryRecoverByDigitSwap(
-            string? geminiCode,
-            string? geminiLongName,
-            Dictionary<string, string> dict)
-        {
-            if (string.IsNullOrWhiteSpace(geminiCode)) return null;
-
-            int dashIdx = geminiCode.LastIndexOf('-');
-            if (dashIdx <= 1 || dashIdx >= geminiCode.Length - 1) return null;
-            var prefix = geminiCode[..dashIdx];
-
-            for (int i = 0; i < prefix.Length; i++)
-                if (!char.IsDigit(prefix[i])) return null;
-
-            var geminiTokens = TokenSet(geminiLongName ?? string.Empty);
-            if (geminiTokens.Count < 2) return null; // no safety belt -> bail.
-
-            var buf = prefix.ToCharArray();
-            for (int i = 0; i < buf.Length - 1; i++)
-            {
-                if (buf[i] == buf[i + 1]) continue; // same digits -> no-op swap.
-
-                // Swap and try.
-                (buf[i], buf[i + 1]) = (buf[i + 1], buf[i]);
-                var swappedPrefix = new string(buf);
-
-                for (int d = 0; d <= 9; d++)
-                {
-                    var candidate = swappedPrefix + "-" + d;
-                    if (!dict.TryGetValue(candidate, out var dbName)) continue;
-
-                    var overlap = TokenSet(dbName).Intersect(geminiTokens, StringComparer.OrdinalIgnoreCase).Count();
-                    if (overlap < 2) continue;
-
-                    // Restore buffer before returning (not strictly needed,
-                    // method returns immediately).
-                    return candidate;
-                }
-
-                // Restore for the next iteration.
-                (buf[i], buf[i + 1]) = (buf[i + 1], buf[i]);
-            }
-
-            return null;
-        }
 
         // =====================================================================
         // Recovery lookup: find the correct code from Gemini's long_name

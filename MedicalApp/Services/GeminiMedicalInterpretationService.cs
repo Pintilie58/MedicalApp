@@ -845,8 +845,26 @@ GUIDELINES:
         pH-meter (not a dipstick), the alternative is ""106930-1"" (pH of Urine
         by pH-meter); if no method is stated, ""2756-5"" (pH of Urine, generic)
         is acceptable. Default to ""5803-2"" for typical urine analysis reports.
+    * Hemoglobina / Hemoglobin (CBC — sânge total)
+        -> ""718-7""    (Hemoglobin [Mass/volume] in Blood)
+        NOTE: this is the hematology CBC code for total Hb in whole blood.
+        Do NOT confuse with urine-strip ""Hemoglobina urinară"" (20405-7 family),
+        with HbA1c (4548-4), or with fetal/glycated variants.
+    * Glucoză / Glicemie / Glucose serum/plasma (a jeun sau random, fără context fasting)
+        -> ""2345-7""   (Glucose [Mass/volume] in Serum or Plasma)
+        NOTE: use 2345-7 for general serum/plasma glucose. Do NOT emit ""2452-1""
+        (Hypoxanthine in Body fluid — a completely different analyte) or any
+        2542-* / 2452-* prefix. If fasting is explicitly stated, ""1558-6"" is
+        acceptable; for whole-blood capillary glucose (point-of-care) use
+        ""2339-0"". Default to 2345-7 for standard lab glucose.
+    * Urobilinogen / Urobilinogen urinar (dipstick urinalysis)
+        -> ""20405-7""  (Urobilinogen [Mass/volume] in Urine by Test strip)
+        NOTE: Romanian urinalysis reports print urobilinogen via dipstick.
+        Do NOT confuse with ""Urobilin"" (3104-7 — different breakdown product,
+        not measured on standard dipsticks). If the lab clearly used an
+        automated reader, ""50563-6"" is an acceptable equivalent.
 
-  STRICT RULE on these eight anchored mappings:
+  STRICT RULE on these anchored mappings:
     1. If you recognize the analyte but you are not 100% sure the unit and
        sample type match the anchored code's description above, STILL emit
        the anchored code (it covers the canonical lab variant). Better an

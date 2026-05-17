@@ -104,32 +104,30 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
   check-digit recovery (Verhoeff/Mod10 brute force) and strict long-name lookup to repair
   ~97% of malformed/missing codes WITHOUT introducing false positives. (Earlier digit-swap
   recovery was reverted because it produced false matches, e.g. LDH `2532-0 → 5232-4`.)
-- ✅ **[Feb 2026 — LOINC Faza C]** **Anchored LOINC mappings in Gemini system prompt**
-  (`GeminiMedicalInterpretationService.cs`): hardcoded official codes for 9 frequently
-  hallucinated Romanian-lab analytes — LDH (14804-9), eGFR / DFG (62238-1, CKD-EPI legacy
-  which is the code present in the local seeded LOINC subset; 98979-8 noted as alternative
-  for CKD-EPI 2021 race-free), Densitate urinară (2965-2), Non-HDL cholesterol (43396-1),
-  Procent protrombină / Quick% (5894-1, NOT INR 6301-6), Celule epiteliale plate (5787-7
-  general; initial wrong anchor 5787-2 corrected after first test showed the LOINC
-  validator overriding it via check-digit recovery), Anti-tiroglobulină (8098-6),
-  Calcitonină (1992-7; initial wrong anchor 8000-2 corrected after web-verification
-  against loinc.org), pH urinar dipstick (5803-2; added after observing the validator
-  silently recovering `2720-4 → 2720-1` which is a different body-fluid pH, not urine).
-  New Strict Rule #9 forbids LOINC fabrication globally and instructs `null` over
-  guessing. Companion STRICT block disallows digit-swap, check-digit ""correction"" or
-  similar-looking substitutions for the nine anchored codes.
-- ✅ **[Feb 2026 — LoincValidator safety-belt fix]** `TryRecoverByCheckDigit` had a bug:
-  when Gemini's long_name produced fewer than 2 ""significant"" tokens (length ≥ 4), the
-  safety-belt was COMPLETELY SKIPPED (the `if (geminiTokens.Count >= 2)` branch was
-  bypassed). For short names like `""pH of Urine""` (only `urine` survives the length
-  filter), any DB code with matching prefix was accepted unconditionally — that's how
-  `2720-1` (pH of a different fluid) got accepted for pH urinar. Fixed:
-    * 0 tokens → never auto-recover (REJECT).
-    * 1 token → that single token MUST appear in the candidate's long_name.
-    * 2+ tokens → require ≥ 2 token overlap (original behavior).
-  Real-world recoveries already observed in production (Bilirubina, pH, Proteine,
-  Nitriti, Hematii, etc.) continue to work because their long_names have ≥ 2
-  significant tokens.
+- ✅ **[Feb 2026 — LOINC Faza C v3]** **Anchored LOINC mappings in Gemini system prompt**
+  (`GeminiMedicalInterpretationService.cs`): hardcoded official codes for 12 frequently
+  hallucinated Romanian-lab analytes — LDH (14804-9), eGFR / DFG (62238-1), Densitate
+  urinară (2965-2), Non-HDL cholesterol (43396-1), Procent protrombină / Quick% (5894-1),
+  Celule epiteliale plate (5787-7), Anti-tiroglobulină (8098-6), Calcitonină (1992-7),
+  pH urinar (5803-2), **Hemoglobina (718-7)**, **Glucoza / Glicemie (2345-7)**,
+  **Urobilinogen urinar (20405-7)**. Each mapping documents the wrong codes the model
+  has been observed emitting (e.g. ""Do NOT use 2452-1 — that is Hypoxanthine in Body
+  fluid, not Glucose"" / ""Do NOT confuse with Urobilin 3104-7""). New Strict Rule #9
+  forbids LOINC fabrication globally.
+- ✅ **[Feb 2026 — LoincValidator hardening]**
+  1. `TryRecoverByCheckDigit` safety-belt FIX: previously skipped completely when
+     Gemini's long_name had fewer than 2 ""significant"" tokens (length ≥ 4). Now:
+     0 tokens → reject; 1 token → must appear in DB candidate; 2+ tokens → ≥ 2 overlap.
+     Prevented the silent ""2720-4 → 2720-1"" mis-recovery for pH urinar.
+  2. **`TryRecoverByDigitSwap` REMOVED** (function + call site). It produced subtle
+     false positives where a valid LOINC for a DIFFERENT analyte was one swap away
+     from Gemini's hallucination. Concrete production cases that triggered removal:
+     `Glucoza 2542-3 → 2452-1` (DB confirms 2452-1 = Hypoxanthine in Body fluid, not
+     Glucose) and `Urobilinogen 3014-8 → 3104-7` (DB confirms 3104-7 = Urobilin, not
+     Urobilinogen). The frequently-hallucinated analytes are now anchored in the
+     Gemini system prompt instead, eliminating the wrong prefixes at the source.
+     `RecoveredByDigitSwap` field preserved in `LoincValidationStats` for JSON
+     backwards-compatibility but always equals 0.
 
 ## Pending / Backlog
 
