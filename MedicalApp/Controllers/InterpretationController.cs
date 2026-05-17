@@ -464,10 +464,15 @@ namespace MedicalApp.Controllers
             try
             {
                 var loincStats = await LoincValidator.ValidateAsync(result, _db, _cache, _logger);
-                // Any mutation by the validator (nulling OR recovery) must trigger
-                // re-serialization so the DB-persisted RawJsonResult reflects the
-                // corrected mapping.
-                if (loincStats.CorrectedToNull > 0 || loincStats.Recovered > 0) resultMutated = true;
+                // Any mutation by the validator (nulling, recovery by long_name,
+                // OR recovery by check digit) must trigger re-serialization so
+                // the DB-persisted RawJsonResult reflects the corrected mapping.
+                if (loincStats.CorrectedToNull > 0 ||
+                    loincStats.Recovered > 0 ||
+                    loincStats.RecoveredByCheckDigit > 0)
+                {
+                    resultMutated = true;
+                }
             }
             catch (Exception lvEx)
             {

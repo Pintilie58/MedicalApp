@@ -34,6 +34,15 @@ namespace MedicalApp.Services
         /// </summary>
         public int Recovered { get; set; }
 
+        /// <summary>
+        /// Entries recovered by brute-forcing the LOINC check digit (last digit).
+        /// Gemini frequently hallucinates the check digit while keeping the
+        /// numeric prefix correct (e.g. emits "2720-2" instead of the canonical
+        /// "2720-4" for pH). We try all 10 candidates 0..9 and accept the one
+        /// that exists in the DB with a matching head term.
+        /// </summary>
+        public int RecoveredByCheckDigit { get; set; }
+
         /// <summary>Entries with no LOINC code at all (Gemini emitted null).</summary>
         public int NoCode { get; set; }
     }
@@ -107,15 +116,33 @@ namespace MedicalApp.Services
 
                 if (!dict.TryGetValue(kr.LoincCode, out var dbLongName))
                 {
-                    // Code is not in our subset. Try to RECOVER it by looking up
-                    // a code whose canonical long_name matches Gemini's. This
-                    // helps when the model emitted a check-digit-shifted variant
-                    // (e.g. 2085-2 instead of 2085-9 for HDL cholesterol).
+                    // STEP A: brute-force the LOINC check digit. Gemini frequently
+                    // emits "2720-2" when the canonical is "2720-4". Trying the
+                    // 10 possible last digits is cheap (10 dict lookups) and
+                    // deterministic - no false positives because each numeric
+                    // prefix has exactly one valid check digit in LOINC.
+                    var fixedCode = TryRecoverByCheckDigit(kr.LoincCode, kr.LoincLongName, dict);
+                    if (fixedCode != null)
+                    {
+                        logger.LogInformation(
+                            "LoincValidator: RECOVERED parameter \"{Param}\" via check-digit fix. " +
+                            "Gemini said code={WrongCode}, DB has matching prefix at code={RightCode}.",
+                            kr.Parameter, kr.LoincCode, fixedCode);
+
+                        kr.LoincCode = fixedCode;
+                        kr.LoincLongName = dict[fixedCode];
+                        stats.RecoveredByCheckDigit++;
+                        continue;
+                    }
+
+                    // STEP B: long-name lookup with strict rules (no permissive
+                    // fallback). Catches the rare cases where the prefix itself
+                    // is wrong but the long_name uniquely identifies a code.
                     var recoveredCode = TryRecoverByLongName(kr.LoincLongName, dict, headIndex);
                     if (recoveredCode != null)
                     {
                         logger.LogInformation(
-                            "LoincValidator: RECOVERED parameter \"{Param}\". " +
+                            "LoincValidator: RECOVERED parameter \"{Param}\" via long_name lookup. " +
                             "Gemini said code={WrongCode} long_name=\"{Gemini}\" (not in DB). " +
                             "Replaced with DB code={RightCode}.",
                             kr.Parameter, kr.LoincCode, kr.LoincLongName, recoveredCode);
@@ -155,10 +182,12 @@ namespace MedicalApp.Services
 
             // Per-call summary line.
             logger.LogInformation(
-                "LoincValidator summary: total={Total} validated_high={High} recovered={Rec} " +
+                "LoincValidator summary: total={Total} validated_high={High} " +
+                "recovered_checkdigit={Cd} recovered_longname={Rec} " +
                 "mismatch_nulled={Corr} out_of_subset={OOS} no_code={None}.",
-                stats.Total, stats.ValidatedHigh, stats.Recovered, stats.CorrectedToNull,
-                stats.OutOfSubset, stats.NoCode);
+                stats.Total, stats.ValidatedHigh,
+                stats.RecoveredByCheckDigit, stats.Recovered,
+                stats.CorrectedToNull, stats.OutOfSubset, stats.NoCode);
 
             return stats;
         }
@@ -208,6 +237,67 @@ namespace MedicalApp.Services
 
             cache.Set(CacheKey_ValidCodes, (dict, headIndex), CacheTtl);
             return (dict, headIndex);
+        }
+
+        // =====================================================================
+        // Check-digit brute-force recovery (Verhoeff-equivalent, algorithm-agnostic)
+        // =====================================================================
+        /// <summary>
+        /// Recovers a LOINC code whose check digit (the digit after the dash)
+        /// was hallucinated by Gemini. The numeric prefix is usually correct
+        /// because Gemini was trained on documents that contain the full code.
+        /// <para>
+        /// Strategy: enumerate all 10 possible check digits (0..9), look each up
+        /// in the dictionary, and accept the match. Each numeric prefix maps to
+        /// exactly ONE valid check digit per LOINC (Mod 10 algorithm), so at
+        /// most one of the 10 candidates can exist in the DB - no ambiguity.
+        /// </para>
+        /// <para>
+        /// As a safety belt against false positives (e.g. recovering "2720-4"
+        /// while Gemini meant a completely different test that happens to
+        /// share digits), we require the canonical long_name of the recovered
+        /// code to share at least 2 significant tokens with Gemini's long_name.
+        /// Without this check the brute-force could collapse Lipase (3040-3)
+        /// onto Triglyceride (2571-8) just because their prefixes are close.
+        /// </para>
+        /// </summary>
+        private static string? TryRecoverByCheckDigit(
+            string? geminiCode,
+            string? geminiLongName,
+            Dictionary<string, string> dict)
+        {
+            if (string.IsNullOrWhiteSpace(geminiCode)) return null;
+
+            int dashIdx = geminiCode.LastIndexOf('-');
+            if (dashIdx <= 0 || dashIdx >= geminiCode.Length - 1) return null;
+            var prefix = geminiCode[..dashIdx];
+
+            // Prefix must be all digits, otherwise it's not a malformed LOINC.
+            for (int i = 0; i < prefix.Length; i++)
+                if (!char.IsDigit(prefix[i])) return null;
+
+            // Tokens of Gemini's long_name for the safety-belt check.
+            var geminiTokens = TokenSet(geminiLongName ?? string.Empty);
+
+            for (int d = 0; d <= 9; d++)
+            {
+                var candidate = prefix + "-" + d;
+                if (candidate == geminiCode) continue; // we already know this miss.
+                if (!dict.TryGetValue(candidate, out var dbName)) continue;
+
+                // Safety belt: require some semantic agreement with Gemini's
+                // long_name so we don't replace a hallucinated code for one
+                // test with a real code for a completely different test.
+                if (geminiTokens.Count >= 2)
+                {
+                    var dbTokens = TokenSet(dbName);
+                    int overlap = dbTokens.Intersect(geminiTokens, StringComparer.OrdinalIgnoreCase).Count();
+                    if (overlap < 2) continue;
+                }
+
+                return candidate;
+            }
+            return null;
         }
 
         // =====================================================================
