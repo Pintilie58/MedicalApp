@@ -311,9 +311,25 @@ namespace MedicalApp.Services
                 // Safety belt: require some semantic agreement with Gemini's
                 // long_name so we don't replace a hallucinated code for one
                 // test with a real code for a completely different test.
-                if (geminiTokens.Count >= 2)
+                //
+                // BUG-FIX (Feb 2026): the previous version only ran the check
+                // when geminiTokens.Count >= 2, which silently DISABLED the
+                // safety belt for short long_names like "pH of Urine" (only
+                // one >=4-letter token: "urine"). This let "2720-4" (pH urine
+                // hallucinated) get recovered as "2720-1" (pH of a different
+                // fluid) just because the prefix matched. New policy:
+                //   * 0 tokens -> too little signal, REJECT recovery.
+                //   * 1 token  -> the single token MUST also appear in dbName.
+                //   * 2+ tokens -> require >=2 token overlap (original rule).
+                var dbTokens = TokenSet(dbName);
+                if (geminiTokens.Count == 0)
+                    continue;                                  // No signal at all -> never auto-recover.
+                if (geminiTokens.Count == 1)
                 {
-                    var dbTokens = TokenSet(dbName);
+                    if (!dbTokens.Overlaps(geminiTokens)) continue;
+                }
+                else
+                {
                     int overlap = dbTokens.Intersect(geminiTokens, StringComparer.OrdinalIgnoreCase).Count();
                     if (overlap < 2) continue;
                 }

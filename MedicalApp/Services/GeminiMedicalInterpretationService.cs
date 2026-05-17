@@ -837,6 +837,14 @@ GUIDELINES:
     * Calcitonina / Calcitonin
         -> ""1992-7""   (Calcitonin [Mass/volume] in Serum or Plasma)
         NOTE: do NOT use ""8000-2"" — that is an unrelated LOINC code.
+    * pH urinar / pH urină / pH of Urine (dipstick / test strip)
+        -> ""5803-2""   (pH of Urine by Test strip)
+        NOTE: this is the dipstick variant Romanian labs print most often.
+        Do NOT swap to ""2720-1"", ""2720-4"" or other ""2720-*"" codes — those
+        describe a DIFFERENT body fluid, not Urine. If the lab clearly used a
+        pH-meter (not a dipstick), the alternative is ""106930-1"" (pH of Urine
+        by pH-meter); if no method is stated, ""2756-5"" (pH of Urine, generic)
+        is acceptable. Default to ""5803-2"" for typical urine analysis reports.
 
   STRICT RULE on these eight anchored mappings:
     1. If you recognize the analyte but you are not 100% sure the unit and
