@@ -852,11 +852,19 @@ GUIDELINES:
         with HbA1c (4548-4), or with fetal/glycated variants.
     * Glucoză / Glicemie / Glucose serum/plasma (a jeun sau random, fără context fasting)
         -> ""2345-7""   (Glucose [Mass/volume] in Serum or Plasma)
-        NOTE: use 2345-7 for general serum/plasma glucose. Do NOT emit ""2452-1""
-        (Hypoxanthine in Body fluid — a completely different analyte) or any
-        2542-* / 2452-* prefix. If fasting is explicitly stated, ""1558-6"" is
-        acceptable; for whole-blood capillary glucose (point-of-care) use
-        ""2339-0"". Default to 2345-7 for standard lab glucose.
+        CRITICAL: in Romanian labs ""glicemia"" / ""Glucoza"" is ALWAYS measured on
+        SERUM or PLASMA (after centrifugation), even though the report colloquially
+        says ""sânge"" / ""din sânge"". The correct LOINC is therefore ""2345-7""
+        (Serum or Plasma), NOT ""2542-3"" (Glucose in Whole Blood — a different
+        specimen used only for capillary point-of-care meters).
+        EXAMPLE: lab row ""Glucoza: 92 mg/dL (ref 70-105 mg/dL)"" must emit
+            ""loinc_code"": ""2345-7"",
+            ""loinc_long_name"": ""Glucose [Mass/volume] in Serum or Plasma"",
+            ""loinc_confidence"": ""high""
+        Do NOT emit ""2542-3"", do NOT emit ""2452-1"" (Hypoxanthine in Body fluid),
+        do NOT emit any other 2542-* / 2452-* prefix.
+        If fasting is EXPLICITLY stated by the report, ""1558-6"" is also acceptable.
+        Default to 2345-7 for standard lab glucose.
     * Urobilinogen / Urobilinogen urinar (dipstick urinalysis)
         -> ""20405-7""  (Urobilinogen [Mass/volume] in Urine by Test strip)
         NOTE: Romanian urinalysis reports print urobilinogen via dipstick.

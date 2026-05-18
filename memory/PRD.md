@@ -129,6 +129,16 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
      `RecoveredByDigitSwap` field preserved in `LoincValidationStats` for JSON
      backwards-compatibility but always equals 0.
 
+- ✅ **[Feb 2026 — LOINC Faza C v3.1]** Strengthened Glucose anchor with explicit
+  ""Romanian lab specimen disambiguation"": Gemini kept emitting `2542-3` (Glucose in
+  Whole Blood — a real LOINC code, but for capillary point-of-care meters), not because
+  the anchor was wrong but because Gemini interprets the Romanian word ""sânge"" / ""din
+  sânge"" literally as Whole Blood. The anchor now explicitly states that Romanian lab
+  glycemia is ALWAYS serum/plasma (post-centrifugation) and adds a concrete few-shot
+  example with the full 3-field LOINC triple. `2542-3` listed by name as a banned
+  substitution. This pattern (specimen-mismatch hallucination) is documented for future
+  similar cases.
+
 ## Pending / Backlog
 
 ### P1 – Family profiles (multi-session focus)
