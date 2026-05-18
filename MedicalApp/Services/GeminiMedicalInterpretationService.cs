@@ -850,21 +850,34 @@ GUIDELINES:
         NOTE: this is the hematology CBC code for total Hb in whole blood.
         Do NOT confuse with urine-strip ""Hemoglobina urinară"" (20405-7 family),
         with HbA1c (4548-4), or with fetal/glycated variants.
-    * Glucoză / Glicemie / Glucose serum/plasma (a jeun sau random, fără context fasting)
+    * Glucoză / Glicemie / Glucose — SERIC / PLASMĂ (panel de biochimie standard,
+      a jeun sau random, fără mențiune ""urină"")
         -> ""2345-7""   (Glucose [Mass/volume] in Serum or Plasma)
-        CRITICAL: in Romanian labs ""glicemia"" / ""Glucoza"" is ALWAYS measured on
-        SERUM or PLASMA (after centrifugation), even though the report colloquially
-        says ""sânge"" / ""din sânge"". The correct LOINC is therefore ""2345-7""
-        (Serum or Plasma), NOT ""2542-3"" (Glucose in Whole Blood — a different
-        specimen used only for capillary point-of-care meters).
+        CRITICAL: in Romanian labs ""glicemia"" / ""Glucoza"" (din panel-ul de
+        biochimie) este ALWAYS measured on SERUM or PLASMA (after centrifugation),
+        even though the report colloquially says ""sânge"" / ""din sânge"". The
+        correct LOINC is ""2345-7"" (Serum or Plasma), NOT ""2542-3"" (Glucose in
+        Whole Blood — a different specimen used only for capillary point-of-care).
         EXAMPLE: lab row ""Glucoza: 92 mg/dL (ref 70-105 mg/dL)"" must emit
             ""loinc_code"": ""2345-7"",
             ""loinc_long_name"": ""Glucose [Mass/volume] in Serum or Plasma"",
             ""loinc_confidence"": ""high""
-        Do NOT emit ""2542-3"", do NOT emit ""2452-1"" (Hypoxanthine in Body fluid),
-        do NOT emit any other 2542-* / 2452-* prefix.
-        If fasting is EXPLICITLY stated by the report, ""1558-6"" is also acceptable.
-        Default to 2345-7 for standard lab glucose.
+        Do NOT emit ""2542-3"", ""2452-1"" or any other 2542-* / 2452-* prefix.
+        If fasting is EXPLICITLY stated, ""1558-6"" is also acceptable.
+    * Glucoză URINARĂ / Glucoza (urina) / Glucose in Urine (urinalysis dipstick,
+      reported with the rest of the urine strip parameters: pH, Densitate, Bilirubina,
+      Urobilinogen, Nitriti, Leucocite, Hematii, Corpi cetonici)
+        -> ""5792-7""   (Glucose [Mass/volume] in Urine by Test strip)
+        CRITICAL: when ""Glucoza"" appears INSIDE the urinalysis section (alongside
+        the other dipstick parameters) and its value is reported in mg/dL or as
+        ""negativ""/""positiv""/""+"", the analyte is urine glucose, NOT serum glucose.
+        Do NOT emit ""2345-7"" (that is the SERUM glucose code), do NOT emit
+        ""2542-3"" (whole blood glucose). The dipstick variant is ""5792-7"".
+        EXAMPLE: urinalysis row ""Glucoza (urina): negativ"" or ""Glucoza: 0 mg/dL""
+        within the urinalysis section must emit
+            ""loinc_code"": ""5792-7"",
+            ""loinc_long_name"": ""Glucose [Mass/volume] in Urine by Test strip"",
+            ""loinc_confidence"": ""high""
     * Urobilinogen / Urobilinogen urinar (dipstick urinalysis)
         -> ""20405-7""  (Urobilinogen [Mass/volume] in Urine by Test strip)
         NOTE: Romanian urinalysis reports print urobilinogen via dipstick.

@@ -139,6 +139,15 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
   substitution. This pattern (specimen-mismatch hallucination) is documented for future
   similar cases.
 
+- ✅ **[Feb 2026 — LOINC Faza C v3.2]** Critical disambiguation: the persistent
+  `2542-3` for ""Glucoza"" was NOT serum glucose — the parameter name in the PDF was
+  ""Glucoza (urina)"", i.e. urine-strip glucose. The anchor was split into TWO distinct
+  cases: SERUM/PLASMA glucose → `2345-7` (biochemistry panel), URINE glucose →
+  `5792-7` (Glucose [Mass/volume] in Urine by Test strip — urinalysis dipstick).
+  Both cases now include explicit ""WHERE in the report it appears"" guidance and
+  concrete few-shot examples. Lesson learned: always check the parameter's section
+  context (biochemistry vs urinalysis) before anchoring.
+
 ## Pending / Backlog
 
 ### P1 – Family profiles (multi-session focus)
