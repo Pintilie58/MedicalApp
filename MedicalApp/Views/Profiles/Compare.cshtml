@@ -128,10 +128,18 @@
                         @foreach (var row in Model.Rows)
                         {
                             <tr data-testid="compare-row-@row.Parameter.Replace(" ", "-")">
-                                <td class="fw-semibold">
+                                <td class="fw-semibold" data-testid="compare-row-label">
                                     @row.Parameter
                                     @if (!string.IsNullOrWhiteSpace(row.Unit))
                                     { <span class="small text-muted">(@row.Unit)</span> }
+                                    @if (!string.IsNullOrWhiteSpace(row.LoincCode))
+                                    {
+                                        <span class="badge bg-light text-secondary border ms-1 small"
+                                              title="@row.LoincLongName"
+                                              data-testid="compare-row-loinc-@row.LoincCode">
+                                            LOINC @row.LoincCode
+                                        </span>
+                                    }
                                 </td>
                                 @foreach (var cell in row.Cells)
                                 {
@@ -156,6 +164,11 @@
             </div>
 
             <p class="small text-muted mt-3">
+                Rândurile sunt grupate după <strong>codul LOINC</strong> (standard internațional pentru
+                identificarea analizelor) când acesta este disponibil — deci același test
+                este aliniat pe același rând chiar dacă laboratoarele l-au scris diferit
+                (ex. „VSH", „ESR" și „Vitesse de sédimentation" apar pe un singur rând).
+                <br />
                 Prima coloană (cea cu fundal gri) este referința.
                 &#8599; roșu = valoare crescută față de prima coloană &nbsp;·&nbsp;
                 &#8600; albastru = scăzută &nbsp;·&nbsp;

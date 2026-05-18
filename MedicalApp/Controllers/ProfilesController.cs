@@ -418,8 +418,39 @@ namespace MedicalApp.Controllers
             Profile profile,
             List<(InterpretationHistory h, InterpretationResult r)> sortedOldestFirst)
         {
-            static string Key(string param) =>
-                (param ?? string.Empty).Trim().ToLowerInvariant();
+            // ----------------------------------------------------------------
+            // Pas 4: grouping by LOINC code (with parameter-name fallback)
+            // ----------------------------------------------------------------
+            // Historically the Compare view grouped rows by lowercase parameter
+            // name. That broke whenever two lab reports for the same analyte
+            // used different wording — "VSH" vs "ESR", "Glicemie" vs "Glucose",
+            // "Procent protrombina" vs "Quick %" — even though they are the
+            // same test (and now we have an authoritative LOINC code proving
+            // they are the same test).
+            //
+            // New algorithm:
+            //   * If a KeyResult has a non-empty LoincCode (post-validator),
+            //     the row key is "loinc:<code>". All cells with the same
+            //     code line up on ONE row, even if their parameter labels
+            //     disagree.
+            //   * If a KeyResult has no LoincCode (legacy rows pre-Pas 2, or
+            //     parameters with no LOINC counterpart like custom indices),
+            //     it falls back to the OLD behaviour: row key is
+            //     "name:<normalized parameter>".
+            //   * Cross-grouping is allowed: a parameter that was coded in
+            //     one report and not coded in another will appear on TWO
+            //     separate rows. That is intentional and HONEST — we don't
+            //     pretend the link is solid. The user will see this and can
+            //     re-interpret the older report to get LOINC coverage.
+            // ----------------------------------------------------------------
+
+            static string NameKey(string param) =>
+                "name:" + (param ?? string.Empty).Trim().ToLowerInvariant();
+
+            static string KeyFor(KeyResult kr) =>
+                !string.IsNullOrWhiteSpace(kr.LoincCode)
+                    ? "loinc:" + kr.LoincCode.Trim()
+                    : NameKey(kr.Parameter);
 
             int n = sortedOldestFirst.Count;
 
@@ -427,11 +458,18 @@ namespace MedicalApp.Controllers
             var keyMaps = sortedOldestFirst
                 .Select(t => (t.r.KeyResults ?? new())
                     .Where(k => !string.IsNullOrWhiteSpace(k.Parameter))
-                    .GroupBy(k => Key(k.Parameter))
+                    .GroupBy(KeyFor)
                     .ToDictionary(g => g.Key, g => g.First()))
                 .ToList();
 
-            var allKeys = keyMaps.SelectMany(m => m.Keys).Distinct().OrderBy(k => k).ToList();
+            // Union of all row keys, sorted: LOINC-coded rows first
+            // (alphabetical by LoincCode) and parameter-name rows after.
+            var allKeys = keyMaps
+                .SelectMany(m => m.Keys)
+                .Distinct()
+                .OrderBy(k => k.StartsWith("loinc:") ? 0 : 1)
+                .ThenBy(k => k, StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
             int risen = 0, fallen = 0, unchanged = 0, partial = 0;
 
@@ -448,7 +486,11 @@ namespace MedicalApp.Controllers
                 {
                     Parameter = meta?.Parameter ?? k,
                     Unit = meta?.Unit,
-                    ReferenceRange = meta?.ReferenceRange
+                    ReferenceRange = meta?.ReferenceRange,
+                    // Surface the LOINC identity on LOINC-grouped rows so the
+                    // view can show a tooltip / badge. Null on name-fallback rows.
+                    LoincCode = k.StartsWith("loinc:") ? meta?.LoincCode : null,
+                    LoincLongName = k.StartsWith("loinc:") ? meta?.LoincLongName : null
                 };
 
                 // First numeric value index (used as the baseline for "risen/fallen").

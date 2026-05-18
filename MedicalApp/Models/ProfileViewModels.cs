@@ -127,6 +127,34 @@ namespace MedicalApp.Models
             public string? Unit { get; set; }
             public string? ReferenceRange { get; set; }
 
+            // --- LOINC grouping metadata (Pas 4) ---
+            // When two interpretations from different labs / different languages
+            // report the same analyte under slightly different names
+            // (e.g. "VSH" vs "Vitesse de sédimentation" vs "ESR"), grouping
+            // them by their official LoincCode finally lets the Compare view
+            // line them up on the SAME row. These two fields surface that
+            // standardized identity to the view.
+            //
+            // LoincCode is null for legacy rows where Gemini did not emit a
+            // code AND the validator could not recover one — in that case the
+            // row is still keyed by the (normalized) parameter name, like
+            // before, so old interpretations remain comparable.
+
+            /// <summary>
+            /// Canonical LOINC code shared by all cells on this row.
+            /// Null when this row was grouped by parameter-name fallback
+            /// (legacy interpretations without LOINC, or LOINC was nulled
+            /// out by the validator).
+            /// </summary>
+            public string? LoincCode { get; set; }
+
+            /// <summary>
+            /// LOINC Long Common Name for display in tooltips, e.g.
+            /// "Gamma glutamyl transferase [Enzymatic activity/volume] in
+            ///  Serum or Plasma". Null when <see cref="LoincCode"/> is null.
+            /// </summary>
+            public string? LoincLongName { get; set; }
+
             /// <summary>One cell per Column (same length and order as <see cref="Columns"/>).</summary>
             public List<Cell> Cells { get; set; } = new();
 

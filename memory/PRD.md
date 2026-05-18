@@ -148,12 +148,29 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
   concrete few-shot examples. Lesson learned: always check the parameter's section
   context (biochemistry vs urinalysis) before anchoring.
 
+- ✅ **[Feb 2026 — Pas 4: Compare grupare după LOINC]** `/Profiles/Compare` aliniaza
+  acum parametrii după `LoincCode` (post-validator) când acesta este disponibil. Rândurile
+  cu același cod LOINC apar pe O SINGURĂ linie, indiferent cum a denumit fiecare laborator
+  testul în textul raportului (ex. ""VSH"" / ""ESR"" / ""Vitesse de sédimentation"" se aliniază
+  acum împreună). Detalii implementare:
+    * `ProfilesController.BuildComparison`: cheia de grupare e `loinc:<code>` când codul
+      există, altfel fallback la `name:<lowercased-param>` (legacy interpretări pre-LOINC
+      și parametri fără cod LOINC continuă să funcționeze fără regresie).
+    * Sortare: rândurile LOINC-coded apar primele (alfabetic după LoincCode),
+      apoi cele fallback (alfabetic după nume).
+    * `ComparisonRow` extinsă cu `LoincCode` + `LoincLongName` (null pentru rânduri
+      fallback).
+    * `Views/Profiles/Compare.cshtml`: pe rândul LOINC apare un badge mic
+      `LOINC 14804-9` cu tooltip pe `LoincLongName`. Notă explicativă pentru utilizator
+      în paragraful de jos.
+    * `data-testid` adăugat: `compare-row-loinc-<code>` pe badge.
+
 ## Pending / Backlog
 
 ### P1 – Family profiles (multi-session focus)
 - 🔜 **P1.6**: Denormalize parameters into `AnalysisResults` table on each interpretation (ParameterCode, Value, Unit, Status, SamplingDate, per profile)
-- 🔜 **P1.7**: Canonical dictionary mapping raw parameter names (e.g. "VS 1ère heure", "Vitesse de sédimentation") → canonical code (e.g. "ESR") for cross-lab tracking
-- 🔜 **P1.8**: Parameter evolution view (Chart.js line chart per parameter, per profile)
+- 🔜 **P1.7**: Canonical dictionary mapping raw parameter names (e.g. "VS 1ère heure", "Vitesse de sédimentation") → canonical code (e.g. "ESR") for cross-lab tracking — *partly satisfied by Pas 4 (LOINC grouping in Compare view)*
+- 🔜 **P1.8**: Parameter evolution view (Chart.js line chart per parameter, per profile, grouped by LoincCode)
 - 🔜 **P1.9**: Chronological aggregated list of all tests per profile (consolidated timeline)
 
 ### P2
