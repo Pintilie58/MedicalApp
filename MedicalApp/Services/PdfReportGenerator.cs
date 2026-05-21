@@ -230,6 +230,28 @@ namespace MedicalApp.Services
                             c.Item().Text(r.Parameter).SemiBold().FontSize(10);
                             if (!string.IsNullOrWhiteSpace(r.Explanation))
                                 c.Item().PaddingTop(1).Text(r.Explanation).FontSize(8).FontColor(MutedText);
+
+                            // Show the official LOINC code + long common name in a
+                            // small grey footer line under each parameter. This makes
+                            // the report internationally recognizable: the same code
+                            // identifies the same test in any hospital / EHR /
+                            // research database worldwide. The block is only rendered
+                            // when the matcher actually resolved a code (LoincCode
+                            // is null for proprietary indices or low-confidence
+                            // skips, in which case we just don't print it).
+                            if (!string.IsNullOrWhiteSpace(r.LoincCode))
+                            {
+                                c.Item().PaddingTop(2).Text(text =>
+                                {
+                                    text.Span("LOINC ").FontSize(7).FontColor(MutedText);
+                                    text.Span(r.LoincCode!).FontSize(7).SemiBold().FontColor(MutedText);
+                                    if (!string.IsNullOrWhiteSpace(r.LoincLongName))
+                                    {
+                                        text.Span("  ·  ").FontSize(7).FontColor(MutedText);
+                                        text.Span(r.LoincLongName!).FontSize(7).FontColor(MutedText);
+                                    }
+                                });
+                            }
                         });
 
                     t.Cell().PaddingVertical(4).BorderTop(0.25f).BorderColor(Colors.Grey.Lighten2)

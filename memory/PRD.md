@@ -207,6 +207,24 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
       then loads those files at startup — no further SQL Server contact at runtime.
       Service portable to any Linux VPS later (just copy the data files).
 
+- ✅ **[Feb 2026 — Faza C v4.1: prompt calibration + LOINC in PDF report]**
+  After the first production run hit 49/49 matched but with 6 ""medium"" confidence
+  scores on RBC indices (MCV, MCH, MCHC, RDW) and WBC differential percents,
+  two follow-up tweaks were applied:
+    1. **Gemini prompt expansion**: explicit canonical English names added for
+       MCV, MCH, MCHC, RDW, MPV, PDW, PCT, and the full WBC differential
+       (Limfocite / Monocite / Eozinofile / Bazofile in both absolute count
+       and % forms). Forces Gemini to emit ""Erythrocyte mean corpuscular volume
+       [Entitic volume] by Automated count"" rather than ""MCV (Volum eritrocitar
+       mediu)"" — which the semantic matcher then resolves to LOINC 787-2
+       directly with high confidence.
+    2. **PDF report enhancement** (`PdfReportGenerator.KeyResultsTable`):
+       below each parameter's name and explanation, a small grey footer line
+       now shows ""LOINC <code> · <Long Common Name>"". Rendered only when the
+       matcher actually resolved a code; absent for proprietary indices.
+       Makes the report internationally recognizable — any hospital / EHR /
+       research database worldwide identifies the same test by that code.
+
 ## Pending / Backlog
 
 ### P1 – Family profiles (multi-session focus)
