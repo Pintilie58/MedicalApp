@@ -243,6 +243,31 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
   section. The semantic matcher then resolves correctly without further changes
   to the Python pipeline. No need to rebuild embeddings.
 
+- ✅ **[Feb 2026 — Faza C v4.3: aggressive prompt anti-Romanian-leakage]**
+  Third production session revealed Gemini still leaking Romanian text into
+  `parameter_normalized_en` for ~15% of parameters (""Hemoglobina eritrocitara
+  medie {HEM}"", ""Concentratia medie a Hb/eritrocit"", ""Neutrofil"" singular,
+  ""CA 19 - 9 ( Antigen carbohidrat )""), which made the semantic matcher pick
+  semantically nearby but wrong codes (""784-9 Erythrocyte mean corpuscular
+  diameter"" instead of ""785-6 MCH"" for example). Prompt strengthened with:
+    * **Strict translation rule** (#7): forbid copying the raw Romanian name
+      into parameter_normalized_en — must always be canonical English.
+    * **Brace/parenthesis stripping** (#8): inputs like ""Hemoglobina X {HEM}""
+      or ""CA 19 - 9 ( Antigen carbohidrat )"" must produce clean canonical
+      names without the parenthetical alias.
+    * **% vs absolute count** (#9): explicit instruction to differentiate
+      ""Neutrofile 60%"" (fraction → /100 leukocytes) from ""Neutrofile 4500/uL""
+      (absolute → [#/volume]).
+    * **Singular vs plural** (#10): never emit ""Neutrofil"" / ""Limfocit"" —
+      cell populations are always plural in LOINC.
+    * **Pre-output self-check**: silently re-read every emitted normalized name
+      and verify it is 100% English with explicit specimen.
+    * **Additional anchors** for analytes seen in real production:
+      HOMA-IR (no universal LOINC — emit plain text, null is honest),
+      CA 19-9 / CA 125 / CA 15-3 / CEA / AFP (tumor markers, common in screening),
+      Vitamin B6 / B12 / D / Folat / Iron / Ferritin / Transferrin
+      (full Romanian → English canonical mappings).
+
 ## Pending / Backlog
 
 ### P1 – Family profiles (multi-session focus)

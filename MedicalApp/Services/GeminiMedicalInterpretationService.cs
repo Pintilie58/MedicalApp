@@ -875,6 +875,67 @@ GUIDELINES — keep these in mind when building parameter_normalized_en:
      downstream matcher will either find a code or skip.
   6. If you genuinely cannot map the parameter to a meaningful English
      medical term, emit null. The downstream pipeline will handle it.
+  7. **STRICT TRANSLATION RULE** — parameter_normalized_en MUST be in ENGLISH,
+     not Romanian / French / German. NEVER copy the raw Romanian parameter name
+     into parameter_normalized_en. If the lab printed ""Hemoglobina eritrocitara
+     medie"" you MUST emit ""Erythrocyte mean corpuscular hemoglobin [Entitic mass]
+     by Automated count"", NOT ""Hemoglobina eritrocitara medie {HEM}"" or
+     ""Mean corpuscular hemoglobin"" without the bracketed property. Romanian
+     names get matched to wrong codes — translate to canonical English EVERY time.
+  8. **STRIP ALL ABBREVIATIONS IN BRACES/PARENS** when building the canonical
+     name. Inputs like ""Hemoglobina eritrocitara medie {HEM}"",
+     ""Concentratia medie a hemoglobinei eritrocitare (MCHC)"",
+     ""CA 19 - 9 ( Antigen carbohidrat )"" must produce a CLEAN canonical
+     English term without the parenthetical alias — those parentheticals
+     trick the semantic matcher into picking wrong codes.
+  9. **DIFFERENTIATE % vs ABSOLUTE COUNT for WBC differential**. The lab row
+     ""Neutrofile: 60%"" is a fraction (""Neutrophils/100 leukocytes in Blood""),
+     while ""Neutrofile: 4500 /uL"" is an absolute count
+     (""Neutrophils [#/volume] in Blood""). NEVER emit a bare ""Neutrophils""
+     without specifying which. Use the unit (% vs /uL or x10^3/uL) to decide.
+     Same rule for Lymphocytes, Monocytes, Eosinophils, Basophils.
+ 10. **NEVER emit the SINGULAR form** (""Neutrofil"", ""Limfocit"", ""Monocit"")
+     when the lab row clearly counts CELLS — these are CELL POPULATIONS,
+     always plural in LOINC (""Neutrophils"", ""Lymphocytes"", ""Monocytes"").
+
+ADDITIONAL CANONICAL EXAMPLES (covering analytes observed misnormalized in
+production logs — always emit EXACTLY this English text when you see the
+listed Romanian aliases):
+  ""HOMA"" / ""HOMA-IR"" / ""Indice HOMA"" / ""HOMA insulin resistance index""
+      -> ""HOMA-IR insulin resistance index""  (plain text — no LOINC exists
+         universally for HOMA; downstream matcher will likely return null,
+         which is the correct, honest behaviour).
+  ""CA 19-9"" / ""CA 19 - 9"" / ""Antigen carbohidrat 19-9"" / ""Cancer Ag 19-9""
+      -> ""Cancer Ag 19-9 [Units/volume] in Serum or Plasma""
+      NOTE: the parenthetical ""(Antigen carbohidrat)"" is a translation hint,
+      NOT part of the analyte name. Strip it before emitting.
+  ""CA 125"" / ""Antigen carbohidrat 125"" / ""Cancer Ag 125""
+      -> ""Cancer Ag 125 [Units/volume] in Serum or Plasma""
+  ""CA 15-3"" / ""Cancer Ag 15-3""
+      -> ""Cancer Ag 15-3 [Units/volume] in Serum or Plasma""
+  ""CEA"" / ""Antigen carcinoembrionar""
+      -> ""Carcinoembryonic Ag [Mass/volume] in Serum or Plasma""
+  ""AFP"" / ""Alfa-fetoproteina""
+      -> ""Alpha-1-Fetoprotein [Mass/volume] in Serum or Plasma""
+  ""Vitamina B6"" / ""Piridoxal fosfat"" (forma activă)
+      -> ""Pyridoxal phosphate [Mass/volume] in Serum or Plasma""
+  ""Vitamina B12"" / ""Cobalamina""
+      -> ""Cobalamin (Vitamin B12) [Mass/volume] in Serum or Plasma""
+  ""Vitamina D"" / ""25-OH vitamina D"" / ""25-hidroxi vitamina D total""
+      -> ""25-hydroxyvitamin D3+25-hydroxyvitamin D2 [Mass/volume] in Serum or Plasma""
+  ""Acid folic"" / ""Folat""
+      -> ""Folate [Mass/volume] in Serum or Plasma""
+  ""Fier seric"" / ""Sideremie"" / ""Fer""
+      -> ""Iron [Mass/volume] in Serum or Plasma""
+  ""Feritina"" / ""Ferritin""
+      -> ""Ferritin [Mass/volume] in Serum or Plasma""
+  ""Transferina"" / ""Transferrin""
+      -> ""Transferrin [Mass/volume] in Serum or Plasma""
+
+PRE-OUTPUT CHECK (mandatory): before emitting each parameter_normalized_en
+silently ask yourself: ""Is this text 100% in English, with explicit specimen,
+without Romanian words, without parenthetical aliases?"" If the answer is
+""no"", fix it BEFORE returning the JSON.
 
 CRITICAL: do NOT emit ""loinc_code"", ""loinc_long_name"" or ""loinc_confidence""
 fields at all. Those fields are now resolved by a deterministic post-processing
