@@ -225,6 +225,24 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
        Makes the report internationally recognizable — any hospital / EHR /
        research database worldwide identifies the same test by that code.
 
+- ✅ **[Feb 2026 — Faza C v4.2: more anchors after 2nd production test]**
+  Second real-world test (lipidic + thyroid panel, 18 parameters) hit 18/18 matched
+  but two analytes resolved to plausible but suboptimal codes:
+    * LDH (total) → matched to ""2537-9 LDH isoenzyme 1"" instead of the desired
+      ""14804-9 LDH total"". Added an explicit canonical English name in the
+      Gemini prompt that forces ""Lactate dehydrogenase [Enzymatic activity/volume]
+      in Serum or Plasma by Lactate to pyruvate reaction"" so the matcher's
+      semantic + fuzzy step ranks 14804-9 above 2537-9.
+    * Anti-TPO → matched to ""17797-2 Thyroid colloidal Ab"" (a different
+      antibody) instead of the desired ""8099-4 Thyroperoxidase Ab"". Added
+      explicit canonical name ""Thyroperoxidase Ab [Units/volume] in Serum"" plus
+      a NOTE clarifying that Anti-TPO is NEITHER Thyroid colloidal Ab NOR
+      Thyroglobulin Ab — they are three different antibodies.
+  Pattern confirmed: each ""medium confidence"" or wrong-but-plausible result in
+  production is fixed by adding 1-2 lines to the Gemini prompt's worked-examples
+  section. The semantic matcher then resolves correctly without further changes
+  to the Python pipeline. No need to rebuild embeddings.
+
 ## Pending / Backlog
 
 ### P1 – Family profiles (multi-session focus)

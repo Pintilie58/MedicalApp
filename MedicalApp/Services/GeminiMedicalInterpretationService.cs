@@ -786,6 +786,16 @@ Worked examples (these are the format we expect — adapt to YOUR parameter):
       -> ""Hemoglobin [Mass/volume] in Blood""
   ""Hemoglobina urinară"" (in urinalysis dipstick)
       -> ""Hemoglobin [Presence] in Urine by Test strip""
+  ""LDH"" / ""Lactat dehidrogenaza"" / ""Lactate dehydrogenase"" (total, serum, fără mențiune izoenzimă)
+      -> ""Lactate dehydrogenase [Enzymatic activity/volume] in Serum or Plasma by Lactate to pyruvate reaction""
+      NOTE: emit acest text canonic pentru LDH TOTAL. Do NOT emit "" LDH 1"" sau ""isoenzyme""
+      pentru LDH total — acelea sunt teste specializate diferite.
+  ""Anti-TPO"" / ""Anti-tiroidperoxidaza"" / ""TPO antibody"" / ""Anti-thyroperoxidase""
+      -> ""Thyroperoxidase Ab [Units/volume] in Serum""
+      NOTE: NU este același lucru cu ""Thyroid colloidal Ab"" (anticorpi anti-coloid)
+      sau cu ""Thyroglobulin Ab"" (anti-Tg). TPO = enzima thyroperoxidase.
+  ""LDH"" izoenzime specifice (LDH1, LDH2, ...) — folosește numele specific
+      ""LDH isoenzyme 1 [Enzymatic activity/volume] in Serum or Plasma""
   ""TSH""
       -> ""Thyrotropin [Units/volume] in Serum or Plasma""
   ""FT4"" / ""T4 libre""
