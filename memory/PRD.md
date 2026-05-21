@@ -268,6 +268,28 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
       Vitamin B6 / B12 / D / Folat / Iron / Ferritin / Transferrin
       (full Romanian → English canonical mappings).
 
+- ✅ **[Feb 2026 — Faza C v4.4: Gemini JSON robustness fixes]**
+  Production session uncovered two unrelated transient issues that wasted
+  retry budget. Both fixed:
+    1. **Raw newline (0x0A) inside JSON string values** —
+       `JsonReaderException ""'0x0A' is invalid within a JSON string. Path:
+       $.recommendations""`. Gemini occasionally emitted a literal LF byte
+       inside long ""recommendations"" / ""summary"" string values instead of
+       the escape sequence ""\n"". Added a new pre-parse repair pass
+       `TryRepairRawNewlinesInStrings()` that walks the JSON once, tracks
+       in-string vs out-of-string position, and escapes raw LF / CR / TAB
+       inside string values to their JSON equivalents. The repair is run
+       BEFORE the existing structural-drift repair; both run sequentially
+       so a single response can have both defects fixed in one pass without
+       needing a 60-second retry round-trip.
+    2. **Off-by-one self-audit mismatch** — when the model declared 57
+       parameters in `audit.expected_count` but emitted 56 in `key_results`,
+       the controller was forcing a full retry (60s + ~3k tokens) for a
+       single missing parameter. Common cause: a row in the report with
+       no value (lab printed the header but the test was not yet completed).
+       Threshold raised: retry only when difference >= 2. Off-by-one is
+       logged as INFO and the pipeline continues.
+
 ## Pending / Backlog
 
 ### P1 – Family profiles (multi-session focus)

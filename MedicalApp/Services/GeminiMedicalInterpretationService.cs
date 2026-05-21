@@ -256,13 +256,33 @@ namespace MedicalApp.Services
             catch (JsonException firstEx)
             {
                 // Plan A: defensive JSON auto-repair.
-                // On very long Gemini outputs (~6k+ tokens) the model occasionally drops
-                // a closing brace between two adjacent objects in an array (typical
-                // "structural drift" symptom on long structured outputs). The classic
-                // signature is `... "value" , { ... }` instead of `... "value" }, { ... }`.
-                // Before bouncing to the controller's retry-loop (which costs another
-                // ~60s round-trip + tokens), we try a targeted in-place repair.
-                var repaired = TryRepairGeminiJsonDrift(cleaned, firstEx, _logger);
+                // On very long Gemini outputs (~6k+ tokens) the model occasionally
+                // emits malformed JSON. We have two complementary repairs:
+                //   1. RAW NEWLINE INSIDE STRING — Gemini sometimes emits a
+                //      literal '\n' (0x0A) byte instead of '\\n' inside the
+                //      "recommendations", "explanation" or "summary" string
+                //      values. This is the JsonReaderException "0x0A is invalid
+                //      within a JSON string". TryRepairRawNewlinesInStrings()
+                //      escapes them in-place.
+                //   2. STRUCTURAL DRIFT — the model occasionally drops a closing
+                //      brace between two adjacent objects in an array. Signature:
+                //      `... "value" , { ... }` instead of `... "value" }, { ... }`.
+                //      TryRepairGeminiJsonDrift() inserts the missing brace.
+                // We run them sequentially; the more "easy" one (newlines) goes
+                // first because it tends to mask the structural one. Either is
+                // far cheaper than the controller's full ~60s retry loop.
+                var repaired = TryRepairRawNewlinesInStrings(cleaned, firstEx, _logger);
+                if (repaired == null || ReferenceEquals(repaired, cleaned))
+                {
+                    repaired = TryRepairGeminiJsonDrift(cleaned, firstEx, _logger);
+                }
+                else
+                {
+                    // Newline-repair succeeded; the drift-repair may still help if
+                    // the JSON had BOTH defects. Run drift-repair on top.
+                    var draft = TryRepairGeminiJsonDrift(repaired, firstEx, _logger);
+                    if (draft != null) repaired = draft;
+                }
                 if (repaired != null && !ReferenceEquals(repaired, cleaned))
                 {
                     try
@@ -308,13 +328,24 @@ namespace MedicalApp.Services
                 // ground truth (the model sometimes fills only one of them).
                 var groundTruth = Math.Max(expected, auditNames);
 
-                if (groundTruth > listed && groundTruth - listed >= 1)
+                if (groundTruth > listed && groundTruth - listed >= 2)
                 {
                     _logger.LogWarning(
                         "Gemini self-audit mismatch: declared {GroundTruth} parameters but emitted only {Listed} in key_results. Forcing retry.",
                         groundTruth, listed);
                     throw new InvalidOperationException(
                         $"Gemini extraction incomplete: model declared {groundTruth} parameters but only emitted {listed}. Retrying.");
+                }
+                else if (groundTruth > listed)
+                {
+                    // Off-by-one: usually a duplicate counted in audit, or a
+                    // parameter listed in parameter_names but skipped because it
+                    // had no value (e.g. row "Status:" with no result yet).
+                    // Worth a log line but NOT worth a 60s retry that costs
+                    // ~2-3k tokens and may run into another transient 503.
+                    _logger.LogInformation(
+                        "Gemini self-audit minor mismatch (off-by-one): declared {GroundTruth} but emitted {Listed}. Continuing.",
+                        groundTruth, listed);
                 }
             }
 
@@ -471,6 +502,75 @@ namespace MedicalApp.Services
         /// in positions whose surrounding context clearly identifies the drift. If
         /// the second parse also fails, the original error is propagated unchanged.
         /// </remarks>
+        /// <summary>
+        /// Escapes RAW newline / carriage-return / tab bytes that Gemini sometimes
+        /// emits *inside* a JSON string value, which is illegal per RFC 8259.
+        /// Symptom: <c>JsonReaderException "'0x0A' is invalid within a JSON string"</c>.
+        /// Cause: on long structured outputs (recommendations, explanations) the
+        /// model occasionally renders a paragraph break as a real '\n' byte
+        /// instead of the escape sequence '\\n'. We walk the JSON once,
+        /// track whether we are INSIDE a string literal, and inside strings
+        /// replace 0x0A -> "\\n", 0x0D -> "\\r", 0x09 -> "\\t". Everything
+        /// outside strings is copied verbatim, so the structural layout of
+        /// the document is untouched.
+        /// </summary>
+        internal static string? TryRepairRawNewlinesInStrings(string json, JsonException originalError, ILogger? logger = null)
+        {
+            if (string.IsNullOrEmpty(json)) return json;
+
+            // Quick path: if there is no candidate offender, skip the whole walk.
+            // 0x0A / 0x0D are common in pretty-printed JSON OUTSIDE strings too,
+            // so this is only a pre-filter to save allocations.
+            if (json.IndexOf('\n') < 0 && json.IndexOf('\r') < 0 && json.IndexOf('\t') < 0)
+                return json;
+
+            var sb = new StringBuilder(json.Length + 32);
+            bool inString = false;
+            int repairs = 0;
+
+            for (int i = 0; i < json.Length; i++)
+            {
+                char c = json[i];
+
+                if (c == '"' && !IsEscapedAt(json, i))
+                {
+                    inString = !inString;
+                    sb.Append(c);
+                    continue;
+                }
+
+                if (inString)
+                {
+                    switch (c)
+                    {
+                        case '\n':
+                            sb.Append("\\n");
+                            repairs++;
+                            continue;
+                        case '\r':
+                            sb.Append("\\r");
+                            repairs++;
+                            continue;
+                        case '\t':
+                            sb.Append("\\t");
+                            repairs++;
+                            continue;
+                    }
+                }
+
+                sb.Append(c);
+            }
+
+            if (repairs == 0)
+                return json;
+
+            logger?.LogInformation(
+                "Gemini JSON repair: escaped {Count} raw newline/CR/tab byte(s) inside string values. " +
+                "Original error: {Err}",
+                repairs, originalError?.Message ?? "(none)");
+            return sb.ToString();
+        }
+
         internal static string? TryRepairGeminiJsonDrift(string json, JsonException originalError, ILogger? logger = null)
         {
             if (string.IsNullOrEmpty(json)) return json;
