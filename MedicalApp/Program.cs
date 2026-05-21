@@ -69,6 +69,21 @@ builder.Services.AddMemoryCache();
 // Archive premium access billing (P1.5.5, P1.8, exports).
 builder.Services.AddScoped<ArchiveAccessService>();
 
+// LOINC matcher microservice client (Python FastAPI).
+// Gemini emits standardized English medical names; this client calls the
+// Python pipeline (semantic + fuzzy + rules over the local LoincDictionary)
+// to resolve the canonical LOINC code. Eliminates LLM LOINC hallucinations.
+builder.Services.Configure<LoincMatcherSettings>(
+    builder.Configuration.GetSection("LoincMatcher"));
+builder.Services.AddHttpClient<LoincMatcherClient>((sp, http) =>
+{
+    var opts = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<LoincMatcherSettings>>().Value;
+    http.BaseAddress = new Uri(opts.BaseUrl);
+    // Per-call timeout is enforced by LoincMatcherClient itself; we set a
+    // generous outer ceiling here so HttpClient does not pre-emptively cancel.
+    http.Timeout = TimeSpan.FromSeconds(Math.Max(opts.TimeoutSeconds * 2, 10));
+});
+
 // Pending registrations (in-memory, singleton)
 builder.Services.AddSingleton<PendingRegistrationStore>();
 

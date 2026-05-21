@@ -96,36 +96,55 @@ namespace MedicalApp.Models
             [JsonPropertyName("explanation")]
             public string? Explanation { get; set; }
 
-            // -------- LOINC mapping (Pas 2) --------
-            // The model is asked to identify a LOINC code for each extracted
-            // parameter. The three fields below are OPTIONAL on the wire:
-            // older PDFs re-interpreted on cached prompts may not have them,
-            // and the model is explicitly allowed to emit nulls when it is
-            // not confident. Validation against our LoincDictionary happens
-            // later (Pas 3) - here we only DESERIALIZE what came back.
+            // -------- Parameter normalization (new pipeline) --------
+            // Gemini provides a clean, standardized English medical term for the
+            // analyte. A downstream deterministic matcher (Python FastAPI service
+            // running semantic + fuzzy + rules search over the local LOINC DB)
+            // resolves the actual LOINC code from this normalized name.
+            //
+            // This separation eliminates LOINC hallucinations at the LLM level:
+            // Gemini is good at producing natural-language English medical names
+            // and bad at recalling numeric codes; the matcher does the opposite.
 
             /// <summary>
-            /// Official LOINC code chosen by Gemini for this parameter,
-            /// e.g. "2324-2" for GGT. May be null when Gemini is unsure or
-            /// when the test has no LOINC counterpart (rare lab-specific
-            /// indices).
+            /// Standardized English medical term for the analyte, with explicit
+            /// specimen, in LOINC-style canonical form, e.g.
+            /// "Glucose [Mass/volume] in Serum or Plasma" or
+            /// "pH of Urine by Test strip". Null when Gemini cannot map the
+            /// parameter to a meaningful English medical term (rare lab-specific
+            /// indices, proprietary panels, etc.).
+            /// </summary>
+            [JsonPropertyName("parameter_normalized_en")]
+            public string? ParameterNormalizedEn { get; set; }
+
+            // -------- LOINC fields (populated downstream by the matcher) --------
+            // These are NOT emitted by Gemini anymore. They are populated by the
+            // LoincMatcherClient after the interpretation succeeds, by calling the
+            // Python FastAPI matcher service with ParameterNormalizedEn.
+            //
+            // We kept the property names and JSON attributes identical to the
+            // previous pipeline so that:
+            //   - archived RawJsonResult records still deserialize correctly,
+            //   - PDF re-generation works,
+            //   - Compare-by-LOINC grouping (Pas 4) continues to function.
+
+            /// <summary>
+            /// Official LOINC code, resolved by the deterministic matcher from
+            /// <see cref="ParameterNormalizedEn"/>. Null when no matcher result.
             /// </summary>
             [JsonPropertyName("loinc_code")]
             public string? LoincCode { get; set; }
 
             /// <summary>
-            /// Long common name of the LOINC code as recalled by Gemini.
-            /// Used by the future validator (Pas 3) to sanity-check the code:
-            /// if the model's <see cref="LoincCode"/> resolves to a different
-            /// long name in our dictionary, the mapping is suspect.
+            /// LOINC Long Common Name from the matcher's chosen code. Null when
+            /// no match.
             /// </summary>
             [JsonPropertyName("loinc_long_name")]
             public string? LoincLongName { get; set; }
 
             /// <summary>
-            /// Self-reported confidence: "high" | "medium" | "low" | null.
-            /// "low" or null = treat the mapping as a guess; do not group
-            /// by code in evolution charts until reviewed.
+            /// Matcher confidence score: "high" (score >= 0.85), "medium"
+            /// (0.65 .. 0.85), "low" (&lt; 0.65), null when no match attempted.
             /// </summary>
             [JsonPropertyName("loinc_confidence")]
             public string? LoincConfidence { get; set; }

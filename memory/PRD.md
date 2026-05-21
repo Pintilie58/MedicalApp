@@ -165,6 +165,48 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
       în paragraful de jos.
     * `data-testid` adăugat: `compare-row-loinc-<code>` pe badge.
 
+- ✅ **[Feb 2026 — LOINC Faza C v4: deterministic matcher microservice]** Inspired
+  by RELMA / Epic concept maps. Complete redesign of the LOINC pipeline to eliminate
+  LLM hallucinations:
+    * **Gemini emits only `parameter_normalized_en`** (a clean standardized English
+      medical term like ""Glucose [Mass/volume] in Serum or Plasma""). The model is
+      explicitly forbidden from emitting numeric LOINC codes. The 12-anchor section
+      and the entire LOINC MAPPING / ANCHORED LOINC CODES / strict-rule blocks were
+      removed from the system prompt and replaced with PARAMETER NORMALIZATION
+      guidelines + worked examples.
+    * **Python FastAPI microservice** (`/app/loinc_service/`) does the actual code
+      resolution using a deterministic three-step pipeline:
+        1. Semantic search — `sentence-transformers/all-MiniLM-L6-v2` produces
+           384-dim embeddings, cosine similarity against the full 97k local LOINC
+           corpus (~10 ms vectorized in numpy).
+        2. Fuzzy match — `rapidfuzz.token_set_ratio` on the top-25 semantic
+           candidates against LongCommonName and Component.
+        3. Rules engine — specimen / method / property keyword constraints
+           extracted from the query, applied as soft constraints (no penalty if
+           no rule keywords).
+        4. Composite score: `0.65 * semantic + 0.30 * fuzzy + 0.05 * rules`.
+    * **C# integration**: new `Services/LoincMatcherClient.cs` calls the FastAPI
+      service via `HttpClient` after the Gemini step in `InterpretationController`.
+      Safe-by-default: any matcher error/timeout is logged and skipped (entry stays
+      without a LOINC code, rest of pipeline continues). `appsettings.json` has a
+      new `LoincMatcher` section (BaseUrl, Enabled, TimeoutSeconds, MinScore).
+    * **`KeyResult` model**: added `ParameterNormalizedEn` field (emitted by
+      Gemini). `LoincCode`, `LoincLongName`, `LoincConfidence` are kept but are now
+      populated by `LoincMatcherClient` instead of by Gemini. Archived JSON results
+      remain compatible.
+    * **`LoincValidator.cs`** kept on disk as archive but no longer called by
+      `InterpretationController`.
+    * **Smoke test passed**: 19/19 critical mappings resolved correctly on the
+      sandbox sample corpus (Glucoza ser vs urină, pH urinar, Hemoglobina, eGFR,
+      LDH, Non-HDL, Anti-Tg, Calcitonin, etc.), confidence scores 0.85–0.96.
+    * **Deployment**: Python service runs locally on the user's Windows host
+      alongside SQL Server. Setup is one-time (`pip install -r requirements.txt`
+      + `python seed_embeddings.py`); the seed script reads from `LoincDictionary`
+      via pyodbc, encodes 97k rows (5-15 min on CPU), and writes
+      `data/loinc_embeddings.npy` + `data/loinc_metadata.json`. The microservice
+      then loads those files at startup — no further SQL Server contact at runtime.
+      Service portable to any Linux VPS later (just copy the data files).
+
 ## Pending / Backlog
 
 ### P1 – Family profiles (multi-session focus)

@@ -600,10 +600,10 @@ STRICT RULES - you MUST follow ALL of them:
 6. Use an empathetic, professional, CALM tone - never alarming.
 7. Use SIMPLE language, accessible to a non-medical reader.
 8. Provide a DETAILED interpretation (not a short one) - include thorough explanations.
-9. NEVER fabricate or guess LOINC codes. Emit ""loinc_code"": null whenever
-   you are not certain. A null mapping is ALWAYS preferred over a wrong code.
-   For the analytes listed in the ""ANCHORED LOINC CODES"" section below,
-   use ONLY the exact code provided — do not substitute a similar one.
+9. NEVER emit LOINC numeric codes. The ""key_results"" objects must NOT contain
+   ""loinc_code"", ""loinc_long_name"" or ""loinc_confidence"" fields. Instead, you
+   provide a clean standardized English term in ""parameter_normalized_en"".
+   A downstream deterministic matcher resolves the LOINC code from that term.
 
 ==========================================================
 INPUT SOURCE — TWO POSSIBLE MODES
@@ -752,181 +752,102 @@ CONTENT GUIDELINES:
 - ""disclaimer"": educational only, NOT a medical diagnosis, qualified doctor must be consulted.
 
 ==========================================================
-LOINC CODE MAPPING (per parameter) — MANDATORY FIELDS
+PARAMETER NORMALIZATION (per parameter) — MANDATORY FIELD
 ==========================================================
-LOINC (Logical Observation Identifiers Names and Codes) is the international
-standard for identifying lab tests. For EVERY entry in ""key_results"" you MUST
-emit THREE additional fields (the value may be null when you don't know,
-but THE KEY MUST ALWAYS BE PRESENT):
+For EVERY entry in ""key_results"" you MUST emit ONE additional field:
 
-  ""loinc_code"":       string|null  - the official LOINC code (e.g. ""2324-2"" for GGT)
-  ""loinc_long_name"":  string|null  - the LOINC Long Common Name in English
-                                       (e.g. ""Gamma glutamyl transferase [Enzymatic
-                                       activity/volume] in Serum or Plasma"")
-  ""loinc_confidence"": ""high""|""medium""|""low""|null
+  ""parameter_normalized_en"": string|null
 
-CRITICAL: skipping these three keys is INCORRECT output. Every key_results
-entry MUST contain ALL nine fields: parameter, value, unit, reference_range,
-status, explanation, loinc_code, loinc_long_name, loinc_confidence. If you
-do not know the LOINC code, emit explicit nulls — never omit the keys.
+What it is:
+  The STANDARDIZED ENGLISH MEDICAL TERM for the analyte being measured,
+  using LOINC-style canonical naming. Think of it as the test name a doctor
+  would use in an English-language medical journal article.
 
-GUIDELINES:
-- Identify the test from its name AS PRINTED in the report, its unit, its
-  reference range, and the section context (Hematology, Lipids, Hormones, ...).
-- Common Romanian/French/etc abbreviations and full names map to ONE LOINC:
-    ""GGT"" / ""Gamma GT"" / ""γ-GT"" / ""Glutamiltranspeptidaza"" / ""Gamma-glutamyl transferase""
-       all -> 2324-2 (Gamma glutamyl transferase in Ser/Plas)
-    ""VSH"" / ""VS"" / ""ESR"" / ""Vitesse de sédimentation"" / ""Erythrocyte sedimentation rate""
-       all -> 4537-7 (Erythrocyte sedimentation rate)
-    ""Glicemie"" / ""Glucoza"" / ""Glucose"" -> 2345-7 (Glucose in Ser/Plas, mass concentration)
-    ""TSH"" / ""Thyrotropin"" -> 3016-3
-    ""LDL"" / ""LDL-Cholesterol"" -> 13457-7 (LDL calculated) or 18262-6 (LDL direct measurement);
-                                    pick the one that matches the reference range or method.
-    ""Acid uric"" / ""Uric acid"" / ""Urate"" / ""Urat"" -> 3084-1 (Urate [Mass/volume] in Ser/Plas).
-       LOINC uses ""Urate"" as canonical English term even when the lab printed
-       ""Uric acid"". Emit long_name=""Urate [Mass/volume] in Serum or Plasma"".
-    ""ALT"" / ""SGPT"" / ""TGP"" / ""Alaninaminotransferaza"" / ""Alanine aminotransferase""
-       -> 1742-6 (ALT in Ser/Plas, enzymatic activity)
-    ""AST"" / ""SGOT"" / ""TGO"" / ""Aspartataminotransferaza"" / ""Aspartate aminotransferase""
-       -> 1920-8 (AST in Ser/Plas, enzymatic activity)
-    ""Lipaza"" / ""Lipase"" -> 3040-3 (Lipase in Ser/Plas, enzymatic activity). NOT 2571-8 (that is Triglyceride).
-    ""Bazofile"" / ""Basophils"" -> 704-7 (count) or 706-2 (fraction). NEVER 701-3 (that is a microbiology code).
-    ""Neutrofile"" absolute count -> 751-8 ; ""Neutrofile %"" fraction -> 770-8
-    ""Limfocite"" absolute count -> 731-0 ; ""Limfocite %"" fraction -> 736-9
-    ""Monocite"" absolute count -> 742-7 ; ""Monocite %"" fraction -> 5905-5
-    ""Eozinofile"" absolute count -> 711-2 ; ""Eozinofile %"" fraction -> 713-8
-    ""Hematocrit"" -> 4544-3 (volume fraction in Blood, automated count)
-    ""MCV"" / ""Volum eritrocitar mediu"" -> 787-2 (Erythrocyte mean corpuscular volume)
-    ""MCH"" / ""Hemoglobina eritrocitara medie"" -> 785-6
-    ""MCHC"" / ""Concentratie medie a Hb / eritrocit"" -> 786-4
-    ""RDW"" / ""Largimea distributiei eritrocitare"" -> 788-0
-    ""MPV"" / ""Volum trombocitar mediu"" -> 32623-1
-    ""Insulina"" -> 1558-6 (NOT 2044-6 which is sometimes Free insulin)
+What it is NOT:
+  - It is NOT a LOINC code (you must NEVER emit LOINC numeric codes anymore).
+  - It is NOT a translation of the raw parameter name; it is a
+    STANDARDIZATION into canonical medical terminology.
+  - It is NOT a paraphrase: keep the analyte head term, sample type, and
+    measurement property explicit.
 
-- ANCHORED LOINC CODES — these specific parameters have been observed to be
-  FREQUENTLY MISIDENTIFIED by the model. The codes below are the OFFICIAL,
-  VERIFIED LOINC codes for the canonical Serum/Plasma quantitative variant
-  most commonly reported by Romanian labs. You MUST use EXACTLY these codes
-  when the parameter name matches (any printed alias, including Romanian /
-  French / English wording). DO NOT substitute a similar-looking code, DO NOT
-  swap digits, DO NOT pick a ""close"" code from memory. If the parameter
-  name matches one of these analytes, emit the code EXACTLY as written below
-  with confidence=""high"":
-    * LDH / Lactat dehidrogenaza / Lactate dehydrogenase (serum, enzymatic activity)
-        -> ""14804-9""  (Lactate dehydrogenase [Enzymatic activity/volume] in Serum or Plasma by Lactate to pyruvate reaction)
-        ALSO accepted aliases: ""LDH total"", ""LDH seric"", ""L-Lactat dehidrogenaza"".
-    * eGFR / DFG / RFG estimat / Estimated GFR / Rata estimata a filtrarii glomerulare
-        -> ""62238-1""  (Glomerular filtration rate/1.73 sq M.predicted [Volume Rate/Area] in Serum, Plasma or Blood by Creatinine-based formula (CKD-EPI))
-        Use this code regardless of which CKD-EPI / MDRD formula the lab printed —
-        it is the most widely-used eGFR LOINC code in Romanian labs. NOTE: a newer
-        race-free CKD-EPI 2021 LOINC exists (""98979-8""), but ""62238-1"" remains the
-        canonical anchor here for compatibility with the local LOINC subset.
-    * Densitate urinară / Urine specific gravity / Densitatea urinei
-        -> ""2965-2""   (Specific gravity of Urine)
-    * Non-HDL cholesterol / Colesterol non-HDL / Non-HDL-C
-        -> ""43396-1""  (Cholesterol non HDL [Mass/volume] in Serum or Plasma)
-    * Procentul de protrombină / Activitate protrombinică / Indice de protrombină (%) / Prothrombin time activity (%)
-        -> ""5894-1""   (Prothrombin time (PT) actual/normal in Platelet poor plasma by Coagulation assay)
-        NOTE: this is the PERCENTAGE result (Quick %), NOT the seconds value (5902-2) and NOT the INR (6301-6).
-    * Celule epiteliale plate / Epiteliu plat / Squamous epithelial cells / Epithelial cells (urine sediment)
-        -> ""5787-7""   (Epithelial cells [#/area] in Urine sediment by Microscopy high power field)
-        NOTE: this is the GENERAL epithelial-cells code most Romanian/French labs print.
-        Do NOT swap to ""5787-2"" — that code does NOT exist in LOINC.
-    * Anti-tiroglobulină / Ac anti-tireoglobulinici / Anti-Tg / Anti-thyroglobulin antibody
-        -> ""8098-6""   (Thyroglobulin Ab [Units/volume] in Serum)
-    * Calcitonina / Calcitonin
-        -> ""1992-7""   (Calcitonin [Mass/volume] in Serum or Plasma)
-        NOTE: do NOT use ""8000-2"" — that is an unrelated LOINC code.
-    * pH urinar / pH urină / pH of Urine (dipstick / test strip)
-        -> ""5803-2""   (pH of Urine by Test strip)
-        NOTE: this is the dipstick variant Romanian labs print most often.
-        Do NOT swap to ""2720-1"", ""2720-4"" or other ""2720-*"" codes — those
-        describe a DIFFERENT body fluid, not Urine. If the lab clearly used a
-        pH-meter (not a dipstick), the alternative is ""106930-1"" (pH of Urine
-        by pH-meter); if no method is stated, ""2756-5"" (pH of Urine, generic)
-        is acceptable. Default to ""5803-2"" for typical urine analysis reports.
-    * Hemoglobina / Hemoglobin (CBC — sânge total)
-        -> ""718-7""    (Hemoglobin [Mass/volume] in Blood)
-        NOTE: this is the hematology CBC code for total Hb in whole blood.
-        Do NOT confuse with urine-strip ""Hemoglobina urinară"" (20405-7 family),
-        with HbA1c (4548-4), or with fetal/glycated variants.
-    * Glucoză / Glicemie / Glucose — SERIC / PLASMĂ (panel de biochimie standard,
-      a jeun sau random, fără mențiune ""urină"")
-        -> ""2345-7""   (Glucose [Mass/volume] in Serum or Plasma)
-        CRITICAL: in Romanian labs ""glicemia"" / ""Glucoza"" (din panel-ul de
-        biochimie) este ALWAYS measured on SERUM or PLASMA (after centrifugation),
-        even though the report colloquially says ""sânge"" / ""din sânge"". The
-        correct LOINC is ""2345-7"" (Serum or Plasma), NOT ""2542-3"" (Glucose in
-        Whole Blood — a different specimen used only for capillary point-of-care).
-        EXAMPLE: lab row ""Glucoza: 92 mg/dL (ref 70-105 mg/dL)"" must emit
-            ""loinc_code"": ""2345-7"",
-            ""loinc_long_name"": ""Glucose [Mass/volume] in Serum or Plasma"",
-            ""loinc_confidence"": ""high""
-        Do NOT emit ""2542-3"", ""2452-1"" or any other 2542-* / 2452-* prefix.
-        If fasting is EXPLICITLY stated, ""1558-6"" is also acceptable.
-    * Glucoză URINARĂ / Glucoza (urina) / Glucose in Urine (urinalysis dipstick,
-      reported with the rest of the urine strip parameters: pH, Densitate, Bilirubina,
-      Urobilinogen, Nitriti, Leucocite, Hematii, Corpi cetonici)
-        -> ""5792-7""   (Glucose [Mass/volume] in Urine by Test strip)
-        CRITICAL: when ""Glucoza"" appears INSIDE the urinalysis section (alongside
-        the other dipstick parameters) and its value is reported in mg/dL or as
-        ""negativ""/""positiv""/""+"", the analyte is urine glucose, NOT serum glucose.
-        Do NOT emit ""2345-7"" (that is the SERUM glucose code), do NOT emit
-        ""2542-3"" (whole blood glucose). The dipstick variant is ""5792-7"".
-        EXAMPLE: urinalysis row ""Glucoza (urina): negativ"" or ""Glucoza: 0 mg/dL""
-        within the urinalysis section must emit
-            ""loinc_code"": ""5792-7"",
-            ""loinc_long_name"": ""Glucose [Mass/volume] in Urine by Test strip"",
-            ""loinc_confidence"": ""high""
-    * Urobilinogen / Urobilinogen urinar (dipstick urinalysis)
-        -> ""20405-7""  (Urobilinogen [Mass/volume] in Urine by Test strip)
-        NOTE: Romanian urinalysis reports print urobilinogen via dipstick.
-        Do NOT confuse with ""Urobilin"" (3104-7 — different breakdown product,
-        not measured on standard dipsticks). If the lab clearly used an
-        automated reader, ""50563-6"" is an acceptable equivalent.
+How to build it (template):
+  ""<Analyte name in English> [<Property>] in <Specimen>[ by <Method>]""
 
-  STRICT RULE on these anchored mappings:
-    1. If you recognize the analyte but you are not 100% sure the unit and
-       sample type match the anchored code's description above, STILL emit
-       the anchored code (it covers the canonical lab variant). Better an
-       anchored well-known code than a guess.
-    2. NEVER ""correct"" an anchored code by digit-swap, by check-digit
-       recomputation, or because another code looks more familiar.
-    3. NEVER invent a new LOINC code for these eight analytes. If you find
-       a lab variant that genuinely doesn't fit (e.g. an unusual sample
-       type like ""LDH in CSF"" or ""Calcitonin stimulation test""), emit
-       loinc_code=null rather than guessing a different code.
+Worked examples (these are the format we expect — adapt to YOUR parameter):
+  ""GGT"" / ""Gamma GT"" / ""Glutamiltranspeptidaza""
+      -> ""Gamma glutamyl transferase [Enzymatic activity/volume] in Serum or Plasma""
+  ""VSH"" / ""VS"" / ""Vitesse de sédimentation""
+      -> ""Erythrocyte sedimentation rate""
+  ""Glicemie"" / ""Glucoza"" (in biochemistry panel, blood-derived)
+      -> ""Glucose [Mass/volume] in Serum or Plasma""
+  ""Glucoza (urina)"" (in urinalysis dipstick section)
+      -> ""Glucose [Mass/volume] in Urine by Test strip""
+  ""Hemoglobina"" (in CBC)
+      -> ""Hemoglobin [Mass/volume] in Blood""
+  ""Hemoglobina urinară"" (in urinalysis dipstick)
+      -> ""Hemoglobin [Presence] in Urine by Test strip""
+  ""TSH""
+      -> ""Thyrotropin [Units/volume] in Serum or Plasma""
+  ""FT4"" / ""T4 libre""
+      -> ""Thyroxine free [Mass/volume] in Serum or Plasma""
+  ""LDL"" / ""LDL-Cholesterol""
+      -> ""Cholesterol in LDL [Mass/volume] in Serum or Plasma""
+  ""Non-HDL cholesterol""
+      -> ""Cholesterol non HDL [Mass/volume] in Serum or Plasma""
+  ""Colesterol total""
+      -> ""Cholesterol [Mass/volume] in Serum or Plasma""
+  ""ALT"" / ""SGPT"" / ""TGP""
+      -> ""Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma""
+  ""AST"" / ""SGOT"" / ""TGO""
+      -> ""Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma""
+  ""Creatinina serica""
+      -> ""Creatinine [Mass/volume] in Serum or Plasma""
+  ""eGFR"" / ""DFG"" / ""Rata estimata a filtrarii glomerulare""
+      -> ""Glomerular filtration rate/1.73 sq M.predicted in Serum, Plasma or Blood by Creatinine-based formula""
+  ""Densitate urinară"" / ""Urine specific gravity""
+      -> ""Specific gravity of Urine""
+  ""pH urinar"" (dipstick)
+      -> ""pH of Urine by Test strip""
+  ""Procentul de protrombină"" / ""Quick %""
+      -> ""Prothrombin time (PT) actual/normal""
+  ""INR""
+      -> ""INR in Platelet poor plasma by Coagulation assay""
+  ""Anti-tiroglobulină"" / ""Anti-Tg""
+      -> ""Thyroglobulin Ab [Units/volume] in Serum""
+  ""Calcitonina""
+      -> ""Calcitonin [Mass/volume] in Serum or Plasma""
+  ""Neutrofile"" absolute count -> ""Neutrophils [#/volume] in Blood""
+  ""Neutrofile %"" -> ""Neutrophils/100 leukocytes in Blood""
+  ""Hematocrit"" -> ""Hematocrit [Volume Fraction] of Blood""
+  ""Celule epiteliale plate"" / urine sediment
+      -> ""Epithelial cells [#/area] in Urine sediment by Microscopy high power field""
+  ""Urobilinogen urinar"" (dipstick)
+      -> ""Urobilinogen [Mass/volume] in Urine by Test strip""
 
-- CRITICAL distinctions you MUST respect:
-    * Total vs Free (e.g. T4 total = 3026-2  vs FT4 = 3024-7;
-                     PSA total = 2857-1     vs PSA free = 10886-0)
-    * Serum/Plasma vs Whole Blood vs Capillary blood
-    * Mass concentration vs Activity concentration vs Catalytic activity
-  Use the reference range and unit to discriminate. When in doubt, prefer the
-  most common Serum/Plasma quantitative variant.
-- Confidence calibration (BE HONEST - we use it to flag borderline mappings):
-    ""high""   = textbook match, code is unambiguous (~95% of common tests)
-    ""medium"" = code is likely but there are 2-3 plausible LOINC variants
-    ""low""    = guessing; the test name is unusual or the panel is lab-specific
-    null      = no reasonable LOINC; e.g. a derived index, a ratio,
-                a lab proprietary panel, or a multi-test composite score.
-- DO NOT invent codes. If you cannot recall the LOINC for a parameter,
-  emit ""loinc_code"": null and ""loinc_confidence"": null - that is the
-  correct, safe choice. A NULL is always better than a fabricated code.
-- The ""loinc_long_name"" must be the EXACT canonical English name LOINC
-  uses; do not translate or paraphrase. We use it to sanity-check the code.
+GUIDELINES — keep these in mind when building parameter_normalized_en:
+  1. Use the LOINC English vocabulary where you know it (Urate, not Uric acid;
+     Thyrotropin, not TSH; Thyroglobulin Ab, not anti-Tg antibodies).
+  2. ALWAYS include the SPECIMEN explicitly (""in Serum or Plasma"", ""in Blood"",
+     ""in Urine by Test strip"", ""in Urine sediment"", ""in CSF""). Specimen is
+     the most common reason a downstream matcher picks the wrong code.
+  3. Use the section context of the PDF to discriminate ambiguous names. A
+     parameter ""Glucoza"" inside the urinalysis dipstick block is ""Glucose in
+     Urine by Test strip"", NOT ""Glucose in Serum or Plasma"".
+  4. Prefer the COMMON canonical form, not an exotic method-specific one.
+     If the lab printed ""Hemoglobina"" without specifying method, emit
+     ""Hemoglobin [Mass/volume] in Blood"" (not the specific cyanmethemoglobin
+     variant).
+  5. For derived parameters that have no LOINC equivalent (e.g. ""HOMA-IR"",
+     proprietary panels, in-house ratios), emit a descriptive English name:
+     ""HOMA-IR insulin resistance index"" — leave it as plain text, the
+     downstream matcher will either find a code or skip.
+  6. If you genuinely cannot map the parameter to a meaningful English
+     medical term, emit null. The downstream pipeline will handle it.
 
-SELF-CONSISTENCY CHECK (CRITICAL - perform this BEFORE submitting):
-For EVERY entry in key_results, re-read silently:
-  ""Does my loinc_long_name actually describe the test from 'parameter'?""
-  Examples of FAILURES that you MUST fix to null:
-    - parameter=""Lipaza""   loinc_long_name=""Triglyceride...""    -> WRONG, set all 3 LOINC fields to null
-    - parameter=""Bazofil"" loinc_long_name=""Yersinia identified..."" -> WRONG, set all 3 LOINC fields to null
-    - parameter=""Sodiu""    loinc_long_name=""Potassium...""        -> WRONG, set all 3 LOINC fields to null
-A simple rule: the head word of the long_name (Triglyceride / Yersinia / Potassium) MUST match the
-analyte in 'parameter'. If you cannot make the head words agree, EMIT NULL FOR ALL THREE LOINC
-FIELDS. A nulled mapping is FAR better than a contradictory one - the C# validator will catch
-contradictions and flag them, costing time. Self-correct here.
+CRITICAL: do NOT emit ""loinc_code"", ""loinc_long_name"" or ""loinc_confidence""
+fields at all. Those fields are now resolved by a deterministic post-processing
+step in the application; if you include them, they will be discarded. Your job
+is ONLY to provide a clean, standardized English name for each analyte.
 
 ==========================================================
 SELF-VERIFICATION FIELD (MANDATORY)
@@ -953,7 +874,7 @@ OUTPUT FORMAT (CRITICAL):
   ""rejection_reason"": string|null,
   ""patient_info"": { ""name"": string|null, ""age"": string|null, ""sex"": string|null, ""date_taken"": string|null, ""laboratory"": string|null, ""doctor_requesting"": string|null },
   ""summary"": string,
-  ""key_results"": [ { ""parameter"": string, ""value"": string, ""unit"": string, ""reference_range"": string, ""status"": ""normal""|""high""|""low""|""borderline"", ""explanation"": string, ""loinc_code"": string|null, ""loinc_long_name"": string|null, ""loinc_confidence"": ""high""|""medium""|""low""|null } ],
+  ""key_results"": [ { ""parameter"": string, ""value"": string, ""unit"": string, ""reference_range"": string, ""status"": ""normal""|""high""|""low""|""borderline"", ""explanation"": string, ""parameter_normalized_en"": string|null } ],
   ""abnormal_findings"": [ { ""parameter"": string, ""explanation"": string, ""severity"": ""mild""|""moderate""|""severe"" } ],
   ""correlations"": string,
   ""recommendations"": string,
@@ -1044,7 +965,7 @@ Task:
 3. Apply the value-vs-reference pairing rules from the system instructions (WBC differential, age-dependent ranges, dual-unit rows, mismatched magnitudes).
 4. Determine each parameter's status (normal/high/low/borderline).
 5. If a cardiovascular-risk category was declared above, USE THE PROVIDED LIPID TARGETS for LDL-C, non-HDL and Triglycerides INSTEAD OF the multi-threshold rule, and explicitly mention the declared risk category in 'summary', 'explanation' for those parameters, and 'recommendations'.
-6. For EVERY parameter in 'key_results', also emit the three LOINC fields described in the system instructions: 'loinc_code', 'loinc_long_name', 'loinc_confidence'. The keys MUST be present in every entry; their value may be null when you are not sure (do NOT invent codes). Example: ""loinc_code"": ""2324-2"", ""loinc_long_name"": ""Gamma glutamyl transferase [Enzymatic activity/volume] in Serum or Plasma"", ""loinc_confidence"": ""high"".
+6. For EVERY parameter in 'key_results', also emit the field 'parameter_normalized_en' as described in the system instructions: a clean standardized English medical term for the analyte (with explicit specimen). Example: parameter=""Glicemie"" -> ""parameter_normalized_en"": ""Glucose [Mass/volume] in Serum or Plasma"". Do NOT emit ""loinc_code"", ""loinc_long_name"" or ""loinc_confidence"" — those are resolved downstream.
 7. Produce the structured JSON object exactly per the schema in the system instructions, written entirely in {languageName}. Do NOT wrap it in markdown fences.";
         }
     }

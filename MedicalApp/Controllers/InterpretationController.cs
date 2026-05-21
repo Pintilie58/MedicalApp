@@ -21,6 +21,7 @@ namespace MedicalApp.Controllers
         private readonly IEmailService _emailService;
         private readonly PdfReportGenerator _pdfGenerator;
         private readonly IMemoryCache _cache;
+        private readonly LoincMatcherClient _loincMatcher;
         private readonly ILogger<InterpretationController> _logger;
 
         private const long MaxFileSize = 10 * 1024 * 1024; // 10 MB
@@ -34,6 +35,7 @@ namespace MedicalApp.Controllers
             IEmailService emailService,
             PdfReportGenerator pdfGenerator,
             IMemoryCache cache,
+            LoincMatcherClient loincMatcher,
             ILogger<InterpretationController> logger)
         {
             _db = db;
@@ -42,6 +44,7 @@ namespace MedicalApp.Controllers
             _emailService = emailService;
             _pdfGenerator = pdfGenerator;
             _cache = cache;
+            _loincMatcher = loincMatcher;
             _logger = logger;
         }
 
@@ -451,34 +454,30 @@ namespace MedicalApp.Controllers
                     "StatusValidator threw an unexpected exception. Continuing with the model's original statuses.");
             }
 
-            // 3.6) POST-LLM LOINC validator (Pas 3).
-            // Cross-checks the loinc_code that Gemini emitted against our local
-            // LoincDictionary (1520 entries from the LOINC Universal Lab Orders
-            // Value Set). Catches the well-known LLM pattern of emitting the
-            // SAME code for two different parameters (e.g. 2571-8 for both
-            // Triglyceride AND Lipase). Conservative behaviour:
-            //   - code in DB + long_name head-term matches -> accepted
-            //   - code in DB + long_name disagrees         -> code NULLED, log warning
-            //   - code NOT in DB (outside our subset)      -> kept, log info
-            // Wrapped in try/catch like the StatusValidator: never breaks the flow.
+            // 3.6) POST-LLM LOINC matcher (new pipeline, Faza C v4).
+            // Gemini emits only `parameter_normalized_en` (a clean English medical
+            // term). The deterministic Python FastAPI matcher (semantic + fuzzy +
+            // rules over the local 97k-entry LoincDictionary) resolves the
+            // canonical LOINC code from that term. Eliminates LLM LOINC
+            // hallucinations entirely. Conservative: any matcher failure is
+            // silently skipped — the entry simply has null LoincCode and the
+            // rest of the pipeline (PDF, email, Compare) continues normally.
             try
             {
-                var loincStats = await LoincValidator.ValidateAsync(result, _db, _cache, _logger);
-                // Any mutation by the validator (nulling, recovery by long_name,
-                // OR recovery by check digit) must trigger re-serialization so
-                // the DB-persisted RawJsonResult reflects the corrected mapping.
-                if (loincStats.CorrectedToNull > 0 ||
-                    loincStats.Recovered > 0 ||
-                    loincStats.RecoveredByCheckDigit > 0 ||
-                    loincStats.RecoveredByDigitSwap > 0)
+                var matcherStats = await _loincMatcher.MatchAllAsync(result, HttpContext.RequestAborted);
+                // Any code populated by the matcher must trigger re-serialization
+                // so the DB-persisted RawJsonResult reflects the assigned codes
+                // (used by PDF regeneration, archive and Compare-by-LOINC view).
+                if (matcherStats.Matched > 0)
                 {
                     resultMutated = true;
                 }
             }
-            catch (Exception lvEx)
+            catch (Exception lmEx)
             {
-                _logger.LogWarning(lvEx,
-                    "LoincValidator threw an unexpected exception. Continuing with Gemini's LOINC codes unchanged.");
+                _logger.LogWarning(lmEx,
+                    "LoincMatcherClient threw an unexpected exception. " +
+                    "Continuing without LOINC codes for this interpretation.");
             }
 
             // Re-serialize the corrected InterpretationResult so the JSON we

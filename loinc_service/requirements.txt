@@ -1,0 +1,18 @@
+# Core HTTP framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+
+# NLP — semantic embeddings (sentence-transformers needs PyTorch under the hood)
+sentence-transformers==3.3.1
+
+# Fuzzy string matching (Levenshtein, partial ratio, token sort ratio)
+rapidfuzz==3.10.1
+
+# Numerical helpers (cosine similarity, batched dot products)
+numpy==2.2.0
+
+# SQL Server connector. pyodbc requires the Microsoft ODBC Driver 17/18
+# for SQL Server to be installed on the host (free download from MS).
+# On Windows: https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server
+pyodbc==5.2.0

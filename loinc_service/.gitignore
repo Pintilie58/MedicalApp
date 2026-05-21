@@ -1,0 +1,17 @@
+# Python virtual environment
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Generated artifacts (one-time output of seed_embeddings.py)
+# Kept OUT of git — too large (~145 MB) and easy to regenerate
+data/loinc_embeddings.npy
+data/loinc_metadata.json
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
