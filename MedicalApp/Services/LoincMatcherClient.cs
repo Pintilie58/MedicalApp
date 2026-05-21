@@ -101,8 +101,8 @@ namespace MedicalApp.Services
                 stats.Matched++;
 
                 _logger.LogInformation(
-                    "LoincMatcher: \"{Param}\" -> {Code} \"{Name}\" (score {Score:F2}, confidence {Conf}).",
-                    kr.Parameter, match.Loinc, match.Name, match.Score, kr.LoincConfidence);
+                    "LoincMatcher: \"{Param}\" [normalized_en=\"{NormEn}\"] -> {Code} \"{Name}\" (score {Score:F2}, confidence {Conf}).",
+                    kr.Parameter, kr.ParameterNormalizedEn, match.Loinc, match.Name, match.Score, kr.LoincConfidence);
             }
 
             _logger.LogInformation(

@@ -290,6 +290,26 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
        Threshold raised: retry only when difference >= 2. Off-by-one is
        logged as INFO and the pipeline continues.
 
+- ✅ **[Feb 2026 — Faza C v4.5: log normalized_en + hard-reject penalty]**
+  Production log analysis was incomplete because `LoincMatcherClient` was
+  logging only the original Romanian parameter name, not the English
+  `parameter_normalized_en` text actually sent to the Python matcher.
+  Without that field it was impossible to tell whether a wrong code was due
+  to Gemini emitting Romanian text or due to a Python ranking issue. Two
+  fixes:
+    1. **Enhanced logging** (`LoincMatcherClient.cs`): log line now includes
+       `[normalized_en=""<actual English text>""]` next to the original
+       parameter. Future regressions can be diagnosed at a glance.
+    2. **Hard-reject penalty in Python pipeline** (`loinc_service/pipeline.py`):
+       added a narrow `_HARD_REJECT_RULES` list (5 entries) that applies a
+       0.25× score multiplier when the query mentions ""MCV / volume / MCH /
+       hemoglobin / MCHC / concentration"" but the candidate's long_name
+       mentions ""diameter"". This deterministically pushes 784-9 ""Erythrocyte
+       mean corpuscular DIAMETER"" off the top when the query is clearly
+       about VOLUME or HEMOGLOBIN. Intentionally narrow — only fires for
+       6 well-defined query keywords, so it cannot cause collateral damage
+       elsewhere in the 97k LOINC space.
+
 ## Pending / Backlog
 
 ### P1 – Family profiles (multi-session focus)

@@ -163,6 +163,50 @@ def _apply_rules(query_norm: str, candidate: dict) -> float:
 
 
 # -------------------------------------------------------------------------
+# Hard disambiguation penalties — applied AFTER soft rules.
+# -------------------------------------------------------------------------
+# These cover cases where two LOINC codes are extremely close in embedding
+# space ("Erythrocyte mean corpuscular VOLUME" vs "...DIAMETER" vs
+# "...HEMOGLOBIN") and the semantic + fuzzy step alone cannot tell them apart.
+# Each entry says: if the query mentions FORBIDDEN_KEYWORD but the candidate's
+# long_name mentions any of REJECT_TOKENS, divide the candidate score by 4
+# (effectively pushing it off the top of the list). This is intentionally
+# narrow and targeted — only six entries — so it cannot cause false rejects
+# elsewhere in the LOINC space.
+_HARD_REJECT_RULES: list[tuple[str, set[str], set[str]]] = [
+    # (label, query_keywords, candidate_long_name_tokens_to_reject)
+    ("MCV-not-diameter",
+     {"volume", "mcv"},
+     {"diameter"}),
+    ("MCH-not-diameter",
+     {"hemoglobin", "mch"},
+     {"diameter"}),
+    ("MCHC-not-diameter",
+     {"concentration", "mchc"},
+     {"diameter"}),
+    ("erythrocyte-volume-not-diameter",
+     {"erythrocyte mean corpuscular volume"},
+     {"diameter"}),
+    ("erythrocyte-hemoglobin-not-diameter",
+     {"erythrocyte mean corpuscular hemoglobin"},
+     {"diameter"}),
+]
+
+
+def _hard_reject_penalty(query_norm: str, candidate_name: str) -> float:
+    """Return a multiplier in (0, 1] to apply to the final score. 1.0 means
+    no penalty. Anything less aggressively pushes the candidate down the
+    ranking. Currently only severe (0.25x) penalty when one of the narrow
+    disambiguation rules above fires."""
+    cand_lower = candidate_name.lower()
+    for _label, q_keywords, reject_tokens in _HARD_REJECT_RULES:
+        if any(kw in query_norm for kw in q_keywords):
+            if any(rt in cand_lower for rt in reject_tokens):
+                return 0.25
+    return 1.0
+
+
+# -------------------------------------------------------------------------
 # Public API
 # -------------------------------------------------------------------------
 def find_loinc(test_name: str) -> Optional[MatchResult]:
@@ -207,6 +251,10 @@ def find_loinc(test_name: str) -> Optional[MatchResult]:
         rl = _apply_rules(query_norm, meta)
 
         final = SEM_WEIGHT * sem + FUZZY_WEIGHT * fz + RULES_WEIGHT * rl
+
+        # Apply narrow hard-rejection penalties for known close-neighbor
+        # ambiguities (e.g. MCV / MCH / MCHC vs Erythrocyte diameter).
+        final *= _hard_reject_penalty(query_norm, long_name)
 
         candidates.append((
             final,
