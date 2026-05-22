@@ -26,6 +26,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from loinc_store import STORE
+from canonical_anchors import all_anchors, anchor_count
 from pipeline import find_loinc, get_model
 
 logging.basicConfig(
@@ -108,3 +109,42 @@ def match(req: LoincRequest):
     if result is None:
         raise HTTPException(status_code=404, detail="No LOINC match found.")
     return LoincResponse(**result.to_dict())
+
+
+@app.get("/loinc/anchors")
+def anchors():
+    """Inspection endpoint. Returns the full canonical-anchor table so the
+    operator can audit which canonical English terms are hard-coded to which
+    LOINC code. The endpoint ALSO resolves every anchor against the loaded
+    LoincStore so you can immediately see whether each code is present
+    (and what its long-common-name is) on the current seed.
+    """
+    raw = all_anchors()
+    items = []
+    resolved = 0
+    unresolved = 0
+    for term, code in raw.items():
+        meta = STORE.get_by_code(code) if STORE.metadata else None
+        if meta is not None:
+            resolved += 1
+            items.append({
+                "canonical_term": term,
+                "loinc": code,
+                "resolved": True,
+                "loinc_long_name": meta.get("name"),
+            })
+        else:
+            unresolved += 1
+            items.append({
+                "canonical_term": term,
+                "loinc": code,
+                "resolved": False,
+                "loinc_long_name": None,
+            })
+    return {
+        "total": anchor_count(),
+        "resolved_in_store": resolved,
+        "unresolved_in_store": unresolved,
+        "store_loaded": bool(STORE.metadata),
+        "anchors": items,
+    }

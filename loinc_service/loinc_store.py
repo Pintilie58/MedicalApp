@@ -37,6 +37,10 @@ class LoincStore:
     def __init__(self) -> None:
         self.embeddings: np.ndarray | None = None  # (N, dim) float32, L2-normalized
         self.metadata: List[dict] = []
+        # Fast lookup: LOINC code -> index into self.metadata. Built once at
+        # `load()` time so the canonical-anchors layer can resolve a code in
+        # O(1) without scanning the 97k-row metadata list.
+        self.code_index: dict[str, int] = {}
 
     def load(self) -> None:
         if not EMBEDDINGS_FILE.exists() or not METADATA_FILE.exists():
@@ -66,12 +70,30 @@ class LoincStore:
         norms[norms == 0] = 1.0
         self.embeddings = (self.embeddings / norms).astype(np.float32)
 
+        # Build the code -> index map. We keep the FIRST occurrence of a code
+        # (LOINC codes are unique by spec, but if the seed file accidentally
+        # contains duplicates we prefer the earlier row).
+        self.code_index = {}
+        for i, m in enumerate(self.metadata):
+            code = (m.get("loinc") or "").strip()
+            if code and code not in self.code_index:
+                self.code_index[code] = i
+
         log.info(
             "LoincStore loaded: %d entries, embedding dim=%d, ~%.1f MB.",
             len(self.metadata),
             self.embeddings.shape[1],
             self.embeddings.nbytes / 1_000_000,
         )
+
+    def get_by_code(self, loinc: str) -> dict | None:
+        """Return the metadata dict for ``loinc`` (or None if not in the store)."""
+        if not loinc:
+            return None
+        idx = self.code_index.get(loinc.strip())
+        if idx is None:
+            return None
+        return self.metadata[idx]
 
     @property
     def size(self) -> int:

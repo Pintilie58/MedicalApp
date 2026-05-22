@@ -39,6 +39,7 @@ from config import (
     SEM_WEIGHT,
     TOP_K,
 )
+from canonical_anchors import lookup_anchor
 from loinc_store import STORE
 
 log = logging.getLogger("loinc.pipeline")
@@ -215,6 +216,36 @@ def find_loinc(test_name: str) -> Optional[MatchResult]:
         raise RuntimeError("LoincStore is not loaded. Call STORE.load() first.")
     if not test_name or not test_name.strip():
         return None
+
+    # 0. HARD-ACCEPT LAYER — canonical anchors short-circuit the matcher
+    # when Gemini emits one of the curated standardized English terms (see
+    # canonical_anchors.py). This eliminates the systematic mis-mappings of
+    # MCV/MCH/MCHC/RDW/WBC that the embedding model can't disambiguate.
+    anchor_code = lookup_anchor(test_name)
+    if anchor_code is not None:
+        meta = STORE.get_by_code(anchor_code)
+        if meta is not None:
+            log.info(
+                "ANCHOR hit for %r -> %s %r (score=1.000, confidence=exact).",
+                test_name, anchor_code, meta.get("name") or "",
+            )
+            return MatchResult(
+                loinc=meta["loinc"],
+                name=meta.get("name") or "",
+                component=meta.get("component"),
+                property=meta.get("property"),
+                system=meta.get("system"),
+                method=meta.get("method"),
+                score=1.0,
+            )
+        # Anchor code not present in the loaded LoincDictionary — log a
+        # warning ONCE and fall through to the semantic matcher so we
+        # never serve a 404 just because of a stale seed.
+        log.warning(
+            "ANCHOR for %r maps to code %s but that code is missing from "
+            "the loaded LoincStore (partial seed?). Falling back to semantic match.",
+            test_name, anchor_code,
+        )
 
     query_norm = _normalize(test_name)
     model = get_model()
