@@ -155,6 +155,28 @@ namespace MedicalApp.Models
             /// </summary>
             public string? LoincLongName { get; set; }
 
+            /// <summary>
+            /// LOINC CLASS code (HEM, CHEM, SERO, ENDO, COAG, UA, ...) used
+            /// for grouping the Compare table by medical specialty. Null on
+            /// legacy rows interpreted before the CLASS column was seeded,
+            /// or for LOINC codes without a CLASS value.
+            /// </summary>
+            public string? LoincClass { get; set; }
+
+            /// <summary>
+            /// Romanian display label for <see cref="LoincClass"/>, used as
+            /// the group-header text in the Compare view (e.g. "Hematologie",
+            /// "Biochimie serică"). Falls back to "Alte analize" for rows
+            /// without a class.
+            /// </summary>
+            public string ClassDisplayLabel { get; set; } = "Alte analize";
+
+            /// <summary>
+            /// True iff this row is the FIRST in its class group. The view
+            /// uses this flag to render a section header above the row.
+            /// </summary>
+            public bool IsFirstInClass { get; set; }
+
             /// <summary>One cell per Column (same length and order as <see cref="Columns"/>).</summary>
             public List<Cell> Cells { get; set; } = new();
 

@@ -75,6 +75,10 @@ class LoincResponse(BaseModel):
     system: str | None = None
     method: str | None = None
     score: float
+    # LOINC CLASS code (e.g. HEM, CHEM, SERO, ENDO, COAG, UA). Carried through
+    # to the C# pipeline so the Compare view can group parameters by medical
+    # specialty. Null when the LoincDictionary row has no CLASS value.
+    loinc_class: str | None = None
 
 
 # -------------------- Endpoints --------------------
@@ -132,6 +136,7 @@ def anchors():
                 "loinc": code,
                 "resolved": True,
                 "loinc_long_name": meta.get("name"),
+                "loinc_class": meta.get("class"),
             })
         else:
             unresolved += 1
@@ -140,6 +145,7 @@ def anchors():
                 "loinc": code,
                 "resolved": False,
                 "loinc_long_name": None,
+                "loinc_class": None,
             })
     return {
         "total": anchor_count(),

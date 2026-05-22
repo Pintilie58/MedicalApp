@@ -64,5 +64,23 @@ namespace MedicalApp.Models
 
         /// <summary>UTC timestamp of the last seed/refresh.</summary>
         public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
+
+        /// <summary>
+        /// LOINC CLASS code from the official LOINC release (e.g. <c>HEM</c>
+        /// = Hematology, <c>CHEM</c> = Chemistry, <c>SERO</c> = Serology,
+        /// <c>ENDO</c> = Endocrinology, <c>COAG</c> = Coagulation,
+        /// <c>UA</c> = Urinalysis, etc.). This is the OFFICIAL specialty
+        /// classification — it is NOT encoded in the numeric LOINC code
+        /// itself; it lives as a separate column in <c>Loinc.csv</c>.
+        /// <para>
+        /// Used by the Compare view to group parameters by medical specialty
+        /// (Hematologie, Biochimie serică, Imunologie, etc.) instead of
+        /// listing them in arbitrary order. Null when the seeded CSV did
+        /// not include a CLASS column (older Universal Lab Orders subset)
+        /// or when the row's CLASS value was blank.
+        /// </para>
+        /// </summary>
+        [StringLength(20)]
+        public string? Class { get; set; }
     }
 }

@@ -59,6 +59,7 @@ log = logging.getLogger("seed")
 KNOWN_COLUMNS = [
     "LoincCode", "LongCommonName", "OrderObs",
     "Component", "Property", "System", "MethodTyp", "Shortname",
+    "Class",
 ]
 
 
@@ -138,6 +139,7 @@ def write_metadata(rows: List[dict], out_path: Path) -> None:
             "system": (r.get("System") or "").strip() or None,
             "method": (r.get("MethodTyp") or "").strip() or None,
             "shortname": (r.get("Shortname") or "").strip() or None,
+            "class": (r.get("Class") or "").strip() or None,
         }
         for r in rows
     ]

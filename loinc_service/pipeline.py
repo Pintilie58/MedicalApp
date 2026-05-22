@@ -72,6 +72,7 @@ class MatchResult:
     system: Optional[str]
     method: Optional[str]
     score: float
+    loinc_class: Optional[str] = None
 
     def to_dict(self) -> dict:
         return {
@@ -82,6 +83,7 @@ class MatchResult:
             "system": self.system,
             "method": self.method,
             "score": float(self.score),
+            "loinc_class": self.loinc_class,
         }
 
 
@@ -237,6 +239,7 @@ def find_loinc(test_name: str) -> Optional[MatchResult]:
                 system=meta.get("system"),
                 method=meta.get("method"),
                 score=1.0,
+                loinc_class=meta.get("class"),
             )
         # Anchor code not present in the loaded LoincDictionary — log a
         # warning ONCE and fall through to the semantic matcher so we
@@ -297,6 +300,7 @@ def find_loinc(test_name: str) -> Optional[MatchResult]:
                 system=meta.get("system"),
                 method=meta.get("method"),
                 score=final,
+                loinc_class=meta.get("class"),
             ),
         ))
 

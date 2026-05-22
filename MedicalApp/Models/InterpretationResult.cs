@@ -148,6 +148,19 @@ namespace MedicalApp.Models
             /// </summary>
             [JsonPropertyName("loinc_confidence")]
             public string? LoincConfidence { get; set; }
+
+            /// <summary>
+            /// Official LOINC CLASS code (e.g. <c>HEM</c>, <c>CHEM</c>,
+            /// <c>SERO</c>, <c>ENDO</c>, <c>COAG</c>, <c>UA</c>) inherited
+            /// from the resolved LOINC code's row in the LoincDictionary.
+            /// Populated by the Python matcher service. Used by the Compare
+            /// view to group parameters by medical specialty
+            /// (Hematologie / Biochimie / Imunologie / ...).
+            /// Null when the matcher did not find a code, OR when the
+            /// resolved code's row in LoincDictionary has no CLASS value.
+            /// </summary>
+            [JsonPropertyName("loinc_class")]
+            public string? LoincClass { get; set; }
         }
 
         public class AbnormalFinding

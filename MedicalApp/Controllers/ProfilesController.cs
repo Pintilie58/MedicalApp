@@ -462,18 +462,64 @@ namespace MedicalApp.Controllers
                     .ToDictionary(g => g.Key, g => g.First()))
                 .ToList();
 
-            // Union of all row keys, sorted: LOINC-coded rows first
-            // (alphabetical by LoincCode) and parameter-name rows after.
+            // ----------------------------------------------------------------
+            // Pas 5: ordering by LOINC CLASS (medical specialty)
+            // ----------------------------------------------------------------
+            // Now that every matched KeyResult carries an authoritative
+            // LoincClass (HEM, CHEM, SERO, ENDO, COAG, UA, ...) we can group
+            // the Compare table by medical specialty exactly like a real
+            // lab report PDF does: Hematology first, then Coagulation,
+            // Biochimie serică, Endocrinologie, Serologie, Urinalysis, etc.
+            //
+            // For each row key we pick the LATEST non-null LoincClass we
+            // see across all columns (the newer interpretation is the most
+            // likely to have been processed with the CLASS-aware seeder).
+            // Rows without any class fall into the "Alte analize" bucket
+            // and appear at the very end so they remain visible.
+            // ----------------------------------------------------------------
+            string? PickClassFor(string rowKey)
+            {
+                for (int i = n - 1; i >= 0; i--)
+                {
+                    if (keyMaps[i].TryGetValue(rowKey, out var kr) &&
+                        !string.IsNullOrWhiteSpace(kr.LoincClass))
+                    {
+                        return kr.LoincClass;
+                    }
+                }
+                return null;
+            }
+
+            // Build a one-shot "what class does each row belong to" map so
+            // we sort by it without re-computing the value four times.
+            var classByKey = new Dictionary<string, string?>(StringComparer.Ordinal);
+            foreach (var k in keyMaps.SelectMany(m => m.Keys).Distinct())
+                classByKey[k] = PickClassFor(k);
+
+            // Union of all row keys, sorted by:
+            //   1. LOINC CLASS priority (Hematology -> Coagulation -> Chemistry -> ...)
+            //   2. parameter display name, case-insensitive
+            // We DELIBERATELY no longer split "loinc:" vs "name:" prefixes
+            // first — class-based grouping is a more meaningful organization
+            // for the user. Rows without a class go last (priority 999).
             var allKeys = keyMaps
                 .SelectMany(m => m.Keys)
                 .Distinct()
-                .OrderBy(k => k.StartsWith("loinc:") ? 0 : 1)
-                .ThenBy(k => k, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(k => Services.LoincClassDisplay.GetPriority(classByKey[k]))
+                .ThenBy(k =>
+                {
+                    // representative parameter name for alphabetic sub-ordering
+                    for (int i = n - 1; i >= 0; i--)
+                        if (keyMaps[i].TryGetValue(k, out var kr))
+                            return kr.Parameter ?? k;
+                    return k;
+                }, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             int risen = 0, fallen = 0, unchanged = 0, partial = 0;
 
             var rows = new List<CompareInterpretationsViewModel.ComparisonRow>(allKeys.Count);
+            string? previousClassLabel = null;
             foreach (var k in allKeys)
             {
                 // Find a representative parameter object for the row's metadata
@@ -481,6 +527,9 @@ namespace MedicalApp.Controllers
                 KeyResult? meta = null;
                 for (int i = n - 1; i >= 0 && meta == null; i--)
                     keyMaps[i].TryGetValue(k, out meta);
+
+                var rowClass = classByKey[k];
+                var classLabel = Services.LoincClassDisplay.GetLabel(rowClass);
 
                 var row = new CompareInterpretationsViewModel.ComparisonRow
                 {
@@ -490,8 +539,16 @@ namespace MedicalApp.Controllers
                     // Surface the LOINC identity on LOINC-grouped rows so the
                     // view can show a tooltip / badge. Null on name-fallback rows.
                     LoincCode = k.StartsWith("loinc:") ? meta?.LoincCode : null,
-                    LoincLongName = k.StartsWith("loinc:") ? meta?.LoincLongName : null
+                    LoincLongName = k.StartsWith("loinc:") ? meta?.LoincLongName : null,
+                    LoincClass = rowClass,
+                    ClassDisplayLabel = classLabel,
+                    // First row in each class group triggers a section header
+                    // in the view. We compare against the previous row's label
+                    // (not class code) so "HEM" and "HEM/BC" merge cleanly into
+                    // a single "Hematologie" header.
+                    IsFirstInClass = !string.Equals(classLabel, previousClassLabel, StringComparison.Ordinal),
                 };
+                previousClassLabel = classLabel;
 
                 // First numeric value index (used as the baseline for "risen/fallen").
                 int? baseIdx = null;

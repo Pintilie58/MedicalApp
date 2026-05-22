@@ -178,6 +178,10 @@ namespace MedicalApp.Services
             int idxName = FindHeader(header, "LONG_COMMON_NAME");
             int idxOrd = FindHeader(header, "ORDER_OBS");
             int idxStatus = FindHeader(header, "STATUS");
+            // CLASS holds the LOINC specialty grouping (HEM/CHEM/SERO/ENDO/...).
+            // Present in the full Loinc.csv release but NOT in the smaller
+            // "Universal Lab Orders Value Set" subset — we handle both.
+            int idxClass = FindHeader(header, "CLASS");
 
             if (idxCode < 0 || idxName < 0)
                 throw new InvalidDataException(
@@ -210,7 +214,14 @@ namespace MedicalApp.Services
                 {
                     LoincCode = code,
                     LongCommonName = name.Length > 500 ? name[..500] : name,
-                    OrderObs = (idxOrd >= 0 && cols.Count > idxOrd) ? cols[idxOrd].Trim() : null
+                    OrderObs = (idxOrd >= 0 && cols.Count > idxOrd) ? cols[idxOrd].Trim() : null,
+                    Class = (idxClass >= 0 && cols.Count > idxClass)
+                        ? (cols[idxClass].Trim().Length > 0
+                            ? (cols[idxClass].Trim().Length > 20
+                                ? cols[idxClass].Trim()[..20]
+                                : cols[idxClass].Trim())
+                            : null)
+                        : null
                 });
             }
 

@@ -127,6 +127,23 @@
                     <tbody>
                         @foreach (var row in Model.Rows)
                         {
+                            @if (row.IsFirstInClass)
+                            {
+                                <tr class="table-secondary" data-testid="compare-class-header-@row.LoincClass">
+                                    <td colspan="@(Model.Columns.Count + 2)"
+                                        class="fw-bold text-uppercase small text-dark py-2"
+                                        style="letter-spacing:.04em; background:#eef3ff;">
+                                        &#129516; @row.ClassDisplayLabel
+                                        @if (!string.IsNullOrWhiteSpace(row.LoincClass))
+                                        {
+                                            <span class="badge bg-light text-secondary border ms-2 small fw-normal"
+                                                  title="Cod LOINC CLASS oficial">
+                                                @row.LoincClass
+                                            </span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
                             <tr data-testid="compare-row-@row.Parameter.Replace(" ", "-")">
                                 <td class="fw-semibold" data-testid="compare-row-label">
                                     @row.Parameter
@@ -164,9 +181,13 @@
             </div>
 
             <p class="small text-muted mt-3">
-                Rândurile sunt grupate după <strong>codul LOINC</strong> (standard internațional pentru
-                identificarea analizelor) când acesta este disponibil — deci același test
-                este aliniat pe același rând chiar dacă laboratoarele l-au scris diferit
+                Rândurile sunt grupate pe <strong>clase de analize</strong>
+                (Hematologie, Coagulare, Biochimie serică, Endocrinologie, Serologie,
+                Biochimie urinară etc.) folosind <strong>câmpul oficial LOINC CLASS</strong>,
+                exact ca în ordinea standard a unui buletin de analize.
+                În interiorul fiecărei clase, rândurile sunt aliniate după
+                <strong>codul LOINC</strong> când acesta este disponibil — același test
+                apare pe același rând chiar dacă laboratoarele l-au scris diferit
                 (ex. „VSH", „ESR" și „Vitesse de sédimentation" apar pe un singur rând).
                 <br />
                 Prima coloană (cea cu fundal gri) este referința.
