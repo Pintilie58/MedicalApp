@@ -18,6 +18,7 @@ namespace MedicalApp.Controllers
         private readonly AppDbContext _db;
         private readonly IMedicalInterpretationProvider _ai;
         private readonly InterpretationSettings _interpretationSettings;
+        private readonly GeminiSettings _geminiSettings;
         private readonly IEmailService _emailService;
         private readonly PdfReportGenerator _pdfGenerator;
         private readonly IMemoryCache _cache;
@@ -32,6 +33,7 @@ namespace MedicalApp.Controllers
             AppDbContext db,
             IMedicalInterpretationProvider ai,
             IOptions<InterpretationSettings> interpretationOptions,
+            IOptions<GeminiSettings> geminiOptions,
             IEmailService emailService,
             PdfReportGenerator pdfGenerator,
             IMemoryCache cache,
@@ -41,6 +43,7 @@ namespace MedicalApp.Controllers
             _db = db;
             _ai = ai;
             _interpretationSettings = interpretationOptions.Value;
+            _geminiSettings = geminiOptions.Value;
             _emailService = emailService;
             _pdfGenerator = pdfGenerator;
             _cache = cache;
@@ -305,11 +308,20 @@ namespace MedicalApp.Controllers
             //  * maxAttemptsModel: for model-side issues (malformed JSON, truncated
             //    output, audit mismatch). 3 attempts is plenty - retrying does not
             //    help if the model genuinely cannot produce a valid output.
+            //  * FALLBACK MODEL: after `transientFallbackThreshold` consecutive 503/429
+            //    on the primary model, we switch to `GeminiSettings.FallbackModel`
+            //    (typically gemini-2.5-pro) for the remaining transient attempts.
+            //    Pro is more expensive but much less congested globally, so it usually
+            //    succeeds when flash is being throttled. The decision is made once,
+            //    at the threshold, and we stay on the fallback for any further retries
+            //    (no flapping between models).
             const int maxAttemptsTransient = 5;
             const int maxAttemptsModel = 3;
+            const int transientFallbackThreshold = 2;
             int attempt = 0;
             int transientAttempts = 0;
             int modelAttempts = 0;
+            string? currentModelOverride = null;
             Exception? lastException = null;
 
             while (true)
@@ -323,8 +335,12 @@ namespace MedicalApp.Controllers
                         {
                             // TEXT-mode: send extracted text only - no PDF base64 - so
                             // values/units/refs are literal (no vision OCR hallucination).
+                            // currentModelOverride is null on the happy path; only set
+                            // after we've decided to fall back to the secondary model
+                            // (typically gemini-2.5-pro) because of repeated 503s.
                             (result, inputTokens, outputTokens, rawGptResponse) =
-                                await _ai.InterpretTextAsync(extractedText, originalFileName, languageCode, patientCtx);
+                                await _ai.InterpretTextAsync(extractedText, originalFileName, languageCode, patientCtx,
+                                    HttpContext.RequestAborted, currentModelOverride);
                         }
                         else
                         {
@@ -344,12 +360,30 @@ namespace MedicalApp.Controllers
                 catch (GeminiTransientException ex) when (transientAttempts + 1 < maxAttemptsTransient)
                 {
                     transientAttempts++;
+
+                    // Decide whether to switch to the fallback model from this attempt
+                    // onwards. We do it once, at the threshold, and stay on the fallback
+                    // for any further retries (no flapping).
+                    if (currentModelOverride == null
+                        && transientAttempts >= transientFallbackThreshold
+                        && !string.IsNullOrWhiteSpace(_geminiSettings.FallbackModel)
+                        && !string.Equals(_geminiSettings.FallbackModel, _geminiSettings.Model,
+                                          StringComparison.OrdinalIgnoreCase))
+                    {
+                        currentModelOverride = _geminiSettings.FallbackModel;
+                        _logger.LogWarning(
+                            "Gemini primary model {Primary} hit {Count} consecutive transient {Status} errors. " +
+                            "Switching to FALLBACK model {Fallback} for the remaining retries.",
+                            _geminiSettings.Model, transientAttempts, ex.HttpStatusCode, currentModelOverride);
+                    }
+
                     // Progressive backoff for upstream overload: 5s, 15s, 30s, 60s
                     int[] delaysMs = { 5_000, 15_000, 30_000, 60_000 };
                     int wait = delaysMs[Math.Min(transientAttempts - 1, delaysMs.Length - 1)];
                     _logger.LogWarning(
-                        "Gemini upstream transient {Status} (try {N}/{Max}). Backing off {Wait} ms.",
-                        ex.HttpStatusCode, transientAttempts, maxAttemptsTransient, wait);
+                        "Gemini upstream transient {Status} (try {N}/{Max}). Backing off {Wait} ms. Model in use: {Model}.",
+                        ex.HttpStatusCode, transientAttempts, maxAttemptsTransient, wait,
+                        currentModelOverride ?? _geminiSettings.Model);
                     lastException = ex;
                     await Task.Delay(wait);
                 }

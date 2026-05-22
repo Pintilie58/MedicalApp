@@ -25,6 +25,7 @@ namespace MedicalApp.Services
 
         Task<(InterpretationResult Result, int InputTokens, int OutputTokens, string RawResponse)> InterpretTextAsync(
             string extractedText, string fileName, string languageCode,
-            PatientContext? patientContext = null, CancellationToken ct = default);
+            PatientContext? patientContext = null, CancellationToken ct = default,
+            string? modelOverride = null);
     }
 }

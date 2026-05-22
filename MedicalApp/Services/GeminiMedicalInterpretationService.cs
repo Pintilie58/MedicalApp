@@ -89,7 +89,8 @@ namespace MedicalApp.Services
         /// <summary>Internal text-based interpretation with optional patient context.</summary>
         public async Task<(InterpretationResult Result, int InputTokens, int OutputTokens, string RawResponse)> InterpretTextAsync(
             string extractedText, string fileName, string languageCode,
-            PatientContext? patientContext = null, CancellationToken ct = default)
+            PatientContext? patientContext = null, CancellationToken ct = default,
+            string? modelOverride = null)
         {
             if (string.IsNullOrWhiteSpace(_settings.ApiKey))
                 throw new InvalidOperationException(
@@ -106,7 +107,8 @@ namespace MedicalApp.Services
                 pdfBase64: null,
                 pdfBytesLength: 0,
                 extractedText: extractedText,
-                ct: ct);
+                ct: ct,
+                modelOverride: modelOverride);
         }
 
         /// <summary>
@@ -118,9 +120,18 @@ namespace MedicalApp.Services
         private async Task<(InterpretationResult Result, int InputTokens, int OutputTokens, string RawResponse)> CallGeminiAsync(
             string languageCode, string fileName, PatientContext? patientContext,
             string? pdfBase64, int pdfBytesLength,
-            string? extractedText, CancellationToken ct)
+            string? extractedText, CancellationToken ct,
+            string? modelOverride = null)
         {
             var languageName = LanguageNames.TryGetValue(languageCode, out var n) ? n : "English";
+
+            // Pick the model to call: explicit override (controller's fallback path)
+            // wins over the configured default. This is the ONLY behavioural difference
+            // between a normal call and a fallback call — the prompt, schema, language
+            // and patient context are all identical.
+            var modelName = !string.IsNullOrWhiteSpace(modelOverride)
+                ? modelOverride!
+                : _settings.Model;
 
             // 2) Build the request body
             var systemPrompt = BuildSystemPrompt();
@@ -129,7 +140,7 @@ namespace MedicalApp.Services
                                              extractedText: extractedText);
             var requestBody = BuildRequestBody(systemPrompt, userPrompt, pdfBase64);
 
-            var url = string.Format(EndpointFormat, _settings.Model, _settings.ApiKey);
+            var url = string.Format(EndpointFormat, modelName, _settings.ApiKey);
 
             // 3) Send request
             using var http = _httpClientFactory.CreateClient();
@@ -141,13 +152,13 @@ namespace MedicalApp.Services
             {
                 _logger.LogInformation(
                     "Calling Gemini {Model} for {Language} (VISION mode). PDF bytes: {Bytes}, base64 length: {B64}",
-                    _settings.Model, languageCode, pdfBytesLength, pdfBase64.Length);
+                    modelName, languageCode, pdfBytesLength, pdfBase64.Length);
             }
             else
             {
                 _logger.LogInformation(
                     "Calling Gemini {Model} for {Language} (TEXT mode). Extracted text chars: {Chars}",
-                    _settings.Model, languageCode, extractedText?.Length ?? 0);
+                    modelName, languageCode, extractedText?.Length ?? 0);
             }
 
             using var response = await http.PostAsync(url, content, ct);

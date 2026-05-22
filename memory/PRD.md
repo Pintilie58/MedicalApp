@@ -310,6 +310,37 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
        6 well-defined query keywords, so it cannot cause collateral damage
        elsewhere in the 97k LOINC space.
 
+- ✅ **[Feb 2026 — Resilience: Gemini Pro fallback model]**
+  Implemented automatic fallback to `gemini-2.5-pro` after 2 consecutive HTTP
+  503 / 429 transient errors on the primary `gemini-2.5-flash`. Rationale:
+  Pro is ~5x more expensive but globally much less congested (Flash is the
+  default for nearly every LLM developer in the world, so Google's Flash
+  capacity gets saturated during peak hours; Pro is mostly used by power
+  users and stays available). With the fallback active, the user only pays
+  the Pro price during congestion incidents — the typical happy-path call
+  stays on Flash.
+  Implementation details:
+    * New `GeminiSettings.FallbackModel` (defaults to ""gemini-2.5-pro"";
+      set to null to disable).
+    * `IMedicalInterpretationProvider.InterpretTextAsync` extended with
+      optional `string? modelOverride` parameter (default null = use
+      configured model).
+    * `GeminiMedicalInterpretationService.CallGeminiAsync` honours the
+      override when set; the URL, log messages and request body all use the
+      effective model name.
+    * `InterpretationController.Upload` retry loop tracks a
+      `currentModelOverride` variable. After `transientFallbackThreshold = 2`
+      consecutive transients on the primary, it sets the override to the
+      configured fallback and stays on it for the remaining retries (no
+      flapping). Log line includes both ""primary"" and ""fallback"" model
+      names so operators can audit what was actually used.
+    * `MedicalInterpretationService` (OpenAI provider) signature updated
+      to match the new interface; the override parameter is ignored because
+      the OpenAI provider has only one model.
+  Retry budget kept at 5 attempts / ~110 s wall-clock (NOT increased back to
+  7) — user chose this consciously, since the Pro fallback adds an effective
+  ""extra safety net"" that makes brute-force retry-extension unnecessary.
+
 ## Pending / Backlog
 
 ### P1 – Family profiles (multi-session focus)
