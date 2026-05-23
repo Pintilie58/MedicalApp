@@ -205,7 +205,14 @@ namespace MedicalApp.Services
             {
                 t.ColumnsDefinition(c =>
                 {
-                    c.RelativeColumn(3);   // parameter
+                    // Wider parameter column so the explanation text below each
+                    // parameter wraps less and uses fewer vertical lines.
+                    // Previously: 3/8 (~37.5%) of the page width — explanations
+                    // wrapped to many lines. Now: 5/10 (50%), with the other
+                    // three columns shrunk proportionally. The value/reference
+                    // columns stay readable because their content is short
+                    // (numbers, units, "12-18 mg/dL", and an arrow).
+                    c.RelativeColumn(5);   // parameter + explanation + LOINC
                     c.RelativeColumn(2);   // value + unit
                     c.RelativeColumn(2);   // reference
                     c.RelativeColumn(1);   // status (arrow)

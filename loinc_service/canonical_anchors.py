@@ -83,6 +83,15 @@ _RAW_ANCHORS: dict[str, str] = {
 
     # ----- Coagulation -----
     "Prothrombin time (PT)": "5902-2",
+    # Variants Gemini emits for the Romanian "Timp" / "Timp de protrombina QUICK".
+    # Without these anchors the matcher sometimes picks 42638-7 ("PT Reference
+    # value") which is just the lab-normal range, NOT the measured patient
+    # value — they then appear as TWO separate rows in Compare even though
+    # they are the SAME analyte from two interpretations.
+    "Prothrombin time": "5902-2",
+    "Prothrombin time [Time]": "5902-2",
+    "Prothrombin time [Time] in Platelet poor plasma by Coagulation assay": "5902-2",
+    "Prothrombin time in Platelet poor plasma by Coagulation assay": "5902-2",
     "Prothrombin time (PT) actual/normal": "5894-1",
     "INR in Platelet poor plasma by Coagulation assay": "6301-6",
 
@@ -92,6 +101,12 @@ _RAW_ANCHORS: dict[str, str] = {
     "Cholesterol in LDL [Mass/volume] in Serum or Plasma": "2089-1",
     "Cholesterol non HDL [Mass/volume] in Serum or Plasma": "43396-1",
     "Cholesterol in VLDL [Mass/volume] in Serum or Plasma by calculation": "13458-5",
+    # Romanian labs always REPORT VLDL as the calculated value (Friedewald
+    # formula or similar). Some Gemini emissions drop the "by calculation"
+    # suffix, which would otherwise be matched to LOINC 2091-7 (a direct VLDL
+    # measurement — a different lab method). Force both variants to the
+    # calculated code so the Compare view groups them on a single row.
+    "Cholesterol in VLDL [Mass/volume] in Serum or Plasma": "13458-5",
     "Triglyceride [Mass/volume] in Serum or Plasma": "2571-8",
 
     # ----- Liver enzymes -----
