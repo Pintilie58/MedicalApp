@@ -830,7 +830,7 @@ namespace MedicalApp.Controllers
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "EvolutionExport: email send failed to {Email}.", CurrentEmail);
-                    TempData["ErrorMessage"] = "Trimiterea emailului a eșuat. Încearcă „Descarcă PDF" în schimb.";
+                    TempData["ErrorMessage"] = "Trimiterea emailului a eșuat. Încearcă \u201EDescarcă PDF\u201D în schimb.";
                     return RedirectToAction(nameof(Evolution),
                         new { profileId = req.ProfileId, codes = string.Join(",", codeList) });
                 }
