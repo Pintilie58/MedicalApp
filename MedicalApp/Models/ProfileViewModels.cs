@@ -203,4 +203,80 @@ namespace MedicalApp.Models
             public string CellDirection { get; set; } = "absent";
         }
     }
+
+    /// <summary>
+    /// ViewModel for /Profiles/Evolution — multi-LOINC time series chart.
+    /// User pastes 1..5 LOINC codes (taken from any prior Interpretation or
+    /// Compare table), and we collect every measurement of those codes across
+    /// ALL of the profile's successful interpretations. Output:
+    ///   - one table per LOINC code (patient name, lab, sampling date, value,
+    ///     status, unit, reference range);
+    ///   - one combined Chart.js line chart with one series per code, plus
+    ///     the reference-range high/low drawn as dashed horizontal lines.
+    /// </summary>
+    public class EvolutionViewModel
+    {
+        public const int MinSelections = 1;
+        public const int MaxSelections = 5;
+
+        public int ProfileId { get; set; }
+        public string ProfileName { get; set; } = string.Empty;
+
+        /// <summary>The codes the user requested (verbatim, after sanitization).</summary>
+        public List<string> RequestedCodes { get; set; } = new();
+
+        /// <summary>Codes the user requested but for which we found ZERO measurements.</summary>
+        public List<string> CodesNotFound { get; set; } = new();
+
+        public List<EvolutionSeries> Series { get; set; } = new();
+
+        public class EvolutionSeries
+        {
+            public string LoincCode { get; set; } = string.Empty;
+            /// <summary>LoincLongName from the most recent interpretation that carried it.</summary>
+            public string? LoincLongName { get; set; }
+            /// <summary>Romanian-displayed LOINC CLASS (e.g. "Hematologie").</summary>
+            public string ClassDisplayLabel { get; set; } = "Alte analize";
+
+            /// <summary>Parameter name as it appeared in the most recent report
+            /// (may differ between labs, we pick the latest spelling).</summary>
+            public string DisplayParameter { get; set; } = string.Empty;
+
+            /// <summary>Unit string from the most recent measurement (best-effort).</summary>
+            public string? Unit { get; set; }
+
+            /// <summary>Reference range string from the most recent measurement.</summary>
+            public string? ReferenceRange { get; set; }
+
+            /// <summary>Parsed numeric range LOWER bound (for the dashed line on the chart). Null when unparsable.</summary>
+            public double? RefLow { get; set; }
+
+            /// <summary>Parsed numeric range UPPER bound. Null when unparsable.</summary>
+            public double? RefHigh { get; set; }
+
+            /// <summary>Color hint for the chart (hex). Assigned by the controller in order.</summary>
+            public string ColorHex { get; set; } = "#0d6efd";
+
+            public List<EvolutionPoint> Points { get; set; } = new();
+        }
+
+        public class EvolutionPoint
+        {
+            /// <summary>Sampling date (or interpretation date as fallback) — used as X axis.</summary>
+            public DateTime EffectiveDate { get; set; }
+            /// <summary>Formatted "yyyy-MM-dd" for chart labels.</summary>
+            public string DateLabel { get; set; } = string.Empty;
+            /// <summary>Raw value string as printed by the lab.</summary>
+            public string? Value { get; set; }
+            /// <summary>Parsed numeric value for the Y axis. Null when value is qualitative.</summary>
+            public double? NumericValue { get; set; }
+            /// <summary>"normal" | "high" | "low" | "borderline" | null.</summary>
+            public string? Status { get; set; }
+            /// <summary>Per-row metadata used in the table.</summary>
+            public string? PatientName { get; set; }
+            public string? Laboratory { get; set; }
+            public string? Unit { get; set; }
+            public string? ReferenceRange { get; set; }
+        }
+    }
 }

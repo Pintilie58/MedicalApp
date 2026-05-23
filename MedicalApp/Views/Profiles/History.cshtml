@@ -81,12 +81,69 @@
                             <span id="compareSelCount" class="badge bg-secondary ms-2"
                                   data-testid="history-selected-count">0</span>
                         </span>
-                        <button type="submit" id="btnCompare" class="btn btn-primary btn-sm ms-auto"
+                        <button type="button" class="btn btn-outline-primary btn-sm ms-auto"
+                                data-bs-toggle="modal" data-bs-target="#evolutionModal"
+                                data-testid="btn-open-evolution">
+                            &#128200; Evoluție grafică...
+                        </button>
+                        <button type="submit" id="btnCompare" class="btn btn-primary btn-sm"
                                 disabled data-testid="btn-compare-selected">
                             &#128200; Compară selectate
                         </button>
                     </div>
                 </form>
+
+                @* ---- Evolution modal ----
+                   Standalone form that POSTs (technically GETs) to /Profiles/Evolution
+                   with the user-pasted LOINC codes. Separated from the Compare form so
+                   we don't accidentally submit both. *@
+                <div class="modal fade" id="evolutionModal" tabindex="-1"
+                     aria-labelledby="evolutionModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-lg modal-dialog-centered">
+                        <div class="modal-content">
+                            <form asp-action="Evolution" method="get">
+                                <input type="hidden" name="profileId" value="@Model.ProfileId" />
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="evolutionModalLabel">
+                                        &#128200; Evoluție în timp pentru un parametru
+                                    </h5>
+                                    <button type="button" class="btn-close"
+                                            data-bs-dismiss="modal" aria-label="Închide"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p class="small text-muted">
+                                        Introdu între <strong>1 și 5 coduri LOINC</strong> (separate prin
+                                        virgulă, spațiu sau enter). Codul LOINC al unei analize se
+                                        găsește în <strong>orice listă de interpretare</strong> sau
+                                        în tabelul „Comparați", în badge-ul gri de lângă numele
+                                        parametrului (ex. <code>LOINC 2324-2</code> pentru Gamma GT).
+                                    </p>
+                                    <div class="mb-3">
+                                        <label for="evolutionCodes" class="form-label fw-semibold">
+                                            Coduri LOINC
+                                        </label>
+                                        <textarea id="evolutionCodes" name="codes" rows="3"
+                                                  class="form-control" required
+                                                  placeholder="ex. 2324-2, 4548-4, 718-7"
+                                                  data-testid="evolution-codes-input"></textarea>
+                                        <div class="form-text">
+                                            Toate interpretările acestui profil vor fi consultate
+                                            automat. Acțiunea nu consumă credite.
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-outline-secondary"
+                                            data-bs-dismiss="modal">Anulează</button>
+                                    <button type="submit" class="btn btn-primary"
+                                            data-testid="btn-submit-evolution">
+                                        Generează grafic
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
 
                 <div class="table-responsive">
                     <table class="table table-hover align-middle" data-testid="history-table">

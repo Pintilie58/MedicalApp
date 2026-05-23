@@ -683,6 +683,195 @@ namespace MedicalApp.Controllers
         }
 
         // ====================================================================
+        // EVOLUTION (P1.8): time-series chart for 1..5 LOINC codes across ALL
+        // of the profile's interpretations. No credit cost — we only aggregate
+        // data that is already stored in InterpretationHistories.RawJsonResult.
+        // ====================================================================
+        [HttpGet]
+        public async Task<IActionResult> Evolution(int profileId, string? codes)
+        {
+            if (string.IsNullOrEmpty(CurrentEmail))
+                return RedirectToAction("Index", "Home");
+
+            var profile = await _db.Profiles.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == profileId && p.UserEmail == CurrentEmail);
+            if (profile == null)
+            {
+                TempData["ErrorMessage"] = "Profilul nu a fost găsit.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            // Parse and sanitize the user-pasted LOINC codes.
+            // Accept comma, semicolon, whitespace and newline as separators so
+            // the user can paste a quick list like "718-7, 4548-4 2160-0".
+            var codeList = (codes ?? string.Empty)
+                .Split(new[] { ',', ';', '\n', '\r', '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(EvolutionViewModel.MaxSelections)
+                .ToList();
+
+            if (codeList.Count < EvolutionViewModel.MinSelections)
+            {
+                TempData["ErrorMessage"] =
+                    $"Introdu între {EvolutionViewModel.MinSelections} și " +
+                    $"{EvolutionViewModel.MaxSelections} coduri LOINC.";
+                return RedirectToAction(nameof(History), new { id = profileId });
+            }
+
+            var vm = await BuildEvolutionAsync(profile, codeList);
+            return View(vm);
+        }
+
+        private async Task<EvolutionViewModel> BuildEvolutionAsync(Profile profile, List<string> codes)
+        {
+            var vm = new EvolutionViewModel
+            {
+                ProfileId = profile.Id,
+                ProfileName = profile.Name,
+                RequestedCodes = codes,
+            };
+
+            // Load every successful interpretation for the profile.
+            var histories = await _db.InterpretationHistories
+                .AsNoTracking()
+                .Where(h => h.UserEmail == CurrentEmail
+                            && h.ProfileId == profile.Id
+                            && h.Status == "success"
+                            && h.RawJsonResult != null)
+                .OrderBy(h => h.CreatedAt)
+                .ToListAsync();
+
+            // Distinct color palette (up to 5 series). Picked for high contrast
+            // against white background and against each other.
+            var palette = new[] { "#0d6efd", "#dc3545", "#198754", "#fd7e14", "#6f42c1" };
+
+            // Build one series per requested code.
+            var codeSet = new HashSet<string>(codes, StringComparer.OrdinalIgnoreCase);
+            var seriesByCode = new Dictionary<string, EvolutionViewModel.EvolutionSeries>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var h in histories)
+            {
+                var r = DeserializeSafe(h.RawJsonResult);
+                if (r?.KeyResults == null) continue;
+
+                var eff = ParseSamplingDate(r.PatientInfo?.DateTaken) ?? h.CreatedAt;
+
+                foreach (var kr in r.KeyResults)
+                {
+                    if (string.IsNullOrWhiteSpace(kr.LoincCode)) continue;
+                    if (!codeSet.Contains(kr.LoincCode.Trim())) continue;
+
+                    var code = kr.LoincCode.Trim();
+                    if (!seriesByCode.TryGetValue(code, out var s))
+                    {
+                        s = new EvolutionViewModel.EvolutionSeries
+                        {
+                            LoincCode = code,
+                            ColorHex = palette[seriesByCode.Count % palette.Length],
+                        };
+                        seriesByCode[code] = s;
+                    }
+
+                    var (val, ok) = ParseNumeric(kr.Value);
+                    var point = new EvolutionViewModel.EvolutionPoint
+                    {
+                        EffectiveDate = eff,
+                        DateLabel = eff.ToLocalTime().ToString("yyyy-MM-dd"),
+                        Value = kr.Value,
+                        NumericValue = ok ? val : (double?)null,
+                        Status = kr.Status,
+                        PatientName = r.PatientInfo?.Name,
+                        Laboratory = r.PatientInfo?.Laboratory,
+                        Unit = kr.Unit,
+                        ReferenceRange = kr.ReferenceRange,
+                    };
+                    s.Points.Add(point);
+
+                    // Always refresh the series's "latest seen" metadata from
+                    // the newest point so the table shows the freshest unit
+                    // and reference range (which can change between labs).
+                    s.DisplayParameter = kr.Parameter ?? code;
+                    s.LoincLongName = kr.LoincLongName ?? s.LoincLongName;
+                    s.ClassDisplayLabel = Services.LoincClassDisplay.GetLabel(kr.LoincClass);
+                    s.Unit = kr.Unit ?? s.Unit;
+                    s.ReferenceRange = kr.ReferenceRange ?? s.ReferenceRange;
+                    var (lo, hi) = ParseReferenceRange(kr.ReferenceRange);
+                    if (lo.HasValue) s.RefLow = lo;
+                    if (hi.HasValue) s.RefHigh = hi;
+                }
+            }
+
+            // Order each series' points chronologically.
+            foreach (var s in seriesByCode.Values)
+                s.Points = s.Points.OrderBy(p => p.EffectiveDate).ToList();
+
+            // Codes the user asked for but never appeared in any interpretation.
+            vm.CodesNotFound = codes.Where(c => !seriesByCode.ContainsKey(c)).ToList();
+
+            // Series ordering: in the order the user typed the codes (so the
+            // first one keeps its primary color and appears first in the legend).
+            vm.Series = codes
+                .Where(c => seriesByCode.ContainsKey(c))
+                .Select(c => seriesByCode[c])
+                .ToList();
+
+            // Reassign palette colors in the user-typed order (palette index
+            // can drift if some codes weren't found).
+            for (int i = 0; i < vm.Series.Count; i++)
+                vm.Series[i].ColorHex = palette[i % palette.Length];
+
+            return vm;
+        }
+
+        /// <summary>
+        /// Parses a reference-range string like "12 - 18", "&lt;100", "&gt;70",
+        /// "0.5 - 1.2 mg/dL" into low/high numeric bounds. Either side may be
+        /// null when the range is one-sided or completely unparsable.
+        /// </summary>
+        private static (double? low, double? high) ParseReferenceRange(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return (null, null);
+            var s = raw.Replace(',', '.').Replace('–', '-').Replace('—', '-');
+
+            // One-sided: "<X" / "≤X" -> upper bound; ">X" / "≥X" -> lower bound.
+            var trim = s.TrimStart();
+            if (trim.StartsWith("<") || trim.StartsWith("≤"))
+            {
+                var (v, ok) = ParseNumeric(trim.TrimStart('<', '≤'));
+                return ok ? ((double?)null, v) : (null, null);
+            }
+            if (trim.StartsWith(">") || trim.StartsWith("≥"))
+            {
+                var (v, ok) = ParseNumeric(trim.TrimStart('>', '≥'));
+                return ok ? (v, (double?)null) : (null, null);
+            }
+
+            // Range "X - Y" — find first '-' between digits.
+            // We collect the FIRST two numbers in the string and treat them
+            // as [low, high]. That handles "12 - 18", "12-18 mg/dL",
+            // "0.5 - 1.2 / mmol/L", etc.
+            var nums = System.Text.RegularExpressions.Regex.Matches(s,
+                @"-?\d+(?:\.\d+)?");
+            if (nums.Count >= 2)
+            {
+                if (double.TryParse(nums[0].Value,
+                        System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        out var lo)
+                    && double.TryParse(nums[1].Value,
+                        System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        out var hi))
+                {
+                    return (lo, hi);
+                }
+            }
+            return (null, null);
+        }
+
+        // ====================================================================
         // CREATE
         // ====================================================================
         [HttpGet]

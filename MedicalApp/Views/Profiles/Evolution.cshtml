@@ -1,0 +1,279 @@
+@model MedicalApp.Models.EvolutionViewModel
+@{
+    ViewData["Title"] = $"Evoluție - {Model.ProfileName}";
+
+    // Status badge — identical visual language as in Compare.cshtml so the
+    // user immediately recognizes the convention.
+    string StatusBadge(string? status) => status?.ToLowerInvariant() switch
+    {
+        "high"       => "<span class=\"badge bg-danger\">&#8593;</span>",
+        "low"        => "<span class=\"badge bg-primary\">&#8595;</span>",
+        "borderline" => "<span class=\"badge bg-warning text-dark\">&#8776;</span>",
+        "normal"     => "<span class=\"badge bg-success\">&#10003;</span>",
+        _ => ""
+    };
+}
+
+<div class="container-fluid py-5">
+    <div class="row justify-content-center">
+        <div class="col-12 col-xxl-11">
+
+            <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
+                <h2 class="text-primary fw-bold mb-0" data-testid="evolution-heading">
+                    &#128200; Evoluție în timp — @Model.ProfileName
+                </h2>
+                <span class="badge bg-secondary align-self-center" data-testid="evolution-series-count">
+                    @Model.Series.Count analize
+                </span>
+                <div class="ms-auto">
+                    <a asp-action="History" asp-route-id="@Model.ProfileId"
+                       class="btn btn-outline-secondary" data-testid="btn-back-history">
+                        &larr; Înapoi la arhivă
+                    </a>
+                </div>
+            </div>
+
+            @if (Model.CodesNotFound.Any())
+            {
+                <div class="alert alert-warning small" data-testid="evolution-codes-not-found">
+                    &#9888; Următoarele coduri LOINC nu apar în nicio interpretare a acestui profil:
+                    <strong>@string.Join(", ", Model.CodesNotFound)</strong>. Verifică dacă ai
+                    selectat profilul corect sau dacă acele analize au fost interpretate cu codare LOINC.
+                </div>
+            }
+
+            @if (!Model.Series.Any())
+            {
+                <div class="alert alert-info" data-testid="evolution-empty">
+                    Nu am găsit nicio valoare pentru codurile cerute. Re-interpretează interpretările
+                    vechi (înainte de modulul LOINC) pentru a obține coduri standardizate, apoi
+                    revino aici.
+                </div>
+            }
+            else
+            {
+                @* ---------- 1) Combined chart ---------- *@
+                <div class="card border-0 shadow-sm mb-4" data-testid="evolution-chart-card">
+                    <div class="card-body">
+                        <h5 class="fw-bold text-secondary mb-3">Grafic combinat</h5>
+                        <p class="small text-muted mb-3">
+                            Axa X = data recoltării &nbsp;|&nbsp; Axa Y = valoarea
+                            &nbsp;|&nbsp; Liniile întrerupte = limite de referință (când sunt
+                            disponibile, doar pentru prima analiză selectată).
+                        </p>
+                        <div style="position:relative; height:420px;">
+                            <canvas id="evolutionChart" data-testid="evolution-canvas"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                @* ---------- 2) One table per series ---------- *@
+                @foreach (var s in Model.Series)
+                {
+                    <div class="card border-0 shadow-sm mb-4" data-testid="evolution-series-@s.LoincCode">
+                        <div class="card-body">
+                            <h5 class="fw-bold mb-1" style="color:@s.ColorHex;">
+                                @s.DisplayParameter
+                                <span class="badge bg-light text-secondary border ms-2 small fw-normal"
+                                      title="@s.LoincLongName">
+                                    LOINC @s.LoincCode
+                                </span>
+                                <span class="badge bg-secondary ms-1 small fw-normal">@s.ClassDisplayLabel</span>
+                            </h5>
+                            @if (!string.IsNullOrWhiteSpace(s.LoincLongName))
+                            {
+                                <div class="small text-muted mb-3">@s.LoincLongName</div>
+                            }
+
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Pacient</th>
+                                            <th>Clinică / Laborator</th>
+                                            <th>Data recoltării</th>
+                                            <th class="text-end">Valoare</th>
+                                            <th class="text-center">Status</th>
+                                            <th>Unitate</th>
+                                            <th>Interval ref.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var p in s.Points)
+                                        {
+                                            <tr data-testid="evolution-row-@s.LoincCode-@p.DateLabel">
+                                                <td>@(p.PatientName ?? "-")</td>
+                                                <td>@(p.Laboratory ?? "-")</td>
+                                                <td>@p.DateLabel</td>
+                                                <td class="text-end fw-semibold">@(p.Value ?? "-")</td>
+                                                <td class="text-center">@Html.Raw(StatusBadge(p.Status))</td>
+                                                <td class="small text-muted">@(p.Unit ?? "-")</td>
+                                                <td class="small text-muted">@(p.ReferenceRange ?? "-")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+
+            <p class="small text-muted mt-3">
+                Acest grafic agregă valorile parametrilor selectați din TOATE interpretările acestui
+                profil care conțin codul LOINC respectiv. Punctele sunt colorate după status:
+                <span class="badge bg-success">normal</span>
+                <span class="badge bg-danger">crescut</span>
+                <span class="badge bg-primary">scăzut</span>
+                <span class="badge bg-warning text-dark">la limită</span>.
+                Această acțiune NU consumă credite.
+            </p>
+        </div>
+    </div>
+</div>
+
+@if (Model.Series.Any())
+{
+    @* Pass the model to JS as a JSON island so Chart.js can hydrate the canvas. *@
+    <script id="evolutionData" type="application/json">
+        @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+            Model.Series.Select(s => new {
+                code = s.LoincCode,
+                label = s.DisplayParameter,
+                color = s.ColorHex,
+                unit = s.Unit,
+                refLow = s.RefLow,
+                refHigh = s.RefHigh,
+                points = s.Points.Select(p => new {
+                    x = p.DateLabel,
+                    y = p.NumericValue,
+                    status = p.Status,
+                    value = p.Value,
+                    patient = p.PatientName,
+                    lab = p.Laboratory
+                })
+            }),
+            new System.Text.Json.JsonSerializerOptions {
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+            }
+        ))
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script>
+        (function () {
+            // ---- Parse the server-side payload ----
+            const payload = JSON.parse(document.getElementById('evolutionData').textContent);
+            if (!payload || !payload.length) return;
+
+            // ---- Status -> point color (overrides series color per point) ----
+            const STATUS_COLOR = {
+                'normal':     '#198754', // green
+                'high':       '#dc3545', // red
+                'low':        '#0d6efd', // blue
+                'borderline': '#ffc107', // yellow
+            };
+
+            // ---- Build datasets (one per LOINC code) ----
+            const datasets = [];
+            payload.forEach((series, idx) => {
+                // Skip series with no numeric points (can't be charted).
+                const numericPoints = series.points.filter(p => p.y !== null && p.y !== undefined);
+                if (numericPoints.length === 0) return;
+
+                datasets.push({
+                    label: series.label + '  (' + series.code + (series.unit ? ', ' + series.unit : '') + ')',
+                    data: numericPoints.map(p => ({ x: p.x, y: p.y, _meta: p })),
+                    borderColor: series.color,
+                    backgroundColor: series.color + '20', // 12% alpha fill
+                    borderWidth: 2,
+                    tension: 0.25,
+                    fill: false,
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    pointBackgroundColor: numericPoints.map(p =>
+                        STATUS_COLOR[p.status] || series.color),
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                });
+
+                // ---- Reference lines: only for the FIRST series. ----
+                // Drawing ref lines for multiple series with different scales would
+                // be confusing — we only show them for the first (primary) series
+                // and explain in the legend.
+                if (idx === 0) {
+                    const xs = numericPoints.map(p => p.x);
+                    if (series.refLow !== null && series.refLow !== undefined) {
+                        datasets.push({
+                            label: 'Limită inferioară (' + series.code + ')',
+                            data: xs.map(x => ({ x: x, y: series.refLow })),
+                            borderColor: series.color,
+                            borderDash: [6, 4],
+                            borderWidth: 1,
+                            pointRadius: 0,
+                            tension: 0,
+                            fill: false,
+                        });
+                    }
+                    if (series.refHigh !== null && series.refHigh !== undefined) {
+                        datasets.push({
+                            label: 'Limită superioară (' + series.code + ')',
+                            data: xs.map(x => ({ x: x, y: series.refHigh })),
+                            borderColor: series.color,
+                            borderDash: [6, 4],
+                            borderWidth: 1,
+                            pointRadius: 0,
+                            tension: 0,
+                            fill: false,
+                        });
+                    }
+                }
+            });
+
+            // ---- Render ----
+            const ctx = document.getElementById('evolutionChart').getContext('2d');
+            // eslint-disable-next-line no-new
+            new Chart(ctx, {
+                type: 'line',
+                data: { datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'nearest', intersect: false },
+                    scales: {
+                        x: {
+                            type: 'category',
+                            title: { display: true, text: 'Data recoltării' },
+                            ticks: { autoSkip: true, maxTicksLimit: 12 },
+                        },
+                        y: {
+                            title: { display: true, text: 'Valoare' },
+                            beginAtZero: false,
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: function (item) {
+                                    const meta = item.raw && item.raw._meta;
+                                    if (!meta) {
+                                        return item.dataset.label + ': ' + item.formattedValue;
+                                    }
+                                    const lines = [
+                                        item.dataset.label,
+                                        'Valoare: ' + (meta.value || item.formattedValue),
+                                        'Status: ' + (meta.status || '-'),
+                                    ];
+                                    if (meta.patient) lines.push('Pacient: ' + meta.patient);
+                                    if (meta.lab)     lines.push('Laborator: ' + meta.lab);
+                                    return lines;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        })();
+    </script>
+}
