@@ -15,18 +15,24 @@ namespace MedicalApp.Controllers
     {
         private readonly AppDbContext _db;
         private readonly PdfReportGenerator _pdfGenerator;
+        private readonly EvolutionPdfGenerator _evolutionPdf;
         private readonly ArchiveAccessService _archiveAccess;
+        private readonly IEmailService _emailService;
         private readonly ILogger<ProfilesController> _logger;
 
         public ProfilesController(
             AppDbContext db,
             PdfReportGenerator pdfGenerator,
+            EvolutionPdfGenerator evolutionPdf,
             ArchiveAccessService archiveAccess,
+            IEmailService emailService,
             ILogger<ProfilesController> logger)
         {
             _db = db;
             _pdfGenerator = pdfGenerator;
+            _evolutionPdf = evolutionPdf;
             _archiveAccess = archiveAccess;
+            _emailService = emailService;
             _logger = logger;
         }
 
@@ -722,6 +728,126 @@ namespace MedicalApp.Controllers
 
             var vm = await BuildEvolutionAsync(profile, codeList);
             return View(vm);
+        }
+
+        // ====================================================================
+        // EVOLUTION EXPORT — generate PDF on the server (embedding the Chart.js
+        // PNG produced client-side via canvas.toDataURL) and either DOWNLOAD it
+        // or EMAIL it to the logged-in user. No credit cost.
+        // ====================================================================
+        public class EvolutionExportRequest
+        {
+            public int ProfileId { get; set; }
+            /// <summary>Comma/space-separated LOINC codes (same payload as the view query).</summary>
+            public string Codes { get; set; } = string.Empty;
+            /// <summary>
+            /// PNG data URL produced by the canvas. Example:
+            /// <c>"data:image/png;base64,iVBORw0KGgoAAAA..."</c>. May be empty
+            /// if the user didn't wait for the chart to render — the PDF then
+            /// contains only the tables.
+            /// </summary>
+            public string? ChartPngDataUrl { get; set; }
+            /// <summary>"download" or "email".</summary>
+            public string Mode { get; set; } = "download";
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EvolutionExport([FromForm] EvolutionExportRequest req)
+        {
+            if (string.IsNullOrEmpty(CurrentEmail))
+                return Unauthorized();
+
+            var profile = await _db.Profiles.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == req.ProfileId && p.UserEmail == CurrentEmail);
+            if (profile == null)
+                return NotFound("Profil inexistent.");
+
+            var codeList = (req.Codes ?? string.Empty)
+                .Split(new[] { ',', ';', '\n', '\r', '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(EvolutionViewModel.MaxSelections)
+                .ToList();
+
+            if (codeList.Count < EvolutionViewModel.MinSelections)
+                return BadRequest("Trebuie cel puțin un cod LOINC.");
+
+            var vm = await BuildEvolutionAsync(profile, codeList);
+
+            // Decode the chart PNG from the data URL (best effort — pass null
+            // to the PDF generator if it's missing/malformed).
+            byte[]? png = null;
+            if (!string.IsNullOrWhiteSpace(req.ChartPngDataUrl))
+            {
+                var commaIdx = req.ChartPngDataUrl.IndexOf(',');
+                if (commaIdx > 0)
+                {
+                    try
+                    {
+                        png = Convert.FromBase64String(req.ChartPngDataUrl[(commaIdx + 1)..]);
+                    }
+                    catch (FormatException ex)
+                    {
+                        _logger.LogWarning(ex, "EvolutionExport: invalid base64 in ChartPngDataUrl, dropping image.");
+                    }
+                }
+            }
+
+            byte[] pdfBytes;
+            try
+            {
+                pdfBytes = _evolutionPdf.Generate(vm, png);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "EvolutionExport: PDF generation failed.");
+                return StatusCode(500, "Generarea PDF a eșuat. Vezi log-ul aplicației.");
+            }
+
+            var fileName = $"Evolutie_{Sanitize(profile.Name)}_{DateTime.Now:yyyyMMdd_HHmm}.pdf";
+
+            if (string.Equals(req.Mode, "email", StringComparison.OrdinalIgnoreCase))
+            {
+                var html =
+                    $"<p>Bună,</p>" +
+                    $"<p>Ai cerut raportul de evoluție în timp pentru profilul " +
+                    $"<strong>{System.Net.WebUtility.HtmlEncode(profile.Name)}</strong>. " +
+                    $"Îl găsești atașat acestui email ({vm.Series.Count} analize, " +
+                    $"{vm.Series.Sum(s => s.Points.Count)} măsurători).</p>" +
+                    $"<p>Coduri LOINC incluse: <code>{System.Net.WebUtility.HtmlEncode(string.Join(", ", codeList))}</code></p>" +
+                    $"<p>O zi bună!<br/>— MedicalApp</p>";
+                try
+                {
+                    await _emailService.SendEmailWithAttachmentAsync(
+                        CurrentEmail,
+                        $"Evoluție analize — {profile.Name}",
+                        html,
+                        pdfBytes,
+                        fileName);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "EvolutionExport: email send failed to {Email}.", CurrentEmail);
+                    TempData["ErrorMessage"] = "Trimiterea emailului a eșuat. Încearcă „Descarcă PDF" în schimb.";
+                    return RedirectToAction(nameof(Evolution),
+                        new { profileId = req.ProfileId, codes = string.Join(",", codeList) });
+                }
+
+                TempData["SuccessMessage"] = $"Raportul a fost trimis pe email la {CurrentEmail}.";
+                return RedirectToAction(nameof(Evolution),
+                    new { profileId = req.ProfileId, codes = string.Join(",", codeList) });
+            }
+
+            // Default: stream the file back as a download.
+            return File(pdfBytes, "application/pdf", fileName);
+        }
+
+        private static string Sanitize(string s)
+        {
+            var chars = s.Select(ch => (char.IsLetterOrDigit(ch) || ch == '-' || ch == '_') ? ch : '_').ToArray();
+            return new string(chars);
         }
 
         private async Task<EvolutionViewModel> BuildEvolutionAsync(Profile profile, List<string> codes)

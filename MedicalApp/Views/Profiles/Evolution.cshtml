@@ -25,13 +25,39 @@
                 <span class="badge bg-secondary align-self-center" data-testid="evolution-series-count">
                     @Model.Series.Count analize
                 </span>
-                <div class="ms-auto">
+                <div class="ms-auto d-flex gap-2 flex-wrap">
+                    @if (Model.Series.Any())
+                    {
+                        <button type="button" id="btnExportDownload"
+                                class="btn btn-outline-primary"
+                                data-testid="btn-export-download">
+                            &#128229; Descarcă PDF
+                        </button>
+                        <button type="button" id="btnExportEmail"
+                                class="btn btn-outline-success"
+                                data-testid="btn-export-email">
+                            &#9993; Trimite pe email
+                        </button>
+                    }
                     <a asp-action="History" asp-route-id="@Model.ProfileId"
                        class="btn btn-outline-secondary" data-testid="btn-back-history">
-                        &larr; Înapoi la arhivă
+                        &larr; Arhivă
                     </a>
                 </div>
             </div>
+
+            @if (TempData["SuccessMessage"] != null)
+            {
+                <div class="alert alert-success" data-testid="evolution-success">
+                    @TempData["SuccessMessage"]
+                </div>
+            }
+            @if (TempData["ErrorMessage"] != null)
+            {
+                <div class="alert alert-danger" data-testid="evolution-error">
+                    @TempData["ErrorMessage"]
+                </div>
+            }
 
             @if (Model.CodesNotFound.Any())
             {
@@ -134,6 +160,15 @@
 
 @if (Model.Series.Any())
 {
+    @* Hidden form used to POST the chart PNG + payload to EvolutionExport.
+       Anti-forgery token is auto-injected by the form tag helper. *@
+    <form id="evolutionExportForm" asp-action="EvolutionExport" method="post" style="display:none;">
+        <input type="hidden" name="ProfileId" value="@Model.ProfileId" />
+        <input type="hidden" name="Codes" value="@string.Join(",", Model.RequestedCodes)" />
+        <input type="hidden" name="Mode" id="evolutionExportMode" value="download" />
+        <input type="hidden" name="ChartPngDataUrl" id="evolutionExportPng" value="" />
+    </form>
+
     @* Pass the model to JS as a JSON island so Chart.js can hydrate the canvas. *@
     <script id="evolutionData" type="application/json">
         @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
@@ -230,16 +265,45 @@
                 }
             });
 
+            // ---- Chart.js plugin: force a white canvas background so the
+            //      exported PNG looks the same when embedded in a PDF or in
+            //      an email body (transparent PNG turns dark on some viewers).
+            const whiteBgPlugin = {
+                id: 'whiteBackground',
+                beforeDraw: function (chart) {
+                    const c = chart.canvas.getContext('2d');
+                    c.save();
+                    c.globalCompositeOperation = 'destination-over';
+                    c.fillStyle = '#ffffff';
+                    c.fillRect(0, 0, chart.width, chart.height);
+                    c.restore();
+                }
+            };
+
             // ---- Render ----
             const ctx = document.getElementById('evolutionChart').getContext('2d');
             // eslint-disable-next-line no-new
-            new Chart(ctx, {
+            const evolutionChartInstance = new Chart(ctx, {
                 type: 'line',
                 data: { datasets: datasets },
+                plugins: [whiteBgPlugin],
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     interaction: { mode: 'nearest', intersect: false },
+                    // White background helps when the canvas is exported to PNG
+                    // and embedded in a PDF (otherwise it stays transparent and
+                    // ends up dark on PDF viewers with dark mode).
+                    animation: {
+                        onComplete: function () {
+                            // Cache the rendered PNG once animations finish so
+                            // the "Descarcă PDF" / "Trimite pe email" buttons
+                            // can grab it instantly.
+                            try {
+                                window.__evolutionChartPng = evolutionChartInstance.toBase64Image('image/png', 1.0);
+                            } catch (e) { /* ignore */ }
+                        }
+                    },
                     scales: {
                         x: {
                             type: 'category',
@@ -273,6 +337,39 @@
                         }
                     }
                 }
+            });
+
+            // ---- Hook up the export buttons ----
+            // Both buttons grab the cached PNG from window.__evolutionChartPng,
+            // stuff it in the hidden form, set the Mode field and submit. We
+            // use a server round-trip (instead of a client-side jsPDF) because
+            // QuestPDF on the server produces consistent, multi-page output
+            // and already integrates with the email service.
+            function submitExport(mode) {
+                const form = document.getElementById('evolutionExportForm');
+                const pngField = document.getElementById('evolutionExportPng');
+                const modeField = document.getElementById('evolutionExportMode');
+                if (!form || !pngField || !modeField) return;
+
+                // Force a fresh capture in case the user clicked before the
+                // animation-complete hook fired the first time.
+                let png = window.__evolutionChartPng;
+                try {
+                    png = evolutionChartInstance.toBase64Image('image/png', 1.0) || png;
+                } catch (e) { /* ignore */ }
+
+                pngField.value = png || '';
+                modeField.value = mode;
+                form.submit();
+            }
+
+            const btnDl = document.getElementById('btnExportDownload');
+            const btnMail = document.getElementById('btnExportEmail');
+            if (btnDl)   btnDl.addEventListener('click', () => submitExport('download'));
+            if (btnMail) btnMail.addEventListener('click', () => {
+                btnMail.disabled = true;
+                btnMail.innerHTML = '⏳ Se trimite...';
+                submitExport('email');
             });
         })();
     </script>

@@ -61,6 +61,7 @@ builder.Services.AddScoped<IMedicalInterpretationProvider>(sp =>
 });
 
 builder.Services.AddSingleton<PdfReportGenerator>();
+builder.Services.AddSingleton<EvolutionPdfGenerator>();
 
 // In-memory cache (used to briefly hold uploaded PDF bytes while the user
 // decides what to do about a duplicate-interpretation detection).
