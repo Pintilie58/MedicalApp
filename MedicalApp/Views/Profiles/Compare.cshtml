@@ -156,6 +156,12 @@
                                               data-testid="compare-row-loinc-@row.LoincCode">
                                             LOINC @row.LoincCode
                                         </span>
+                                        <span class="badge ms-1 small @MedicalApp.Services.LoincSourceBadge.GetBadgeClass(row.LoincSource)"
+                                              title="@MedicalApp.Services.LoincSourceBadge.GetTooltip(row.LoincSource)"
+                                              data-testid="compare-row-source-@row.LoincSource">
+                                            @MedicalApp.Services.LoincSourceBadge.GetGlyph(row.LoincSource)
+                                            @MedicalApp.Services.LoincSourceBadge.GetLabel(row.LoincSource)
+                                        </span>
                                     }
                                 </td>
                                 @foreach (var cell in row.Cells)
@@ -197,6 +203,12 @@
                 &#8600; albastru = scăzută &nbsp;·&nbsp;
                 = neschimbat &nbsp;·&nbsp;
                 galben „—" = parametru lipsă în interpretarea respectivă.
+                <br />
+                <span class="badge bg-success-subtle text-success border border-success-subtle small">✓ verificat</span>
+                — codul LOINC este garantat corect (folosit de sistemele medicale).
+                &nbsp;
+                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle small">~ auto</span>
+                — codul a fost sugerat automat de matcher (verifică pe loinc.org dacă e analiză rară).
             </p>
         </div>
     </div>

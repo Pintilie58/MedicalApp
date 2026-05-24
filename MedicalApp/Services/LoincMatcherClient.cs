@@ -93,6 +93,7 @@ namespace MedicalApp.Services
                 kr.LoincCode = match.Loinc;
                 kr.LoincLongName = match.Name;
                 kr.LoincClass = match.LoincClass;
+                kr.LoincSource = match.LoincSource;
                 kr.LoincConfidence = match.Score switch
                 {
                     >= 0.85 => "high",
@@ -102,8 +103,8 @@ namespace MedicalApp.Services
                 stats.Matched++;
 
                 _logger.LogInformation(
-                    "LoincMatcher: \"{Param}\" [normalized_en=\"{NormEn}\"] -> {Code} \"{Name}\" (score {Score:F2}, confidence {Conf}, class {Class}).",
-                    kr.Parameter, kr.ParameterNormalizedEn, match.Loinc, match.Name, match.Score, kr.LoincConfidence, match.LoincClass ?? "(none)");
+                    "LoincMatcher: \"{Param}\" [normalized_en=\"{NormEn}\"] -> {Code} \"{Name}\" (score {Score:F2}, confidence {Conf}, class {Class}, source {Source}).",
+                    kr.Parameter, kr.ParameterNormalizedEn, match.Loinc, match.Name, match.Score, kr.LoincConfidence, match.LoincClass ?? "(none)", match.LoincSource ?? "(none)");
             }
 
             _logger.LogInformation(
@@ -153,13 +154,14 @@ namespace MedicalApp.Services
 
         private class MatcherResponse
         {
-            [JsonPropertyName("loinc")]       public string Loinc { get; set; } = string.Empty;
-            [JsonPropertyName("name")]        public string Name { get; set; } = string.Empty;
-            [JsonPropertyName("score")]       public double Score { get; set; }
-            [JsonPropertyName("component")]   public string? Component { get; set; }
-            [JsonPropertyName("system")]      public string? System { get; set; }
-            [JsonPropertyName("method")]      public string? Method { get; set; }
-            [JsonPropertyName("loinc_class")] public string? LoincClass { get; set; }
+            [JsonPropertyName("loinc")]        public string Loinc { get; set; } = string.Empty;
+            [JsonPropertyName("name")]         public string Name { get; set; } = string.Empty;
+            [JsonPropertyName("score")]        public double Score { get; set; }
+            [JsonPropertyName("component")]    public string? Component { get; set; }
+            [JsonPropertyName("system")]       public string? System { get; set; }
+            [JsonPropertyName("method")]       public string? Method { get; set; }
+            [JsonPropertyName("loinc_class")]  public string? LoincClass { get; set; }
+            [JsonPropertyName("loinc_source")] public string? LoincSource { get; set; }
         }
 
         public class MatcherStats

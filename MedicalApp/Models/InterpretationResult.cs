@@ -161,6 +161,25 @@ namespace MedicalApp.Models
             /// </summary>
             [JsonPropertyName("loinc_class")]
             public string? LoincClass { get; set; }
+
+            /// <summary>
+            /// Provenance of the LOINC mapping. Two values are produced by
+            /// the Python matcher:
+            /// <list type="bullet">
+            ///   <item><c>"anchor"</c> — hard-curated canonical mapping
+            ///     (score 1.0, deterministic). Safe to badge in the UI as
+            ///     "cod LOINC verificat" — gives the patient confidence
+            ///     that common analytes (CBC, lipid panel, liver enzymes)
+            ///     are mapped to the exact official LOINC code.</item>
+            ///   <item><c>"semantic"</c> — produced by the embedding +
+            ///     fuzzy + rules pipeline (probabilistic). Badged in the UI
+            ///     as "cod sugerat automat".</item>
+            /// </list>
+            /// Null only on legacy rows interpreted before this column
+            /// was added.
+            /// </summary>
+            [JsonPropertyName("loinc_source")]
+            public string? LoincSource { get; set; }
         }
 
         public class AbnormalFinding

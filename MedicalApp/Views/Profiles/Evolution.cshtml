@@ -104,6 +104,11 @@
                                       title="@s.LoincLongName">
                                     LOINC @s.LoincCode
                                 </span>
+                                <span class="badge ms-1 small fw-normal @MedicalApp.Services.LoincSourceBadge.GetBadgeClass(s.LoincSource)"
+                                      title="@MedicalApp.Services.LoincSourceBadge.GetTooltip(s.LoincSource)">
+                                    @MedicalApp.Services.LoincSourceBadge.GetGlyph(s.LoincSource)
+                                    @MedicalApp.Services.LoincSourceBadge.GetLabel(s.LoincSource)
+                                </span>
                                 <span class="badge bg-secondary ms-1 small fw-normal">@s.ClassDisplayLabel</span>
                             </h5>
                             @if (!string.IsNullOrWhiteSpace(s.LoincLongName))

@@ -172,6 +172,13 @@ namespace MedicalApp.Models
             public string ClassDisplayLabel { get; set; } = "Alte analize";
 
             /// <summary>
+            /// Provenance of the LOINC code: "anchor" (verified canonical
+            /// mapping) or "semantic" (matcher best-guess). Drives the small
+            /// green/yellow badge next to the LOINC code on each row.
+            /// </summary>
+            public string? LoincSource { get; set; }
+
+            /// <summary>
             /// True iff this row is the FIRST in its class group. The view
             /// uses this flag to render a section header above the row.
             /// </summary>
@@ -256,6 +263,14 @@ namespace MedicalApp.Models
 
             /// <summary>Color hint for the chart (hex). Assigned by the controller in order.</summary>
             public string ColorHex { get; set; } = "#0d6efd";
+
+            /// <summary>
+            /// Provenance of the LOINC code for this series ("anchor" or
+            /// "semantic"). Picked from the most recent measurement that
+            /// carried the field. Drives the green/yellow verification
+            /// badge in the series header.
+            /// </summary>
+            public string? LoincSource { get; set; }
 
             public List<EvolutionPoint> Points { get; set; } = new();
         }

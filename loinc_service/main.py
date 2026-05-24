@@ -79,6 +79,9 @@ class LoincResponse(BaseModel):
     # to the C# pipeline so the Compare view can group parameters by medical
     # specialty. Null when the LoincDictionary row has no CLASS value.
     loinc_class: str | None = None
+    # Provenance: "anchor" => hard-coded canonical mapping (score=1.0,
+    # patient-grade certainty). "semantic" => embedding+fuzzy+rules pipeline.
+    loinc_source: str = "semantic"
 
 
 # -------------------- Endpoints --------------------

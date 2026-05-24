@@ -257,6 +257,16 @@ namespace MedicalApp.Services
                                         text.Span("  ·  ").FontSize(7).FontColor(MutedText);
                                         text.Span(r.LoincLongName!).FontSize(7).FontColor(MutedText);
                                     }
+                                    // Trust badge: a tiny green check on anchor-mapped
+                                    // codes vs a yellow "auto" tag on semantic guesses.
+                                    // Lives in the same line as the LOINC code so the
+                                    // table layout doesn't grow vertically — readers
+                                    // recognize "verified" at a glance.
+                                    text.Span("   ").FontSize(7);
+                                    text.Span(LoincSourceBadge.GetGlyph(r.LoincSource) + " " +
+                                              LoincSourceBadge.GetLabel(r.LoincSource))
+                                        .FontSize(7).SemiBold()
+                                        .FontColor(LoincSourceBadge.GetPdfColor(r.LoincSource));
                                 });
                             }
                         });

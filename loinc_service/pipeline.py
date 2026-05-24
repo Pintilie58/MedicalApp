@@ -73,6 +73,13 @@ class MatchResult:
     method: Optional[str]
     score: float
     loinc_class: Optional[str] = None
+    # Provenance of the LOINC mapping. "anchor" => hard-curated anchor in
+    # canonical_anchors.py (deterministic, score 1.0). "semantic" => result
+    # of the embedding + fuzzy + rules pipeline (probabilistic). The UI uses
+    # this to badge anchored parameters as "verified" and semantic ones as
+    # "auto-suggested" — important for patient confidence on common analytes
+    # (CBC, lipid panel, liver enzymes) where anchors give certainty.
+    source: str = "semantic"
 
     def to_dict(self) -> dict:
         return {
@@ -84,6 +91,7 @@ class MatchResult:
             "method": self.method,
             "score": float(self.score),
             "loinc_class": self.loinc_class,
+            "loinc_source": self.source,
         }
 
 
@@ -240,6 +248,7 @@ def find_loinc(test_name: str) -> Optional[MatchResult]:
                 method=meta.get("method"),
                 score=1.0,
                 loinc_class=meta.get("class"),
+                source="anchor",
             )
         # Anchor code not present in the loaded LoincDictionary — log a
         # warning ONCE and fall through to the semantic matcher so we

@@ -546,6 +546,7 @@ namespace MedicalApp.Controllers
                     // view can show a tooltip / badge. Null on name-fallback rows.
                     LoincCode = k.StartsWith("loinc:") ? meta?.LoincCode : null,
                     LoincLongName = k.StartsWith("loinc:") ? meta?.LoincLongName : null,
+                    LoincSource = k.StartsWith("loinc:") ? meta?.LoincSource : null,
                     LoincClass = rowClass,
                     ClassDisplayLabel = classLabel,
                     // First row in each class group triggers a section header
@@ -920,6 +921,7 @@ namespace MedicalApp.Controllers
                     // and reference range (which can change between labs).
                     s.DisplayParameter = kr.Parameter ?? code;
                     s.LoincLongName = kr.LoincLongName ?? s.LoincLongName;
+                    s.LoincSource = kr.LoincSource ?? s.LoincSource;
                     s.ClassDisplayLabel = Services.LoincClassDisplay.GetLabel(kr.LoincClass);
                     s.Unit = kr.Unit ?? s.Unit;
                     s.ReferenceRange = kr.ReferenceRange ?? s.ReferenceRange;
