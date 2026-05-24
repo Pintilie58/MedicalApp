@@ -124,6 +124,84 @@
             </div>
         </div>
     </div>
+
+    <!-- ============================================================ -->
+    <!-- AI USAGE WIDGET — Gemini Flash vs Pro split, last 30 days     -->
+    <!-- ============================================================ -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow-sm" data-testid="admin-ai-usage-card">
+                <div class="card-header bg-info text-white fw-semibold d-flex align-items-center">
+                    <span>&#129302; AI usage (Gemini) &mdash; last 30 days</span>
+                    <span class="ms-auto small">
+                        Total est. cost:
+                        <strong data-testid="admin-ai-total-cost">$@Model.AiCost30DaysUsd.ToString("F2")</strong>
+                        &nbsp;&middot;&nbsp; Fallback to Pro:
+                        <strong data-testid="admin-ai-fallback-pct">@Model.AiFallbackRatioPct.ToString("F1")%</strong>
+                    </span>
+                </div>
+                <div class="card-body">
+                    @if (!Model.AiUsage30Days.Any())
+                    {
+                        <p class="text-muted mb-0">
+                            No successful Gemini interpretations were recorded in the last 30 days.
+                        </p>
+                    }
+                    else
+                    {
+                        <div class="row g-3">
+                            <!-- Numeric cards per model -->
+                            <div class="col-lg-7">
+                                <div class="row g-2">
+                                    @foreach (var u in Model.AiUsage30Days)
+                                    {
+                                        <div class="col-md-6">
+                                            <div class="border rounded p-3 h-100"
+                                                 data-testid="admin-ai-row-@u.ShortName">
+                                                <div class="d-flex align-items-center mb-2">
+                                                    <span class="badge @u.BadgeClass">@u.ShortName</span>
+                                                    <small class="text-muted ms-2">@u.ModelId</small>
+                                                </div>
+                                                <div class="d-flex flex-wrap gap-3">
+                                                    <div>
+                                                        <div class="small text-muted">Calls</div>
+                                                        <div class="fs-5 fw-bold">@u.Count</div>
+                                                    </div>
+                                                    <div>
+                                                        <div class="small text-muted">In tokens</div>
+                                                        <div class="fs-6">@u.InputTokens.ToString("N0")</div>
+                                                    </div>
+                                                    <div>
+                                                        <div class="small text-muted">Out tokens</div>
+                                                        <div class="fs-6">@u.OutputTokens.ToString("N0")</div>
+                                                    </div>
+                                                    <div>
+                                                        <div class="small text-muted">Est. cost</div>
+                                                        <div class="fs-6 fw-semibold">
+                                                            $@u.EstimatedCostUsd.ToString("F2")
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                                <p class="small text-muted mt-3 mb-0">
+                                    The fallback ratio shows the percentage of successful interpretations
+                                    that ran on the Pro model after Flash returned repeated 503 errors.
+                                    Higher = Flash is congested or unstable (consider rate-limiting users).
+                                </p>
+                            </div>
+                            <!-- Doughnut chart -->
+                            <div class="col-lg-5">
+                                <canvas id="aiUsageChart" height="220"></canvas>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 @section Scripts {
@@ -156,5 +234,49 @@
             }
         });
     })();
-</script>
+    </script>
+
+    <!-- AI usage doughnut: Flash vs Pro split of successful interpretations -->
+    <script>
+        (function () {
+            var aiCtx = document.getElementById('aiUsageChart');
+            if (!aiCtx) return;
+            var aiLabels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                Model.AiUsage30Days.Select(u => u.ShortName + " (" + u.ModelId + ")")));
+            var aiCounts = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                Model.AiUsage30Days.Select(u => u.Count)));
+            // Mirror the badge palette: Flash=green, Pro=amber, Other=grey.
+            var aiColors = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                Model.AiUsage30Days.Select(u =>
+                    u.ShortName == "Flash" ? "#198754" :
+                    u.ShortName == "Pro"   ? "#ffc107" :
+                                             "#6c757d")));
+            new Chart(aiCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: aiLabels,
+                    datasets: [{
+                        data: aiCounts,
+                        backgroundColor: aiColors,
+                        borderWidth: 1,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: function (item) {
+                                    var total = item.dataset.data.reduce(function (a, b) { return a + b; }, 0);
+                                    var pct = total > 0 ? (100 * item.parsed / total).toFixed(1) : "0.0";
+                                    return item.label + ': ' + item.parsed + ' (' + pct + '%)';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        })();
+    </script>
 }

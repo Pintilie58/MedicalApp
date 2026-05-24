@@ -87,6 +87,36 @@ namespace MedicalApp.Models
 
         /// <summary>Last 30 days: (date, amount) for simple chart.</summary>
         public List<DailyRevenue> RevenueChart { get; set; } = new();
+
+        // ----- AI usage widget (Flash vs Pro, last 30 days) -----
+        // Populated by AdminController.Index. Only counts SUCCESSFUL
+        // interpretations because rejected / errored runs may have no token
+        // accounting. ModelUsage entries are sorted by Count DESC.
+        public List<ModelUsageRow> AiUsage30Days { get; set; } = new();
+
+        /// <summary>Total estimated cost (USD) across all models in the last 30 days.</summary>
+        public decimal AiCost30DaysUsd { get; set; }
+
+        /// <summary>
+        /// Percentage of successful Gemini interpretations in the last 30 days
+        /// that ran on the Pro fallback model (proxy for "how often is Flash
+        /// being congested?"). 0..100. Zero when there were no Gemini calls.
+        /// </summary>
+        public double AiFallbackRatioPct { get; set; }
+    }
+
+    public class ModelUsageRow
+    {
+        /// <summary>Pretty short label for the chart legend (e.g. "Flash", "Pro", "Other").</summary>
+        public string ShortName { get; set; } = string.Empty;
+        /// <summary>Raw model id stored in the DB (e.g. "gemini-2.5-flash").</summary>
+        public string ModelId { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public long InputTokens { get; set; }
+        public long OutputTokens { get; set; }
+        public decimal EstimatedCostUsd { get; set; }
+        /// <summary>Tailwind-like bootstrap color class, picked by the controller.</summary>
+        public string BadgeClass { get; set; } = "bg-secondary";
     }
 
     public class TopSpender

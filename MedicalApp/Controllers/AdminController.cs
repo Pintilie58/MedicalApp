@@ -4,6 +4,7 @@ using MedicalApp.Models;
 using MedicalApp.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace MedicalApp.Controllers
 {
@@ -13,17 +14,20 @@ namespace MedicalApp.Controllers
         private readonly AppDbContext _db;
         private readonly IEmailService _emailService;
         private readonly DailySummaryService _dailySummaryService;
+        private readonly GeminiPricing _pricing;
         private readonly ILogger<AdminController> _logger;
 
         public AdminController(
             AppDbContext db,
             IEmailService emailService,
             DailySummaryService dailySummaryService,
+            IOptions<GeminiPricing> pricing,
             ILogger<AdminController> logger)
         {
             _db = db;
             _emailService = emailService;
             _dailySummaryService = dailySummaryService;
+            _pricing = pricing.Value;
             _logger = logger;
         }
 
@@ -112,6 +116,57 @@ namespace MedicalApp.Controllers
                 .OrderBy(x => x.Date)
                 .ToList();
 
+            // -----------------------------------------------------------------
+            // AI USAGE WIDGET — last 30 days, only SUCCESSFUL interpretations.
+            // Groups by ModelUsed so we can show Flash-vs-Pro split and the
+            // estimated USD spend per model. Legacy rows without ModelUsed are
+            // bucketed under "Unknown" so they remain visible and accountable.
+            // -----------------------------------------------------------------
+            var aiRaw = await _db.InterpretationHistories
+                .AsNoTracking()
+                .Where(h => h.Status == "success" && h.CreatedAt >= cutoff30)
+                .GroupBy(h => h.ModelUsed)
+                .Select(g => new
+                {
+                    ModelUsed = g.Key,
+                    Count = g.Count(),
+                    InputTokens = g.Sum(h => (long?)h.InputTokens) ?? 0L,
+                    OutputTokens = g.Sum(h => (long?)h.OutputTokens) ?? 0L,
+                })
+                .ToListAsync();
+
+            var aiUsage = aiRaw
+                .Select(r =>
+                {
+                    var price = _pricing.Resolve(r.ModelUsed);
+                    var cost = price.ComputeCost((int)r.InputTokens, (int)r.OutputTokens);
+                    var isPro = (r.ModelUsed ?? string.Empty)
+                        .Contains("pro", StringComparison.OrdinalIgnoreCase);
+                    var isFlash = (r.ModelUsed ?? string.Empty)
+                        .Contains("flash", StringComparison.OrdinalIgnoreCase);
+                    return new ModelUsageRow
+                    {
+                        ModelId = r.ModelUsed ?? "(unknown)",
+                        ShortName = isPro ? "Pro" : isFlash ? "Flash" : (r.ModelUsed ?? "Unknown"),
+                        Count = r.Count,
+                        InputTokens = r.InputTokens,
+                        OutputTokens = r.OutputTokens,
+                        EstimatedCostUsd = cost,
+                        BadgeClass = isPro ? "bg-warning text-dark"
+                                    : isFlash ? "bg-success"
+                                    : "bg-secondary",
+                    };
+                })
+                .OrderByDescending(r => r.Count)
+                .ToList();
+
+            var totalCost = aiUsage.Sum(r => r.EstimatedCostUsd);
+            var totalCalls = aiUsage.Sum(r => r.Count);
+            var proCalls = aiUsage
+                .Where(r => r.ShortName == "Pro")
+                .Sum(r => r.Count);
+            var fallbackPct = totalCalls > 0 ? (100.0 * proCalls / totalCalls) : 0.0;
+
             var vm = new AdminDashboardViewModel
             {
                 TotalUsers = totalUsers,
@@ -130,7 +185,10 @@ namespace MedicalApp.Controllers
                 PurchasesLast30Days = purchases30,
                 ActivePromoCodes = activePromos,
                 TopSpenders = topSpenders,
-                RevenueChart = daily
+                RevenueChart = daily,
+                AiUsage30Days = aiUsage,
+                AiCost30DaysUsd = totalCost,
+                AiFallbackRatioPct = fallbackPct,
             };
 
             return View(vm);

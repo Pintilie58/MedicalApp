@@ -51,5 +51,17 @@ namespace MedicalApp.Models
         /// </summary>
         [StringLength(64)]
         public string? PdfSha256 { get; set; }
+
+        /// <summary>
+        /// Gemini model that actually produced the successful response
+        /// (e.g. <c>gemini-2.5-flash</c> or <c>gemini-2.5-pro</c>). When the
+        /// controller fell back from Flash to Pro because of repeated 503s,
+        /// this column reflects Pro — that's how the admin dashboard
+        /// distinguishes "regular" interpretations from "rescued by Pro".
+        /// NULL on rows created before this column was introduced or when
+        /// the interpretation failed before any model was tried.
+        /// </summary>
+        [StringLength(40)]
+        public string? ModelUsed { get; set; }
     }
 }

@@ -43,6 +43,7 @@ builder.Services.Configure<OpenAISettings>(builder.Configuration.GetSection("Ope
 
 // Gemini service configuration (primary interpretation provider)
 builder.Services.Configure<GeminiSettings>(builder.Configuration.GetSection("Gemini"));
+builder.Services.Configure<GeminiPricing>(builder.Configuration.GetSection("GeminiPricing"));
 
 // Interpretation provider toggle (Gemini default, OpenAI fallback)
 builder.Services.Configure<InterpretationSettings>(builder.Configuration.GetSection("Interpretation"));

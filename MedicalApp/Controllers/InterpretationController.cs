@@ -458,7 +458,8 @@ namespace MedicalApp.Controllers
             // 3) If non-medical, reject without consuming credit
             if (!result.IsMedicalAnalysis)
             {
-                await SaveHistory(user.Email, originalFileName, languageCode, "rejected", result.RejectionReason, 0, inputTokens, outputTokens, profile.Id, rawGptResponse, pdfHash);
+                await SaveHistory(user.Email, originalFileName, languageCode, "rejected", result.RejectionReason, 0, inputTokens, outputTokens, profile.Id, rawGptResponse, pdfHash,
+                    modelUsed: useGemini ? (currentModelOverride ?? _geminiSettings.Model) : null);
                 TempData["ErrorMessage"] = string.Format(Loc.T("NotMedicalAnalysisMessage"),
                     result.RejectionReason ?? Loc.T("UnknownReason"));
                 return RedirectToAction(nameof(Upload));
@@ -596,7 +597,8 @@ namespace MedicalApp.Controllers
             }
             await _db.SaveChangesAsync();
 
-            await SaveHistory(user.Email, originalFileName, languageCode, "success", null, 1, inputTokens, outputTokens, profile.Id, rawGptResponse, pdfHash);
+            await SaveHistory(user.Email, originalFileName, languageCode, "success", null, 1, inputTokens, outputTokens, profile.Id, rawGptResponse, pdfHash,
+                modelUsed: useGemini ? (currentModelOverride ?? _geminiSettings.Model) : null);
 
             // OVERRIDE on force re-interpret: the user explicitly paid for a fresh
             // run, and we want a single canonical row per (user, profile, pdfHash)
@@ -630,7 +632,7 @@ namespace MedicalApp.Controllers
 
         private async Task SaveHistory(string email, string? file, string? lang, string status,
             string? errorMsg, int credits, int? inTok, int? outTok, int? profileId = null,
-            string? rawJson = null, string? pdfSha256 = null)
+            string? rawJson = null, string? pdfSha256 = null, string? modelUsed = null)
         {
             _db.InterpretationHistories.Add(new InterpretationHistory
             {
@@ -645,6 +647,7 @@ namespace MedicalApp.Controllers
                 ProfileId = profileId,
                 RawJsonResult = rawJson,
                 PdfSha256 = pdfSha256,
+                ModelUsed = modelUsed,
                 CreatedAt = DateTime.UtcNow
             });
             await _db.SaveChangesAsync();
