@@ -92,6 +92,11 @@ _RAW_ANCHORS: dict[str, str] = {
     "Prothrombin time [Time]": "5902-2",
     "Prothrombin time [Time] in Platelet poor plasma by Coagulation assay": "5902-2",
     "Prothrombin time in Platelet poor plasma by Coagulation assay": "5902-2",
+    # "Timp de protrombina QUICK" — Romanian labs sometimes ship this with the
+    # method suffix already in English; force the official PT code regardless
+    # of the suffix variant the model emits.
+    "Prothrombin time (PT) in Platelet poor plasma by Coagulation assay": "5902-2",
+    "Prothrombin time (PT) in Plasma by Coagulation assay": "5902-2",
     "Prothrombin time (PT) actual/normal": "5894-1",
     "INR in Platelet poor plasma by Coagulation assay": "6301-6",
 
@@ -108,6 +113,16 @@ _RAW_ANCHORS: dict[str, str] = {
     # calculated code so the Compare view groups them on a single row.
     "Cholesterol in VLDL [Mass/volume] in Serum or Plasma": "13458-5",
     "Triglyceride [Mass/volume] in Serum or Plasma": "2571-8",
+    # Plural form — Gemini occasionally emits "Triglycerides" instead of the
+    # singular canonical form. Map both to the same official code so the
+    # parameter shows "verificat" regardless of the spelling choice.
+    "Triglycerides [Mass/volume] in Serum or Plasma": "2571-8",
+    # Total lipids panel — Romanian labs commonly include a "Lipide totale"
+    # line. LOINC 2569-2 = "Lipids [Mass/volume] in Serum".
+    "Lipids [Mass/volume] in Serum": "2569-2",
+    "Lipids [Mass/volume] in Serum or Plasma": "2569-2",
+    "Total lipids [Mass/volume] in Serum": "2569-2",
+    "Total lipids [Mass/volume] in Serum or Plasma": "2569-2",
 
     # ----- Liver enzymes -----
     "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma": "1742-6",
@@ -127,6 +142,18 @@ _RAW_ANCHORS: dict[str, str] = {
     # ----- Glucose / diabetes -----
     "Glucose [Mass/volume] in Serum or Plasma": "2345-7",
     "Hemoglobin A1c/Hemoglobin.total in Blood": "4548-4",
+    # Insulin — multiple LOINC codes exist for different units; we cover the
+    # two most common (Units/volume and Mass/volume) and they all map to the
+    # standard fasting insulin code.
+    "Insulin [Units/volume] in Serum or Plasma": "20448-7",
+    "Insulin [Mass/volume] in Serum or Plasma": "1558-6",
+    "Fasting insulin [Units/volume] in Serum or Plasma": "1554-5",
+    # HOMA-IR — insulin resistance score. LOINC 92845-7 is the Quest
+    # CardioIQ panel calc; some labs use 92843-2 (basic HOMA). We point both
+    # spellings to 92845-7 (used by most Romanian labs based on user logs).
+    "Insulin resistance score in Serum by Calculated.CardioIQ": "92845-7",
+    "Insulin resistance score in Serum by Calculated": "92845-7",
+    "HOMA-IR in Serum or Plasma by Calculated": "92845-7",
 
     # ----- Electrolytes -----
     "Sodium [Moles/volume] in Serum or Plasma": "2951-2",
@@ -134,6 +161,20 @@ _RAW_ANCHORS: dict[str, str] = {
     "Chloride [Moles/volume] in Serum or Plasma": "2075-0",
     "Magnesium [Mass/volume] in Serum or Plasma": "19123-9",
     "Calcium [Mass/volume] in Serum or Plasma": "17861-6",
+    # Ionized calcium — DIFFERENT analyte from total calcium (only the free
+    # fraction). LOINC 17863-2 is mass/volume in serum or plasma; 1995-0 is
+    # the moles/volume variant; both map to the same Romanian "Calciu ionic".
+    "Calcium.ionized [Mass/volume] in Serum or Plasma": "17863-2",
+    "Calcium.ionized [Moles/volume] in Serum or Plasma": "1995-0",
+    "Ionized calcium [Mass/volume] in Serum or Plasma": "17863-2",
+    "Phosphate [Mass/volume] in Serum or Plasma": "2777-1",
+
+    # ----- Serum proteins -----
+    # "Proteine totale serice" — official LOINC 2885-2.
+    "Protein [Mass/volume] in Serum or Plasma": "2885-2",
+    "Total protein [Mass/volume] in Serum or Plasma": "2885-2",
+    "Albumin [Mass/volume] in Serum or Plasma": "1751-7",
+    "Globulin [Mass/volume] in Serum or Plasma by calculation": "10834-0",
 
     # ----- Inflammation / acute phase -----
     "C-reactive protein [Mass/volume] in Serum or Plasma": "1988-5",
