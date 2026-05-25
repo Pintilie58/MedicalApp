@@ -151,9 +151,20 @@ _RAW_ANCHORS: dict[str, str] = {
     # HOMA-IR — insulin resistance score. LOINC 92845-7 is the Quest
     # CardioIQ panel calc; some labs use 92843-2 (basic HOMA). We point both
     # spellings to 92845-7 (used by most Romanian labs based on user logs).
+    # Gemini occasionally drops the ".CardioIQ" suffix, expands to "by
+    # calculation" or uses the Romanian/medical shortcut "HOMA-IR" — all
+    # variants must hit the same code so the badge stays green.
     "Insulin resistance score in Serum by Calculated.CardioIQ": "92845-7",
+    "Insulin resistance score [Score] in Serum by Calculated.CardioIQ": "92845-7",
+    "Insulin resistance score in Serum or Plasma by Calculated.CardioIQ": "92845-7",
     "Insulin resistance score in Serum by Calculated": "92845-7",
+    "Insulin resistance score in Serum by calculation": "92845-7",
+    "Insulin resistance score [Score] in Serum by Calculated": "92845-7",
+    "HOMA-IR": "92845-7",
     "HOMA-IR in Serum or Plasma by Calculated": "92845-7",
+    "HOMA-IR [Score] in Serum or Plasma by Calculated": "92845-7",
+    "HOMA-IR in Serum by Calculated": "92845-7",
+    "Homeostatic model assessment of insulin resistance": "92845-7",
 
     # ----- Electrolytes -----
     "Sodium [Moles/volume] in Serum or Plasma": "2951-2",
@@ -164,9 +175,16 @@ _RAW_ANCHORS: dict[str, str] = {
     # Ionized calcium — DIFFERENT analyte from total calcium (only the free
     # fraction). LOINC 17863-2 is mass/volume in serum or plasma; 1995-0 is
     # the moles/volume variant; both map to the same Romanian "Calciu ionic".
+    # We carry MULTIPLE spelling variants because Gemini's output drifts
+    # between the official LOINC form (with dot: "Calcium.ionized") and the
+    # natural-English form (with space: "Calcium ionized") and the inverted
+    # form ("Ionized calcium"). All five variants must hit the same code.
     "Calcium.ionized [Mass/volume] in Serum or Plasma": "17863-2",
+    "Calcium ionized [Mass/volume] in Serum or Plasma": "17863-2",
     "Calcium.ionized [Moles/volume] in Serum or Plasma": "1995-0",
+    "Calcium ionized [Moles/volume] in Serum or Plasma": "1995-0",
     "Ionized calcium [Mass/volume] in Serum or Plasma": "17863-2",
+    "Ionized calcium [Moles/volume] in Serum or Plasma": "1995-0",
     "Phosphate [Mass/volume] in Serum or Plasma": "2777-1",
 
     # ----- Serum proteins -----
