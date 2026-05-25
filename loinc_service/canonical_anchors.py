@@ -123,6 +123,10 @@ _RAW_ANCHORS: dict[str, str] = {
     "Lipids [Mass/volume] in Serum or Plasma": "2569-2",
     "Total lipids [Mass/volume] in Serum": "2569-2",
     "Total lipids [Mass/volume] in Serum or Plasma": "2569-2",
+    # Gemini occasionally inverts the modifier: "Lipids total" instead of
+    # the canonical "Total lipids". Captured here so the badge stays green.
+    "Lipids total [Mass/volume] in Serum": "2569-2",
+    "Lipids total [Mass/volume] in Serum or Plasma": "2569-2",
 
     # ----- Liver enzymes -----
     "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma": "1742-6",
@@ -161,6 +165,12 @@ _RAW_ANCHORS: dict[str, str] = {
     "Insulin resistance score in Serum by calculation": "92845-7",
     "Insulin resistance score [Score] in Serum by Calculated": "92845-7",
     "HOMA-IR": "92845-7",
+    # Free-form descriptive variants Gemini occasionally emits when the lab
+    # report uses the Romanian shortcut "Indice HOMA" instead of a fully
+    # qualified LOINC-style title.
+    "HOMA-IR insulin resistance index": "92845-7",
+    "HOMA-IR index": "92845-7",
+    "Insulin resistance index": "92845-7",
     "HOMA-IR in Serum or Plasma by Calculated": "92845-7",
     "HOMA-IR [Score] in Serum or Plasma by Calculated": "92845-7",
     "HOMA-IR in Serum by Calculated": "92845-7",
@@ -191,6 +201,11 @@ _RAW_ANCHORS: dict[str, str] = {
     # "Proteine totale serice" — official LOINC 2885-2.
     "Protein [Mass/volume] in Serum or Plasma": "2885-2",
     "Total protein [Mass/volume] in Serum or Plasma": "2885-2",
+    # Gemini sometimes emits "Protein total" (inverted modifier, mirroring
+    # the "Lipids total" pattern). Same code.
+    "Protein total [Mass/volume] in Serum or Plasma": "2885-2",
+    "Protein total [Mass/volume] in Serum": "2885-2",
+    "Total protein [Mass/volume] in Serum": "2885-2",
     "Albumin [Mass/volume] in Serum or Plasma": "1751-7",
     "Globulin [Mass/volume] in Serum or Plasma by calculation": "10834-0",
 
