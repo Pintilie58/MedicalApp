@@ -35,7 +35,13 @@ namespace MedicalApp.Services
                     page.Size(PageSizes.A4);
                     page.Margin(2, Unit.Centimetre);
                     page.PageColor(Colors.White);
-                    page.DefaultTextStyle(x => x.FontSize(10).FontColor(Colors.Black));
+                    // We pin the font to Arial (instead of the QuestPDF default
+                    // Lato) to avoid OpenType ligatures for "ti", "fi", "fl"
+                    // which the PDF text-extraction layer of most viewers
+                    // can't reverse — when the user copy-pasted parameter
+                    // names like "Prothrombin time" or "Coagulation assay"
+                    // the "ti" sequence silently dropped from the clipboard.
+                    page.DefaultTextStyle(x => x.FontSize(10).FontColor(Colors.Black).FontFamily(Fonts.Arial));
 
                     page.Header().Element(h => ComposeHeader(h, labels));
                     page.Content().Element(c => ComposeContent(c, result, labels));
