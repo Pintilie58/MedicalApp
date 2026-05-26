@@ -109,12 +109,12 @@ namespace MedicalApp.Services
                             t.Span($"{s.DisplayParameter}  ").FontSize(12).SemiBold()
                                 .FontColor(ToQpdfColor(s.ColorHex));
                             t.Span($"(LOINC {s.LoincCode})").FontSize(9).FontColor(Colors.Grey.Darken1);
-                            // Verification badge (matches the on-screen badge):
-                            // green ✓ for anchor-mapped codes, yellow ~ for semantic.
-                            t.Span("   ").FontSize(9);
-                            t.Span(LoincSourceBadge.GetGlyph(s.LoincSource) + " " +
-                                   LoincSourceBadge.GetLabel(s.LoincSource))
-                                .FontSize(9).SemiBold()
+                            // Compact colored dot — same convention as the
+                            // main report: green = anchor (manually curated),
+                            // blue = semantic match. Legend rendered at the
+                            // end of the document explains both colors.
+                            t.Span("  ").FontSize(9);
+                            t.Span("●").FontSize(10)
                                 .FontColor(LoincSourceBadge.GetPdfColor(s.LoincSource));
                             t.Span($"   ·   {s.ClassDisplayLabel}").FontSize(9).FontColor(Colors.Grey.Medium);
                         });
@@ -172,7 +172,21 @@ namespace MedicalApp.Services
                     });
                 }
 
-                // ---- 3) Codes not found, if any ----
+                // ---- 3) LOINC source legend (small caption) ----
+                col.Item().PaddingTop(8).Text(t =>
+                {
+                    t.Span("● ").FontSize(8)
+                        .FontColor(LoincSourceBadge.GetPdfColor(LoincSourceBadge.AnchorSource));
+                    t.Span(Loc.T("LoincSourceLegendVerified"))
+                        .FontSize(8).FontColor(Colors.Grey.Darken1);
+                    t.Span("   ·   ").FontSize(8).FontColor(Colors.Grey.Medium);
+                    t.Span("● ").FontSize(8)
+                        .FontColor(LoincSourceBadge.GetPdfColor(LoincSourceBadge.SemanticSource));
+                    t.Span(Loc.T("LoincSourceLegendAuto"))
+                        .FontSize(8).FontColor(Colors.Grey.Darken1);
+                });
+
+                // ---- 4) Codes not found, if any ----
                 if (vm.CodesNotFound.Any())
                 {
                     col.Item().PaddingTop(8).Background(Colors.Yellow.Lighten4)

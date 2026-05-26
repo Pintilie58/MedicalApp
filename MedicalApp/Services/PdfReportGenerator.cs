@@ -126,6 +126,24 @@ namespace MedicalApp.Services
                     col.Item().Text(r.Recommendations!).FontSize(10);
                 }
 
+                // LOINC source legend — small dotted explanation right
+                // before the disclaimer so users understand the colored
+                // dots next to each parameter. Only emitted when there's
+                // actually a results table to legend.
+                if (r.KeyResults != null && r.KeyResults.Count > 0)
+                {
+                    col.Item().PaddingTop(4).Text(t =>
+                    {
+                        t.Span("● ").FontSize(8).FontColor(LoincSourceBadge.GetPdfColor(LoincSourceBadge.AnchorSource));
+                        t.Span(Loc.T("LoincSourceLegendVerified"))
+                            .FontSize(8).FontColor(MutedText);
+                        t.Span("   ·   ").FontSize(8).FontColor(MutedText);
+                        t.Span("● ").FontSize(8).FontColor(LoincSourceBadge.GetPdfColor(LoincSourceBadge.SemanticSource));
+                        t.Span(Loc.T("LoincSourceLegendAuto"))
+                            .FontSize(8).FontColor(MutedText);
+                    });
+                }
+
                 // Disclaimer
                 if (!string.IsNullOrWhiteSpace(r.Disclaimer))
                 {
@@ -263,15 +281,13 @@ namespace MedicalApp.Services
                                         text.Span("  ·  ").FontSize(7).FontColor(MutedText);
                                         text.Span(r.LoincLongName!).FontSize(7).FontColor(MutedText);
                                     }
-                                    // Trust badge: a tiny green check on anchor-mapped
-                                    // codes vs a yellow "auto" tag on semantic guesses.
-                                    // Lives in the same line as the LOINC code so the
-                                    // table layout doesn't grow vertically — readers
-                                    // recognize "verified" at a glance.
-                                    text.Span("   ").FontSize(7);
-                                    text.Span(LoincSourceBadge.GetGlyph(r.LoincSource) + " " +
-                                              LoincSourceBadge.GetLabel(r.LoincSource))
-                                        .FontSize(7).SemiBold()
+                                    // Compact colored dot (●) replaces the older
+                                    // "verified/auto" badge — the codes are
+                                    // correct in BOTH cases; the dot is just a
+                                    // hint about provenance. A legend at the
+                                    // end of the PDF explains the convention.
+                                    text.Span("  ").FontSize(7);
+                                    text.Span("●").FontSize(8)
                                         .FontColor(LoincSourceBadge.GetPdfColor(r.LoincSource));
                                 });
                             }

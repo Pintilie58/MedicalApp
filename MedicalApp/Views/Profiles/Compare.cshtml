@@ -156,11 +156,10 @@
                                               data-testid="compare-row-loinc-@row.LoincCode">
                                             LOINC @row.LoincCode
                                         </span>
-                                        <span class="badge ms-1 small @MedicalApp.Services.LoincSourceBadge.GetBadgeClass(row.LoincSource)"
+                                        <span class="d-inline-block rounded-circle ms-1"
+                                              style="width:9px;height:9px;background:@MedicalApp.Services.LoincSourceBadge.GetDotColor(row.LoincSource);vertical-align:middle;"
                                               title="@MedicalApp.Services.LoincSourceBadge.GetTooltip(row.LoincSource)"
                                               data-testid="compare-row-source-@row.LoincSource">
-                                            @MedicalApp.Services.LoincSourceBadge.GetGlyph(row.LoincSource)
-                                            @MedicalApp.Services.LoincSourceBadge.GetLabel(row.LoincSource)
                                         </span>
                                     }
                                 </td>
@@ -204,11 +203,11 @@
                 = neschimbat &nbsp;·&nbsp;
                 galben „—" = parametru lipsă în interpretarea respectivă.
                 <br />
-                <span class="badge bg-success-subtle text-success border border-success-subtle small">✓ verificat</span>
-                — codul LOINC este garantat corect (folosit de sistemele medicale).
-                &nbsp;
-                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle small">~ auto</span>
-                — codul a fost sugerat automat de matcher (verifică pe loinc.org dacă e analiză rară).
+                <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background:#198754;vertical-align:middle;"></span>
+                @Loc.T("LoincSourceLegendVerified")
+                &nbsp;·&nbsp;
+                <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background:#0d6efd;vertical-align:middle;"></span>
+                @Loc.T("LoincSourceLegendAuto")
             </p>
         </div>
     </div>

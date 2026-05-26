@@ -168,6 +168,11 @@ namespace MedicalApp.Services
                 ["ResultEmailSubject"] = "MedicalApp - Your medical analysis interpretation",
                 ["ResultEmailIntro"] = "We have analyzed your PDF and prepared a detailed interpretation. Please find the full report attached.",
                 ["ResultEmailAttachedNote"] = "Attached: MedicalApp_Interpretation.pdf",
+                // LOINC source legend (small caption shown at the bottom of each interpretation)
+                ["LoincSourceLegendVerified"] = "= verified LOINC code",
+                ["LoincSourceLegendAuto"] = "= automatic LOINC code",
+                ["LoincSourceTooltipVerified"] = "Verified LOINC code (manually curated mapping — same code used by international medical systems).",
+                ["LoincSourceTooltipAuto"] = "LOINC code assigned automatically by the semantic matcher. Typically correct for common analytes; double-check on loinc.org for rare ones.",
                 // PDF labels
                 ["BrandSubtitle"] = "Professional interpretation of medical analyses",
                 ["Tagline"] = "Be smart, take care of your health!",
@@ -351,6 +356,11 @@ namespace MedicalApp.Services
                 ["ResultEmailSubject"] = "MedicalApp - Interpretarea analizelor tale",
                 ["ResultEmailIntro"] = "Am analizat PDF-ul tău și am pregătit o interpretare detaliată. Raportul complet este atașat acestui email.",
                 ["ResultEmailAttachedNote"] = "Atașat: MedicalApp_Interpretation.pdf",
+                // LOINC source legend (caption mic afișat la finalul fiecărei interpretări)
+                ["LoincSourceLegendVerified"] = "= cod LOINC verificat",
+                ["LoincSourceLegendAuto"] = "= cod LOINC automat",
+                ["LoincSourceTooltipVerified"] = "Cod LOINC verificat (mapare manuală — același cod folosit de sistemele medicale internaționale).",
+                ["LoincSourceTooltipAuto"] = "Cod LOINC atribuit automat de matcher-ul semantic. În general corect pentru analize uzuale; verifică pe loinc.org pentru cele rare.",
                 // PDF labels
                 ["BrandSubtitle"] = "Interpretare profesională a analizelor medicale",
                 ["Tagline"] = "Fii inteligent(ă), ai grijă de sănătatea ta!",
@@ -534,6 +544,11 @@ namespace MedicalApp.Services
                 ["ResultEmailSubject"] = "MedicalApp - Interprétation de vos analyses",
                 ["ResultEmailIntro"] = "Nous avons analysé votre PDF et préparé une interprétation détaillée. Le rapport complet est joint à cet email.",
                 ["ResultEmailAttachedNote"] = "Pièce jointe: MedicalApp_Interpretation.pdf",
+                // Légende du marqueur LOINC (texte court en bas de chaque interprétation)
+                ["LoincSourceLegendVerified"] = "= code LOINC vérifié",
+                ["LoincSourceLegendAuto"] = "= code LOINC automatique",
+                ["LoincSourceTooltipVerified"] = "Code LOINC vérifié (mappage validé manuellement — même code utilisé par les systèmes médicaux internationaux).",
+                ["LoincSourceTooltipAuto"] = "Code LOINC attribué automatiquement par le moteur sémantique. Généralement correct pour les analyses courantes; vérifier sur loinc.org pour les rares.",
                 // PDF labels
                 ["BrandSubtitle"] = "Interprétation professionnelle des analyses médicales",
                 ["Tagline"] = "Soyez intelligent(e), prenez soin de votre santé !",
@@ -717,6 +732,11 @@ namespace MedicalApp.Services
                 ["ResultEmailSubject"] = "MedicalApp - Interpretación de sus análisis",
                 ["ResultEmailIntro"] = "Hemos analizado su PDF y preparado una interpretación detallada. El informe completo está adjunto a este correo.",
                 ["ResultEmailAttachedNote"] = "Adjunto: MedicalApp_Interpretation.pdf",
+                // Leyenda de la marca LOINC (texto pequeño al final de cada interpretación)
+                ["LoincSourceLegendVerified"] = "= código LOINC verificado",
+                ["LoincSourceLegendAuto"] = "= código LOINC automático",
+                ["LoincSourceTooltipVerified"] = "Código LOINC verificado (mapeo curado manualmente — mismo código usado por los sistemas médicos internacionales).",
+                ["LoincSourceTooltipAuto"] = "Código LOINC asignado automáticamente por el motor semántico. Generalmente correcto para análisis comunes; verificar en loinc.org para los raros.",
                 // PDF labels
                 ["BrandSubtitle"] = "Interpretación profesional de análisis médicos",
                 ["Tagline"] = "¡Sé inteligente, cuida tu salud!",
@@ -900,6 +920,11 @@ namespace MedicalApp.Services
                 ["ResultEmailSubject"] = "MedicalApp - Interpretation Ihrer Analysen",
                 ["ResultEmailIntro"] = "Wir haben Ihr PDF analysiert und eine detaillierte Interpretation erstellt. Der vollständige Bericht ist dieser E-Mail beigefügt.",
                 ["ResultEmailAttachedNote"] = "Anhang: MedicalApp_Interpretation.pdf",
+                // LOINC-Quellenlegende (kleiner Hinweis am Ende jeder Interpretation)
+                ["LoincSourceLegendVerified"] = "= verifizierter LOINC-Code",
+                ["LoincSourceLegendAuto"] = "= automatischer LOINC-Code",
+                ["LoincSourceTooltipVerified"] = "Verifizierter LOINC-Code (manuell kuratierte Zuordnung — derselbe Code, den internationale medizinische Systeme verwenden).",
+                ["LoincSourceTooltipAuto"] = "LOINC-Code automatisch vom semantischen Matcher zugewiesen. Üblicherweise korrekt für häufige Analyte; bei seltenen auf loinc.org prüfen.",
                 // PDF labels
                 ["BrandSubtitle"] = "Professionelle Interpretation medizinischer Analysen",
                 ["Tagline"] = "Sei klug, achte auf deine Gesundheit!",
