@@ -522,6 +522,34 @@ namespace MedicalApp.Controllers
                 }, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
+            // ----------------------------------------------------------------
+            // LOINC drift detection (option b — conservative)
+            // ----------------------------------------------------------------
+            // Build a map: normalized parameter name -> set of distinct
+            // LOINC codes assigned to that name across ALL columns.
+            // When the SAME name received >=2 different LOINC codes, every
+            // row that carries one of those codes gets HasLoincDrift=true
+            // and a tooltip listing the other codes seen under the same
+            // wording. This warns the user about Gemini's text-extraction
+            // variability without false-alarming on every minor difference.
+            // ----------------------------------------------------------------
+            var codesByNormName = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+            foreach (var (_, r) in sortedOldestFirst)
+            {
+                foreach (var kr in r.KeyResults ?? new())
+                {
+                    if (string.IsNullOrWhiteSpace(kr.Parameter) ||
+                        string.IsNullOrWhiteSpace(kr.LoincCode)) continue;
+                    var nname = kr.Parameter.Trim().ToLowerInvariant();
+                    if (!codesByNormName.TryGetValue(nname, out var set))
+                    {
+                        set = new HashSet<string>(StringComparer.Ordinal);
+                        codesByNormName[nname] = set;
+                    }
+                    set.Add(kr.LoincCode.Trim());
+                }
+            }
+
             int risen = 0, fallen = 0, unchanged = 0, partial = 0;
 
             var rows = new List<CompareInterpretationsViewModel.ComparisonRow>(allKeys.Count);
@@ -557,6 +585,24 @@ namespace MedicalApp.Controllers
                     IsFirstInClass = !string.Equals(classLabel, previousClassLabel, StringComparison.Ordinal),
                 };
                 previousClassLabel = classLabel;
+
+                // Apply LOINC-drift warning when this row's parameter name
+                // (case-insensitive) was mapped to MORE than one LOINC code
+                // across the compared interpretations. The other codes go in
+                // DriftLoincCodes for the tooltip.
+                if (!string.IsNullOrWhiteSpace(row.LoincCode) && meta != null &&
+                    !string.IsNullOrWhiteSpace(meta.Parameter))
+                {
+                    var nname = meta.Parameter.Trim().ToLowerInvariant();
+                    if (codesByNormName.TryGetValue(nname, out var allCodes) && allCodes.Count > 1)
+                    {
+                        row.HasLoincDrift = true;
+                        row.DriftLoincCodes = allCodes
+                            .Where(c => !string.Equals(c, row.LoincCode, StringComparison.Ordinal))
+                            .OrderBy(c => c, StringComparer.Ordinal)
+                            .ToList();
+                    }
+                }
 
                 // First numeric value index (used as the baseline for "risen/fallen").
                 int? baseIdx = null;

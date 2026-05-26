@@ -149,6 +149,13 @@
                                     @row.Parameter
                                     @if (!string.IsNullOrWhiteSpace(row.Unit))
                                     { <span class="small text-muted">(@row.Unit)</span> }
+                                    @if (row.HasLoincDrift)
+                                    {
+                                        <span class="ms-1"
+                                              style="color:#fd7e14;cursor:help;font-weight:700;"
+                                              title="Atenție: același nume de parametru („@row.Parameter”) a primit coduri LOINC diferite în interpretările comparate (acest rând: @row.LoincCode; celelalte: @string.Join(", ", row.DriftLoincCodes)). Cauza tipică: Gemini a extras analitul cu denumiri ușor diferite în fiecare buletin, iar matcher-ul le-a mapat la coduri distincte. Verifică manual dacă este vorba de aceeași analiză."
+                                              data-testid="compare-row-drift-warning">&#9888;</span>
+                                    }
                                     @if (!string.IsNullOrWhiteSpace(row.LoincCode))
                                     {
                                         <span class="badge bg-light text-secondary border ms-1 small"
@@ -213,6 +220,9 @@
                 &nbsp;·&nbsp;
                 <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background:#0d6efd;vertical-align:middle;"></span>
                 @Loc.T("LoincSourceLegendAuto")
+                &nbsp;·&nbsp;
+                <span style="color:#fd7e14;font-weight:700;">&#9888;</span>
+                = același nume de parametru a primit coduri LOINC diferite în interpretările comparate (posibilă variație de extragere a textului de către AI).
             </p>
         </div>
     </div>

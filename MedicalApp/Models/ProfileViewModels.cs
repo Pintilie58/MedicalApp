@@ -192,6 +192,27 @@ namespace MedicalApp.Models
             /// </summary>
             public bool IsFirstInClass { get; set; }
 
+            /// <summary>
+            /// True when the SAME (case-insensitive) parameter name has been
+            /// mapped to DIFFERENT LOINC codes across this set of compared
+            /// interpretations — a telltale sign of Gemini extracting the
+            /// analyte under slightly different wording in different reports
+            /// (e.g. "Glucose in blood" vs "Glucose in serum"), which the
+            /// matcher then resolves to two distinct LOINC codes. The view
+            /// shows a small ⚠ next to the row label so the user knows the
+            /// split into two rows might be an artifact, not a real medical
+            /// distinction.
+            /// </summary>
+            public bool HasLoincDrift { get; set; }
+
+            /// <summary>
+            /// The OTHER LOINC codes assigned to the same normalized
+            /// parameter name (excluding this row's own LoincCode). Used by
+            /// the tooltip on the drift warning. Empty when
+            /// <see cref="HasLoincDrift"/> is false.
+            /// </summary>
+            public List<string> DriftLoincCodes { get; set; } = new();
+
             /// <summary>One cell per Column (same length and order as <see cref="Columns"/>).</summary>
             public List<Cell> Cells { get; set; } = new();
 

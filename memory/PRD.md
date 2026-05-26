@@ -343,6 +343,26 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 
 ## Pending / Backlog
 
+### P0 → DONE
+- ✅ **[Feb 2026 — LOINC Drift Warning în Compare]** Compare view detectează acum
+  cazul în care **același nume normalizat de parametru** primește **coduri LOINC
+  diferite** între interpretările comparate. Implementare în ~30 linii:
+    * `BuildComparison` (`ProfilesController.cs`) construiește un map
+      `normalized(parameter) → HashSet<LOINC codes>` peste toate KeyResults din
+      coloane.
+    * Pentru fiecare `ComparisonRow` cu LoincCode, dacă numele normalizat
+      apare cu ≥ 2 coduri distincte → setează `HasLoincDrift = true` și
+      populează `DriftLoincCodes` (lista celorlalte coduri văzute).
+    * View `Compare.cshtml` afișează un `⚠` portocaliu lângă numele
+      parametrului, cu tooltip explicativ în română care listează codul
+      curent vs. celelalte coduri și sugerează verificare manuală.
+    * Legendă scurtă în footer-ul tabelului pentru transparență.
+  Scop: avertizează utilizatorul când variabilitatea de extragere a textului
+  de către Gemini (același analit denumit ușor diferit între buletine)
+  produce o splittare nefiresc în 2 rânduri în vizualizarea Compare. Opțiunea
+  conservatoare (b) aleasă de user — doar același nume exact → coduri diferite.
+
+
 ### P1 – Family profiles (multi-session focus)
 - 🔜 **P1.6**: Denormalize parameters into `AnalysisResults` table on each interpretation (ParameterCode, Value, Unit, Status, SamplingDate, per profile)
 - 🔜 **P1.7**: Canonical dictionary mapping raw parameter names (e.g. "VS 1ère heure", "Vitesse de sédimentation") → canonical code (e.g. "ESR") for cross-lab tracking — *partly satisfied by Pas 4 (LOINC grouping in Compare view)*
