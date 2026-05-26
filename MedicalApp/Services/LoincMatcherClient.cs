@@ -94,6 +94,7 @@ namespace MedicalApp.Services
                 kr.LoincLongName = match.Name;
                 kr.LoincClass = match.LoincClass;
                 kr.LoincSource = match.LoincSource;
+                kr.LoincScore = match.Score;
                 kr.LoincConfidence = match.Score switch
                 {
                     >= 0.85 => "high",

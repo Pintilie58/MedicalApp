@@ -161,6 +161,11 @@
                                               title="@MedicalApp.Services.LoincSourceBadge.GetTooltip(row.LoincSource)"
                                               data-testid="compare-row-source-@row.LoincSource">
                                         </span>
+                                        @if (!MedicalApp.Services.LoincSourceBadge.IsVerified(row.LoincSource) && row.LoincScore.HasValue)
+                                        {
+                                            <span class="small text-muted ms-1"
+                                                  data-testid="compare-row-score">@((int)Math.Round(row.LoincScore.Value * 100))%</span>
+                                        }
                                     }
                                 </td>
                                 @foreach (var cell in row.Cells)

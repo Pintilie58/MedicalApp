@@ -108,6 +108,10 @@
                                       style="width:10px;height:10px;background:@MedicalApp.Services.LoincSourceBadge.GetDotColor(s.LoincSource);vertical-align:middle;"
                                       title="@MedicalApp.Services.LoincSourceBadge.GetTooltip(s.LoincSource)">
                                 </span>
+                                @if (!MedicalApp.Services.LoincSourceBadge.IsVerified(s.LoincSource) && s.LoincScore.HasValue)
+                                {
+                                    <span class="small text-muted ms-1">@((int)Math.Round(s.LoincScore.Value * 100))%</span>
+                                }
                                 <span class="badge bg-secondary ms-1 small fw-normal">@s.ClassDisplayLabel</span>
                             </h5>
                             @if (!string.IsNullOrWhiteSpace(s.LoincLongName))

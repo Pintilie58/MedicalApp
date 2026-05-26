@@ -289,6 +289,14 @@ namespace MedicalApp.Services
                                     text.Span("  ").FontSize(7);
                                     text.Span("●").FontSize(8)
                                         .FontColor(LoincSourceBadge.GetPdfColor(r.LoincSource));
+                                    // Score% — shown only for semantic mappings
+                                    // (anchors are always 1.0, so the number
+                                    // would be redundant).
+                                    if (!LoincSourceBadge.IsVerified(r.LoincSource) && r.LoincScore.HasValue)
+                                    {
+                                        text.Span($" {(int)System.Math.Round(r.LoincScore.Value * 100)}%")
+                                            .FontSize(7).FontColor(MutedText);
+                                    }
                                 });
                             }
                         });

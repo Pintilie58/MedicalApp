@@ -116,6 +116,14 @@ namespace MedicalApp.Services
                             t.Span("  ").FontSize(9);
                             t.Span("●").FontSize(10)
                                 .FontColor(LoincSourceBadge.GetPdfColor(s.LoincSource));
+                            // Match score% — only when source = semantic
+                            // (anchors are always 1.0 — printing 100% next to
+                            // every anchor would just add visual noise).
+                            if (!LoincSourceBadge.IsVerified(s.LoincSource) && s.LoincScore.HasValue)
+                            {
+                                t.Span($" {(int)System.Math.Round(s.LoincScore.Value * 100)}%")
+                                    .FontSize(9).FontColor(Colors.Grey.Darken1);
+                            }
                             t.Span($"   ·   {s.ClassDisplayLabel}").FontSize(9).FontColor(Colors.Grey.Medium);
                         });
 

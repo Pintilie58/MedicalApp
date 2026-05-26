@@ -180,6 +180,17 @@ namespace MedicalApp.Models
             /// </summary>
             [JsonPropertyName("loinc_source")]
             public string? LoincSource { get; set; }
+
+            /// <summary>
+            /// Raw matcher score (0.0 .. 1.0). For <see cref="LoincSource"/> ==
+            /// "anchor" this is always 1.0. For "semantic" it reflects the
+            /// cosine-similarity + fuzzy-match + rules blend. The UI surfaces
+            /// it as a small percentage next to the blue dot, giving the user
+            /// an additional confidence signal without overwhelming them.
+            /// Null on legacy rows.
+            /// </summary>
+            [JsonPropertyName("loinc_score")]
+            public double? LoincScore { get; set; }
         }
 
         public class AbnormalFinding

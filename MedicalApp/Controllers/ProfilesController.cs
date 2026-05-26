@@ -547,6 +547,7 @@ namespace MedicalApp.Controllers
                     LoincCode = k.StartsWith("loinc:") ? meta?.LoincCode : null,
                     LoincLongName = k.StartsWith("loinc:") ? meta?.LoincLongName : null,
                     LoincSource = k.StartsWith("loinc:") ? meta?.LoincSource : null,
+                    LoincScore = k.StartsWith("loinc:") ? meta?.LoincScore : null,
                     LoincClass = rowClass,
                     ClassDisplayLabel = classLabel,
                     // First row in each class group triggers a section header
@@ -922,6 +923,7 @@ namespace MedicalApp.Controllers
                     s.DisplayParameter = kr.Parameter ?? code;
                     s.LoincLongName = kr.LoincLongName ?? s.LoincLongName;
                     s.LoincSource = kr.LoincSource ?? s.LoincSource;
+                    if (kr.LoincScore.HasValue) s.LoincScore = kr.LoincScore;
                     s.ClassDisplayLabel = Services.LoincClassDisplay.GetLabel(kr.LoincClass);
                     s.Unit = kr.Unit ?? s.Unit;
                     s.ReferenceRange = kr.ReferenceRange ?? s.ReferenceRange;

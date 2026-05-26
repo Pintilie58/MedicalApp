@@ -179,6 +179,14 @@ namespace MedicalApp.Models
             public string? LoincSource { get; set; }
 
             /// <summary>
+            /// Raw matcher score (0..1). Shown as a tiny percentage next to
+            /// the blue dot for semantic mappings — gives the user a quick
+            /// confidence cue. Picked from the LATEST cell that has a
+            /// LoincSource value (most-recently-reinterpreted wins).
+            /// </summary>
+            public double? LoincScore { get; set; }
+
+            /// <summary>
             /// True iff this row is the FIRST in its class group. The view
             /// uses this flag to render a section header above the row.
             /// </summary>
@@ -271,6 +279,12 @@ namespace MedicalApp.Models
             /// badge in the series header.
             /// </summary>
             public string? LoincSource { get; set; }
+
+            /// <summary>
+            /// Latest matcher score for this series (0..1). Rendered next
+            /// to the blue dot when LoincSource == "semantic".
+            /// </summary>
+            public double? LoincScore { get; set; }
 
             public List<EvolutionPoint> Points { get; set; } = new();
         }
