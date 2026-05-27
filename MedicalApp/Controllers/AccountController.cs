@@ -79,6 +79,24 @@ namespace MedicalApp.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Register(RegisterViewModel model)
         {
+            // CAM: dacă userul a ales "Clinic", numele clinicii / localitatea /
+            // adresa devin obligatorii. Validăm aici pentru că [Required] pe
+            // ViewModel ar bloca și fluxul "Individual".
+            if (string.Equals(model.UserType, "Clinic", StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.IsNullOrWhiteSpace(model.ClinicName))
+                    ModelState.AddModelError(nameof(model.ClinicName), Loc.T("ClinicNameRequired"));
+                if (string.IsNullOrWhiteSpace(model.ClinicCity))
+                    ModelState.AddModelError(nameof(model.ClinicCity), Loc.T("ClinicCityRequired"));
+                if (string.IsNullOrWhiteSpace(model.ClinicAddress))
+                    ModelState.AddModelError(nameof(model.ClinicAddress), Loc.T("ClinicAddressRequired"));
+            }
+            else
+            {
+                // Forțează "Individual" pentru orice valoare neașteptată.
+                model.UserType = "Individual";
+            }
+
             if (!ModelState.IsValid)
             {
                 ViewData["LoginModel"] = new LoginViewModel();
@@ -112,7 +130,15 @@ namespace MedicalApp.Controllers
                 // on successful email verification (VerifyEmail action).
                 PromoCode = string.IsNullOrWhiteSpace(model.PromoCode)
                     ? null
-                    : model.PromoCode.Trim()
+                    : model.PromoCode.Trim(),
+                // CAM: carry the clinic-specific fields through email verification
+                // so we can create the matching Clinic row right after the user
+                // confirms their email.
+                UserType = string.Equals(model.UserType, "Clinic", StringComparison.OrdinalIgnoreCase)
+                    ? "Clinic" : "Individual",
+                ClinicName = model.ClinicName?.Trim(),
+                ClinicCity = model.ClinicCity?.Trim(),
+                ClinicAddress = model.ClinicAddress?.Trim()
             });
 
             try
@@ -196,7 +222,9 @@ namespace MedicalApp.Controllers
                 CreditConsum = 0,
                 CreditRest = 0,
                 FreeArchiveUntil = DateTime.UtcNow.Add(MedicalApp.Services.ArchiveAccessService.FreePeriod),
-                IsAdmin = _adminSettings.IsAdminEmail(pending.Email)
+                IsAdmin = _adminSettings.IsAdminEmail(pending.Email),
+                UserType = string.Equals(pending.UserType, "Clinic", StringComparison.OrdinalIgnoreCase)
+                    ? "Clinic" : "Individual"
             };
 
             // Apply promo code (if any and valid) - case-insensitive lookup.
@@ -229,6 +257,25 @@ namespace MedicalApp.Controllers
             }
 
             _db.Users.Add(user);
+
+            // CAM: dacă userul s-a înregistrat ca Clinică, creăm imediat și rândul
+            // Clinic asociat (1:1 cu User.Email). Folderele pe disk NU se creează
+            // acum — abia după PRIMA cumpărare de credite (vezi CreditsController).
+            if (user.UserType == "Clinic" &&
+                !string.IsNullOrWhiteSpace(pending.ClinicName) &&
+                !string.IsNullOrWhiteSpace(pending.ClinicCity) &&
+                !string.IsNullOrWhiteSpace(pending.ClinicAddress))
+            {
+                _db.Clinics.Add(new Clinic
+                {
+                    UserEmail = pending.Email,
+                    Name = pending.ClinicName!.Trim(),
+                    City = pending.ClinicCity!.Trim(),
+                    Address = pending.ClinicAddress!.Trim(),
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+
             await _db.SaveChangesAsync();
             _pendingStore.Remove(email);
 
@@ -332,6 +379,7 @@ namespace MedicalApp.Controllers
             await _db.SaveChangesAsync();
 
             HttpContext.Session.SetString("UserEmail", user.Email);
+            HttpContext.Session.SetString("JustLoggedIn", "1");
             return RedirectToAction("Dashboard", "Account");
         }
 
@@ -346,6 +394,16 @@ namespace MedicalApp.Controllers
             {
                 HttpContext.Session.Clear();
                 return RedirectToAction("Index", "Home");
+            }
+
+            // CAM: doar dacă utilizatorul tocmai s-a logat (sau a fost redirectat
+            // după login). Folosim un flag de sesiune ca să nu blocăm utilizatorii
+            // Clinic să-și acceseze panoul personal manual din meniu.
+            if (string.Equals(user.UserType, "Clinic", StringComparison.OrdinalIgnoreCase) &&
+                HttpContext.Session.GetString("JustLoggedIn") == "1")
+            {
+                HttpContext.Session.Remove("JustLoggedIn");
+                return RedirectToAction("Index", "Dashboard", new { area = "CAM" });
             }
 
             return View(user);

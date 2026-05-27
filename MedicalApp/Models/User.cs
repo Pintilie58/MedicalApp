@@ -42,6 +42,16 @@ namespace MedicalApp.Models
         /// <summary>When true the user has admin dashboard access.</summary>
         public bool IsAdmin { get; set; } = false;
 
+        // ----- CAM module (Clinici de Analize Medicale) -----
+        /// <summary>
+        /// Type of account: "Individual" (default, regular B2C user) or
+        /// "Clinic" (B2B medical analysis laboratory user). Set at registration
+        /// and never changed afterwards. Drives navigation, dashboard,
+        /// available credit packages, and access to /CAM/* area.
+        /// </summary>
+        [StringLength(20)]
+        public string UserType { get; set; } = "Individual";
+
         // ----- Bonus credits tracking (separate from paid credits) -----
 
         /// <summary>Total bonus credits the user has ever received (promo codes, gifts).</summary>

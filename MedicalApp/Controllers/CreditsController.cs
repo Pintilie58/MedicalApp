@@ -12,17 +12,20 @@ namespace MedicalApp.Controllers
         private readonly AppDbContext _db;
         private readonly IEmailService _emailService;
         private readonly AdminSettings _adminSettings;
+        private readonly ICamFileStore _camFileStore;
         private readonly ILogger<CreditsController> _logger;
 
         public CreditsController(
             AppDbContext db,
             IEmailService emailService,
             IOptions<AdminSettings> adminOptions,
+            ICamFileStore camFileStore,
             ILogger<CreditsController> logger)
         {
             _db = db;
             _emailService = emailService;
             _adminSettings = adminOptions.Value;
+            _camFileStore = camFileStore;
             _logger = logger;
         }
 
@@ -40,7 +43,12 @@ namespace MedicalApp.Controllers
             ViewBag.BonusRemaining = user?.BonusCreditsRemaining ?? 0;
             ViewBag.TotalAvailable = user?.TotalAvailableCredits ?? 0;
 
-            return View(CreditPackages.All);
+            // CAM users see CAM packages, Individual users see B2C packages.
+            // Defaults to "Individual" if the field is missing for any reason.
+            var audience = string.Equals(user?.UserType, "Clinic", StringComparison.OrdinalIgnoreCase)
+                ? "Clinic" : "Individual";
+            ViewBag.Audience = audience;
+            return View(CreditPackages.ForAudience(audience).ToList());
         }
 
         // ---------- Checkout: show simulated card form ----------
@@ -108,6 +116,36 @@ namespace MedicalApp.Controllers
             _logger.LogInformation(
                 "Simulated payment: {Email} bought {Credits} credits for {Price} EUR ({Package}).",
                 email, selected.Credits, selected.PriceEur, selected.Key);
+
+            // CAM: la PRIMA cumpărare de credite a unei clinici, creează folderele
+            // locale (Original, Sends, Sumar, Errors) pe C:\MedicalApp_files\.
+            // Idempotent — dacă rulează a doua oară, FoldersCreatedAt fiind setat,
+            // nu mai facem nimic.
+            if (string.Equals(user.UserType, "Clinic", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var clinic = await _db.Clinics.FirstOrDefaultAsync(c => c.UserEmail == user.Email);
+                    if (clinic != null && clinic.FoldersCreatedAt == null)
+                    {
+                        await _camFileStore.EnsureClinicFoldersAsync(clinic);
+                        clinic.FoldersCreatedAt = DateTime.UtcNow;
+                        await _db.SaveChangesAsync();
+                        _logger.LogInformation(
+                            "CAM: created on-disk folder structure for clinic {Email} after first purchase.",
+                            user.Email);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Folder creation issues should NOT roll back the user's payment.
+                    // We log and continue; operator can retry from the dashboard later.
+                    _logger.LogError(ex,
+                        "CAM: failed to create folder structure for clinic {Email} on first purchase. " +
+                        "Payment is safe; operator can retry from the CAM dashboard.",
+                        user.Email);
+                }
+            }
 
             // ---- Notify all admins by email (non-blocking: failure does NOT break the purchase) ----
             try

@@ -363,6 +363,27 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
   conservatoare (b) aleasă de user — doar același nume exact → coduri diferite.
 
 
+### 🚧 CAM Module (Clinici Analize Medicale) — IN PROGRESS
+- ✅ **[Feb 2026 — Faza 1: Foundation + Registration + DB schema]**
+    * `User.UserType` (Individual / Clinic) — câmp nou pe Users.
+    * Entități noi (5): `Clinic`, `ClinicPatient`, `ClinicAnalysis`, `ClinicBatchRun`, `ClinicBatchError`.
+    * `RegisterViewModel` + UI Register: radio Persoană fizică / Clinică, cu câmpuri suplimentare (Nume, Localitate, Adresă) afișate dinamic prin JS doar când e selectat Clinic. Validare server-side.
+    * `PendingRegistration` extins pentru a păstra datele clinicii între email-verify.
+    * `AccountController.VerifyEmail` creează automat rândul `Clinic` la verificare reușită.
+    * `CreditPackages` extins cu pachete CAM: `cam_test` (50 cr = 30 EUR) + `cam_pro` (1000 cr = 500 EUR). Pagina `/Credits/Buy` filtrează automat după `UserType`.
+    * `CamSettings` în appsettings.json: `FilesRoot = C:\MedicalApp_files`, `CnpEncryptionKeyBase64` (gol — se setează în User Secrets când va fi nevoie).
+    * `ICamFileStore` + `LocalDiskCamFileStore` — abstractizare pentru disk. Implementarea cloud (Azure Blob) va înlocui doar acest layer mai târziu.
+    * `CamCryptoService` — AES-CBC pentru CNP pacient (preparat pentru Faza 2).
+    * **Hook automat în `CreditsController.Checkout`**: la PRIMA achiziție CAM, se creează folderele `Original`, `Sends`, `Sumar`, `Errors` pe disk și se setează `Clinic.FoldersCreatedAt`. Idempotent.
+    * **Areas/CAM/** scaffold: `DashboardController` + view cu status clinică, credite, foldere create/pending, card-uri "În curând" pentru Faza 2/3/4.
+    * Navbar: toggle Mod personal ↔ Mod clinică pentru utilizatorii Clinic.
+    * Login flow: Clinic e redirecționat automat la `/CAM/Dashboard` doar la prima accesare după login.
+    * Routing: `app.MapControllerRoute` pentru Areas adăugat în `Program.cs`.
+    * Localizare în Loc.cs pentru EN/RO/FR/ES/DE: ~12 chei noi.
+- 🔜 **Faza 2**: Extragere CNP/Email + Listă pacienți + criptare CNP.
+- 🔜 **Faza 3**: Batch Processing + Background Job + Sumar.txt.
+- 🔜 **Faza 4**: Dashboard CAM cu statistici + export Sumar PDF.
+
 ### P1 – Family profiles (multi-session focus)
 - 🔜 **P1.6**: Denormalize parameters into `AnalysisResults` table on each interpretation (ParameterCode, Value, Unit, Status, SamplingDate, per profile)
 - 🔜 **P1.7**: Canonical dictionary mapping raw parameter names (e.g. "VS 1ère heure", "Vitesse de sédimentation") → canonical code (e.g. "ESR") for cross-lab tracking — *partly satisfied by Pas 4 (LOINC grouping in Compare view)*

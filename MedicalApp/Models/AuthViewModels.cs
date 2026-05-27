@@ -25,6 +25,26 @@ namespace MedicalApp.Models
         [StringLength(50)]
         [Display(Name = "Promo Code")]
         public string? PromoCode { get; set; }
+
+        // ----- CAM (Clinici de Analize Medicale) optional fields -----
+        // Set to "Clinic" via the radio button on the register page; default
+        // "Individual" preserves the original B2C flow untouched.
+
+        /// <summary>"Individual" (default, persoană fizică) or "Clinic" (CAM).</summary>
+        [StringLength(20)]
+        public string UserType { get; set; } = "Individual";
+
+        [StringLength(200)]
+        [Display(Name = "Clinic Name")]
+        public string? ClinicName { get; set; }
+
+        [StringLength(100)]
+        [Display(Name = "Clinic City")]
+        public string? ClinicCity { get; set; }
+
+        [StringLength(300)]
+        [Display(Name = "Clinic Address")]
+        public string? ClinicAddress { get; set; }
     }
 
     public class LoginViewModel

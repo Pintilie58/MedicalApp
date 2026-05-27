@@ -54,6 +54,31 @@
                             </a>
                         }
 
+                        @* CAM toggle: only for Clinic users — lets them jump between
+                           personal (B2C) and clinic (CAM) modes from one place. *@
+                        if (_layoutUser != null &&
+                            string.Equals(_layoutUser.UserType, "Clinic", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var _isOnCamArea = (Context.Request.Path.Value ?? "")
+                                .StartsWith("/CAM", StringComparison.OrdinalIgnoreCase);
+                            if (_isOnCamArea)
+                            {
+                                <a asp-controller="Account" asp-action="Dashboard" asp-area=""
+                                   class="btn btn-sm btn-outline-light fw-bold" data-testid="nav-mode-personal"
+                                   title="Comută în modul personal">
+                                    &#128106; Mod personal
+                                </a>
+                            }
+                            else
+                            {
+                                <a asp-controller="Dashboard" asp-action="Index" asp-area="CAM"
+                                   class="btn btn-sm btn-info fw-bold text-dark" data-testid="nav-mode-cam"
+                                   title="Comută în modul clinică">
+                                    &#127973; Mod clinică
+                                </a>
+                            }
+                        }
+
                         @* Profiles quick link - only for logged-in users *@
                         if (_layoutUser != null)
                         {

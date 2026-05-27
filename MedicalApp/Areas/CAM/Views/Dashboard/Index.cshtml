@@ -1,0 +1,134 @@
+@model MedicalApp.Areas.CAM.Models.CamDashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard CAM";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="container py-5">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h2 fw-bold text-primary mb-1" data-testid="cam-dashboard-heading">
+                &#127973; @Model.ClinicName
+            </h1>
+            <div class="text-muted small">
+                @Model.ClinicCity &middot; @Model.ClinicAddress
+            </div>
+        </div>
+        <div class="col-auto align-self-center">
+            <span class="badge bg-success fs-6 px-3 py-2" data-testid="cam-credits-badge">
+                &#128176; @Model.CreditsAvailable credite disponibile
+            </span>
+        </div>
+    </div>
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger" data-testid="cam-error">@TempData["ErrorMessage"]</div>
+    }
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success" data-testid="cam-success">@TempData["SuccessMessage"]</div>
+    }
+
+    @if (!Model.FoldersCreated)
+    {
+        <div class="alert alert-warning d-flex align-items-start" data-testid="cam-folders-pending">
+            <div class="me-3" style="font-size: 1.6rem;">&#9888;</div>
+            <div>
+                <h5 class="fw-bold mb-1">Folderele de lucru NU sunt încă create</h5>
+                <p class="mb-2">
+                    Pentru a începe să procesezi fișiere, folderele
+                    <code>Original</code>, <code>Sends</code>, <code>Sumar</code>, <code>Errors</code>
+                    se creează AUTOMAT la prima cumpărare de credite CAM.
+                </p>
+                <a asp-controller="Credits" asp-action="Buy" asp-area=""
+                   class="btn btn-warning fw-bold" data-testid="cam-go-buy-credits">
+                    Cumpără primul pachet de credite &rarr;
+                </a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card border-success mb-4" data-testid="cam-folders-ready">
+            <div class="card-header bg-success text-white fw-bold">
+                &#9989; Foldere de lucru pregătite
+                <span class="small fw-normal ms-2">
+                    (create @Model.FoldersCreatedAt?.ToLocalTime().ToString("dd MMM yyyy HH:mm"))
+                </span>
+            </div>
+            <div class="card-body">
+                <p class="mb-2 small text-muted">
+                    Aplicația va citi automat fișierele PDF din <strong>Original</strong>
+                    când vei apăsa <em>Lansează Interpretare Lot</em>.
+                </p>
+                <table class="table table-sm mb-0">
+                    <tbody>
+                        <tr>
+                            <td style="width: 120px;"><strong>Original</strong></td>
+                            <td><code>@Model.OriginalFolder</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Sends</strong></td>
+                            <td><code>@Model.SendsFolder</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Sumar</strong></td>
+                            <td><code>@Model.SumarFolder</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Errors</strong></td>
+                            <td><code>@Model.ErrorsFolder</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="card h-100 border-secondary opacity-75" data-testid="cam-card-batch">
+                    <div class="card-body">
+                        <h5 class="card-title">&#128229; Lansează Interpretare Lot</h5>
+                        <p class="card-text small text-muted">
+                            (Disponibil din Faza 3.) Pornește procesarea automată
+                            a tuturor PDF-urilor din <code>Original</code>.
+                        </p>
+                        <button class="btn btn-primary disabled" disabled>În curând</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-secondary opacity-75" data-testid="cam-card-patients">
+                    <div class="card-body">
+                        <h5 class="card-title">&#128101; Pacienți</h5>
+                        <p class="card-text small text-muted">
+                            (Disponibil din Faza 2.) Listă pacienți, căutare după
+                            CNP sau nume, istoric analize.
+                        </p>
+                        <button class="btn btn-outline-primary disabled" disabled>În curând</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-secondary opacity-75" data-testid="cam-card-history">
+                    <div class="card-body">
+                        <h5 class="card-title">&#128218; Sumare batch-uri</h5>
+                        <p class="card-text small text-muted">
+                            (Disponibil din Faza 4.) Istoricul tuturor sesiunilor
+                            de procesare, statistici, export.
+                        </p>
+                        <button class="btn btn-outline-primary disabled" disabled>În curând</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="text-center mt-5">
+        <p class="small text-muted">
+            Powered by <a href="https://medicalapp.ro" target="_blank" class="text-decoration-none fw-bold">MedicalApp+</a>
+            &middot; <a asp-controller="Account" asp-action="Dashboard" asp-area="" class="text-decoration-none">Comută în modul personal</a>
+        </p>
+    </div>
+</div>

@@ -71,6 +71,14 @@ builder.Services.AddMemoryCache();
 // Archive premium access billing (P1.5.5, P1.8, exports).
 builder.Services.AddScoped<ArchiveAccessService>();
 
+// CAM (Clinici de Analize Medicale) module: settings + local-disk file store +
+// AES crypto for patient CNP. Tomorrow's cloud deployment can swap
+// LocalDiskCamFileStore for an AzureBlobCamFileStore without controllers
+// changing a single line.
+builder.Services.Configure<CamSettings>(builder.Configuration.GetSection("CamSettings"));
+builder.Services.AddSingleton<ICamFileStore, LocalDiskCamFileStore>();
+builder.Services.AddSingleton<CamCryptoService>();
+
 // LOINC matcher microservice client (Python FastAPI).
 // Gemini emits standardized English medical names; this client calls the
 // Python pipeline (semantic + fuzzy + rules over the local LoincDictionary)
@@ -145,6 +153,10 @@ app.UseRequestLocalization(locOptions);
 
 app.UseSession();
 app.UseAuthorization();
+
+app.MapControllerRoute(
+    name: "areas",
+    pattern: "{area:exists}/{controller=Dashboard}/{action=Index}/{id?}");
 
 app.MapControllerRoute(
     name: "default",

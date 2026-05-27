@@ -16,6 +16,17 @@ namespace MedicalApp.Services
 
         /// <summary>Promo code typed at register, applied on successful verification.</summary>
         public string? PromoCode { get; set; }
+
+        // ----- CAM (Clinici de Analize Medicale) optional fields -----
+        // Carried verbatim from the register form so we can create the
+        // matching Clinic row right after the user verifies their email.
+
+        /// <summary>"Individual" (default) or "Clinic".</summary>
+        public string UserType { get; set; } = "Individual";
+
+        public string? ClinicName { get; set; }
+        public string? ClinicCity { get; set; }
+        public string? ClinicAddress { get; set; }
     }
 
     /// <summary>

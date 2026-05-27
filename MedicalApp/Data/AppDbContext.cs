@@ -14,6 +14,13 @@ namespace MedicalApp.Data
         public DbSet<Profile> Profiles { get; set; } = null!;
         public DbSet<LoincEntry> LoincDictionary { get; set; } = null!;
 
+        // ----- CAM module (Clinici de Analize Medicale) -----
+        public DbSet<Clinic> Clinics { get; set; } = null!;
+        public DbSet<ClinicPatient> ClinicPatients { get; set; } = null!;
+        public DbSet<ClinicAnalysis> ClinicAnalyses { get; set; } = null!;
+        public DbSet<ClinicBatchRun> ClinicBatchRuns { get; set; } = null!;
+        public DbSet<ClinicBatchError> ClinicBatchErrors { get; set; } = null!;
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -80,6 +87,52 @@ namespace MedicalApp.Data
                 entity.Property(e => e.ImportedAt).HasColumnType("datetime2");
                 // Speed up future "find by common-name substring" admin searches.
                 entity.HasIndex(e => e.LongCommonName);
+            });
+
+            // ===== CAM module entities =====
+            modelBuilder.Entity<Clinic>(entity =>
+            {
+                entity.ToTable("Clinics");
+                entity.HasKey(c => c.Id);
+                entity.Property(c => c.UserEmail).HasMaxLength(200).IsRequired();
+                entity.HasIndex(c => c.UserEmail).IsUnique();
+                entity.Property(c => c.CreatedAt).HasColumnType("datetime2");
+                entity.Property(c => c.FoldersCreatedAt).HasColumnType("datetime2");
+            });
+
+            modelBuilder.Entity<ClinicPatient>(entity =>
+            {
+                entity.ToTable("ClinicPatients");
+                entity.HasKey(p => p.Id);
+                entity.HasIndex(p => new { p.ClinicId, p.CnpHashKey }).IsUnique();
+                entity.Property(p => p.CreatedAt).HasColumnType("datetime2");
+            });
+
+            modelBuilder.Entity<ClinicAnalysis>(entity =>
+            {
+                entity.ToTable("ClinicAnalyses");
+                entity.HasKey(a => a.Id);
+                entity.HasIndex(a => a.PatientId);
+                entity.HasIndex(a => a.ClinicId);
+                entity.Property(a => a.ProcessedAt).HasColumnType("datetime2");
+                entity.Property(a => a.SamplingDate).HasColumnType("datetime2");
+            });
+
+            modelBuilder.Entity<ClinicBatchRun>(entity =>
+            {
+                entity.ToTable("ClinicBatchRuns");
+                entity.HasKey(b => b.Id);
+                entity.HasIndex(b => b.ClinicId);
+                entity.Property(b => b.StartedAt).HasColumnType("datetime2");
+                entity.Property(b => b.FinishedAt).HasColumnType("datetime2");
+            });
+
+            modelBuilder.Entity<ClinicBatchError>(entity =>
+            {
+                entity.ToTable("ClinicBatchErrors");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.BatchRunId);
+                entity.Property(e => e.OccurredAt).HasColumnType("datetime2");
             });
         }
     }

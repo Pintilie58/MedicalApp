@@ -98,6 +98,54 @@
                                 @Html.AntiForgeryToken()
                                 <div asp-validation-summary="All" class="text-danger small mb-2"></div>
 
+                                @* CAM: tip cont — Persoană fizică vs. Clinică Analize Medicale *@
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">@Loc.T("UserTypeLabel")</label>
+                                    <div class="btn-group w-100" role="group" aria-label="User type">
+                                        <input type="radio" class="btn-check" name="UserType" id="userTypeIndividual"
+                                               value="Individual" autocomplete="off"
+                                               @(string.Equals(registerModel.UserType, "Clinic", StringComparison.OrdinalIgnoreCase) ? "" : "checked")
+                                               data-testid="register-usertype-individual" />
+                                        <label class="btn btn-outline-primary" for="userTypeIndividual">
+                                            &#128106; @Loc.T("UserTypeIndividual")
+                                        </label>
+
+                                        <input type="radio" class="btn-check" name="UserType" id="userTypeClinic"
+                                               value="Clinic" autocomplete="off"
+                                               @(string.Equals(registerModel.UserType, "Clinic", StringComparison.OrdinalIgnoreCase) ? "checked" : "")
+                                               data-testid="register-usertype-clinic" />
+                                        <label class="btn btn-outline-primary" for="userTypeClinic">
+                                            &#127973; @Loc.T("UserTypeClinic")
+                                        </label>
+                                    </div>
+                                </div>
+
+                                @* CAM: câmpurile suplimentare pentru clinică — vizibile doar când UserType=Clinic *@
+                                <div id="clinicFields" style="display:@(string.Equals(registerModel.UserType, "Clinic", StringComparison.OrdinalIgnoreCase) ? "block" : "none");">
+                                    <div class="alert alert-info py-2 small mb-3" data-testid="register-clinic-gdpr-note">
+                                        &#9888; Clinica își asumă obligația GDPR: pacientul semnează la clinică
+                                        declarația de prelucrare a datelor înainte ca PDF-ul să fie încărcat în aplicație.
+                                    </div>
+                                    <div class="mb-3">
+                                        <label asp-for="@registerModel.ClinicName" class="form-label">@Loc.T("ClinicNameLabel")</label>
+                                        <input asp-for="@registerModel.ClinicName" name="ClinicName" class="form-control"
+                                               autocomplete="off" data-testid="register-clinic-name" />
+                                        <span asp-validation-for="@registerModel.ClinicName" class="text-danger small"></span>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label asp-for="@registerModel.ClinicCity" class="form-label">@Loc.T("ClinicCityLabel")</label>
+                                        <input asp-for="@registerModel.ClinicCity" name="ClinicCity" class="form-control"
+                                               autocomplete="off" data-testid="register-clinic-city" />
+                                        <span asp-validation-for="@registerModel.ClinicCity" class="text-danger small"></span>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label asp-for="@registerModel.ClinicAddress" class="form-label">@Loc.T("ClinicAddressLabel")</label>
+                                        <input asp-for="@registerModel.ClinicAddress" name="ClinicAddress" class="form-control"
+                                               autocomplete="off" data-testid="register-clinic-address" />
+                                        <span asp-validation-for="@registerModel.ClinicAddress" class="text-danger small"></span>
+                                    </div>
+                                </div>
+
                                 <div class="mb-3">
                                     <label asp-for="@registerModel.Email" class="form-label">@Loc.T("Email")</label>
                                     <input asp-for="@registerModel.Email" name="Email" class="form-control" autocomplete="off" />
@@ -205,6 +253,20 @@
                         .catch(function () { /* keep neutral on network error */ });
                 }, 350);
             });
+        })();
+
+        // CAM: arată/ascunde câmpurile clinică în funcție de tipul de cont selectat.
+        (function () {
+            var rIndividual = document.getElementById('userTypeIndividual');
+            var rClinic = document.getElementById('userTypeClinic');
+            var clinicFields = document.getElementById('clinicFields');
+            if (!rIndividual || !rClinic || !clinicFields) return;
+            function refresh() {
+                clinicFields.style.display = rClinic.checked ? 'block' : 'none';
+            }
+            rIndividual.addEventListener('change', refresh);
+            rClinic.addEventListener('change', refresh);
+            refresh();
         })();
     </script>
 }
