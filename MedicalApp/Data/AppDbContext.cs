@@ -104,7 +104,11 @@ namespace MedicalApp.Data
             {
                 entity.ToTable("ClinicPatients");
                 entity.HasKey(p => p.Id);
-                entity.HasIndex(p => new { p.ClinicId, p.CnpHashKey }).IsUnique();
+                // Lookup key: (clinic, normalized name, email). Two distinct
+                // patients with identical names but different emails are OK;
+                // same person re-uploaded is the SAME row (one patient, many
+                // analyses).
+                entity.HasIndex(p => new { p.ClinicId, p.NameKey, p.Email }).IsUnique();
                 entity.Property(p => p.CreatedAt).HasColumnType("datetime2");
             });
 

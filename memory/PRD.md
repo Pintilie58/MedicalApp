@@ -381,6 +381,25 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
     * Routing: `app.MapControllerRoute` pentru Areas adăugat în `Program.cs`.
     * Localizare în Loc.cs pentru EN/RO/FR/ES/DE: ~12 chei noi.
 - 🔜 **Faza 2**: Extragere CNP/Email + Listă pacienți + criptare CNP.
+
+- ✅ **[Feb 2026 — Faza 2: Identificare pacient + Listă + Verifică PDF + Seed Demo]**
+    * **DECIZIE STRATEGICĂ**: am renunțat la CNP pentru identificarea pacienților. Motivele:
+        1. **Universalitate 30 limbi** — fiecare țară are alt format ID (Aadhaar IN, SNILS RU, NIR FR, SSN US, NHS UK, etc.) — imposibil de validat global.
+        2. **GDPR-friendly** — CNP/SSN sunt "high-risk data". Nume + Email sunt "moderate-risk" → reduce expunerea legală.
+        3. **Pragmatic** — pacientul a fost deja identificat la clinică cu buletinul; aplicația noastră are nevoie doar de o cheie de istoric stabilă.
+    * **Identificarea unică pacient** = `(ClinicId, NameKey, Email)` unde NameKey = nume normalizat (fără diacritice, sortat alfabetic, lowercase).
+    * `CamPatientKey.Normalize()` — algoritm portabil: NFD strip non-spacing marks → lowercase invariant → drop punctuation → sort tokens. Testat: "Ion Popescu" și "POPESCU Ion" → "ion popescu". "Ștefan ȚEPEȘ" → "stefan tepes". Funcționează cu chirilic, latină, greacă etc.
+    * `CamPdfMetadataExtractor` — extrage Nume + Email cu 3 strategii fallback (label-based, near-email, capitalized-line). Multi-limbă în NameLabels.
+    * **Eliminate** complet din proiect: `CamCryptoService`, `CnpEncryptionKeyBase64`, `CnpHashKey`, `CnpEncrypted`. Zero referințe orfane (verificat).
+    * **DB schema**: migrare nouă trebuie generată în VS2026 — coloanele `CnpHashKey`/`CnpEncrypted` vor fi DROP-uite, `NameKey` adăugat, index unic refăcut pe `(ClinicId, NameKey, Email)`.
+    * **`/CAM/Patients`** — listă pacienți cu search insensitiv la diacritice + ordinea cuvintelor + count analize per pacient (placeholder pentru Faza 3).
+    * **`/CAM/CheckPdfs`** — scanează folderul `Original` și afișează ce extrage extractor-ul pentru fiecare PDF (verificare INAINTE de a lansa lotul în Faza 3). Status verde/galben + motiv eroare.
+    * **Seed Clinica Demo** (idempotent, în `StartupSeed.EnsureClinicaDemoAsync`):
+        - user: `clinica.demo@medicalapp.test` / `Demo1234!`
+        - clinic: "Clinica Demo Test" / București / Str. Test 1
+        - 1000 credite pre-încărcate + Purchase marker (PaymentMethod="seed", cam_pro)
+        - Foldere create automat pe disk
+        - 5 pacienți fictivi (Ion Popescu, Maria Ionescu, Andrei Georgescu, Elena Vasilescu, Mihai Constantinescu) — toți cu email `vasilepintilie2003@gmail.com` pentru testare emailuri în Faza 3.
 - 🔜 **Faza 3**: Batch Processing + Background Job + Sumar.txt.
 - 🔜 **Faza 4**: Dashboard CAM cu statistici + export Sumar PDF.
 

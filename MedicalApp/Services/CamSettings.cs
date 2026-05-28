@@ -25,14 +25,5 @@ namespace MedicalApp.Services
         /// don't touch the disk directly.
         /// </summary>
         public string FilesRoot { get; set; } = @"C:\MedicalApp_files";
-
-        /// <summary>
-        /// AES key (base64, 32 bytes) used to encrypt patient CNP values at
-        /// rest. MUST be set in User Secrets (development) or environment
-        /// variable (production). When NULL the CNP encryption layer falls
-        /// back to a deterministic warning string so the app does not crash
-        /// during the very first run before the operator sets the secret.
-        /// </summary>
-        public string? CnpEncryptionKeyBase64 { get; set; }
     }
 }

@@ -77,7 +77,7 @@ builder.Services.AddScoped<ArchiveAccessService>();
 // changing a single line.
 builder.Services.Configure<CamSettings>(builder.Configuration.GetSection("CamSettings"));
 builder.Services.AddSingleton<ICamFileStore, LocalDiskCamFileStore>();
-builder.Services.AddSingleton<CamCryptoService>();
+builder.Services.AddScoped<CamPdfMetadataExtractor>();
 
 // LOINC matcher microservice client (Python FastAPI).
 // Gemini emits standardized English medical names; this client calls the
@@ -129,6 +129,9 @@ using (var scopedServices = app.Services.CreateScope())
     {
         await StartupSeed.EnsureDefaultProfilesAsync(app.Services, seedLogger);
         await StartupSeed.EnsureFreeArchiveUntilAsync(app.Services, seedLogger);
+        // CAM: idempotent demo clinic seed — only inserts when missing.
+        var camFilesForSeed = scopedServices.ServiceProvider.GetRequiredService<ICamFileStore>();
+        await StartupSeed.EnsureClinicaDemoAsync(app.Services, camFilesForSeed, seedLogger);
         await LoincSeeder.EnsureSeededAsync(app.Services, app.Environment, seedLogger);
     }
     catch (Exception ex)

@@ -81,5 +81,145 @@ namespace MedicalApp.Services
                 "StartupSeed: granted 1-year FreeArchiveUntil={GraceUntil:u} to {Count} legacy user(s).",
                 graceUntil, legacyUsers.Count);
         }
+
+        /// <summary>
+        /// Demo seed for the CAM (Clinici Analize Medicale) module.
+        /// Creates a ready-to-use clinic account with:
+        ///   * email:  <c>clinica.demo@medicalapp.test</c>
+        ///   * pass:   <c>Demo1234!</c>
+        ///   * clinic: "Clinica Demo Test", București, Str. Test 1
+        ///   * 1000 credits pre-loaded (cam_pro package, marked "seed")
+        ///   * Original/Sends/Sumar/Errors folders created on disk
+        ///   * 5 fictional patients, ALL with emails pointing to the developer's
+        ///     mailbox (vasilepintilie2003@gmail.com) so batch testing in
+        ///     Faza 3 sends every test email to a single inbox.
+        ///
+        /// IDEMPOTENT: re-running the app does NOT re-create the user, top-up
+        /// credits, or duplicate patients. Safe to call on every startup.
+        /// </summary>
+        public static async Task EnsureClinicaDemoAsync(
+            IServiceProvider services,
+            ICamFileStore camFiles,
+            ILogger logger)
+        {
+            const string demoEmail = "clinica.demo@medicalapp.test";
+            const string demoPasswordPlain = "Demo1234!";
+            const string operatorRedirectEmail = "vasilepintilie2003@gmail.com";
+
+            using var scope = services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            // -------- User --------
+            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == demoEmail);
+            bool createdUser = false;
+            if (user == null)
+            {
+                user = new User
+                {
+                    Email = demoEmail,
+                    Parola = BCrypt.Net.BCrypt.HashPassword(demoPasswordPlain),
+                    Credite = 1000,
+                    CreditConsum = 0,
+                    CreditRest = 1000,
+                    TotalPaid = 500m,
+                    DataC = DateTime.UtcNow,
+                    UserType = "Clinic",
+                    FreeArchiveUntil = DateTime.UtcNow.Add(ArchiveAccessService.FreePeriod),
+                };
+                db.Users.Add(user);
+                createdUser = true;
+            }
+
+            // -------- Clinic --------
+            var clinic = await db.Clinics.FirstOrDefaultAsync(c => c.UserEmail == demoEmail);
+            if (clinic == null)
+            {
+                clinic = new Clinic
+                {
+                    UserEmail = demoEmail,
+                    Name = "Clinica Demo Test",
+                    City = "București",
+                    Address = "Str. Test 1",
+                    CreatedAt = DateTime.UtcNow
+                };
+                db.Clinics.Add(clinic);
+                await db.SaveChangesAsync(); // need clinic.Id for the folder step below
+            }
+
+            // -------- Folders on disk --------
+            if (clinic.FoldersCreatedAt == null)
+            {
+                try
+                {
+                    await camFiles.EnsureClinicFoldersAsync(clinic);
+                    clinic.FoldersCreatedAt = DateTime.UtcNow;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex,
+                        "StartupSeed: failed to create Clinica Demo folders on disk. " +
+                        "User can still log in and trigger creation manually from the dashboard.");
+                }
+            }
+
+            // -------- Marker Purchase row (so admin dashboard shows the seed) --------
+            var alreadyHasSeedPurchase = await db.Purchases
+                .AnyAsync(p => p.UserEmail == demoEmail && p.PaymentMethod == "seed");
+            if (!alreadyHasSeedPurchase)
+            {
+                db.Purchases.Add(new Purchase
+                {
+                    UserEmail = demoEmail,
+                    PurchasedAt = DateTime.UtcNow,
+                    AmountEur = 500m,
+                    CreditsAdded = 1000,
+                    PaymentMethod = "seed",
+                    PackageKey = "cam_pro"
+                });
+            }
+
+            // -------- 5 fictional patients --------
+            // Each patient's "real" email is set to the developer's inbox so we
+            // can verify batch-result emails in Faza 3 without spamming anyone.
+            var fictionalNames = new[]
+            {
+                "Ion Popescu",
+                "Maria Ionescu",
+                "Andrei Georgescu",
+                "Elena Vasilescu",
+                "Mihai Constantinescu"
+            };
+            foreach (var name in fictionalNames)
+            {
+                var key = CamPatientKey.Normalize(name);
+                var exists = await db.ClinicPatients
+                    .AnyAsync(p => p.ClinicId == clinic.Id
+                                   && p.NameKey == key
+                                   && p.Email == operatorRedirectEmail);
+                if (exists) continue;
+                db.ClinicPatients.Add(new ClinicPatient
+                {
+                    ClinicId = clinic.Id,
+                    Name = name,
+                    NameKey = key,
+                    Email = operatorRedirectEmail,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+
+            await db.SaveChangesAsync();
+
+            if (createdUser)
+            {
+                logger.LogInformation(
+                    "StartupSeed: Clinica Demo created — login {Email} / password {Pass} / 1000 credits.",
+                    demoEmail, demoPasswordPlain);
+            }
+            else
+            {
+                logger.LogInformation(
+                    "StartupSeed: Clinica Demo already exists — refreshed patients/purchase rows if missing.");
+            }
+        }
     }
 }

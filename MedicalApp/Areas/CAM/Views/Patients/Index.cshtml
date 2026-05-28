@@ -1,0 +1,84 @@
+@model MedicalApp.Areas.CAM.Models.CamPatientsListViewModel
+@{
+    ViewData["Title"] = "Pacienți — " + Model.ClinicName;
+}
+
+<div class="container py-5">
+    <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
+        <h2 class="text-primary fw-bold mb-0" data-testid="cam-patients-heading">
+            &#128101; Pacienți
+        </h2>
+        <span class="badge bg-secondary align-self-center" data-testid="cam-patients-count">
+            @Model.Items.Count
+        </span>
+        <div class="ms-auto">
+            <a asp-controller="Dashboard" asp-action="Index" asp-area="CAM"
+               class="btn btn-outline-secondary" data-testid="cam-back-dashboard">
+                &larr; Înapoi la dashboard
+            </a>
+        </div>
+    </div>
+
+    <form method="get" class="mb-4" data-testid="cam-patients-search-form">
+        <div class="input-group">
+            <input name="q" value="@Model.Query" class="form-control"
+                   placeholder="Caută după nume sau email&hellip;"
+                   data-testid="cam-patients-search-input" />
+            <button class="btn btn-primary" type="submit" data-testid="cam-patients-search-submit">
+                Caută
+            </button>
+            @if (!string.IsNullOrWhiteSpace(Model.Query))
+            {
+                <a asp-action="Index" class="btn btn-outline-secondary" data-testid="cam-patients-clear">
+                    Resetează
+                </a>
+            }
+        </div>
+        <div class="form-text small">
+            Căutarea este insensibilă la diacritice și la ordinea cuvintelor
+            („Ion Popescu" găsește și „POPESCU Ion").
+        </div>
+    </form>
+
+    @if (Model.Items.Count == 0)
+    {
+        <div class="alert alert-info" data-testid="cam-patients-empty">
+            @if (string.IsNullOrWhiteSpace(Model.Query))
+            {
+                <span>Niciun pacient încă. Vor apărea aici după prima rulare de lot.</span>
+            }
+            else
+            {
+                <span>Nicio potrivire pentru „<strong>@Model.Query</strong>".</span>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" data-testid="cam-patients-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nume</th>
+                        <th>Email</th>
+                        <th class="text-center">Nr. analize</th>
+                        <th>Adăugat</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in Model.Items)
+                    {
+                        <tr data-testid="cam-patient-row-@p.Id">
+                            <td class="fw-semibold">@p.Name</td>
+                            <td><a href="mailto:@p.Email">@p.Email</a></td>
+                            <td class="text-center">
+                                <span class="badge bg-light text-dark border">@p.AnalysesCount</span>
+                            </td>
+                            <td class="small text-muted">@p.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

@@ -99,26 +99,33 @@
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="card h-100 border-secondary opacity-75" data-testid="cam-card-patients">
+                <div class="card h-100 border-primary" data-testid="cam-card-patients">
                     <div class="card-body">
                         <h5 class="card-title">&#128101; Pacienți</h5>
                         <p class="card-text small text-muted">
-                            (Disponibil din Faza 2.) Listă pacienți, căutare după
-                            CNP sau nume, istoric analize.
+                            Listă pacienți, căutare după nume sau email,
+                            istoric analize.
                         </p>
-                        <button class="btn btn-outline-primary disabled" disabled>În curând</button>
+                        <a asp-controller="Patients" asp-action="Index" asp-area="CAM"
+                           class="btn btn-primary" data-testid="cam-go-patients">
+                            Deschide
+                        </a>
                     </div>
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="card h-100 border-secondary opacity-75" data-testid="cam-card-history">
+                <div class="card h-100 border-primary" data-testid="cam-card-checkpdfs">
                     <div class="card-body">
-                        <h5 class="card-title">&#128218; Sumare batch-uri</h5>
+                        <h5 class="card-title">&#128270; Verifică PDF-uri</h5>
                         <p class="card-text small text-muted">
-                            (Disponibil din Faza 4.) Istoricul tuturor sesiunilor
-                            de procesare, statistici, export.
+                            Scanează folderul <code>Original</code> și arată ce
+                            metadata reușește extractorul să găsească
+                            (Nume + Email) ÎNAINTE de lansarea lotului.
                         </p>
-                        <button class="btn btn-outline-primary disabled" disabled>În curând</button>
+                        <a asp-controller="CheckPdfs" asp-action="Index" asp-area="CAM"
+                           class="btn btn-outline-primary" data-testid="cam-go-checkpdfs">
+                            Verifică acum
+                        </a>
                     </div>
                 </div>
             </div>
