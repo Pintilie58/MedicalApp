@@ -1,4 +1,5 @@
 using MedicalApp.Data;
+using MedicalApp.Models;
 using MedicalApp.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -6,11 +7,12 @@ using Microsoft.EntityFrameworkCore;
 namespace MedicalApp.Areas.CAM.Controllers
 {
     /// <summary>
-    /// Pagina /CAM/CheckPdfs — scanează folderul "Original" al clinicii curente
-    /// și afișează, pentru fiecare PDF, ce a reușit să extragă
-    /// <see cref="CamPdfMetadataExtractor"/>: nume + email + status.
-    /// Util pentru a verifica înainte de Faza 3 dacă regex-urile prind corect
-    /// metadata din PDF-urile lab-urilor cu care vei lucra.
+    /// Pagina /CAM/CheckPdfs — Strategia C (safety net manual).
+    /// Operatorul vede pentru fiecare PDF din folderul <c>Original</c>:
+    ///   * ce extrage automat extractor-ul (Strategy 0 [MedicalApp] → fallback),
+    ///   * statusul (verde gold path / galben fallback / roșu invalid),
+    ///   * butoane: Edit (override manual), Upload (copiere fișiere noi din alt loc).
+    /// La lansare lot, BatchService preferă override-ul dacă există.
     /// </summary>
     [Area("CAM")]
     public class CheckPdfsController : Controller
@@ -48,7 +50,8 @@ namespace MedicalApp.Areas.CAM.Controllers
             var vm = new Models.CamCheckPdfsViewModel
             {
                 ClinicName = clinic.Name,
-                OriginalFolder = _files.GetOriginalFolder(clinic)
+                OriginalFolder = _files.GetOriginalFolder(clinic),
+                EmailDomainBlacklist = clinic.EmailDomainBlacklist ?? string.Empty
             };
 
             if (!Directory.Exists(vm.OriginalFolder))
@@ -61,6 +64,15 @@ namespace MedicalApp.Areas.CAM.Controllers
                 .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
+            // Preload all overrides for this clinic in ONE query.
+            var fileNames = pdfs.Select(Path.GetFileName).ToList();
+            var overrides = await _db.ClinicPdfOverrides.AsNoTracking()
+                .Where(o => o.ClinicId == clinic.Id && fileNames.Contains(o.FileName))
+                .ToDictionaryAsync(o => o.FileName, o => o);
+
+            var blacklist = (clinic.EmailDomainBlacklist ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
             foreach (var path in pdfs)
             {
                 var row = new Models.CamCheckPdfsViewModel.Row
@@ -68,25 +80,191 @@ namespace MedicalApp.Areas.CAM.Controllers
                     FileName = Path.GetFileName(path),
                     SizeKb = (int)Math.Round(new FileInfo(path).Length / 1024.0)
                 };
-                try
+
+                // Check for an operator override FIRST.
+                if (overrides.TryGetValue(row.FileName, out var ov))
                 {
-                    var bytes = await System.IO.File.ReadAllBytesAsync(path);
-                    var meta = _extractor.Extract(bytes, row.FileName);
-                    row.PatientName = meta.PatientName;
-                    row.PatientEmail = meta.PatientEmail;
-                    row.IsValid = meta.IsValid;
-                    row.Reason = meta.Reason;
+                    row.PatientName = ov.OverrideName;
+                    row.PatientEmail = ov.OverrideEmail;
+                    row.IsValid = true;
+                    row.IsManualOverride = true;
                 }
-                catch (Exception ex)
+                else
                 {
-                    _logger.LogWarning(ex, "CheckPdfs: failed reading {File}", path);
-                    row.IsValid = false;
-                    row.Reason = "I/O error: " + ex.Message;
+                    try
+                    {
+                        var bytes = await System.IO.File.ReadAllBytesAsync(path);
+                        var meta = _extractor.Extract(bytes, row.FileName, blacklist);
+                        row.PatientName = meta.PatientName;
+                        row.PatientEmail = meta.PatientEmail;
+                        row.IsValid = meta.IsValid;
+                        row.Reason = meta.Reason;
+                        row.MatchedExplicitBlock = meta.MatchedExplicitBlock;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "CheckPdfs: failed reading {File}", path);
+                        row.IsValid = false;
+                        row.Reason = "I/O error: " + ex.Message;
+                    }
                 }
                 vm.Items.Add(row);
             }
 
             return View(vm);
+        }
+
+        // ----- POST: salvează un override manual nume+email per PDF -----
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveOverride(string fileName, string overrideName, string overrideEmail)
+        {
+            if (string.IsNullOrEmpty(CurrentEmail))
+                return RedirectToAction("Index", "Home", new { area = "" });
+
+            var clinic = await _db.Clinics.FirstOrDefaultAsync(c => c.UserEmail == CurrentEmail);
+            if (clinic == null) return RedirectToAction("Index", "Dashboard", new { area = "CAM" });
+
+            if (string.IsNullOrWhiteSpace(fileName) ||
+                string.IsNullOrWhiteSpace(overrideName) ||
+                string.IsNullOrWhiteSpace(overrideEmail))
+            {
+                TempData["ErrorMessage"] = "Toate câmpurile sunt obligatorii.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            // Trivial sanity check — extractor will validate again at batch time.
+            if (!overrideEmail.Contains('@') || !overrideEmail.Contains('.'))
+            {
+                TempData["ErrorMessage"] = "Adresa de email pare invalidă.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            var existing = await _db.ClinicPdfOverrides
+                .FirstOrDefaultAsync(o => o.ClinicId == clinic.Id && o.FileName == fileName);
+            if (existing == null)
+            {
+                _db.ClinicPdfOverrides.Add(new ClinicPdfOverride
+                {
+                    ClinicId = clinic.Id,
+                    FileName = fileName,
+                    OverrideName = overrideName.Trim(),
+                    OverrideEmail = overrideEmail.Trim(),
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+            else
+            {
+                existing.OverrideName = overrideName.Trim();
+                existing.OverrideEmail = overrideEmail.Trim();
+                existing.CreatedAt = DateTime.UtcNow;
+            }
+            await _db.SaveChangesAsync();
+            TempData["SuccessMessage"] = $"Override salvat pentru {fileName}.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        // ----- POST: clear override (revine la auto-extracție) -----
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ClearOverride(string fileName)
+        {
+            if (string.IsNullOrEmpty(CurrentEmail))
+                return RedirectToAction("Index", "Home", new { area = "" });
+
+            var clinic = await _db.Clinics.FirstOrDefaultAsync(c => c.UserEmail == CurrentEmail);
+            if (clinic == null) return RedirectToAction("Index", "Dashboard", new { area = "CAM" });
+
+            var ov = await _db.ClinicPdfOverrides
+                .FirstOrDefaultAsync(o => o.ClinicId == clinic.Id && o.FileName == fileName);
+            if (ov != null)
+            {
+                _db.ClinicPdfOverrides.Remove(ov);
+                await _db.SaveChangesAsync();
+            }
+            TempData["SuccessMessage"] = "Override șters. PDF-ul va fi re-analizat automat.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        // ----- POST: salvează blacklist-ul de domenii al clinicii -----
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveBlacklist(string emailDomainBlacklist)
+        {
+            if (string.IsNullOrEmpty(CurrentEmail))
+                return RedirectToAction("Index", "Home", new { area = "" });
+
+            var clinic = await _db.Clinics.FirstOrDefaultAsync(c => c.UserEmail == CurrentEmail);
+            if (clinic == null) return RedirectToAction("Index", "Dashboard", new { area = "CAM" });
+
+            clinic.EmailDomainBlacklist = (emailDomainBlacklist ?? string.Empty).Trim();
+            if (clinic.EmailDomainBlacklist.Length > 500)
+                clinic.EmailDomainBlacklist = clinic.EmailDomainBlacklist[..500];
+            await _db.SaveChangesAsync();
+            TempData["SuccessMessage"] = "Lista de domenii ignorate a fost salvată.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        // ----- POST: upload manual PDF-uri din alt loc de pe disk (copiere) -----
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RequestSizeLimit(200_000_000)] // 200 MB total per request
+        public async Task<IActionResult> UploadFiles(List<IFormFile> files)
+        {
+            if (string.IsNullOrEmpty(CurrentEmail))
+                return RedirectToAction("Index", "Home", new { area = "" });
+
+            var clinic = await _db.Clinics.FirstOrDefaultAsync(c => c.UserEmail == CurrentEmail);
+            if (clinic == null) return RedirectToAction("Index", "Dashboard", new { area = "CAM" });
+
+            if (files == null || files.Count == 0)
+            {
+                TempData["ErrorMessage"] = "Niciun fișier selectat.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            var originalFolder = _files.GetOriginalFolder(clinic);
+            if (!Directory.Exists(originalFolder))
+            {
+                TempData["ErrorMessage"] = "Folderul Original nu există încă. Cumpără primul pachet de credite.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            int copied = 0, skipped = 0, rejected = 0;
+            foreach (var f in files)
+            {
+                if (f == null || f.Length == 0) { skipped++; continue; }
+                if (!f.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) { rejected++; continue; }
+
+                // Sanitize file name (drop path components, keep base + ext).
+                var baseName = Path.GetFileName(f.FileName);
+                var dest = Path.Combine(originalFolder, baseName);
+                if (System.IO.File.Exists(dest))
+                {
+                    // Disambiguate to avoid silently overwriting an existing file.
+                    var stem = Path.GetFileNameWithoutExtension(baseName);
+                    var ext = Path.GetExtension(baseName);
+                    dest = Path.Combine(originalFolder, $"{stem}_{DateTime.Now:yyyyMMdd_HHmmss}{ext}");
+                }
+
+                try
+                {
+                    using var stream = new FileStream(dest, FileMode.CreateNew, FileAccess.Write);
+                    await f.CopyToAsync(stream);
+                    copied++;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "UploadFiles: failed to write {Dest}", dest);
+                    skipped++;
+                }
+            }
+
+            TempData["SuccessMessage"] =
+                $"Upload finalizat: {copied} copiate" +
+                (rejected > 0 ? $", {rejected} respinse (nu sunt PDF)" : "") +
+                (skipped > 0 ? $", {skipped} sărite (erori I/O)" : "") + ".";
+            return RedirectToAction(nameof(Index));
         }
     }
 }

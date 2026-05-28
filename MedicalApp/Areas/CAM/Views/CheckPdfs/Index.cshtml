@@ -3,6 +3,8 @@
     ViewData["Title"] = "Verificare PDF-uri — " + Model.ClinicName;
     int okCount = Model.Items.Count(r => r.IsValid);
     int notOkCount = Model.Items.Count - okCount;
+    int goldCount = Model.Items.Count(r => r.MatchedExplicitBlock);
+    int overrideCount = Model.Items.Count(r => r.IsManualOverride);
 }
 
 <div class="container py-5">
@@ -18,15 +20,88 @@
         </div>
     </div>
 
-    <p class="text-muted small mb-3">
-        Aplicația scanează folderul de mai jos și afișează, pentru fiecare PDF,
-        ce reușește să extragă (Nume + Email). Util ca să verifici înainte de a
-        lansa lotul (Faza 3) că toate fișierele tale conțin metadata corectă.
-    </p>
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger" data-testid="cam-checkpdfs-error">@TempData["ErrorMessage"]</div>
+    }
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success" data-testid="cam-checkpdfs-success">@TempData["SuccessMessage"]</div>
+    }
 
     <div class="alert alert-light border" data-testid="cam-checkpdfs-folder">
         <strong>Folder scanat:</strong>
         <code>@Model.OriginalFolder</code>
+    </div>
+
+    @* ===== Upload manual fișiere PDF (sugestia 1) ===== *@
+    <div class="card mb-3 border-info">
+        <div class="card-header bg-info-subtle fw-bold">
+            &#128229; Selectare fișiere PDF (copiere din alt loc)
+        </div>
+        <div class="card-body">
+            <p class="small text-muted mb-2">
+                Selectează unul sau mai multe fișiere PDF de pe disc.
+                Fișierele sunt <strong>copiate</strong> (nu mutate) în folderul <code>Original</code>
+                al clinicii tale.
+            </p>
+            <form asp-action="UploadFiles" method="post" enctype="multipart/form-data"
+                  class="d-flex flex-wrap gap-2" data-testid="cam-checkpdfs-upload-form">
+                @Html.AntiForgeryToken()
+                <input type="file" name="files" accept="application/pdf,.pdf" multiple required
+                       class="form-control" style="max-width:520px;"
+                       data-testid="cam-checkpdfs-upload-input" />
+                <button type="submit" class="btn btn-info fw-bold"
+                        data-testid="cam-checkpdfs-upload-submit">
+                    &#9658; Copiază în Original
+                </button>
+            </form>
+        </div>
+    </div>
+
+    @* ===== Help block [MedicalApp] + Blacklist ===== *@
+    <div class="row g-3 mb-3">
+        <div class="col-md-7">
+            <div class="card border-success h-100">
+                <div class="card-header bg-success-subtle fw-bold">
+                    &#11088; Convenție recomandată pentru identificare 100% sigură
+                </div>
+                <div class="card-body small">
+                    Adaugă pe ultima pagină a fiecărui PDF (sau în șablonul lab-ului) un bloc cu acest format <strong>exact</strong>:
+                    <pre class="bg-light p-2 mb-2 mt-2"
+                         style="font-size:12px;border-radius:6px;">[MedicalApp]
+Pacient: Ion Popescu
+Email: ion.popescu@example.com</pre>
+                    Când blocul există, aplicația îl folosește direct (badge verde <strong>"Explicit"</strong>) și ignoră restul textului.
+                </div>
+            </div>
+        </div>
+        <div class="col-md-5">
+            <div class="card border-warning h-100">
+                <div class="card-header bg-warning-subtle fw-bold">
+                    &#128683; Domenii email ignorate
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted mb-2">
+                        Email-uri din PDF care conțin aceste domenii sunt SĂRITE
+                        (ex: email-ul clinicii din header). Separă cu virgulă.
+                    </p>
+                    <form asp-action="SaveBlacklist" method="post"
+                          class="d-flex gap-2" data-testid="cam-checkpdfs-blacklist-form">
+                        @Html.AntiForgeryToken()
+                        <input type="text" name="emailDomainBlacklist"
+                               value="@Model.EmailDomainBlacklist"
+                               class="form-control form-control-sm"
+                               placeholder="clinica-sante.ro, exemplu.ro"
+                               data-testid="cam-checkpdfs-blacklist-input" />
+                        <button type="submit" class="btn btn-sm btn-warning"
+                                data-testid="cam-checkpdfs-blacklist-submit">
+                            Salvează
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 
     @if (Model.FolderMissing)
@@ -38,9 +113,11 @@
     }
     else
     {
-        <div class="d-flex gap-2 mb-3" data-testid="cam-checkpdfs-summary">
+        <div class="d-flex gap-2 mb-3 flex-wrap" data-testid="cam-checkpdfs-summary">
             <span class="badge bg-success fs-6 px-3 py-2">&#10003; Valide: @okCount</span>
             <span class="badge bg-danger fs-6 px-3 py-2">&#10007; Cu probleme: @notOkCount</span>
+            <span class="badge bg-info fs-6 px-3 py-2 text-dark">&#11088; [MedicalApp] block: @goldCount</span>
+            <span class="badge bg-warning fs-6 px-3 py-2 text-dark">&#9999; Override manual: @overrideCount</span>
             <span class="badge bg-secondary fs-6 px-3 py-2">Total: @Model.Items.Count</span>
             <div class="ms-auto">
                 <form method="get" class="d-inline">
@@ -54,8 +131,8 @@
         @if (Model.Items.Count == 0)
         {
             <div class="alert alert-info" data-testid="cam-checkpdfs-empty">
-                Niciun PDF în folderul <code>Original</code>. Pune câteva fișiere de
-                test acolo și apasă „Re-scanează".
+                Niciun PDF în folderul <code>Original</code>. Folosește butonul de mai sus pentru
+                a copia fișiere, sau pune-le manual în folder și apasă „Re-scanează".
             </div>
         }
         else
@@ -68,15 +145,18 @@
                             <th>Fișier</th>
                             <th>Nume extras</th>
                             <th>Email extras</th>
-                            <th>Mărime</th>
+                            <th>Sursă</th>
                             <th>Status / Motiv</th>
+                            <th style="width:160px;">&nbsp;</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var r in Model.Items)
                         {
-                            <tr class="@(r.IsValid ? "" : "table-warning")"
-                                data-testid="cam-checkpdfs-row">
+                            var rowClass = r.IsValid
+                                ? (r.MatchedExplicitBlock ? "table-success" : r.IsManualOverride ? "table-warning" : "")
+                                : "table-danger";
+                            <tr class="@rowClass" data-testid="cam-checkpdfs-row">
                                 <td class="text-center">
                                     @if (r.IsValid)
                                     {
@@ -87,10 +167,27 @@
                                         <span class="text-danger fs-5">&#10007;</span>
                                     }
                                 </td>
-                                <td><code>@r.FileName</code></td>
+                                <td><code class="small">@r.FileName</code></td>
                                 <td>@(r.PatientName ?? "—")</td>
                                 <td>@(r.PatientEmail ?? "—")</td>
-                                <td class="small text-muted">@r.SizeKb KB</td>
+                                <td class="small">
+                                    @if (r.MatchedExplicitBlock)
+                                    {
+                                        <span class="badge bg-success">&#11088; [MedicalApp]</span>
+                                    }
+                                    else if (r.IsManualOverride)
+                                    {
+                                        <span class="badge bg-warning text-dark">&#9999; Manual</span>
+                                    }
+                                    else if (r.IsValid)
+                                    {
+                                        <span class="badge bg-secondary">Auto</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger">—</span>
+                                    }
+                                </td>
                                 <td class="small">
                                     @if (r.IsValid)
                                     {
@@ -101,6 +198,30 @@
                                         <span class="text-danger">@r.Reason</span>
                                     }
                                 </td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-outline-primary"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#editModal"
+                                            data-filename="@r.FileName"
+                                            data-name="@(r.PatientName ?? "")"
+                                            data-email="@(r.PatientEmail ?? "")"
+                                            data-testid="cam-checkpdfs-edit-btn">
+                                        &#9999; Editează
+                                    </button>
+                                    @if (r.IsManualOverride)
+                                    {
+                                        <form asp-action="ClearOverride" method="post" class="d-inline ms-1">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="fileName" value="@r.FileName" />
+                                            <button type="submit"
+                                                    class="btn btn-sm btn-outline-secondary"
+                                                    title="Șterge override-ul manual și revine la auto-extracție"
+                                                    data-testid="cam-checkpdfs-clear-btn">
+                                                &#10005;
+                                            </button>
+                                        </form>
+                                    }
+                                </td>
                             </tr>
                         }
                     </tbody>
@@ -109,3 +230,62 @@
         }
     }
 </div>
+
+@* ===== Modal Edit Override (un singur modal reutilizat pentru toate rândurile) ===== *@
+<div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form asp-action="SaveOverride" method="post" class="modal-content"
+              data-testid="cam-checkpdfs-edit-form">
+            @Html.AntiForgeryToken()
+            <div class="modal-header">
+                <h5 class="modal-title">&#9999; Editează metadata pacient</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted">
+                    Datele introduse aici sunt folosite la lansarea lotului în locul auto-extracției.
+                </p>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Fișier</label>
+                    <input type="text" id="editFileName" name="fileName"
+                           class="form-control bg-light" readonly
+                           data-testid="cam-checkpdfs-edit-filename" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Nume complet pacient</label>
+                    <input type="text" id="editName" name="overrideName" required
+                           class="form-control"
+                           placeholder="ex: Ion Popescu"
+                           data-testid="cam-checkpdfs-edit-name" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Email pacient</label>
+                    <input type="email" id="editEmail" name="overrideEmail" required
+                           class="form-control"
+                           placeholder="ex: ion.popescu@example.com"
+                           data-testid="cam-checkpdfs-edit-email" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Renunță</button>
+                <button type="submit" class="btn btn-primary fw-bold"
+                        data-testid="cam-checkpdfs-edit-save">Salvează</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var editModal = document.getElementById('editModal');
+        if (!editModal) return;
+        editModal.addEventListener('show.bs.modal', function (event) {
+            var btn = event.relatedTarget;
+            document.getElementById('editFileName').value = btn.getAttribute('data-filename') || '';
+            document.getElementById('editName').value     = btn.getAttribute('data-name')     || '';
+            document.getElementById('editEmail').value    = btn.getAttribute('data-email')    || '';
+        });
+    });
+</script>
+}

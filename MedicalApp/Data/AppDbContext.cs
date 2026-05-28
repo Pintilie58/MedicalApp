@@ -20,6 +20,7 @@ namespace MedicalApp.Data
         public DbSet<ClinicAnalysis> ClinicAnalyses { get; set; } = null!;
         public DbSet<ClinicBatchRun> ClinicBatchRuns { get; set; } = null!;
         public DbSet<ClinicBatchError> ClinicBatchErrors { get; set; } = null!;
+        public DbSet<ClinicPdfOverride> ClinicPdfOverrides { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -137,6 +138,16 @@ namespace MedicalApp.Data
                 entity.HasKey(e => e.Id);
                 entity.HasIndex(e => e.BatchRunId);
                 entity.Property(e => e.OccurredAt).HasColumnType("datetime2");
+            });
+
+            modelBuilder.Entity<ClinicPdfOverride>(entity =>
+            {
+                entity.ToTable("ClinicPdfOverrides");
+                entity.HasKey(o => o.Id);
+                // One override row per (clinic, file) — re-editing the same
+                // row replaces the previous value.
+                entity.HasIndex(o => new { o.ClinicId, o.FileName }).IsUnique();
+                entity.Property(o => o.CreatedAt).HasColumnType("datetime2");
             });
         }
     }

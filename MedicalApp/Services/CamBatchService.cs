@@ -207,8 +207,30 @@ namespace MedicalApp.Services
                 return;
             }
 
-            // 1. Extract metadata
-            var meta = extractor.Extract(bytes, fileName);
+            // 1. Extract metadata — operator's manual override (CheckPdfs/Edit)
+            //    wins over the auto-extractor when present, and the clinic's
+            //    EmailDomainBlacklist filters out the lab's own header email.
+            CamPdfMetadata meta;
+            var overrideRow = await db.ClinicPdfOverrides
+                .FirstOrDefaultAsync(o => o.ClinicId == clinic.Id && o.FileName == fileName);
+            if (overrideRow != null)
+            {
+                meta = new CamPdfMetadata
+                {
+                    PatientName = overrideRow.OverrideName,
+                    PatientEmail = overrideRow.OverrideEmail,
+                    IsValid = true,
+                    IsMedicalLabReport = true,
+                    MatchedExplicitBlock = false
+                };
+                progress.Log("   ◇ Folosesc override manual: " + overrideRow.OverrideName);
+            }
+            else
+            {
+                var blacklist = (clinic.EmailDomainBlacklist ?? string.Empty)
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                meta = extractor.Extract(bytes, fileName, blacklist);
+            }
             if (!meta.IsValid)
             {
                 progress.Log($"   ✘ Metadata invalidă: {meta.Reason}");
@@ -373,6 +395,15 @@ namespace MedicalApp.Services
                 progress.Log("   ⚠ Mutarea fișierului în Sends a eșuat (rămâne în Original): " + ex.Message);
             }
 
+            // Cleanup: override-ul manual nu mai are sens după ce fișierul
+            // a părăsit folderul Original.
+            var ovToDelete = await db.ClinicPdfOverrides
+                .FirstOrDefaultAsync(o => o.ClinicId == clinic.Id && o.FileName == fileName);
+            if (ovToDelete != null)
+            {
+                db.ClinicPdfOverrides.Remove(ovToDelete);
+            }
+
             if (user != null)
             {
                 // Bonus credits consumed FIRST, then paid.
@@ -442,6 +473,15 @@ namespace MedicalApp.Services
                     $"Acest fișier a eșuat de 3 ori în loturile clinicii. Motive:\n" +
                     string.Join("\n", reasons.Select(r => "  • " + r)),
                     System.Text.Encoding.UTF8);
+
+                // Cleanup: override-ul nu mai are sens — fișierul a părăsit Original.
+                var ovToDelete = await db.ClinicPdfOverrides
+                    .FirstOrDefaultAsync(o => o.ClinicId == batch.ClinicId && o.FileName == fileName);
+                if (ovToDelete != null)
+                {
+                    db.ClinicPdfOverrides.Remove(ovToDelete);
+                    await db.SaveChangesAsync();
+                }
             }
             catch (Exception ex)
             {

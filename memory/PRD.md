@@ -415,6 +415,24 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
     * **Recovery la startup** (`StartupSeed.FailOrphanedBatchesAsync`): orice `Status="Running"` rămas dintr-un crash anterior e marcat ca "Failed" + FinishedAt — operatorul vede situația reală și relansează manual.
 - 🔜 **Faza 4**: Dashboard CAM cu statistici + export Sumar PDF.
 
+- ✅ **[Feb 2026 — Faza 3.5: Robustețe metadata extraction + Upload manual + Sanity check]**
+    * **Problema identificată**: PDF-uri cu multiple email-uri (clinică + pacient), nume cu prefixe artifact ("/Prenume: ..."), text adăugat ca Annotation (invizibil pentru PdfPig). Soluție: **Strategia B + C**.
+    * **Strategia B — bloc explicit `[MedicalApp]`** (gold path, 100% precizie):
+        Convenție recomandată clinicilor — pe ultima pagină a PDF-ului:
+        ```
+        [MedicalApp]
+        Pacient: Ion Popescu
+        Email: ion.popescu@example.com
+        ```
+        Detectat prin `MedicalAppBlockRx`, prioritar față de orice fallback.
+    * **Strategia C — Override manual** (safety net 100%): tabel nou `ClinicPdfOverrides` (ClinicId + FileName unique). UI nou `/CAM/CheckPdfs` cu buton "✏ Editează" + modal Bootstrap (nume + email). `CamBatchService` preferă override-ul când există. Ștergere automată după Sends/Errors.
+    * **Blacklist domenii**: câmp nou `Clinic.EmailDomainBlacklist` (CSV, configurabil din UI). Extractor-ul sare peste orice email cu domeniile listate → niciodată nu va lua email-ul clinicii din header.
+    * **Validare "este PDF de analize medicale?"**: heuristică pe 40+ cuvinte cheie medicale (RO/EN/FR/ES/DE: analize, rezultate, biochimie, glicemie, leucocite, hemoglobină, etc.) — minimum 2 hituri = PDF valid. Respinge facturi/contracte/alte documente.
+    * **Pattern românesc nou**: `Nume/Prenume:`, `Nume si Prenume:`, `Nume şi/și Prenume:`, `Prenume/Nume:` adăugate în NameLabels.
+    * **Curățare nume**: regex `^/[A-Za-z...]+\s*:\s*` strip-uiește artefactele PdfPig (ex: "/Prenume: " → ""). Numele cu `/` sau `:` sunt respinse ca implausibile.
+    * **Upload manual** (sugestia 1): buton pe `/CAM/CheckPdfs` "Selectare fișiere PDF" cu multi-file picker. Fișierele sunt **COPIATE** (nu mutate) în folderul Original al clinicii. Validare extensie .pdf. Disambiguare automată nume (timestamp suffix la coliziune).
+- 🔜 **Faza 4**: Dashboard CAM cu statistici + export Sumar PDF.
+
 ### P1 – Family profiles (multi-session focus)
 - 🔜 **P1.6**: Denormalize parameters into `AnalysisResults` table on each interpretation (ParameterCode, Value, Unit, Status, SamplingDate, per profile)
 - 🔜 **P1.7**: Canonical dictionary mapping raw parameter names (e.g. "VS 1ère heure", "Vitesse de sédimentation") → canonical code (e.g. "ESR") for cross-lab tracking — *partly satisfied by Pas 4 (LOINC grouping in Compare view)*

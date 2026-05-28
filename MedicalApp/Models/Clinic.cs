@@ -41,5 +41,15 @@ namespace MedicalApp.Models
         /// "first purchase already happened" without scanning Purchases.
         /// </summary>
         public DateTime? FoldersCreatedAt { get; set; }
+
+        /// <summary>
+        /// Comma-separated list of email-domain substrings that the auto-extractor
+        /// should SKIP when scanning a PDF for the patient address
+        /// (e.g. <c>"clinica-sante.ro,sante.ro"</c>). This is how we keep the
+        /// clinic's own header email out of the patient pool. Operator can
+        /// edit this from the CAM Dashboard.
+        /// </summary>
+        [StringLength(500)]
+        public string? EmailDomainBlacklist { get; set; }
     }
 }
