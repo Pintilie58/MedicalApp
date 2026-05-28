@@ -2,6 +2,7 @@ using System.Text.Json;
 using MedicalApp.Data;
 using MedicalApp.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace MedicalApp.Services
 {
@@ -281,7 +282,7 @@ namespace MedicalApp.Services
             if (user == null || user.TotalAvailableCredits <= 0)
             {
                 progress.Log("   ✘ Credite epuizate. Cumpără credite și relansează.");
-                await RecordErrorAsync(db, batch, path, meta.PatientName, "Out of credits");
+                await RecordErrorAsync(db, batch, path, meta!.PatientName, "Out of credits");
                 batch.NotSends++; progress.NotSends++;
                 return;
             }
@@ -290,7 +291,7 @@ namespace MedicalApp.Services
             InterpretationResult? result = await CallGeminiWithRetryAsync(gemini, bytes, fileName, progress, ct);
             if (result == null)
             {
-                await RecordErrorAsync(db, batch, path, meta.PatientName, "AI exhausted retries (incl. fallback model)");
+                await RecordErrorAsync(db, batch, path, meta!.PatientName, "AI exhausted retries (incl. fallback model)");
                 batch.NotSends++; progress.NotSends++;
                 return;
             }
@@ -306,13 +307,13 @@ namespace MedicalApp.Services
                     batch.NotSends++; progress.NotSends++;
                     return;
                 }
-                meta.PatientName = aiName;
+                meta!.PatientName = aiName;
                 meta.IsValid = true;
                 progress.Log($"   ✓ Identificat de Gemini: {aiName} <{meta.PatientEmail}>");
             }
 
             // 4. Find or create patient (lookup by NameKey + Email)
-            var nameKey = CamPatientKey.Normalize(meta.PatientName!);
+            var nameKey = CamPatientKey.Normalize(meta!.PatientName!);
             var patient = await db.ClinicPatients.FirstOrDefaultAsync(p =>
                 p.ClinicId == clinic.Id &&
                 p.NameKey == nameKey &&
@@ -563,7 +564,7 @@ namespace MedicalApp.Services
             // constructor signature stable.
             using var settingsScope = _scopeFactory.CreateScope();
             var settings = settingsScope.ServiceProvider
-                .GetRequiredService<Microsoft.Extensions.Options.IOptions<GeminiSettings>>().Value;
+                .GetRequiredService<IOptions<GeminiSettings>>().Value;
 
             int transient = 0;
             string? modelOverride = null;

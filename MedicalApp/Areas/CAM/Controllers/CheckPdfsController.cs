@@ -64,7 +64,11 @@ namespace MedicalApp.Areas.CAM.Controllers
                 .ToList();
 
             // Preload all overrides for this clinic in ONE query.
-            var fileNames = pdfs.Select(Path.GetFileName).ToList();
+            var fileNames = pdfs
+                .Select(Path.GetFileName)
+                .Where(n => !string.IsNullOrEmpty(n))
+                .Select(n => n!)
+                .ToList();
             var overrides = await _db.ClinicPdfOverrides.AsNoTracking()
                 .Where(o => o.ClinicId == clinic.Id && fileNames.Contains(o.FileName))
                 .ToDictionaryAsync(o => o.FileName, o => o);
