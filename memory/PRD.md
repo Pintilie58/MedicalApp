@@ -439,11 +439,12 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
     * **Retry + Flash→Pro fallback în CAM** (ca în B2C `InterpretationController`): 5 încercări pe 429/503 cu backoff progresiv 5s/15s/30s/60s. După 2 transient errors consecutive, switch automat la `GeminiSettings.FallbackModel` (gemini-2.5-pro). Implementat în `CamBatchService.CallGeminiWithRetryAsync`. Adăugat parametrul `modelOverride` în `IMedicalInterpretationProvider.InterpretPdfAsync`.
     * **Compare PDF refactor B2C-grade**: `CamComparePdfGenerator` reutilizează acum `ProfilesController.BuildComparison` (schimbat din `private` în `public static`) pentru a obține IDENTIC grouping LOINC + LOINC class headers + drift warning ⚠ + status abnormal marker. Sintetizez `InterpretationHistory` + `Profile` ad-hoc din `ClinicAnalysis` și pasez la builder. Side-by-side cu max 4 coloane, header per LOINC class (Hematologie, Biochimie etc.).
 
-- ✅ **[Feb 2026 — Faza 3.7: LOINC class enrichment local (fără Python) + UI CheckPdfs onest]**
-    * **Problemă identificată**: CAM NU rulează matcher-ul Python LOINC (e procesare doar locală). Compare PDF rezulta cu toate analizele sub "Alte analize" (fără grupare HEM/CHEM/etc.).
-    * **Soluție**: `CamLoincClassEnricher` — după ce Gemini returnează rezultatul, parcurg `KeyResults` și pentru fiecare LoincCode existent fac un single batched query în `LoincDictionary` (deja seedată local) ca să completez `LoincClass`. ZERO dependențe externe, un singur SELECT per analiză.
-    * **Rezultat**: Compare PDF-ul CAM are acum exact aceleași secțiuni LOINC class ca Compare B2C (Hematologie, Biochimie, etc.) — și aceleași drift warnings, abnormal markers, etc.
-    * **UI CheckPdfs onest**: nu mai afișăm extragerea heuristică (label-scan / near-email / capitalized line) ca dacă ar fi finalul. În preview arătăm doar ce extrage cu certitudine (bloc `[MedicalApp]` sau override). Restul PDF-urilor medicale sunt marcate cu badge "AI la lot" 🤖 și mesaj "Gemini va identifica pacientul la lot" — onest cu utilizatorul. PDF-urile non-medicale rămân roșii "Blocat".
+- ✅ **[Feb 2026 — Faza 3.8: LOINC matcher Python pornit și pentru CAM (FIX-ul real)]**
+    * **Diagnoza completă**: la Faza 3.7 am încercat să completez `LoincClass` pe baza `LoincCode`-urilor existente. PROBLEMA: Gemini la CAM rareori returnează `LoincCode` pentru parametri în limbaj natural. Fără cod nu există clasă, oricât de bun ar fi enricher-ul local.
+    * **Soluția REALĂ**: apelez exact același `LoincMatcherClient` ca B2C (Python service: 128 canonical anchors + semantic embeddings).
+    * **Implementare**: în `CamBatchService.ProcessOneFileAsync` după Gemini, înlocuit `CamLoincClassEnricher` (șters) cu `await loincMatcher.MatchAllAsync(result, ct)` — identic cu B2C `InterpretationController` linia 502.
+    * **Rezultat**: CAM acum populează AMBELE `LoincCode` + `LoincClass` pe fiecare KeyResult cu codurile oficiale, deci Compare PDF se grupează corect Hematology / Chemistry / etc. (la fel ca B2C).
+    * **Cerință runtime**: când se lansează un lot CAM, modulul Python `loinc_service` TREBUIE să ruleze pe `http://localhost:8000` (la fel ca pentru interpretarea B2C). Dacă e oprit, log-ul afișează "⚠ LOINC matcher indisponibil" și batch-ul continuă fără clase (graceful degradation).
 - 🔜 **Faza 4**: Dashboard CAM cu statistici + export Sumar PDF.
 
 ### P1 – Family profiles (multi-session focus)

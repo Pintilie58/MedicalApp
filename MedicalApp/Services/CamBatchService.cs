@@ -58,7 +58,7 @@ namespace MedicalApp.Services
                 var gemini = scope.ServiceProvider.GetRequiredService<IMedicalInterpretationProvider>();
                 var pdfGen = scope.ServiceProvider.GetRequiredService<PdfReportGenerator>();
                 var compareGen = scope.ServiceProvider.GetRequiredService<CamComparePdfGenerator>();
-                var loincEnricher = scope.ServiceProvider.GetRequiredService<CamLoincClassEnricher>();
+                var loincMatcher = scope.ServiceProvider.GetRequiredService<LoincMatcherClient>();
                 var email = scope.ServiceProvider.GetRequiredService<IEmailService>();
 
                 var batch = await db.ClinicBatchRuns.FirstOrDefaultAsync(b => b.Id == batchRunId);
@@ -126,7 +126,7 @@ namespace MedicalApp.Services
                     try
                     {
                         await ProcessOneFileAsync(
-                            db, files, extractor, gemini, pdfGen, compareGen, loincEnricher, email,
+                            db, files, extractor, gemini, pdfGen, compareGen, loincMatcher, email,
                             clinic, user, batch, progress, path, sendsFolder, errorsFolder, ct);
                     }
                     catch (Exception ex)
@@ -187,7 +187,7 @@ namespace MedicalApp.Services
             IMedicalInterpretationProvider gemini,
             PdfReportGenerator pdfGen,
             CamComparePdfGenerator compareGen,
-            CamLoincClassEnricher loincEnricher,
+            LoincMatcherClient loincMatcher,
             IEmailService email,
             Clinic clinic,
             User? user,
@@ -314,15 +314,22 @@ namespace MedicalApp.Services
                 progress.Log($"   ✓ Identificat de Gemini: {aiName} <{meta.PatientEmail}>");
             }
 
-            // 3c. CAM does not run the Python LOINC matcher; instead we
-            // complete LoincClass for every Gemini-emitted LoincCode by
-            // looking it up in our local LoincDictionary table. This is
-            // what makes the Compare PDF group rows by Hematology /
-            // Chemistry / etc. exactly like the B2C flow.
-            try { await loincEnricher.EnrichAsync(result, ct); }
+            // 3c. CAM now uses the SAME LOINC matcher as the B2C interpretation
+            // path (Python service: 128 canonical anchors + semantic embeddings).
+            // Without this step the Compare PDF cannot group rows by LOINC class
+            // because Gemini alone rarely emits LOINC codes for every parameter.
+            try
+            {
+                var matchStats = await loincMatcher.MatchAllAsync(result, ct);
+                if (matchStats.Matched > 0)
+                {
+                    progress.Log($"   ⚙ LOINC matcher: {matchStats.Matched} parametri rezolvați din {matchStats.Total}.");
+                }
+            }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "CAM batch {Id}: LOINC enrich failed (continuing)", batch.Id);
+                _logger.LogWarning(ex, "CAM batch {Id}: LoincMatcherClient failed (continuing without LOINC codes)", batch.Id);
+                progress.Log("   ⚠ LOINC matcher indisponibil — Compare-ul nu va avea grupare per clasă.");
             }
 
             // 4. Find or create patient (lookup by NameKey + Email)
