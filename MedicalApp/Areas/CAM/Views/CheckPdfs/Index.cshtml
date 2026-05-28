@@ -59,48 +59,20 @@
         </div>
     </div>
 
-    @* ===== Help block [MedicalApp] + Blacklist ===== *@
-    <div class="row g-3 mb-3">
-        <div class="col-md-7">
-            <div class="card border-success h-100">
-                <div class="card-header bg-success-subtle fw-bold">
-                    &#11088; Convenție recomandată pentru identificare 100% sigură
-                </div>
-                <div class="card-body small">
-                    Adaugă pe ultima pagină a fiecărui PDF (sau în șablonul lab-ului) un bloc cu acest format <strong>exact</strong>:
-                    <pre class="bg-light p-2 mb-2 mt-2"
-                         style="font-size:12px;border-radius:6px;">[MedicalApp]
+    @* ===== Help block [MedicalApp] ===== *@
+    <div class="card mb-3 border-success">
+        <div class="card-header bg-success-subtle fw-bold">
+            &#11088; Convenție recomandată pentru identificare 100% sigură
+        </div>
+        <div class="card-body small">
+            Adaugă pe ultima pagină a fiecărui PDF (sau în șablonul lab-ului) un bloc cu acest format <strong>exact</strong>:
+            <pre class="bg-light p-2 mb-2 mt-2"
+                 style="font-size:12px;border-radius:6px;">[MedicalApp]
 Pacient: Ion Popescu
 Email: ion.popescu@example.com</pre>
-                    Când blocul există, aplicația îl folosește direct (badge verde <strong>"Explicit"</strong>) și ignoră restul textului.
-                </div>
-            </div>
-        </div>
-        <div class="col-md-5">
-            <div class="card border-warning h-100">
-                <div class="card-header bg-warning-subtle fw-bold">
-                    &#128683; Domenii email ignorate
-                </div>
-                <div class="card-body">
-                    <p class="small text-muted mb-2">
-                        Email-uri din PDF care conțin aceste domenii sunt SĂRITE
-                        (ex: email-ul clinicii din header). Separă cu virgulă.
-                    </p>
-                    <form asp-action="SaveBlacklist" method="post"
-                          class="d-flex gap-2" data-testid="cam-checkpdfs-blacklist-form">
-                        @Html.AntiForgeryToken()
-                        <input type="text" name="emailDomainBlacklist"
-                               value="@Model.EmailDomainBlacklist"
-                               class="form-control form-control-sm"
-                               placeholder="clinica-sante.ro, exemplu.ro"
-                               data-testid="cam-checkpdfs-blacklist-input" />
-                        <button type="submit" class="btn btn-sm btn-warning"
-                                data-testid="cam-checkpdfs-blacklist-submit">
-                            Salvează
-                        </button>
-                    </form>
-                </div>
-            </div>
+            Când blocul există, aplicația îl folosește direct (badge verde <strong>"[MedicalApp]"</strong>) și
+            ignoră restul textului. Pentru PDF-urile fără bloc, aplicația apelează Gemini AI
+            pentru a identifica numele pacientului automat din conținutul PDF-ului.
         </div>
     </div>
 

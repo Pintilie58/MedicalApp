@@ -420,7 +420,7 @@ namespace MedicalApp.Controllers
                 System.Globalization.DateTimeStyles.AssumeLocal, out var any) ? any : (DateTime?)null;
         }
 
-        private static CompareInterpretationsViewModel BuildComparison(
+        public static CompareInterpretationsViewModel BuildComparison(
             Profile profile,
             List<(InterpretationHistory h, InterpretationResult r)> sortedOldestFirst)
         {

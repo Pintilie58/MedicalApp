@@ -431,6 +431,13 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
     * **Pattern românesc nou**: `Nume/Prenume:`, `Nume si Prenume:`, `Nume şi/și Prenume:`, `Prenume/Nume:` adăugate în NameLabels.
     * **Curățare nume**: regex `^/[A-Za-z...]+\s*:\s*` strip-uiește artefactele PdfPig (ex: "/Prenume: " → ""). Numele cu `/` sau `:` sunt respinse ca implausibile.
     * **Upload manual** (sugestia 1): buton pe `/CAM/CheckPdfs` "Selectare fișiere PDF" cu multi-file picker. Fișierele sunt **COPIATE** (nu mutate) în folderul Original al clinicii. Validare extensie .pdf. Disambiguare automată nume (timestamp suffix la coliziune).
+
+- ✅ **[Feb 2026 — Faza 3.6: Gemini-first identification + Retry/Fallback + Compare PDF B2C-grade]**
+    * **Identificare pacient prin Gemini** (când nu există override sau bloc `[MedicalApp]`): după ce Gemini interpretează PDF-ul, citim `PatientInfo.Name` direct din rezultatul structurat AI — mult mai fiabil decât PdfPig+regex (ex: "Nume/Prenume: Pintilie Vasile" se extrăgea ca "/Prenume: Pintilie Vasile"). Cost ZERO suplimentar — folosim apelul Gemini care oricum trebuia făcut pentru interpretare.
+    * **Sanity check medical mutat MAI DEVREME**: extractor-ul detectează acum că PDF-ul nu e medical ÎNAINTE de a apela Gemini → ZERO credit consumat pe facturi/contracte.
+    * **Eliminat UI Blacklist domenii** (per decizia user-ului Feb 2026 — ne bazăm 100% pe blocul `[MedicalApp]` sau pe Gemini). Câmpul DB `EmailDomainBlacklist` rămâne (no migration), nu mai e folosit.
+    * **Retry + Flash→Pro fallback în CAM** (ca în B2C `InterpretationController`): 5 încercări pe 429/503 cu backoff progresiv 5s/15s/30s/60s. După 2 transient errors consecutive, switch automat la `GeminiSettings.FallbackModel` (gemini-2.5-pro). Implementat în `CamBatchService.CallGeminiWithRetryAsync`. Adăugat parametrul `modelOverride` în `IMedicalInterpretationProvider.InterpretPdfAsync`.
+    * **Compare PDF refactor B2C-grade**: `CamComparePdfGenerator` reutilizează acum `ProfilesController.BuildComparison` (schimbat din `private` în `public static`) pentru a obține IDENTIC grouping LOINC + LOINC class headers + drift warning ⚠ + status abnormal marker. Sintetizez `InterpretationHistory` + `Profile` ad-hoc din `ClinicAnalysis` și pasez la builder. Side-by-side cu max 4 coloane, header per LOINC class (Hematologie, Biochimie etc.).
 - 🔜 **Faza 4**: Dashboard CAM cu statistici + export Sumar PDF.
 
 ### P1 – Family profiles (multi-session focus)

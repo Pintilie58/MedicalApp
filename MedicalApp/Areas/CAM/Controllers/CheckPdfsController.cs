@@ -50,8 +50,7 @@ namespace MedicalApp.Areas.CAM.Controllers
             var vm = new Models.CamCheckPdfsViewModel
             {
                 ClinicName = clinic.Name,
-                OriginalFolder = _files.GetOriginalFolder(clinic),
-                EmailDomainBlacklist = clinic.EmailDomainBlacklist ?? string.Empty
+                OriginalFolder = _files.GetOriginalFolder(clinic)
             };
 
             if (!Directory.Exists(vm.OriginalFolder))
@@ -69,9 +68,6 @@ namespace MedicalApp.Areas.CAM.Controllers
             var overrides = await _db.ClinicPdfOverrides.AsNoTracking()
                 .Where(o => o.ClinicId == clinic.Id && fileNames.Contains(o.FileName))
                 .ToDictionaryAsync(o => o.FileName, o => o);
-
-            var blacklist = (clinic.EmailDomainBlacklist ?? string.Empty)
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
             foreach (var path in pdfs)
             {
@@ -94,7 +90,12 @@ namespace MedicalApp.Areas.CAM.Controllers
                     try
                     {
                         var bytes = await System.IO.File.ReadAllBytesAsync(path);
-                        var meta = _extractor.Extract(bytes, row.FileName, blacklist);
+                        // No domain blacklist anymore — per user's Feb 2026 decision,
+                        // identification relies on either the [MedicalApp] block
+                        // (gold path) or Gemini's PatientInfo from the actual batch
+                        // run. CheckPdfs preview just hints at what auto-extractor
+                        // would see without Gemini help.
+                        var meta = _extractor.Extract(bytes, row.FileName, clinicDomainBlacklist: null);
                         row.PatientName = meta.PatientName;
                         row.PatientEmail = meta.PatientEmail;
                         row.IsValid = meta.IsValid;

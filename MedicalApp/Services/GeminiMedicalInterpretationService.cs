@@ -48,7 +48,8 @@ namespace MedicalApp.Services
 
         public async Task<(InterpretationResult Result, int InputTokens, int OutputTokens, string RawResponse)> InterpretPdfAsync(
             Stream pdfStream, string fileName, string languageCode,
-            PatientContext? patientContext = null, CancellationToken ct = default)
+            PatientContext? patientContext = null, CancellationToken ct = default,
+            string? modelOverride = null)
         {
             if (string.IsNullOrWhiteSpace(_settings.ApiKey))
                 throw new InvalidOperationException(
@@ -70,7 +71,8 @@ namespace MedicalApp.Services
                 pdfBase64: pdfBase64,
                 pdfBytesLength: pdfBytes.Length,
                 extractedText: null,
-                ct: ct);
+                ct: ct,
+                modelOverride: modelOverride);
         }
 
         /// <summary>

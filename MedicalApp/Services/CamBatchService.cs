@@ -207,10 +207,15 @@ namespace MedicalApp.Services
                 return;
             }
 
-            // 1. Extract metadata — operator's manual override (CheckPdfs/Edit)
-            //    wins over the auto-extractor when present, and the clinic's
-            //    EmailDomainBlacklist filters out the lab's own header email.
-            CamPdfMetadata meta;
+            // 1. Decide patient identification path:
+            //    (a) operator override → use as-is, skip auto-extraction
+            //    (b) explicit [MedicalApp] block → use, no Gemini cost saved later
+            //    (c) Gemini-first → call Gemini once, then read PatientInfo.Name
+            //        from the AI's structured output (which is much more reliable
+            //        than PdfPig text + regex on weird PDF layouts).
+            CamPdfMetadata? meta = null;
+            bool needGeminiForName = false;
+
             var overrideRow = await db.ClinicPdfOverrides
                 .FirstOrDefaultAsync(o => o.ClinicId == clinic.Id && o.FileName == fileName);
             if (overrideRow != null)
@@ -220,24 +225,56 @@ namespace MedicalApp.Services
                     PatientName = overrideRow.OverrideName,
                     PatientEmail = overrideRow.OverrideEmail,
                     IsValid = true,
-                    IsMedicalLabReport = true,
-                    MatchedExplicitBlock = false
+                    IsMedicalLabReport = true
                 };
                 progress.Log("   ◇ Folosesc override manual: " + overrideRow.OverrideName);
             }
             else
             {
-                var blacklist = (clinic.EmailDomainBlacklist ?? string.Empty)
-                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                meta = extractor.Extract(bytes, fileName, blacklist);
-            }
-            if (!meta.IsValid)
-            {
-                progress.Log($"   ✘ Metadata invalidă: {meta.Reason}");
-                await RecordErrorAsync(db, batch, path, meta.PatientName, meta.Reason ?? "Metadata extract failed");
-                batch.NotSends++; progress.NotSends++;
-                await MoveToErrorsIfRetriesExhaustedAsync(db, batch, path, errorsFolder);
-                return;
+                // Try the explicit [MedicalApp] block first (gold path, free).
+                var probe = extractor.Extract(bytes, fileName, clinicDomainBlacklist: null);
+                if (probe.MatchedExplicitBlock && probe.IsValid)
+                {
+                    meta = probe;
+                    progress.Log($"   ⭐ Bloc [MedicalApp]: {probe.PatientName} <{probe.PatientEmail}>");
+                }
+                else if (!probe.IsMedicalLabReport)
+                {
+                    // Pre-filter: refuse non-medical PDFs immediately (no AI cost).
+                    progress.Log($"   ✘ {probe.Reason}");
+                    await RecordErrorAsync(db, batch, path, null, probe.Reason ?? "Not a medical lab PDF");
+                    batch.NotSends++; progress.NotSends++;
+                    await MoveToErrorsIfRetriesExhaustedAsync(db, batch, path, errorsFolder);
+                    return;
+                }
+                else
+                {
+                    // No block, valid medical PDF → identify via Gemini's PatientInfo.
+                    needGeminiForName = true;
+                    // We still need an email candidate. Re-run extractor with NO
+                    // blacklist (per user's decision to drop the blacklist UI),
+                    // pick the first email — Gemini will provide the authoritative
+                    // patient name a moment later.
+                    var emailRx = new System.Text.RegularExpressions.Regex(
+                        @"\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b",
+                        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    var raw = PdfTextExtractor.Extract(new MemoryStream(bytes));
+                    var emailMatch = emailRx.Match(raw);
+                    if (!emailMatch.Success)
+                    {
+                        progress.Log("   ✘ Niciun email găsit în PDF.");
+                        await RecordErrorAsync(db, batch, path, null, "Email not found in PDF");
+                        batch.NotSends++; progress.NotSends++;
+                        await MoveToErrorsIfRetriesExhaustedAsync(db, batch, path, errorsFolder);
+                        return;
+                    }
+                    meta = new CamPdfMetadata
+                    {
+                        PatientEmail = emailMatch.Value.Trim(),
+                        IsMedicalLabReport = true,
+                        IsValid = false // name still missing — filled after Gemini
+                    };
+                }
             }
 
             // 2. Check credit budget BEFORE we spend AI tokens
@@ -249,7 +286,32 @@ namespace MedicalApp.Services
                 return;
             }
 
-            // 3. Find or create patient (lookup by NameKey + Email)
+            // 3. Call Gemini with retry + Flash→Pro fallback (mirrors InterpretationController logic).
+            InterpretationResult? result = await CallGeminiWithRetryAsync(gemini, bytes, fileName, progress, ct);
+            if (result == null)
+            {
+                await RecordErrorAsync(db, batch, path, meta.PatientName, "AI exhausted retries (incl. fallback model)");
+                batch.NotSends++; progress.NotSends++;
+                return;
+            }
+
+            // 3b. If we still need the patient name, pull it from Gemini's structured output.
+            if (needGeminiForName)
+            {
+                var aiName = result.PatientInfo?.Name?.Trim();
+                if (string.IsNullOrWhiteSpace(aiName))
+                {
+                    progress.Log("   ✘ Gemini nu a putut identifica numele pacientului.");
+                    await RecordErrorAsync(db, batch, path, null, "Patient name missing from AI output");
+                    batch.NotSends++; progress.NotSends++;
+                    return;
+                }
+                meta.PatientName = aiName;
+                meta.IsValid = true;
+                progress.Log($"   ✓ Identificat de Gemini: {aiName} <{meta.PatientEmail}>");
+            }
+
+            // 4. Find or create patient (lookup by NameKey + Email)
             var nameKey = CamPatientKey.Normalize(meta.PatientName!);
             var patient = await db.ClinicPatients.FirstOrDefaultAsync(p =>
                 p.ClinicId == clinic.Id &&
@@ -268,29 +330,6 @@ namespace MedicalApp.Services
                 db.ClinicPatients.Add(patient);
                 await db.SaveChangesAsync();
                 progress.Log($"   + Pacient nou: {patient.Name} <{patient.Email}>");
-            }
-
-            // 4. Call Gemini
-            InterpretationResult? result;
-            try
-            {
-                using var ms = new MemoryStream(bytes);
-                var resp = await gemini.InterpretPdfAsync(ms, fileName, "ro", patientContext: null, ct: ct);
-                result = resp.Result;
-            }
-            catch (Exception ex)
-            {
-                progress.Log("   ✘ Gemini a eșuat: " + ex.Message);
-                await RecordErrorAsync(db, batch, path, meta.PatientName, "AI failure: " + ex.Message);
-                batch.NotSends++; progress.NotSends++;
-                return;
-            }
-            if (result == null)
-            {
-                progress.Log("   ✘ Răspuns AI gol.");
-                await RecordErrorAsync(db, batch, path, meta.PatientName, "AI returned null");
-                batch.NotSends++; progress.NotSends++;
-                return;
             }
 
             // 5. Persist this analysis + keep only last 4 per patient
@@ -498,6 +537,76 @@ namespace MedicalApp.Services
                 CamBatchSumarWriter.Write(batch, clinic, errors, sumarFolder);
             }
             catch { /* never break the batch on a sumar I/O failure */ }
+        }
+
+        /// <summary>
+        /// Calls Gemini for a single CAM PDF with the SAME retry strategy used
+        /// by <c>InterpretationController</c> for B2C interpretations:
+        ///   * Up to 5 attempts on transient 429/503.
+        ///   * After 2 consecutive transients on the primary model, switch to
+        ///     <c>GeminiSettings.FallbackModel</c> (typically gemini-2.5-pro)
+        ///     for the remaining retries — less congested, more reliable.
+        ///   * Progressive backoff: 5s, 15s, 30s, 60s.
+        /// Returns null when all attempts are exhausted; never throws.
+        /// </summary>
+        private async Task<InterpretationResult?> CallGeminiWithRetryAsync(
+            IMedicalInterpretationProvider gemini,
+            byte[] pdfBytes,
+            string fileName,
+            CamBatchProgress progress,
+            CancellationToken ct)
+        {
+            const int maxAttempts = 5;
+            const int fallbackThreshold = 2;
+            // Pull fallback settings via the registered options inside the runner's scope.
+            // We do this lazily here (instead of constructor-inject) to keep the service
+            // constructor signature stable.
+            using var settingsScope = _scopeFactory.CreateScope();
+            var settings = settingsScope.ServiceProvider
+                .GetRequiredService<Microsoft.Extensions.Options.IOptions<GeminiSettings>>().Value;
+
+            int transient = 0;
+            string? modelOverride = null;
+            Exception? lastEx = null;
+
+            while (transient < maxAttempts)
+            {
+                try
+                {
+                    using var ms = new MemoryStream(pdfBytes);
+                    var resp = await gemini.InterpretPdfAsync(ms, fileName, "ro", patientContext: null, ct: ct, modelOverride: modelOverride);
+                    return resp.Result;
+                }
+                catch (GeminiTransientException ex)
+                {
+                    transient++;
+                    lastEx = ex;
+                    if (modelOverride == null
+                        && transient >= fallbackThreshold
+                        && !string.IsNullOrWhiteSpace(settings.FallbackModel)
+                        && !string.Equals(settings.FallbackModel, settings.Model, StringComparison.OrdinalIgnoreCase))
+                    {
+                        modelOverride = settings.FallbackModel;
+                        progress.Log($"   ↪ Comut pe modelul fallback: {modelOverride}");
+                    }
+                    if (transient >= maxAttempts) break;
+
+                    int[] delaysMs = { 5_000, 15_000, 30_000, 60_000 };
+                    int wait = delaysMs[Math.Min(transient - 1, delaysMs.Length - 1)];
+                    progress.Log($"   ⏳ Gemini suprasolicitat ({ex.HttpStatusCode}), reîncerc în {wait / 1000}s (try {transient}/{maxAttempts})...");
+                    try { await Task.Delay(wait, ct); }
+                    catch (OperationCanceledException) { return null; }
+                }
+                catch (Exception ex)
+                {
+                    // Non-transient — fail fast.
+                    progress.Log("   ✘ Gemini a eșuat (non-transient): " + ex.Message);
+                    return null;
+                }
+            }
+
+            progress.Log("   ✘ Gemini a eșuat după toate încercările (inclusiv fallback): " + (lastEx?.Message ?? "?"));
+            return null;
         }
 
         private static DateTime? TryParseDate(string? raw)
