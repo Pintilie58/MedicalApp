@@ -78,6 +78,9 @@ builder.Services.AddScoped<ArchiveAccessService>();
 builder.Services.Configure<CamSettings>(builder.Configuration.GetSection("CamSettings"));
 builder.Services.AddSingleton<ICamFileStore, LocalDiskCamFileStore>();
 builder.Services.AddScoped<CamPdfMetadataExtractor>();
+builder.Services.AddSingleton<CamBatchRegistry>();
+builder.Services.AddScoped<CamBatchService>();
+builder.Services.AddScoped<CamComparePdfGenerator>();
 
 // LOINC matcher microservice client (Python FastAPI).
 // Gemini emits standardized English medical names; this client calls the
@@ -132,6 +135,10 @@ using (var scopedServices = app.Services.CreateScope())
         // CAM: idempotent demo clinic seed — only inserts when missing.
         var camFilesForSeed = scopedServices.ServiceProvider.GetRequiredService<ICamFileStore>();
         await StartupSeed.EnsureClinicaDemoAsync(app.Services, camFilesForSeed, seedLogger);
+        // CAM: per decision d)i, any batch left "Running" from a previous app
+        // life-cycle is unrecoverable in-process — flip it to "Failed" so the
+        // operator sees the truth and can re-launch manually.
+        await StartupSeed.FailOrphanedBatchesAsync(app.Services, seedLogger);
         await LoincSeeder.EnsureSeededAsync(app.Services, app.Environment, seedLogger);
     }
     catch (Exception ex)

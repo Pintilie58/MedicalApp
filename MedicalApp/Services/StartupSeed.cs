@@ -221,5 +221,33 @@ namespace MedicalApp.Services
                     "StartupSeed: Clinica Demo already exists — refreshed patients/purchase rows if missing.");
             }
         }
+
+        /// <summary>
+        /// CAM Faza 3 — decizie d)i: NU avem auto-resume pentru loturi în execuție.
+        /// Orice ClinicBatchRun rămas cu Status="Running" la pornirea aplicației
+        /// (după un crash/restart) e marcat ca "Failed" + FinishedAt = now. Operatorul
+        /// vede statusul real în history și relansează manual lotul.
+        /// </summary>
+        public static async Task FailOrphanedBatchesAsync(IServiceProvider services, ILogger logger)
+        {
+            using var scope = services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var orphans = await db.ClinicBatchRuns
+                .Where(b => b.Status == "Running")
+                .ToListAsync();
+            if (orphans.Count == 0) return;
+
+            var now = DateTime.UtcNow;
+            foreach (var b in orphans)
+            {
+                b.Status = "Failed";
+                b.FinishedAt = now;
+            }
+            await db.SaveChangesAsync();
+            logger.LogWarning(
+                "StartupSeed: flipped {Count} orphaned CAM batch(es) from Running → Failed.",
+                orphans.Count);
+        }
     }
 }

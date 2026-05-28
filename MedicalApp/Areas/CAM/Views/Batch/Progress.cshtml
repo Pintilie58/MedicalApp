@@ -1,0 +1,149 @@
+@model MedicalApp.Areas.CAM.Models.CamBatchProgressPageViewModel
+@{
+    ViewData["Title"] = "Progres lot — " + Model.ClinicName;
+}
+
+<div class="container py-5">
+    <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
+        <h2 class="text-primary fw-bold mb-0" data-testid="cam-batch-progress-heading">
+            &#9203; Lot în execuție
+        </h2>
+        <span class="badge bg-secondary" data-testid="cam-batch-id">#@Model.BatchRunId</span>
+        <span class="text-muted small ms-2">
+            Pornit: @Model.StartedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")
+        </span>
+        <div class="ms-auto">
+            <a asp-controller="Dashboard" asp-action="Index" asp-area="CAM"
+               class="btn btn-outline-secondary btn-sm" data-testid="cam-back-dashboard">
+                &larr; Dashboard
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-info" data-testid="cam-batch-progress-flash">@TempData["SuccessMessage"]</div>
+    }
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="d-flex justify-content-between mb-2">
+                <strong>Progres:</strong>
+                <span><span id="prgProcessed" data-testid="cam-progress-processed">0</span> / <span id="prgTotal">0</span> fișiere</span>
+            </div>
+            <div class="progress" style="height: 20px;">
+                <div id="prgBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                     role="progressbar" style="width: 0%;" data-testid="cam-progress-bar">0%</div>
+            </div>
+            <div class="text-muted small mt-2">
+                Fișier curent: <code id="prgCurrent" data-testid="cam-progress-current">—</code>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-2 mb-3" data-testid="cam-progress-counters">
+        <div class="col-md-3">
+            <div class="card border-success"><div class="card-body py-2 text-center">
+                <div class="small text-muted">Trimise</div>
+                <div class="fs-3 fw-bold text-success" id="prgSent">0</div>
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-info"><div class="card-body py-2 text-center">
+                <div class="small text-muted">Comparate</div>
+                <div class="fs-3 fw-bold text-info" id="prgCompared">0</div>
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning"><div class="card-body py-2 text-center">
+                <div class="small text-muted">NotSends</div>
+                <div class="fs-3 fw-bold text-warning" id="prgNotSends">0</div>
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-secondary"><div class="card-body py-2 text-center">
+                <div class="small text-muted">Status</div>
+                <div class="fs-5 fw-bold" id="prgStatus" data-testid="cam-progress-status">Running</div>
+            </div></div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header fw-bold">Log live</div>
+        <div class="card-body p-0">
+            <pre id="prgLog" data-testid="cam-progress-log"
+                 style="max-height:340px;overflow:auto;margin:0;padding:14px;background:#0d1117;color:#c9d1d9;font-size:12px;line-height:1.6;">Aștept primul mesaj…</pre>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2" id="actionsContainer">
+        <form asp-action="Cancel" asp-route-id="@Model.BatchRunId" method="post"
+              id="cancelForm" data-testid="cam-batch-cancel-form">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-outline-danger fw-bold" id="cancelBtn"
+                    data-testid="cam-batch-cancel-submit">
+                &#9209; Anulează lotul
+            </button>
+        </form>
+        <a asp-action="Start" class="btn btn-outline-primary d-none" id="newBatchBtn"
+           data-testid="cam-batch-new-link">
+            &#128229; Lansează un lot nou
+        </a>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function() {
+    var batchId = @Model.BatchRunId;
+    var statusUrl = '/CAM/Batch/Status/' + batchId;
+    var pollMs = 3000;
+    var pollTimer = null;
+
+    function render(data) {
+        document.getElementById('prgProcessed').textContent = data.processed;
+        document.getElementById('prgTotal').textContent = data.total;
+        document.getElementById('prgSent').textContent = data.sent;
+        document.getElementById('prgCompared').textContent = data.compared;
+        document.getElementById('prgNotSends').textContent = data.notSends;
+        document.getElementById('prgCurrent').textContent = data.currentFile || '—';
+        var pct = data.total > 0 ? Math.round((data.processed / data.total) * 100) : 0;
+        var bar = document.getElementById('prgBar');
+        bar.style.width = pct + '%';
+        bar.textContent = pct + '%';
+
+        var statusEl = document.getElementById('prgStatus');
+        statusEl.textContent = data.status;
+        statusEl.className = 'fs-5 fw-bold ' +
+            (data.status === 'Running'   ? 'text-primary'
+            : data.status === 'Completed' ? 'text-success'
+            : data.status === 'Cancelled' ? 'text-warning'
+            : 'text-danger');
+
+        if ((data.log || []).length > 0) {
+            document.getElementById('prgLog').textContent = data.log.join('\n');
+            var logEl = document.getElementById('prgLog');
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        if (data.finished) {
+            // Stop animation + switch button.
+            bar.classList.remove('progress-bar-animated', 'progress-bar-striped');
+            document.getElementById('cancelForm').classList.add('d-none');
+            document.getElementById('newBatchBtn').classList.remove('d-none');
+            if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        }
+    }
+
+    function poll() {
+        fetch(statusUrl, { credentials: 'same-origin' })
+            .then(function(r) { return r.ok ? r.json() : null; })
+            .then(function(d) { if (d) render(d); })
+            .catch(function() { /* keep polling on transient errors */ });
+    }
+
+    poll();
+    pollTimer = setInterval(poll, pollMs);
+})();
+</script>
+}

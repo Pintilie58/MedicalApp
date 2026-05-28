@@ -1,0 +1,122 @@
+@model MedicalApp.Areas.CAM.Models.CamBatchStartViewModel
+@{
+    ViewData["Title"] = "Lansează lot — " + Model.ClinicName;
+}
+
+<div class="container py-5">
+    <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
+        <h2 class="text-primary fw-bold mb-0" data-testid="cam-batch-start-heading">
+            &#128229; Lansează Interpretare Lot
+        </h2>
+        <div class="ms-auto">
+            <a asp-controller="Dashboard" asp-action="Index" asp-area="CAM"
+               class="btn btn-outline-secondary" data-testid="cam-back-dashboard">
+                &larr; Înapoi la dashboard
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger" data-testid="cam-batch-error">@TempData["ErrorMessage"]</div>
+    }
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success" data-testid="cam-batch-success">@TempData["SuccessMessage"]</div>
+    }
+
+    @if (Model.AlreadyRunning && Model.RunningBatchId.HasValue)
+    {
+        <div class="alert alert-warning" data-testid="cam-batch-already-running">
+            &#9888; Există deja un lot în execuție pentru această clinică.
+            <a asp-action="Progress" asp-route-id="@Model.RunningBatchId.Value"
+               class="alert-link fw-bold ms-2" data-testid="cam-batch-goto-running">
+                Vezi progresul &rarr;
+            </a>
+        </div>
+    }
+
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            <div class="card border-primary" data-testid="cam-batch-card-filecount">
+                <div class="card-body text-center">
+                    <div class="small text-muted">PDF-uri în Original</div>
+                    <div class="display-5 fw-bold text-primary">@Model.FileCount</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-success" data-testid="cam-batch-card-credits">
+                <div class="card-body text-center">
+                    <div class="small text-muted">Credite disponibile</div>
+                    <div class="display-5 fw-bold text-success">@Model.CreditsAvailable</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card @(Model.CreditsAvailable >= Model.FileCount ? "border-info" : "border-danger")"
+                 data-testid="cam-batch-card-needed">
+                <div class="card-body text-center">
+                    <div class="small text-muted">Credite necesare (1/fișier)</div>
+                    <div class="display-5 fw-bold @(Model.CreditsAvailable >= Model.FileCount ? "text-info" : "text-danger")">
+                        @Model.FileCount
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (Model.FileCount == 0)
+    {
+        <div class="alert alert-info" data-testid="cam-batch-empty">
+            Folderul <code>Original</code> e gol. Pune câteva PDF-uri acolo și
+            revino aici pentru a porni lotul.
+        </div>
+    }
+    else if (Model.CreditsAvailable < Model.FileCount)
+    {
+        <div class="alert alert-danger" data-testid="cam-batch-insufficient-credits">
+            &#9888; Credite insuficiente. Ai nevoie de <strong>@Model.FileCount</strong>
+            credite dar ai doar <strong>@Model.CreditsAvailable</strong>.
+            <a asp-area="" asp-controller="Credits" asp-action="Buy"
+               class="btn btn-warning btn-sm ms-2" data-testid="cam-batch-goto-buy">
+                Cumpără credite
+            </a>
+        </div>
+    }
+    else
+    {
+        <div class="card mb-3">
+            <div class="card-header fw-bold">
+                Fișiere în coada de procesare
+                @if (Model.FileCount > Model.Files.Count)
+                {
+                    <span class="badge bg-secondary ms-2">primele @Model.Files.Count din @Model.FileCount</span>
+                }
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0" data-testid="cam-batch-files-table">
+                    <tbody>
+                        @foreach (var f in Model.Files)
+                        {
+                            <tr>
+                                <td><code>@f.FileName</code></td>
+                                <td class="text-end small text-muted" style="width:80px;">@f.SizeKb KB</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <form asp-action="Start" method="post" class="d-flex gap-2"
+              data-testid="cam-batch-start-form">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="confirm" value="1" />
+            <button type="submit" class="btn btn-primary btn-lg fw-bold"
+                    data-testid="cam-batch-start-submit">
+                &#9658; Pornește lotul (@Model.FileCount fișiere)
+            </button>
+        </form>
+    }
+</div>

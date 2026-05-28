@@ -401,6 +401,18 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
         - Foldere create automat pe disk
         - 5 pacienți fictivi (Ion Popescu, Maria Ionescu, Andrei Georgescu, Elena Vasilescu, Mihai Constantinescu) — toți cu email `vasilepintilie2003@gmail.com` pentru testare emailuri în Faza 3.
 - 🔜 **Faza 3**: Batch Processing + Background Job + Sumar.txt.
+
+- ✅ **[Feb 2026 — Faza 3: Batch Processing + Background Job + Email pacient branded]**
+    * Decizii implementate (confirmate cu user): a)i Compare la ≥2 analize, b)i fără limită fișiere/lot, c)i buton anulare, d)i fără auto-resume.
+    * **`CamBatchService`** — orchestrator background; rulează în `Task.Run` cu propria DI scope. Procesare SEQUENTIAL (1 fișier la un moment dat) — mai prietenoasă cu Gemini rate limit. Capturează toate excepțiile, nu aruncă niciodată.
+    * **`CamBatchProgress` + `CamBatchRegistry`** — state in-memory (ConcurrentDictionary keyed by batchRunId) pentru AJAX poll la 3s. Un singur lot activ per clinică (guard pe registry).
+    * **Per fișier**: extract metadata → găsește/creează pacient (`NameKey + Email`) → Gemini → PDF interpretare → Compare PDF (dacă ≥2 analize) → email pacient → mută PDF în Sends → consumă 1 credit → salvează `ClinicAnalysis` (păstrează doar ultimele 4 per pacient, DELETE older).
+    * **Eșec extract/AI/email**: counter `NotSends++` + `ClinicBatchError` cu RetryCount. La 3 retries fișierul + un `.reasons.txt` se mută în `Errors/`.
+    * **Email pacient** (`CamPatientEmailBuilder`) cu branding dual: numele clinicii ca hero (header bleumarin + adresă) + footer "Powered by MedicalApp+ — medicalapp.ro". Subject: "Rezultate analize - {Clinic}". Atașamente: PDF original + Raport_Interpretare.pdf (+ Raport_Comparatie.pdf dacă există).
+    * **Compare PDF CAM** (`CamComparePdfGenerator`) — tabel side-by-side cu QuestPDF, grupare per LOINC code (fallback nume), maximum 4 coloane.
+    * **`Sum_yyyyMMdd_HHmm.txt`** (`CamBatchSumarWriter`) — scris în `Sumar/` la finalul fiecărui lot cu statistici + listă erori.
+    * **UI** (`/CAM/Batch/Start` + `/CAM/Batch/Progress/{id}` + `/CAM/Batch/Status/{id}` + `/CAM/Batch/Cancel/{id}`): preview cu listă fișiere și estimare credite → buton "Pornește lotul" → pagină progres live cu progress bar animat, 4 counters (Sent / Compared / NotSends / Status), log scroll, buton Anulează. AJAX poll la 3s. Auto-stop la Completed/Cancelled/Failed.
+    * **Recovery la startup** (`StartupSeed.FailOrphanedBatchesAsync`): orice `Status="Running"` rămas dintr-un crash anterior e marcat ca "Failed" + FinishedAt — operatorul vede situația reală și relansează manual.
 - 🔜 **Faza 4**: Dashboard CAM cu statistici + export Sumar PDF.
 
 ### P1 – Family profiles (multi-session focus)

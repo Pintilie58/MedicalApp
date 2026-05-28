@@ -87,14 +87,17 @@
 
         <div class="row g-3">
             <div class="col-md-4">
-                <div class="card h-100 border-secondary opacity-75" data-testid="cam-card-batch">
+                <div class="card h-100 border-primary" data-testid="cam-card-batch">
                     <div class="card-body">
                         <h5 class="card-title">&#128229; Lansează Interpretare Lot</h5>
                         <p class="card-text small text-muted">
-                            (Disponibil din Faza 3.) Pornește procesarea automată
-                            a tuturor PDF-urilor din <code>Original</code>.
+                            Pornește procesarea automată a tuturor PDF-urilor din
+                            <code>Original</code> (interpretare + email pacient + comparație).
                         </p>
-                        <button class="btn btn-primary disabled" disabled>În curând</button>
+                        <a asp-controller="Batch" asp-action="Start" asp-area="CAM"
+                           class="btn btn-primary fw-bold" data-testid="cam-go-batch">
+                            Pregătește lotul
+                        </a>
                     </div>
                 </div>
             </div>
