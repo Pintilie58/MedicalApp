@@ -58,6 +58,7 @@ namespace MedicalApp.Services
                 var gemini = scope.ServiceProvider.GetRequiredService<IMedicalInterpretationProvider>();
                 var pdfGen = scope.ServiceProvider.GetRequiredService<PdfReportGenerator>();
                 var compareGen = scope.ServiceProvider.GetRequiredService<CamComparePdfGenerator>();
+                var loincEnricher = scope.ServiceProvider.GetRequiredService<CamLoincClassEnricher>();
                 var email = scope.ServiceProvider.GetRequiredService<IEmailService>();
 
                 var batch = await db.ClinicBatchRuns.FirstOrDefaultAsync(b => b.Id == batchRunId);
@@ -125,7 +126,7 @@ namespace MedicalApp.Services
                     try
                     {
                         await ProcessOneFileAsync(
-                            db, files, extractor, gemini, pdfGen, compareGen, email,
+                            db, files, extractor, gemini, pdfGen, compareGen, loincEnricher, email,
                             clinic, user, batch, progress, path, sendsFolder, errorsFolder, ct);
                     }
                     catch (Exception ex)
@@ -186,6 +187,7 @@ namespace MedicalApp.Services
             IMedicalInterpretationProvider gemini,
             PdfReportGenerator pdfGen,
             CamComparePdfGenerator compareGen,
+            CamLoincClassEnricher loincEnricher,
             IEmailService email,
             Clinic clinic,
             User? user,
@@ -310,6 +312,17 @@ namespace MedicalApp.Services
                 meta!.PatientName = aiName;
                 meta.IsValid = true;
                 progress.Log($"   ✓ Identificat de Gemini: {aiName} <{meta.PatientEmail}>");
+            }
+
+            // 3c. CAM does not run the Python LOINC matcher; instead we
+            // complete LoincClass for every Gemini-emitted LoincCode by
+            // looking it up in our local LoincDictionary table. This is
+            // what makes the Compare PDF group rows by Hematology /
+            // Chemistry / etc. exactly like the B2C flow.
+            try { await loincEnricher.EnrichAsync(result, ct); }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "CAM batch {Id}: LOINC enrich failed (continuing)", batch.Id);
             }
 
             // 4. Find or create patient (lookup by NameKey + Email)

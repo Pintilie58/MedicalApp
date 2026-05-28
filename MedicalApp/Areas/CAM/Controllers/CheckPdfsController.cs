@@ -100,11 +100,36 @@ namespace MedicalApp.Areas.CAM.Controllers
                         // run. CheckPdfs preview just hints at what auto-extractor
                         // would see without Gemini help.
                         var meta = _extractor.Extract(bytes, row.FileName, clinicDomainBlacklist: null);
-                        row.PatientName = meta.PatientName;
-                        row.PatientEmail = meta.PatientEmail;
-                        row.IsValid = meta.IsValid;
-                        row.Reason = meta.Reason;
-                        row.MatchedExplicitBlock = meta.MatchedExplicitBlock;
+
+                        // ----------------------------------------------------------
+                        // Reality check: in CAM we ONLY trust 3 sources of patient
+                        // identity — operator override, explicit [MedicalApp] block,
+                        // or Gemini's PatientInfo at batch time. Heuristic name +
+                        // first-email guesses (label scan / near-email / capitalized
+                        // line) are NOT reliable — they often pick up the document
+                        // title ("ANALIZE MEDICALE") or the clinic header email.
+                        // So in preview we DELIBERATELY hide those guesses and
+                        // tell the operator "AI will resolve this at batch time".
+                        // ----------------------------------------------------------
+                        if (meta.MatchedExplicitBlock && meta.IsValid)
+                        {
+                            row.PatientName = meta.PatientName;
+                            row.PatientEmail = meta.PatientEmail;
+                            row.IsValid = true;
+                            row.MatchedExplicitBlock = true;
+                        }
+                        else if (!meta.IsMedicalLabReport)
+                        {
+                            // Sanity check failed — this PDF is not a lab report at all.
+                            row.IsValid = false;
+                            row.Reason = meta.Reason ?? "PDF does not look like a medical lab report.";
+                        }
+                        else
+                        {
+                            // Medical PDF without an explicit block — defer to Gemini.
+                            row.IsValid = false;
+                            row.Reason = "Patient name not found — AI will identify at batch time.";
+                        }
                     }
                     catch (Exception ex)
                     {

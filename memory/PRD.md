@@ -438,6 +438,12 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
     * **Eliminat UI Blacklist domenii** (per decizia user-ului Feb 2026 — ne bazăm 100% pe blocul `[MedicalApp]` sau pe Gemini). Câmpul DB `EmailDomainBlacklist` rămâne (no migration), nu mai e folosit.
     * **Retry + Flash→Pro fallback în CAM** (ca în B2C `InterpretationController`): 5 încercări pe 429/503 cu backoff progresiv 5s/15s/30s/60s. După 2 transient errors consecutive, switch automat la `GeminiSettings.FallbackModel` (gemini-2.5-pro). Implementat în `CamBatchService.CallGeminiWithRetryAsync`. Adăugat parametrul `modelOverride` în `IMedicalInterpretationProvider.InterpretPdfAsync`.
     * **Compare PDF refactor B2C-grade**: `CamComparePdfGenerator` reutilizează acum `ProfilesController.BuildComparison` (schimbat din `private` în `public static`) pentru a obține IDENTIC grouping LOINC + LOINC class headers + drift warning ⚠ + status abnormal marker. Sintetizez `InterpretationHistory` + `Profile` ad-hoc din `ClinicAnalysis` și pasez la builder. Side-by-side cu max 4 coloane, header per LOINC class (Hematologie, Biochimie etc.).
+
+- ✅ **[Feb 2026 — Faza 3.7: LOINC class enrichment local (fără Python) + UI CheckPdfs onest]**
+    * **Problemă identificată**: CAM NU rulează matcher-ul Python LOINC (e procesare doar locală). Compare PDF rezulta cu toate analizele sub "Alte analize" (fără grupare HEM/CHEM/etc.).
+    * **Soluție**: `CamLoincClassEnricher` — după ce Gemini returnează rezultatul, parcurg `KeyResults` și pentru fiecare LoincCode existent fac un single batched query în `LoincDictionary` (deja seedată local) ca să completez `LoincClass`. ZERO dependențe externe, un singur SELECT per analiză.
+    * **Rezultat**: Compare PDF-ul CAM are acum exact aceleași secțiuni LOINC class ca Compare B2C (Hematologie, Biochimie, etc.) — și aceleași drift warnings, abnormal markers, etc.
+    * **UI CheckPdfs onest**: nu mai afișăm extragerea heuristică (label-scan / near-email / capitalized line) ca dacă ar fi finalul. În preview arătăm doar ce extrage cu certitudine (bloc `[MedicalApp]` sau override). Restul PDF-urilor medicale sunt marcate cu badge "AI la lot" 🤖 și mesaj "Gemini va identifica pacientul la lot" — onest cu utilizatorul. PDF-urile non-medicale rămân roșii "Blocat".
 - 🔜 **Faza 4**: Dashboard CAM cu statistici + export Sumar PDF.
 
 ### P1 – Family profiles (multi-session focus)

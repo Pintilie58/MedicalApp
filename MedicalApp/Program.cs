@@ -81,6 +81,7 @@ builder.Services.AddScoped<CamPdfMetadataExtractor>();
 builder.Services.AddSingleton<CamBatchRegistry>();
 builder.Services.AddScoped<CamBatchService>();
 builder.Services.AddScoped<CamComparePdfGenerator>();
+builder.Services.AddScoped<CamLoincClassEnricher>();
 
 // LOINC matcher microservice client (Python FastAPI).
 // Gemini emits standardized English medical names; this client calls the

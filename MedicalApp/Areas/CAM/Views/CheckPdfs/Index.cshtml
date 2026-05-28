@@ -85,11 +85,32 @@ Email: ion.popescu@example.com</pre>
     }
     else
     {
+        @* Rebucket rows: "ready" = override / explicit block / auto with name+email.
+           Anything else where the PDF still looks medical is "AI-pending" (will be
+           identified by Gemini at batch time). PDFs that aren't medical reports at
+           all are the only truly-blocked rows. *@
+        var aiPending = Model.Items.Count(r => !r.IsValid &&
+            (r.Reason ?? "").Contains("Patient name not found", StringComparison.OrdinalIgnoreCase));
+        var realErrors = notOkCount - aiPending;
+
+        <div class="alert alert-info small mb-3" data-testid="cam-checkpdfs-help">
+            &#128161; <strong>Cum decide aplicația cine e pacientul:</strong>
+            (1) dacă există un override manual ✏ → folosește direct;
+            (2) dacă PDF-ul conține blocul <code>[MedicalApp]</code> ⭐ → folosește direct;
+            (3) altfel, la rularea lotului <strong>Gemini AI</strong> va citi PDF-ul și va
+            identifica numele și emailul pacientului. Rândurile marcate „AI va identifica"
+            sunt OK — vor fi procesate corect la lot.
+        </div>
+
         <div class="d-flex gap-2 mb-3 flex-wrap" data-testid="cam-checkpdfs-summary">
-            <span class="badge bg-success fs-6 px-3 py-2">&#10003; Valide: @okCount</span>
-            <span class="badge bg-danger fs-6 px-3 py-2">&#10007; Cu probleme: @notOkCount</span>
-            <span class="badge bg-info fs-6 px-3 py-2 text-dark">&#11088; [MedicalApp] block: @goldCount</span>
-            <span class="badge bg-warning fs-6 px-3 py-2 text-dark">&#9999; Override manual: @overrideCount</span>
+            <span class="badge bg-success fs-6 px-3 py-2">&#10003; Gata: @okCount</span>
+            <span class="badge bg-info fs-6 px-3 py-2 text-dark">&#129302; AI va identifica: @aiPending</span>
+            @if (realErrors > 0)
+            {
+                <span class="badge bg-danger fs-6 px-3 py-2">&#10007; Blocate: @realErrors</span>
+            }
+            <span class="badge bg-success-subtle fs-6 px-3 py-2 text-success border border-success">&#11088; [MedicalApp]: @goldCount</span>
+            <span class="badge bg-warning fs-6 px-3 py-2 text-dark">&#9999; Manual: @overrideCount</span>
             <span class="badge bg-secondary fs-6 px-3 py-2">Total: @Model.Items.Count</span>
             <div class="ms-auto">
                 <form method="get" class="d-inline">
@@ -115,24 +136,36 @@ Email: ion.popescu@example.com</pre>
                         <tr>
                             <th style="width:36px;">&nbsp;</th>
                             <th>Fișier</th>
-                            <th>Nume extras</th>
-                            <th>Email extras</th>
+                            <th>Nume preview</th>
+                            <th>Email preview</th>
                             <th>Sursă</th>
-                            <th>Status / Motiv</th>
+                            <th>Status</th>
                             <th style="width:160px;">&nbsp;</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var r in Model.Items)
                         {
-                            var rowClass = r.IsValid
-                                ? (r.MatchedExplicitBlock ? "table-success" : r.IsManualOverride ? "table-warning" : "")
-                                : "table-danger";
+                            // Decide the "real" status: ready / ai-pending / blocked.
+                            var willBeAiResolved = !r.IsValid &&
+                                (r.Reason ?? "").Contains("Patient name not found", StringComparison.OrdinalIgnoreCase);
+
+                            string rowClass;
+                            if (r.IsValid && r.MatchedExplicitBlock) rowClass = "table-success";
+                            else if (r.IsValid && r.IsManualOverride) rowClass = "table-warning";
+                            else if (r.IsValid) rowClass = "";
+                            else if (willBeAiResolved) rowClass = "table-info";
+                            else rowClass = "table-danger";
+
                             <tr class="@rowClass" data-testid="cam-checkpdfs-row">
                                 <td class="text-center">
                                     @if (r.IsValid)
                                     {
                                         <span class="text-success fs-5">&#10003;</span>
+                                    }
+                                    else if (willBeAiResolved)
+                                    {
+                                        <span class="text-info fs-5">&#129302;</span>
                                     }
                                     else
                                     {
@@ -155,15 +188,25 @@ Email: ion.popescu@example.com</pre>
                                     {
                                         <span class="badge bg-secondary">Auto</span>
                                     }
+                                    else if (willBeAiResolved)
+                                    {
+                                        <span class="badge bg-info text-dark">AI la lot</span>
+                                    }
                                     else
                                     {
-                                        <span class="badge bg-danger">—</span>
+                                        <span class="badge bg-danger">Blocat</span>
                                     }
                                 </td>
                                 <td class="small">
                                     @if (r.IsValid)
                                     {
                                         <span class="text-success">Gata pentru lot.</span>
+                                    }
+                                    else if (willBeAiResolved)
+                                    {
+                                        <span class="text-info">
+                                            Gemini va identifica pacientul la lot.
+                                        </span>
                                     }
                                     else
                                     {
