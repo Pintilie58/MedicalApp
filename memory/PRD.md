@@ -470,6 +470,13 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
     * **Fix UI Progress polling**: `Progress.cshtml` folosea path absolut `/CAM/Batch/Status/{id}` — fragil sub PathBase / IIS sub-app. Înlocuit cu `@Url.Action` astfel încât URL-ul respectă route-ul ASP.NET corect.
     * **Pre-seed Registry SYNC în Controller**: `BatchController.Start` populează acum `CamBatchRegistry` ÎNAINTE de `Task.Run`, ca polling-ul JS să vadă entry valid de la primul fetch (înainte rămânea "0/0" pentru ~200-500ms până prinde RunAsync). `GetOrCreate` updatează Total la o valoare mai mare când runner-ul scanează folderul.
     * **Fix retry-exhausted Gemini → Errors/**: când Gemini eșuează după 5 retries + fallback Pro (mesaj „AI exhausted retries"), fișierul rămânea pe veci în Original și consuma credite la fiecare lot următor. Adăugat apel la `MoveToErrorsIfRetriesExhaustedAsync` pe această cale (la a 3-a încercare totală fișierul se mută în `Errors/`). Aplicat și la calea „Patient name missing from AI output".
+- ✅ **[Feb 2026 — Faza 4.2: Status validator pentru CAM + fix tolerance pe intervale înguste]**
+    * **Problemă raportată**: Densitate urinară 1.024 ∈ [1.005, 1.03] (clar în interval) era marcat ↑ (high). Două bug-uri compuse:
+        1. `StatusValidator.Validate()` rula DOAR pe path-ul B2C `InterpretationController`. `CamBatchService` lăsa status-ul brut de la Gemini să curgă în PDF — fără re-calcul matematic.
+        2. Logica veche "borderline" folosea `5% din boundary value` ca toleranță — pentru intervale înguste (densitate are lățime 2.5%) toată gama era "borderline" și o valoare clar în mijloc putea fi acceptată ca anormală.
+    * **Fix** (universal, nu particular):
+        - `CamBatchService.ProcessOneFileAsync`: apel `StatusValidator.Validate(result, _logger)` între LOINC matcher și PDF gen (oglindă perfectă a fluxului B2C). Loghează numărul de status-uri corectate per lot.
+        - `StatusValidator.ComputeStatus`: când AMBELE limite sunt finite, calculează tolerance ca `5% din lățimea range-ului` (hi - lo). Pentru densitate (width=0.025), banda borderline ajunge ±0.00125, deci 1.024 e clar normal. Pentru analiți cu range deschis (ex `< 200`), păstrează vechea formulă boundary-relative.
 
 ### P1 – Family profiles (multi-session focus)
 - 🔜 **P1.6**: Denormalize parameters into `AnalysisResults` table on each interpretation (ParameterCode, Value, Unit, Status, SamplingDate, per profile)

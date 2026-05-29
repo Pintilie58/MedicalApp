@@ -164,7 +164,20 @@ namespace MedicalApp.Services
 
         // ---------------- status compute ----------------
 
-        /// <summary>5% tolerance band around a finite boundary -> 'borderline'.</summary>
+        /// <summary>
+        /// "Borderline" band width, expressed as a fraction of the reference
+        /// range WIDTH (hi - lo) when both boundaries are finite. Using the
+        /// range width — instead of the boundary value as we did before — makes
+        /// the tolerance scale with how tight the analyte's normal range is:
+        ///   * Densitate urinară (1.005 - 1.03, width 0.025) → ±0.00125 band
+        ///     so 1.024 sits firmly in the middle and is "normal".
+        ///   * Glycemia (70 - 100, width 30)              → ±1.5 band
+        ///   * Cholesterol total (&lt; 200, only hi)      → falls back to the
+        ///     boundary-relative tolerance (no width to anchor on).
+        /// The old boundary-relative tolerance flagged ~60% of mid-range
+        /// values as borderline whenever the analyte had a narrow window —
+        /// that's the bug the user spotted on Densitate=1.024.
+        /// </summary>
         private const double BorderlineTolerancePct = 0.05;
 
         public static string ComputeStatus(double v, double? lo, double? hi,
@@ -176,10 +189,24 @@ namespace MedicalApp.Services
             if (aboveLo && belowHi)
             {
                 // In-range: check whether we're sitting on a boundary edge.
-                bool nearLo = lo.HasValue && lo.Value != 0
-                    && Math.Abs(v - lo.Value) / Math.Abs(lo.Value) < BorderlineTolerancePct;
-                bool nearHi = hi.HasValue && hi.Value != 0
-                    && Math.Abs(v - hi.Value) / Math.Abs(hi.Value) < BorderlineTolerancePct;
+                // Strategy: when BOTH lo and hi are finite, use the range
+                // WIDTH as the tolerance anchor. Otherwise (open-ended range
+                // like "< 200"), fall back to the old boundary-value anchor.
+                bool nearLo = false, nearHi = false;
+                if (lo.HasValue && hi.HasValue && hi.Value > lo.Value)
+                {
+                    double width = hi.Value - lo.Value;
+                    double band = width * BorderlineTolerancePct;
+                    nearLo = Math.Abs(v - lo.Value) < band;
+                    nearHi = Math.Abs(v - hi.Value) < band;
+                }
+                else
+                {
+                    if (lo.HasValue && lo.Value != 0)
+                        nearLo = Math.Abs(v - lo.Value) / Math.Abs(lo.Value) < BorderlineTolerancePct;
+                    if (hi.HasValue && hi.Value != 0)
+                        nearHi = Math.Abs(v - hi.Value) / Math.Abs(hi.Value) < BorderlineTolerancePct;
+                }
                 return (nearLo || nearHi) ? "borderline" : "normal";
             }
             return belowHi ? "low" : "high";

@@ -338,6 +338,23 @@ namespace MedicalApp.Services
                 progress.Log("   ⚠ LOINC matcher indisponibil — Compare-ul nu va avea grupare per clasă.");
             }
 
+            // 3d. Re-compute every parameter's status from its value + reference
+            // range, overriding whatever Gemini emitted. Gemini occasionally
+            // labels a perfectly in-range value as "high"/"low" (e.g. Densitate
+            // urinară 1.024 inside [1.005-1.03] flagged ↑). This deterministic
+            // post-correction is the safety net — exact same call the B2C
+            // InterpretationController makes before generating the PDF.
+            try
+            {
+                var v = StatusValidator.Validate(result, _logger);
+                if (v.Corrected > 0)
+                    progress.Log($"   🛠 Status validator: {v.Corrected} status(uri) corectate din {v.Total} parametri.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "CAM batch {Id}: StatusValidator failed (continuing with raw AI statuses)", batch.Id);
+            }
+
             // 4. Find or create patient (lookup by NameKey + Email)
             var nameKey = CamPatientKey.Normalize(meta!.PatientName!);
             var patient = await db.ClinicPatients.FirstOrDefaultAsync(p =>
