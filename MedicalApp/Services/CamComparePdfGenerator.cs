@@ -68,13 +68,15 @@ namespace MedicalApp.Services
             var fakeProfile = new Profile { UserEmail = clinic.UserEmail, Name = patient.Name };
             var vm = ProfilesController.BuildComparison(fakeProfile, feed);
 
-            // Column header text — prefer the raw DateTaken string (already in
-            // the lab's local format) over the computed EffectiveDate, mirroring
-            // the cshtml.
+            // Column header text — normalize EVERY date to a clean YYYY-MM-DD
+            // format. EffectiveDate is the parsed sampling date when Gemini
+            // gave us anything parseable (the SamplingDateParser handles
+            // ISO, dd.MM.yyyy, "06.12.2023 - 10:27", labels, etc.), or
+            // CreatedAt (ProcessedAt) as a last-resort fallback. Either way,
+            // we never show the raw ugly "2025-04-30T08:50:00" or
+            // "06.12.2023 - 10:27" strings in the report.
             var dateLabels = vm.Columns
-                .Select(c => string.IsNullOrWhiteSpace(c.DateTaken)
-                    ? c.EffectiveDate.ToLocalTime().ToString("dd MMM yyyy")
-                    : c.DateTaken)
+                .Select(c => c.EffectiveDate.ToLocalTime().ToString("yyyy-MM-dd"))
                 .ToList();
 
             var doc = Document.Create(container =>
@@ -135,12 +137,11 @@ namespace MedicalApp.Services
                                     card.Item().Text(t =>
                                     {
                                         t.Span("Recoltare: ").FontSize(9).Bold();
-                                        t.Span(string.IsNullOrWhiteSpace(c.DateTaken)
-                                            ? c.EffectiveDate.ToLocalTime().ToString("dd MMM yyyy")
-                                            : c.DateTaken).FontSize(9).Bold();
+                                        t.Span(c.EffectiveDate.ToLocalTime().ToString("yyyy-MM-dd"))
+                                            .FontSize(9).Bold();
                                     });
                                     card.Item().Text(
-                                        $"Interpretat: {c.CreatedAt.ToLocalTime():dd MMM yyyy}")
+                                        $"Interpretat: {c.CreatedAt.ToLocalTime():yyyy-MM-dd}")
                                         .FontSize(8).FontColor(Colors.Grey.Darken1);
                                     card.Item().Text(
                                         $"{c.KeyResultsCount} parametri · {c.AbnormalFindingsCount} anormalități")
