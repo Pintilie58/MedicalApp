@@ -388,37 +388,7 @@ namespace MedicalApp.Controllers
         /// "27/01/2014 14:30", "27 Jan 2014" etc. Returns null when no parse succeeds.
         /// </summary>
         private static DateTime? ParseSamplingDate(string? raw)
-        {
-            if (string.IsNullOrWhiteSpace(raw)) return null;
-            var s = raw.Trim();
-
-            string[] formats =
-            {
-                "yyyy-MM-dd",
-                "yyyy/MM/dd",
-                "dd/MM/yyyy", "dd-MM-yyyy", "dd.MM.yyyy",
-                "d/M/yyyy",  "d-M-yyyy",  "d.M.yyyy",
-                "MM/dd/yyyy",
-                "dd/MM/yyyy HH:mm", "dd-MM-yyyy HH:mm", "dd.MM.yyyy HH:mm",
-                "yyyy-MM-dd HH:mm", "yyyy-MM-ddTHH:mm:ss",
-                "dd MMM yyyy", "dd MMMM yyyy",
-                "MMM dd, yyyy", "MMMM dd, yyyy"
-            };
-
-            // Try several culture-specific parses (locales used by the lab PDFs we see).
-            string[] cultures = { "en-US", "ro-RO", "fr-FR", "es-ES", "de-DE" };
-            foreach (var cult in cultures)
-            {
-                var ci = System.Globalization.CultureInfo.GetCultureInfo(cult);
-                if (DateTime.TryParseExact(s, formats, ci,
-                        System.Globalization.DateTimeStyles.AssumeLocal, out var d))
-                    return d;
-            }
-            // Last-ditch generic parse.
-            return DateTime.TryParse(s,
-                System.Globalization.CultureInfo.InvariantCulture,
-                System.Globalization.DateTimeStyles.AssumeLocal, out var any) ? any : (DateTime?)null;
-        }
+            => SamplingDateParser.TryParse(raw);
 
         public static CompareInterpretationsViewModel BuildComparison(
             Profile profile,

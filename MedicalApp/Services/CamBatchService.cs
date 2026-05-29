@@ -631,17 +631,6 @@ namespace MedicalApp.Services
         }
 
         private static DateTime? TryParseDate(string? raw)
-        {
-            if (string.IsNullOrWhiteSpace(raw)) return null;
-            string[] formats =
-            {
-                "yyyy-MM-dd", "yyyy/MM/dd", "dd/MM/yyyy", "dd-MM-yyyy", "dd.MM.yyyy",
-                "d/M/yyyy", "d-M-yyyy", "d.M.yyyy", "MM/dd/yyyy"
-            };
-            foreach (var f in formats)
-                if (DateTime.TryParseExact(raw.Trim(), f, System.Globalization.CultureInfo.InvariantCulture,
-                    System.Globalization.DateTimeStyles.AssumeLocal, out var d)) return d;
-            return DateTime.TryParse(raw, out var any) ? any : (DateTime?)null;
-        }
+            => SamplingDateParser.TryParse(raw);
     }
 }
