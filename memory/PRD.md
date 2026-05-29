@@ -458,7 +458,14 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
         - `loinc_service/main.py`: `LoincRequest` are acum `unit` opțional.
         - `MedicalApp/Services/LoincMatcherClient.cs`: trimite `kr.Unit` în payload spre Python.
     * **Acoperire**: TOATE perechile Mass↔Moles din LoincDictionary, nu doar FT3/FT4. Acoperă automat Glucose, Cholesterol, Bilirubin, Urea, Creatinine, Triglycerides, T3/T4 total etc. dacă lab-ul raportează în unități contrastante.
-- 🔜 **Faza 4**: Dashboard CAM cu statistici + export Sumar PDF.
+- ✅ **[Feb 2026 — Faza 4: Dashboard CAM cu statistici + Sumar PDF per lot]**
+    * **KPI cards lifetime**: total fișiere procesate / emailuri trimise / comparații atașate / NotSends + total loturi (Completed/Failed/Cancelled) + total pacienți unici.
+    * **Chart.js bar chart**: activitate ultimele 30 zile (fișiere procesate/zi), grupat după `SamplingDate ?? ProcessedAt`.
+    * **Top 5 pacienți**: după nr. analize în clinică + data ultimei recoltări.
+    * **Istoric loturi**: tabel cu ultimele 20 loturi (data, durată, status badge, total/trimise/comparate/NotSends) + butoane Progres + Sumar PDF per rând.
+    * **Sumar PDF per lot** (`/CAM/Dashboard/SumarPdf/{id}`): generat on-demand cu QuestPDF. Conține antet clinică, identitate lot, 4 KPI mini-cards, rată succes, tabel motive erori (sau confirmare „toate procesate cu succes"). Salvat și pe disc în folderul `Sumar/` ca `Sumar_Lot_<id>_yyyyMMdd_HHmm.pdf` (audit local).
+    * Fișiere afectate: `Areas/CAM/Models/CamDashboardViewModel.cs` (extins), `Areas/CAM/Controllers/DashboardController.cs` (rescris + endpoint SumarPdf), `Areas/CAM/Views/Dashboard/Index.cshtml` (rescris cu KPIs/chart/tabel), `Services/CamBatchSumarPdfGenerator.cs` (nou), `Program.cs` (înregistrare scoped).
+    * Fără migrare DB — toate datele exista deja în `ClinicBatchRuns`, `ClinicBatchErrors`, `ClinicAnalyses`, `ClinicPatients`.
 
 ### P1 – Family profiles (multi-session focus)
 - 🔜 **P1.6**: Denormalize parameters into `AnalysisResults` table on each interpretation (ParameterCode, Value, Unit, Status, SamplingDate, per profile)

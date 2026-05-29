@@ -2,13 +2,22 @@
 @{
     ViewData["Title"] = "Dashboard CAM";
     Layout = "~/Views/Shared/_Layout.cshtml";
+
+    string StatusBadge(string status) => status?.ToLowerInvariant() switch
+    {
+        "completed" => "bg-success",
+        "running"   => "bg-primary",
+        "cancelled" => "bg-warning text-dark",
+        "failed"    => "bg-danger",
+        _ => "bg-secondary"
+    };
 }
 
 <div class="container py-5">
     <div class="row mb-4">
         <div class="col">
             <h1 class="h2 fw-bold text-primary mb-1" data-testid="cam-dashboard-heading">
-                &#127973; @Model.ClinicName
+                @Model.ClinicName
             </h1>
             <div class="text-muted small">
                 @Model.ClinicCity &middot; @Model.ClinicAddress
@@ -16,7 +25,7 @@
         </div>
         <div class="col-auto align-self-center">
             <span class="badge bg-success fs-6 px-3 py-2" data-testid="cam-credits-badge">
-                &#128176; @Model.CreditsAvailable credite disponibile
+                @Model.CreditsAvailable credite disponibile
             </span>
         </div>
     </div>
@@ -50,86 +59,260 @@
     }
     else
     {
-        <div class="card border-success mb-4" data-testid="cam-folders-ready">
-            <div class="card-header bg-success text-white fw-bold">
-                &#9989; Foldere de lucru pregătite
-                <span class="small fw-normal ms-2">
-                    (create @Model.FoldersCreatedAt?.ToLocalTime().ToString("dd MMM yyyy HH:mm"))
-                </span>
+        @* ============================================================
+           KPI CARDS — Faza 4
+           ============================================================ *@
+        <div class="row g-3 mb-4" data-testid="cam-kpi-row">
+            <div class="col-md-3 col-6">
+                <div class="card border-0 shadow-sm h-100" style="background:#E7F1FF;">
+                    <div class="card-body py-3">
+                        <div class="display-6 fw-bold text-primary" data-testid="cam-kpi-interpreted">
+                            @Model.LifetimeFilesInterpreted
+                        </div>
+                        <div class="small text-muted">Fișiere procesate (lifetime)</div>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <p class="mb-2 small text-muted">
-                    Aplicația va citi automat fișierele PDF din <strong>Original</strong>
-                    când vei apăsa <em>Lansează Interpretare Lot</em>.
-                </p>
-                <table class="table table-sm mb-0">
-                    <tbody>
-                        <tr>
-                            <td style="width: 120px;"><strong>Original</strong></td>
-                            <td><code>@Model.OriginalFolder</code></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Sends</strong></td>
-                            <td><code>@Model.SendsFolder</code></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Sumar</strong></td>
-                            <td><code>@Model.SumarFolder</code></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Errors</strong></td>
-                            <td><code>@Model.ErrorsFolder</code></td>
-                        </tr>
-                    </tbody>
-                </table>
+            <div class="col-md-3 col-6">
+                <div class="card border-0 shadow-sm h-100" style="background:#D1E7DD;">
+                    <div class="card-body py-3">
+                        <div class="display-6 fw-bold text-success" data-testid="cam-kpi-sent">
+                            @Model.LifetimeFilesSent
+                        </div>
+                        <div class="small text-muted">Emailuri trimise</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="card border-0 shadow-sm h-100" style="background:#CFF4FC;">
+                    <div class="card-body py-3">
+                        <div class="display-6 fw-bold text-info" data-testid="cam-kpi-compared">
+                            @Model.LifetimeFilesCompared
+                        </div>
+                        <div class="small text-muted">Comparații atașate</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="card border-0 shadow-sm h-100" style="background:#FFF3CD;">
+                    <div class="card-body py-3">
+                        <div class="display-6 fw-bold text-warning" data-testid="cam-kpi-notsends">
+                            @Model.LifetimeNotSends
+                        </div>
+                        <div class="small text-muted">NotSends (erori)</div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="row g-3">
-            <div class="col-md-4">
-                <div class="card h-100 border-primary" data-testid="cam-card-batch">
+        <div class="row g-3 mb-4" data-testid="cam-batchstats-row">
+            <div class="col-md-6">
+                <div class="card h-100">
                     <div class="card-body">
-                        <h5 class="card-title">&#128229; Lansează Interpretare Lot</h5>
-                        <p class="card-text small text-muted">
-                            Pornește procesarea automată a tuturor PDF-urilor din
-                            <code>Original</code> (interpretare + email pacient + comparație).
-                        </p>
-                        <a asp-controller="Batch" asp-action="Start" asp-area="CAM"
-                           class="btn btn-primary fw-bold" data-testid="cam-go-batch">
-                            Pregătește lotul
-                        </a>
+                        <h6 class="fw-bold text-muted small mb-2">LOTURI</h6>
+                        <div class="d-flex flex-wrap gap-3">
+                            <div>
+                                <div class="fs-3 fw-bold" data-testid="cam-batches-total">@Model.TotalBatches</div>
+                                <div class="small text-muted">Total</div>
+                            </div>
+                            <div>
+                                <div class="fs-3 fw-bold text-success" data-testid="cam-batches-completed">@Model.CompletedBatches</div>
+                                <div class="small text-muted">Completed</div>
+                            </div>
+                            <div>
+                                <div class="fs-3 fw-bold text-danger" data-testid="cam-batches-failed">@Model.FailedBatches</div>
+                                <div class="small text-muted">Failed</div>
+                            </div>
+                            <div>
+                                <div class="fs-3 fw-bold text-warning" data-testid="cam-batches-cancelled">@Model.CancelledBatches</div>
+                                <div class="small text-muted">Cancelled</div>
+                            </div>
+                            <div class="ms-auto">
+                                <div class="fs-3 fw-bold text-info" data-testid="cam-patients-total">@Model.TotalPatients</div>
+                                <div class="small text-muted">Pacienți</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="card h-100 border-primary" data-testid="cam-card-patients">
+            <div class="col-md-6">
+                <div class="card h-100">
                     <div class="card-body">
-                        <h5 class="card-title">&#128101; Pacienți</h5>
-                        <p class="card-text small text-muted">
-                            Listă pacienți, căutare după nume sau email,
-                            istoric analize.
-                        </p>
-                        <a asp-controller="Patients" asp-action="Index" asp-area="CAM"
-                           class="btn btn-primary" data-testid="cam-go-patients">
-                            Deschide
-                        </a>
+                        <h6 class="fw-bold text-muted small mb-2">ACȚIUNI RAPIDE</h6>
+                        <div class="d-flex flex-wrap gap-2">
+                            <a asp-controller="Batch" asp-action="Start" asp-area="CAM"
+                               class="btn btn-primary fw-bold" data-testid="cam-go-batch">
+                                Lansează lot
+                            </a>
+                            <a asp-controller="Patients" asp-action="Index" asp-area="CAM"
+                               class="btn btn-outline-primary" data-testid="cam-go-patients">
+                                Pacienți
+                            </a>
+                            <a asp-controller="CheckPdfs" asp-action="Index" asp-area="CAM"
+                               class="btn btn-outline-secondary" data-testid="cam-go-checkpdfs">
+                                Verifică PDF-uri
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="card h-100 border-primary" data-testid="cam-card-checkpdfs">
-                    <div class="card-body">
-                        <h5 class="card-title">&#128270; Verifică PDF-uri</h5>
-                        <p class="card-text small text-muted">
-                            Scanează folderul <code>Original</code> și arată ce
-                            metadata reușește extractorul să găsească
-                            (Nume + Email) ÎNAINTE de lansarea lotului.
-                        </p>
-                        <a asp-controller="CheckPdfs" asp-action="Index" asp-area="CAM"
-                           class="btn btn-outline-primary" data-testid="cam-go-checkpdfs">
-                            Verifică acum
-                        </a>
+        </div>
+
+        @* ============================================================
+           ACTIVITY CHART (last 30 days) + TOP PATIENTS
+           ============================================================ *@
+        <div class="row g-3 mb-4">
+            <div class="col-lg-8">
+                <div class="card h-100">
+                    <div class="card-header bg-white fw-bold">
+                        Activitate — ultimele 30 zile (fișiere procesate / zi)
                     </div>
+                    <div class="card-body">
+                        <canvas id="activityChart" height="120" data-testid="cam-activity-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card h-100">
+                    <div class="card-header bg-white fw-bold">Top 5 pacienți</div>
+                    <div class="card-body p-0">
+                        @if (Model.TopPatients.Count == 0)
+                        {
+                            <div class="text-muted small p-3" data-testid="cam-top-empty">
+                                Niciun pacient procesat încă.
+                            </div>
+                        }
+                        else
+                        {
+                            <table class="table table-sm mb-0" data-testid="cam-top-patients">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Pacient</th>
+                                        <th class="text-end">Analize</th>
+                                        <th>Ultima</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var p in Model.TopPatients)
+                                    {
+                                        <tr data-testid="cam-top-row-@p.PatientId">
+                                            <td>
+                                                <div class="fw-semibold">@p.Name</div>
+                                                <div class="text-muted small">@p.Email</div>
+                                            </td>
+                                            <td class="text-end fw-bold">@p.AnalysesCount</td>
+                                            <td class="text-muted small">
+                                                @(p.LastSamplingDate?.ToLocalTime().ToString("yyyy-MM-dd") ?? "-")
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* ============================================================
+           RECENT BATCHES HISTORY
+           ============================================================ *@
+        <div class="card mb-4">
+            <div class="card-header bg-white d-flex align-items-center">
+                <span class="fw-bold">Istoric loturi (ultimele 20)</span>
+                <span class="badge bg-secondary ms-2">@Model.RecentBatches.Count</span>
+            </div>
+            <div class="card-body p-0">
+                @if (Model.RecentBatches.Count == 0)
+                {
+                    <div class="text-muted small p-3" data-testid="cam-batches-empty">
+                        Niciun lot rulat încă. Apasă <strong>Lansează lot</strong> pentru a începe.
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 align-middle" data-testid="cam-batches-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Pornit</th>
+                                    <th>Durată</th>
+                                    <th class="text-center">Status</th>
+                                    <th class="text-end">Total</th>
+                                    <th class="text-end">Trimise</th>
+                                    <th class="text-end">Comparate</th>
+                                    <th class="text-end">NotSends</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var b in Model.RecentBatches)
+                                {
+                                    <tr data-testid="cam-batch-row-@b.BatchRunId">
+                                        <td class="text-muted small">#@b.BatchRunId</td>
+                                        <td>@b.StartedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td class="text-muted small">@b.DurationDisplay</td>
+                                        <td class="text-center">
+                                            <span class="badge @StatusBadge(b.Status)" data-testid="cam-batch-status-@b.BatchRunId">
+                                                @b.Status
+                                            </span>
+                                        </td>
+                                        <td class="text-end">@b.TotalFiles</td>
+                                        <td class="text-end text-success fw-semibold">@b.FilesSent</td>
+                                        <td class="text-end text-info fw-semibold">@b.FilesCompared</td>
+                                        <td class="text-end text-warning fw-semibold">@b.NotSends</td>
+                                        <td class="text-end">
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <a asp-controller="Batch" asp-action="Progress" asp-area="CAM"
+                                                   asp-route-id="@b.BatchRunId"
+                                                   class="btn btn-outline-secondary"
+                                                   data-testid="cam-batch-progress-link-@b.BatchRunId"
+                                                   title="Vezi pagina de progres / log">
+                                                    Progres
+                                                </a>
+                                                <a asp-action="SumarPdf" asp-route-id="@b.BatchRunId"
+                                                   class="btn btn-outline-primary"
+                                                   data-testid="cam-batch-sumarpdf-link-@b.BatchRunId"
+                                                   title="Descarcă Sumar PDF al lotului">
+                                                    Sumar PDF
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @* ============================================================
+           FOLDERS PANEL (collapsible)
+           ============================================================ *@
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <button class="btn btn-link p-0 text-decoration-none fw-bold"
+                        type="button" data-bs-toggle="collapse"
+                        data-bs-target="#foldersPanel" aria-expanded="false"
+                        data-testid="cam-folders-toggle">
+                    Foldere de lucru pe disc
+                    <span class="text-muted small fw-normal">
+                        (create @Model.FoldersCreatedAt?.ToLocalTime().ToString("dd MMM yyyy HH:mm"))
+                    </span>
+                </button>
+            </div>
+            <div id="foldersPanel" class="collapse">
+                <div class="card-body">
+                    <table class="table table-sm mb-0">
+                        <tbody>
+                            <tr><td style="width: 120px;"><strong>Original</strong></td><td><code>@Model.OriginalFolder</code></td></tr>
+                            <tr><td><strong>Sends</strong></td><td><code>@Model.SendsFolder</code></td></tr>
+                            <tr><td><strong>Sumar</strong></td><td><code>@Model.SumarFolder</code></td></tr>
+                            <tr><td><strong>Errors</strong></td><td><code>@Model.ErrorsFolder</code></td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -142,3 +325,38 @@
         </p>
     </div>
 </div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+    var labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ActivityLabels));
+    var data   = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ActivityCounts));
+    var ctx = document.getElementById('activityChart');
+    if (!ctx) return;
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Fișiere procesate',
+                data: data,
+                backgroundColor: 'rgba(13, 110, 253, 0.6)',
+                borderColor: 'rgba(13, 110, 253, 1)',
+                borderWidth: 1,
+                borderRadius: 3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, ticks: { precision: 0 } },
+                x: { ticks: { autoSkip: true, maxRotation: 0, font: { size: 9 } } }
+            }
+        }
+    });
+})();
+</script>
+}
