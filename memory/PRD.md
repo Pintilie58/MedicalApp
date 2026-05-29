@@ -450,6 +450,14 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
     * **Soluția**: parser-ul mutat într-un service centralizat `MedicalApp/Services/SamplingDateParser.cs` care folosește Regex pentru a extrage PRIMUL token de dată dintr-un șir arbitrar (numeric `dd.MM.yyyy`/`yyyy-MM-dd`/etc. + named-month EN/RO/FR). Indiferent de label, separator sau fragment de oră atașat, regex-ul izolează "06.12.2023" și-l parsează. Ambele puncte (B2C + CAM) deleagă acum la `SamplingDateParser.TryParse`.
     * **Issue 2 (CAM Compare PDF urât)**: vechiul `CamComparePdfGenerator` randa un tabel sec (Parametru | LOINC | data1 | data2). Rescris complet să oglindească `Views/Profiles/Compare.cshtml`: header cu badge "N interpretări", carduri mini per coloană (Interpretarea N · Recoltare · Interpretat · X parametri · Y anormalități), bară badge-uri sumar (↗ Crescute / ↘ Scăzute / = Neschimbate / ⚠ Doar parțial), tabel principal cu rânduri header de clasă LOINC, săgeți direcție per celulă (↗ roșu/↘ albastru), badge-uri status (↑↓≈✓), warning LOINC drift ⚠, coloană Referință, legendă footer cu LOINC source dots. PDF landscape A4 pentru până la 4 coloane fără ghesuit text.
     * Fix subtil: `InterpretationHistory.CreatedAt` sintetizat = `ProcessedAt` (NU `SamplingDate`), pentru ca linia "Interpretat:" să arate corect data interpretării, separată de data recoltării.
+- ✅ **[Feb 2026 — Faza 3.10: Unit-aware LOINC swap (Mass/volume ↔ Moles/volume)]**
+    * **Problema**: Gemini emitea frecvent denumirea LOINC "[Mass/volume]" pentru analiți raportați în pmol/L (ex. FT3, FT4) — corect ar fi "[Moles/volume]". Rezultat: același parametru ajungea pe rânduri Compare separate (3051-0 vs 14928-6 pentru FT3, 3024-7 vs 14920-3 pentru FT4) în loc să fie consolidat.
+    * **Soluția**: post-correction la nivel de Python LOINC matcher, bazată pe unitatea de măsură.
+        - `loinc_service/pipeline.py`: 3 funcții helper noi (`_property_family` — tolerant pe MCnc/SCnc vs Mass/volume/Moles/volume; `_infer_property_from_unit` — `pmol/L` → Moles/volume, `mg/dL` → Mass/volume; `_find_peer_with_property` — caută peer LOINC cu același component+system dar property diferit).
+        - `find_loinc(test_name, unit=None)` aplică swap automat când unit indică property diferit față de match-ul ales.
+        - `loinc_service/main.py`: `LoincRequest` are acum `unit` opțional.
+        - `MedicalApp/Services/LoincMatcherClient.cs`: trimite `kr.Unit` în payload spre Python.
+    * **Acoperire**: TOATE perechile Mass↔Moles din LoincDictionary, nu doar FT3/FT4. Acoperă automat Glucose, Cholesterol, Bilirubin, Urea, Creatinine, Triglycerides, T3/T4 total etc. dacă lab-ul raportează în unități contrastante.
 - 🔜 **Faza 4**: Dashboard CAM cu statistici + export Sumar PDF.
 
 ### P1 – Family profiles (multi-session focus)

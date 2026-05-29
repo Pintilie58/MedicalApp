@@ -137,6 +137,116 @@ def _normalize(s: str) -> str:
     return re.sub(r"\s+", " ", s.lower()).strip()
 
 
+# -------------------------------------------------------------------------
+# Unit-aware property inference (Issue: Gemini emits the "Mass/volume"
+# LOINC name even when the reported unit is pmol/L — a Moles/volume unit —
+# producing systematically wrong codes for paired analytes like FT3/FT4,
+# Glucose, Cholesterol etc.). We post-correct the matcher result by
+# detecting the property family implied by the unit string and swapping
+# to the corresponding Mass↔Moles peer when there is a mismatch.
+#
+# Coverage is intentionally narrow: we only handle Mass/volume ↔
+# Moles/volume because that's the only pair where the SAME analyte
+# legitimately lives under two LOINC codes that the matcher can't
+# disambiguate from the parameter name alone. Other property families
+# (enzymatic activity, mass fraction, count/volume) have unambiguous
+# unit-to-property mappings that the matcher already resolves correctly
+# via the `_apply_rules` layer.
+# -------------------------------------------------------------------------
+# Map LOINC's `property` field values to our normalized family name.
+# LOINC stores it as either the short form ("MCnc", "SCnc") or the long form
+# ("Mass/volume", "Moles/volume"), depending on the source CSV. We accept
+# both so the unit-swap logic works regardless of how the dictionary was
+# seeded.
+_MASS_PROPERTY_TOKENS = {"mcnc", "mass/volume", "mass concentration"}
+_MOLES_PROPERTY_TOKENS = {"scnc", "moles/volume", "substance concentration"}
+
+
+def _property_family(prop: Optional[str]) -> Optional[str]:
+    if not prop: return None
+    p = prop.strip().lower()
+    if p in _MASS_PROPERTY_TOKENS: return "Mass/volume"
+    if p in _MOLES_PROPERTY_TOKENS: return "Moles/volume"
+    return None
+
+
+_MOLES_UNIT_TOKENS = (
+    "mol/l", "mmol/l", "umol/l", "µmol/l", "μmol/l", "nmol/l", "pmol/l",
+    "mol/ml", "mmol/ml", "umol/ml", "nmol/ml", "pmol/ml",
+)
+_MASS_UNIT_TOKENS = (
+    "g/l", "g/dl", "g/ml",
+    "mg/l", "mg/dl", "mg/ml",
+    "ug/l", "ug/dl", "ug/ml", "µg/l", "µg/dl", "µg/ml",
+    "ng/l", "ng/dl", "ng/ml",
+    "pg/l", "pg/dl", "pg/ml",
+)
+
+
+def _infer_property_from_unit(unit: Optional[str]) -> Optional[str]:
+    """
+    Returns "Moles/volume" or "Mass/volume" when the unit string clearly
+    falls in one of those families; None otherwise. Matching is done on a
+    lowercased, whitespace-stripped form so it tolerates the dozens of
+    capitalization variants Gemini emits ("Pmol/L", "PMOL/L", "pmol / L",
+    etc.).
+    """
+    if not unit:
+        return None
+    u = re.sub(r"\s+", "", unit.lower())
+    # Order matters: check moles tokens FIRST since "mol" is a substring
+    # used inside "umol", "nmol", etc. — but tokens are pre-disambiguated
+    # by always including the denominator (/l or /ml).
+    if any(tok in u for tok in _MOLES_UNIT_TOKENS):
+        return "Moles/volume"
+    if any(tok in u for tok in _MASS_UNIT_TOKENS):
+        return "Mass/volume"
+    return None
+
+
+def _find_peer_with_property(
+    component: Optional[str],
+    system: Optional[str],
+    method: Optional[str],
+    target_property: str,
+) -> Optional[dict]:
+    """
+    Scan STORE.metadata for a LOINC entry that shares the same
+    (component, system, optional method) as the original match but with
+    the desired property (Mass/volume or Moles/volume). Returns the
+    metadata dict for the peer, or None when no peer exists in the
+    loaded dictionary.
+
+    We deliberately keep `method` loose — when the original match has a
+    method like "IA" or "Spectrophotometry", an exact match would be too
+    strict (the Moles/volume peer often has method=NULL). So we accept a
+    peer with the same method OR an empty method.
+    """
+    if not component or not system or not target_property:
+        return None
+    comp_lc = component.strip().lower()
+    sys_lc = system.strip().lower()
+    method_lc = (method or "").strip().lower()
+
+    best: Optional[dict] = None
+    for entry in STORE.metadata:
+        # Tolerant match on the property family (handles both LOINC's short
+        # form "MCnc"/"SCnc" and the long form "Mass/volume"/"Moles/volume").
+        if _property_family(entry.get("property")) != target_property:
+            continue
+        e_comp = (entry.get("component") or "").strip().lower()
+        e_sys = (entry.get("system") or "").strip().lower()
+        if e_comp != comp_lc or e_sys != sys_lc:
+            continue
+        e_method = (entry.get("method") or "").strip().lower()
+        # Prefer same-method peer, fall back to any-method peer.
+        if e_method == method_lc:
+            return entry
+        if best is None and (not e_method or not method_lc):
+            best = entry
+    return best
+
+
 def _apply_rules(query_norm: str, candidate: dict) -> float:
     """Return rules score in [0, 1] — fraction of rules satisfied. We only
     apply rules that the query EXPLICITLY mentions (specimen/method/property
@@ -220,13 +330,60 @@ def _hard_reject_penalty(query_norm: str, candidate_name: str) -> float:
 # -------------------------------------------------------------------------
 # Public API
 # -------------------------------------------------------------------------
-def find_loinc(test_name: str) -> Optional[MatchResult]:
-    """Resolve the best LOINC code for an English medical test name."""
+def find_loinc(test_name: str, unit: Optional[str] = None) -> Optional[MatchResult]:
+    """Resolve the best LOINC code for an English medical test name.
+
+    When ``unit`` is provided we post-correct the match: if the unit
+    indicates Moles/volume (e.g. pmol/L, nmol/L) but the chosen LOINC
+    has property Mass/volume (or vice-versa), swap to the
+    same-component peer LOINC that has the desired property. Fixes the
+    systematic Gemini mistake of emitting "Triiodothyronine free
+    [Mass/volume]" when the lab actually reported FT3 in pmol/L
+    (correct LOINC = 14928-6, not 3051-0).
+    """
     if STORE.embeddings is None or not STORE.metadata:
         raise RuntimeError("LoincStore is not loaded. Call STORE.load() first.")
     if not test_name or not test_name.strip():
         return None
 
+    result = _semantic_match(test_name)
+    if result is None:
+        return result
+
+    # Unit-aware post-correction.
+    desired_property = _infer_property_from_unit(unit)
+    current_family = _property_family(result.property)
+    if (desired_property
+            and current_family
+            and desired_property != current_family):
+        peer = _find_peer_with_property(
+            result.component, result.system, result.method, desired_property)
+        if peer is not None:
+            log.info(
+                "UNIT-SWAP %r (unit=%r) %s [%s] -> %s [%s] (component=%r)",
+                test_name, unit, result.loinc, result.property,
+                peer.get("loinc"), peer.get("property"), result.component,
+            )
+            return MatchResult(
+                loinc=peer["loinc"],
+                name=peer.get("name") or "",
+                component=peer.get("component"),
+                property=peer.get("property"),
+                system=peer.get("system"),
+                method=peer.get("method"),
+                # Keep the original score — we are not less confident in the
+                # match, just correcting the property axis based on unit.
+                score=result.score,
+                loinc_class=peer.get("class"),
+                source=result.source,
+            )
+
+    return result
+
+
+def _semantic_match(test_name: str) -> Optional[MatchResult]:
+    """Anchor + embedding + fuzzy + rules pipeline, unit-agnostic.
+    Caller (find_loinc) applies unit-aware post-correction on the result."""
     # 0. HARD-ACCEPT LAYER — canonical anchors short-circuit the matcher
     # when Gemini emits one of the curated standardized English terms (see
     # canonical_anchors.py). This eliminates the systematic mis-mappings of

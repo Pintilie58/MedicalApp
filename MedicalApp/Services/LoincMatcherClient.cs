@@ -74,7 +74,7 @@ namespace MedicalApp.Services
                     continue;
                 }
 
-                var match = await MatchOneAsync(kr.ParameterNormalizedEn!, ct);
+                var match = await MatchOneAsync(kr.ParameterNormalizedEn!, kr.Unit, ct);
                 if (match == null)
                 {
                     stats.NoMatch++;
@@ -115,7 +115,7 @@ namespace MedicalApp.Services
             return stats;
         }
 
-        private async Task<MatcherResponse?> MatchOneAsync(string normalizedText, CancellationToken ct)
+        private async Task<MatcherResponse?> MatchOneAsync(string normalizedText, string? unit, CancellationToken ct)
         {
             try
             {
@@ -123,7 +123,7 @@ namespace MedicalApp.Services
                 cts.CancelAfter(TimeSpan.FromSeconds(_settings.TimeoutSeconds));
 
                 var resp = await _http.PostAsJsonAsync("/loinc/match",
-                    new MatcherRequest { TestName = normalizedText }, cts.Token);
+                    new MatcherRequest { TestName = normalizedText, Unit = unit }, cts.Token);
 
                 if (!resp.IsSuccessStatusCode)
                 {
@@ -151,6 +151,11 @@ namespace MedicalApp.Services
         private class MatcherRequest
         {
             [JsonPropertyName("test_name")] public string TestName { get; set; } = string.Empty;
+            // Reported unit of measure (e.g. "pmol/L", "mg/dL"). Passed to the
+            // Python matcher so it can post-correct Mass/volume ↔ Moles/volume
+            // mismatches that Gemini introduces (it sometimes emits the
+            // "Mass/volume" LOINC name even when the lab printed FT3 in pmol/L).
+            [JsonPropertyName("unit")]      public string? Unit { get; set; }
         }
 
         private class MatcherResponse

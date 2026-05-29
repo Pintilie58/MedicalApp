@@ -65,6 +65,14 @@ app = FastAPI(
 class LoincRequest(BaseModel):
     test_name: str = Field(..., min_length=1, max_length=500,
                            description="Standardized English medical term for the analyte.")
+    unit: str | None = Field(
+        default=None, max_length=64,
+        description=(
+            "Reported unit of measure (e.g. 'pmol/L', 'mg/dL', 'U/L'). When "
+            "provided, the matcher swaps the chosen LOINC to the same-component "
+            "Mass/volume↔Moles/volume peer if the unit indicates a different "
+            "property than the best match. Fixes Gemini's systematic miscall "
+            "of FT3/FT4 in pmol/L to the Mass/volume LOINC codes."))
 
 
 class LoincResponse(BaseModel):
@@ -108,9 +116,9 @@ def match(req: LoincRequest):
             detail="LOINC store is not loaded. Run seed_embeddings.py first.",
         )
     try:
-        result = find_loinc(req.test_name)
+        result = find_loinc(req.test_name, unit=req.unit)
     except Exception as ex:
-        log.exception("find_loinc failed for input: %r", req.test_name)
+        log.exception("find_loinc failed for input: %r (unit=%r)", req.test_name, req.unit)
         raise HTTPException(status_code=500, detail=str(ex))
 
     if result is None:
