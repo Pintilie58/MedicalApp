@@ -660,7 +660,8 @@ namespace MedicalApp.Controllers
                     DateTaken = t.r.PatientInfo?.DateTaken,
                     EffectiveDate = eff,
                     KeyResultsCount = t.r.KeyResults?.Count ?? 0,
-                    AbnormalFindingsCount = t.r.AbnormalFindings?.Count ?? 0
+                    AbnormalFindingsCount = t.r.AbnormalFindings?.Count ?? 0,
+                    PatientName = t.r.PatientInfo?.Name
                 };
             }).ToList();
 

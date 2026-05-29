@@ -119,6 +119,15 @@ namespace MedicalApp.Models
             public DateTime EffectiveDate { get; set; }
             public int KeyResultsCount { get; set; }
             public int AbnormalFindingsCount { get; set; }
+            /// <summary>
+            /// Patient name as extracted by Gemini from THIS specific PDF
+            /// (<c>InterpretationResult.PatientInfo.Name</c>). Surfaced in the
+            /// per-column card so the clinic operator can spot mismatches —
+            /// e.g. the same NameKey+Email landed two PDFs from two different
+            /// people, or a buletin uploaded into the wrong patient's
+            /// folder. Empty / null when Gemini could not extract a name.
+            /// </summary>
+            public string? PatientName { get; set; }
         }
 
         public class ComparisonRow

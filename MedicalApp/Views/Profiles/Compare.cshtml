@@ -75,6 +75,14 @@
                         <div class="card @border h-100" data-testid="compare-col-card-@i">
                             <div class="card-body py-2">
                                 <div class="small text-muted">Interpretarea @(i + 1)</div>
+                                @if (!string.IsNullOrWhiteSpace(col.PatientName))
+                                {
+                                    <div class="fw-semibold text-dark mb-1"
+                                         data-testid="compare-col-patient-@i"
+                                         title="Numele pacientului extras de Gemini din PDF-ul original — pentru a depista buletinele atribuite greșit altui pacient.">
+                                        <span class="text-muted small">Pacient:</span> @col.PatientName
+                                    </div>
+                                }
                                 <h6 class="fw-bold mb-1" data-testid="compare-col-sampled-@i">
                                     Recoltare:
                                     <span class="text-dark">

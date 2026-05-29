@@ -134,6 +134,17 @@ namespace MedicalApp.Services
                                 {
                                     card.Item().Text($"Interpretarea {i + 1}")
                                         .FontSize(8).FontColor(Colors.Grey.Darken1);
+                                    // Patient name as Gemini saw it inside THIS PDF.
+                                    // Helps the operator catch wrong-file-to-patient mismatches.
+                                    if (!string.IsNullOrWhiteSpace(c.PatientName))
+                                    {
+                                        card.Item().Text(t =>
+                                        {
+                                            t.Span("Pacient: ").FontSize(8).FontColor(Colors.Grey.Darken1);
+                                            t.Span(c.PatientName).FontSize(9).SemiBold()
+                                                .FontColor(Colors.Grey.Darken3);
+                                        });
+                                    }
                                     card.Item().Text(t =>
                                     {
                                         t.Span("Recoltare: ").FontSize(9).Bold();
