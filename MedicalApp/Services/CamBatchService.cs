@@ -295,6 +295,11 @@ namespace MedicalApp.Services
             {
                 await RecordErrorAsync(db, batch, path, meta!.PatientName, "AI exhausted retries (incl. fallback model)");
                 batch.NotSends++; progress.NotSends++;
+                // 3-strikes-out: after 3 failed attempts across batches, move
+                // the file to Errors/ so the next "Lansează lot" doesn't keep
+                // burning credits on the same broken PDF. (Was missing here;
+                // present on all the other NotSends paths.)
+                await MoveToErrorsIfRetriesExhaustedAsync(db, batch, path, errorsFolder);
                 return;
             }
 
@@ -307,6 +312,7 @@ namespace MedicalApp.Services
                     progress.Log("   ✘ Gemini nu a putut identifica numele pacientului.");
                     await RecordErrorAsync(db, batch, path, null, "Patient name missing from AI output");
                     batch.NotSends++; progress.NotSends++;
+                    await MoveToErrorsIfRetriesExhaustedAsync(db, batch, path, errorsFolder);
                     return;
                 }
                 meta!.PatientName = aiName;

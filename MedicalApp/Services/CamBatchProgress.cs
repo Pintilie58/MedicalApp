@@ -52,14 +52,25 @@ namespace MedicalApp.Services
     {
         private readonly ConcurrentDictionary<int, CamBatchProgress> _store = new();
 
+        /// <summary>
+        /// Returns the existing in-memory progress entry, or creates a new one.
+        /// When the entry already exists (typical case: the controller has
+        /// already seeded it with Total=0 immediately after queuing the
+        /// background task), the existing entry's Total is updated when the
+        /// caller passes a strictly larger value. This way the controller's
+        /// pre-seeding does NOT prevent the runner from filling in the real
+        /// PDF count once it finishes scanning the Original folder.
+        /// </summary>
         public CamBatchProgress GetOrCreate(int batchRunId, int clinicId, int total)
         {
-            return _store.GetOrAdd(batchRunId, _ => new CamBatchProgress
+            var entry = _store.GetOrAdd(batchRunId, _ => new CamBatchProgress
             {
                 BatchRunId = batchRunId,
                 ClinicId = clinicId,
                 Total = total
             });
+            if (total > entry.Total) entry.Total = total;
+            return entry;
         }
 
         public CamBatchProgress? Get(int batchRunId) =>

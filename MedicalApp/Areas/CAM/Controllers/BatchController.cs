@@ -113,6 +113,17 @@ namespace MedicalApp.Areas.CAM.Controllers
             _db.ClinicBatchRuns.Add(batch);
             await _db.SaveChangesAsync();
 
+            // SYNC pre-populate the in-memory progress entry BEFORE we kick
+            // off the background Task.Run. Otherwise the first few polls from
+            // /Progress/{id} race the background task and find _registry.Get
+            // returning null — UI freezes on "0 / 0 fișiere" until the runner
+            // gets past its DI scope setup (~200-500ms, can be longer on a
+            // cold first request after IIS recycle). Seeding it here makes
+            // the UI live from the very first poll. The runner then re-uses
+            // the same entry via GetOrCreate (idempotent).
+            var seeded = _registry.GetOrCreate(batch.Id, clinic.Id, total: 0);
+            seeded.Log("Lot inițializat — pregătesc procesarea…");
+
             // Fire & forget. The runner uses its own DI scope, so it survives
             // the disposal of THIS controller's scope when the request returns.
             _ = Task.Run(() => _runner.RunAsync(batch.Id));

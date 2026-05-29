@@ -96,7 +96,12 @@
 <script>
 (function() {
     var batchId = @Model.BatchRunId;
-    var statusUrl = '/CAM/Batch/Status/' + batchId;
+    // Build the Status URL via Razor's URL helper so it survives changes to
+    // PathBase (e.g. when the app is mounted under a virtual sub-application
+    // in IIS). A hardcoded "/CAM/Batch/Status/..." would 404 in that case
+    // and silently leave the live UI stuck on "0 / 0 fișiere".
+    var statusUrl = '@Url.Action("Status", "Batch", new { area = "CAM", id = "__BID__" })'
+                        .replace('__BID__', batchId);
     var pollMs = 3000;
     var pollTimer = null;
 

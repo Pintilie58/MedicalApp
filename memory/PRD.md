@@ -466,6 +466,10 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
     * **Sumar PDF per lot** (`/CAM/Dashboard/SumarPdf/{id}`): generat on-demand cu QuestPDF. Conține antet clinică, identitate lot, 4 KPI mini-cards, rată succes, tabel motive erori (sau confirmare „toate procesate cu succes"). Salvat și pe disc în folderul `Sumar/` ca `Sumar_Lot_<id>_yyyyMMdd_HHmm.pdf` (audit local).
     * Fișiere afectate: `Areas/CAM/Models/CamDashboardViewModel.cs` (extins), `Areas/CAM/Controllers/DashboardController.cs` (rescris + endpoint SumarPdf), `Areas/CAM/Views/Dashboard/Index.cshtml` (rescris cu KPIs/chart/tabel), `Services/CamBatchSumarPdfGenerator.cs` (nou), `Program.cs` (înregistrare scoped).
     * Fără migrare DB — toate datele exista deja în `ClinicBatchRuns`, `ClinicBatchErrors`, `ClinicAnalyses`, `ClinicPatients`.
+- ✅ **[Feb 2026 — Faza 4.1: 3 fix-uri post-faza 4 (UI Progress + retry exhausted)]**
+    * **Fix UI Progress polling**: `Progress.cshtml` folosea path absolut `/CAM/Batch/Status/{id}` — fragil sub PathBase / IIS sub-app. Înlocuit cu `@Url.Action` astfel încât URL-ul respectă route-ul ASP.NET corect.
+    * **Pre-seed Registry SYNC în Controller**: `BatchController.Start` populează acum `CamBatchRegistry` ÎNAINTE de `Task.Run`, ca polling-ul JS să vadă entry valid de la primul fetch (înainte rămânea "0/0" pentru ~200-500ms până prinde RunAsync). `GetOrCreate` updatează Total la o valoare mai mare când runner-ul scanează folderul.
+    * **Fix retry-exhausted Gemini → Errors/**: când Gemini eșuează după 5 retries + fallback Pro (mesaj „AI exhausted retries"), fișierul rămânea pe veci în Original și consuma credite la fiecare lot următor. Adăugat apel la `MoveToErrorsIfRetriesExhaustedAsync` pe această cale (la a 3-a încercare totală fișierul se mută în `Errors/`). Aplicat și la calea „Patient name missing from AI output".
 
 ### P1 – Family profiles (multi-session focus)
 - 🔜 **P1.6**: Denormalize parameters into `AnalysisResults` table on each interpretation (ParameterCode, Value, Unit, Status, SamplingDate, per profile)
