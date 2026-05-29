@@ -146,9 +146,17 @@ namespace MedicalApp.Areas.CAM.Controllers
         }
 
         // ----- JSON status (polled every 3s by the Progress page) -----
+        // No-store cache headers + cache-busting query param on the client side
+        // protect against the occasional intermediate proxy / IIS / browser
+        // serving a stale 200 from cache, which would freeze the live UI.
         [HttpGet]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public async Task<IActionResult> Status(int id)
         {
+            Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0";
+            Response.Headers["Pragma"] = "no-cache";
+            Response.Headers["Expires"] = "0";
+
             if (string.IsNullOrEmpty(CurrentEmail))
                 return Unauthorized();
 

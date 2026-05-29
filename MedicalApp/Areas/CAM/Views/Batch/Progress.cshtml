@@ -136,7 +136,11 @@
     }
 
     function poll() {
-        fetch(statusUrl, { credentials: 'same-origin' })
+        // Cache-busting query param + cache: 'no-store' on the request side
+        // belt-and-suspenders with the Cache-Control: no-store headers the
+        // server sets — some intermediaries respect one but not the other.
+        var url = statusUrl + '?t=' + Date.now();
+        fetch(url, { credentials: 'same-origin', cache: 'no-store' })
             .then(function(r) { return r.ok ? r.json() : null; })
             .then(function(d) { if (d) render(d); })
             .catch(function() { /* keep polling on transient errors */ });
