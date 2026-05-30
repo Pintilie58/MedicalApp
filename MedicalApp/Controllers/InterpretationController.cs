@@ -405,6 +405,31 @@ namespace MedicalApp.Controllers
                     lastException = ex;
                     await Task.Delay(5_000 * transientAttempts);
                 }
+                catch (InvalidOperationException ex) when (
+                    ex.Message.Contains("MaxOutputTokens", StringComparison.OrdinalIgnoreCase)
+                    && currentModelOverride == null)
+                {
+                    // Flash a truncated răspunsul la MaxOutputTokens. PDF-uri cu mulți
+                    // parametri (Examen sumar urină + sediment) sau cu sumar AI prolix
+                    // depășesc limita. Pro suportă output mai mare și e mai disciplinat,
+                    // deci comut imediat pe el FĂRĂ să consum din retry budget (5+3).
+                    // Aceeași strategie ca pe CAM batch — simetrie B2C ↔ B2B.
+                    var fallback = _geminiSettings.FallbackModel;
+                    if (!string.IsNullOrWhiteSpace(fallback)
+                        && !string.Equals(fallback, _geminiSettings.Model, StringComparison.OrdinalIgnoreCase))
+                    {
+                        currentModelOverride = fallback;
+                        _logger.LogWarning(
+                            "Gemini hit MaxOutputTokens on Flash; switching to {Pro} for this request (no retry budget consumed). Detail: {Detail}",
+                            fallback, ex.Message);
+                        lastException = ex;
+                        // NU incrementăm modelAttempts — comutarea pe Pro NU consumă budget.
+                        continue;
+                    }
+                    // Fallback model not configured — fall through to the generic
+                    // InvalidOperationException catch below for normal retry.
+                    throw;
+                }
                 catch (InvalidOperationException ex) when (modelAttempts + 1 < maxAttemptsModel)
                 {
                     modelAttempts++;

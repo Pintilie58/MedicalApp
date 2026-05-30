@@ -490,6 +490,14 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
         - Badge **„⏳ Așteptați câteva secunde…"** + hint **„Interpretarea AI durează ~2-3 min/fișier"**
         - La finalizare, badge-ul comută la ✓ Finalizat / ⏹ Anulat / ✘ Eșuat
         - Contorii Trimise/Comparate/NotSends + Log live rămân neschimbați (informația cu adevărat utilă)
+- ✅ **[Feb 2026 — Faza 4.5: MAX_TOKENS B2C parity + Unit Tests C# (proiect nou)]**
+    * **B2C parity**: `InterpretationController` are acum aceeași logică de auto-fallback Pro pe `MaxOutputTokens` ca `CamBatchService`. Catch dedicat detectează exception-ul, comută model fără să consume retry budget, continuă imediat. Simetrie totală B2C ↔ B2B.
+    * **Proiect nou `MedicalApp.Tests`** (xUnit, .NET 9), adăugat la solution. ProjectReference la `MedicalApp`. Fișiere create:
+        - `SamplingDateParserTests.cs` — 18 test cases: bug-ul Bordeianu ("Data - ora recoltare: 06.12.2023 - 10:27"), ISO, slash, named-month EN/RO, US heuristic, two-digit year, null/empty/invalid.
+        - `StatusValidatorTests.cs` — 16 test cases: bug-ul Densitate (1.024 ∈ [1.005, 1.03] = normal), glucoză, hemoglobină, range deschis `< 200`, range deschis `> 50`.
+        - `LoincSourceBadgeTests.cs` — 6 test cases: contract afișare anchor/semantic.
+    * Rulare locală: Test Explorer în VS2026 (auto-recunoaște xUnit) sau `dotnet test`.
+    * Total: ~40 test cases care prind regresia bug-urilor istorice fără un nou run de PDF.
 - 📊 **[Feb 2026 — Audit tehnic complet creat în `/app/memory/AUDIT.md`]**
     * 3 P0 + 6 P1 + 8 P2 + 4 P3 elemente prioritizate cu plan de remediere.
 
