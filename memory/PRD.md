@@ -36,6 +36,8 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - **LoincDictionary** *(new — LOINC step 1)*: LoincCode (PK string), LongCommonName (indexed), OrderObs, AliasesJson, TranslationsJson, ImportedAt
 
 ## Implemented (changelog)
+- 🔄 **2026-02 — Revert `MedicalApp.Tests`**: xUnit test project a fost eliminat complet (folder șters + curățat `MedicalApp.sln`) după ce a îngheţat VS2026 la Rebuild. Soluția conține din nou doar `MedicalApp`. Testarea automată C# este pe pauză; user-ul testează manual local.
+
 - ✅ Project scaffolding (.NET 9 MVC) + SQL Server via EF Core
 - ✅ 5-language localization via `Loc.cs`
 - ✅ BCrypt auth + email verification + password reset
