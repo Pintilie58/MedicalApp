@@ -160,6 +160,14 @@ namespace MedicalApp.Areas.CAM.Controllers
         // No-store cache headers + cache-busting query param on the client side
         // protect against the occasional intermediate proxy / IIS / browser
         // serving a stale 200 from cache, which would freeze the live UI.
+        //
+        // Performance: while the lot is RUNNING we serve the in-memory registry
+        // entry directly without hitting the DB. The runner updates the entry
+        // synchronously after every per-file step, so the data is always fresh.
+        // Before this short-circuit, a 5-minute batch polled at 3s = ~100 polls,
+        // each issuing 2 SQL queries (Clinic + ClinicBatchRun) for zero useful
+        // delta. The DB read is preserved as a fallback for finished batches
+        // (registry entry is removed) and for AuthZ enforcement (clinic match).
         [HttpGet]
         [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public async Task<IActionResult> Status(int id)
@@ -171,6 +179,33 @@ namespace MedicalApp.Areas.CAM.Controllers
             if (string.IsNullOrEmpty(CurrentEmail))
                 return Unauthorized();
 
+            // FAST PATH: in-memory registry has the live state. AuthZ via ClinicId
+            // (still requires one cheap "SELECT clinic by email" but we cache the
+            // result on HttpContext.Items so repeat calls within the same request
+            // — currently none, but cheap insurance — don't re-query).
+            var p = _registry.Get(id);
+            if (p != null && p.Status == "Running")
+            {
+                var clinicId = await GetClinicIdAsync();
+                if (clinicId == 0) return NotFound();
+                if (p.ClinicId != clinicId) return NotFound();
+
+                return Json(new
+                {
+                    status = p.Status,
+                    processed = p.Processed,
+                    total = p.Total,
+                    sent = p.Sent,
+                    compared = p.Compared,
+                    notSends = p.NotSends,
+                    currentFile = p.CurrentFile ?? string.Empty,
+                    log = p.LogSnapshot(),
+                    finished = false
+                });
+            }
+
+            // SLOW PATH: batch is finished (registry entry purged) or never started
+            // — fall back to DB for the persisted final counts.
             var clinic = await _db.Clinics.AsNoTracking()
                 .FirstOrDefaultAsync(c => c.UserEmail == CurrentEmail);
             if (clinic == null) return NotFound();
@@ -179,12 +214,10 @@ namespace MedicalApp.Areas.CAM.Controllers
                 .FirstOrDefaultAsync(b => b.Id == id && b.ClinicId == clinic.Id);
             if (batch == null) return NotFound();
 
-            var p = _registry.Get(id);
-
             return Json(new
             {
                 status = p?.Status ?? batch.Status,
-                processed = p?.Processed ?? 0,
+                processed = p?.Processed ?? batch.TotalFiles,
                 total = p?.Total ?? batch.TotalFiles,
                 sent = p?.Sent ?? batch.FilesSent,
                 compared = p?.Compared ?? batch.FilesCompared,
@@ -193,6 +226,17 @@ namespace MedicalApp.Areas.CAM.Controllers
                 log = p?.LogSnapshot() ?? new List<string>(),
                 finished = batch.FinishedAt != null || p?.Status != "Running"
             });
+        }
+
+        // Returns the current user's ClinicId, or 0 when no clinic matches.
+        // Used by the Status fast path to enforce per-clinic isolation without
+        // loading the full Clinic entity.
+        private async Task<int> GetClinicIdAsync()
+        {
+            return await _db.Clinics.AsNoTracking()
+                .Where(c => c.UserEmail == CurrentEmail)
+                .Select(c => c.Id)
+                .FirstOrDefaultAsync();
         }
 
         // ----- POST: anulează lotul -----

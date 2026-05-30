@@ -641,6 +641,23 @@ namespace MedicalApp.Services
                     try { await Task.Delay(wait, ct); }
                     catch (OperationCanceledException) { return null; }
                 }
+                catch (Exception ex) when (
+                    ex is InvalidOperationException
+                    && ex.Message.Contains("MaxOutputTokens", StringComparison.OrdinalIgnoreCase)
+                    && modelOverride == null
+                    && !string.IsNullOrWhiteSpace(settings.FallbackModel)
+                    && !string.Equals(settings.FallbackModel, settings.Model, StringComparison.OrdinalIgnoreCase))
+                {
+                    // Flash a truncated răspunsul la MaxOutputTokens. Pro suportă output
+                    // mai mare și e mai puțin chitros pe parametri (Examen sumar urină
+                    // + sediment = 20+ parametri = ~30k+ tokens output). Comut imediat
+                    // pe Pro fără să consum din quota celorlalte retries — ăsta NU e
+                    // un error tranzient ci o decizie de model.
+                    modelOverride = settings.FallbackModel;
+                    progress.Log($"   ⚠ Răspuns trunchiat de limita de tokens. Comut pe {modelOverride} (output mai mare).");
+                    lastEx = ex;
+                    // NU incrementăm `transient` — comutarea pe Pro NU consumă din retry budget.
+                }
                 catch (Exception ex)
                 {
                     // Non-transient — fail fast.

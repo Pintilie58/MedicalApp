@@ -477,6 +477,14 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
     * **Fix** (universal, nu particular):
         - `CamBatchService.ProcessOneFileAsync`: apel `StatusValidator.Validate(result, _logger)` între LOINC matcher și PDF gen (oglindă perfectă a fluxului B2C). Loghează numărul de status-uri corectate per lot.
         - `StatusValidator.ComputeStatus`: când AMBELE limite sunt finite, calculează tolerance ca `5% din lățimea range-ului` (hi - lo). Pentru densitate (width=0.025), banda borderline ajunge ±0.00125, deci 1.024 e clar normal. Pentru analiți cu range deschis (ex `< 200`), păstrează vechea formulă boundary-relative.
+- ✅ **[Feb 2026 — Faza 4.3: MaxOutputTokens fix + Status endpoint cache + audit P0]**
+    * **Bug raportat**: PDF Examen sumar urină (Bordeianu Viorel) eșuat cu `FinishReason=MAX_TOKENS`, `out=14243`, `TextLen=45187`. JSON truncated → `InvalidOperationException` → fișier mutat în Errors.
+    * **Cauza**: `MaxOutputTokens=32000` în `appsettings.json` era prea strict pentru PDF-uri cu mulți parametri (Examen urină + sediment = 20+ parametri = ~14k tokens text + JSON overhead).
+    * **Fix #1**: `appsettings.json` Gemini.MaxOutputTokens: 32000 → 65000 (limita Gemini 2.5 Flash e 65536).
+    * **Fix #2 (auto-fallback la Pro pe MAX_TOKENS)**: `CamBatchService.CallGeminiWithRetryAsync` are catch nou pentru `InvalidOperationException` cu mesaj `"MaxOutputTokens"`. Detectează automat că Flash a fost trunchiat și comută IMEDIAT pe Pro (output mai mare + acceptă mai bine PDF-uri complexe), FĂRĂ să consume din quota retry (5 încercări tranziente).
+    * **Fix #3 (perf Status endpoint)**: pagina Progress făcea polling la 3s → 2 SQL queries per poll (`Clinic` + `ClinicBatchRun`) → ~100 polls pe un lot = 200 queries inutile. Acum când registry-ul in-memory are entry `Status="Running"`, Status face DOAR 1 query mic ("SELECT ClinicId WHERE Email=...") pentru AuthZ, restul se servește din memorie. Reducere ~50% queries. DB fallback rămâne pentru loturi finalizate.
+- 📊 **[Feb 2026 — Audit tehnic complet creat în `/app/memory/AUDIT.md`]**
+    * 3 P0 + 6 P1 + 8 P2 + 4 P3 elemente prioritizate cu plan de remediere.
 
 ### P1 – Family profiles (multi-session focus)
 - 🔜 **P1.6**: Denormalize parameters into `AnalysisResults` table on each interpretation (ParameterCode, Value, Unit, Status, SamplingDate, per profile)
