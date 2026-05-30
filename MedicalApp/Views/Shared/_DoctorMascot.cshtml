@@ -1,0 +1,97 @@
+@*
+    _DoctorMascot.cshtml — Partial reutilizabil pentru mascotă.
+
+    Parametri prin ViewData:
+        - "Mode"            : "progress" | "waiting" | "greeting" (default: greeting)
+        - "Size"            : "small" | "medium" | "large" (default: medium)
+        - "StageId"         : id-ul container-ului (default: docMascot)
+        - "TestId"          : data-testid (default: doctor-mascot)
+        - "ShowSoundToggle" : bool (default: true pentru progress/waiting, false pentru greeting)
+        - "ShowCheckpoints" : bool (default: true pentru progress)
+        - "BubbleText"      : string opțional — afișat în bula de dialog (doar pentru greeting)
+*@
+@{
+    var mode = (ViewData["Mode"] as string) ?? "greeting";
+    var size = (ViewData["Size"] as string) ?? "medium";
+    var stageId = (ViewData["StageId"] as string) ?? "docMascot";
+    var testId = (ViewData["TestId"] as string) ?? "doctor-mascot";
+    var showSoundToggle = ViewData["ShowSoundToggle"] as bool? ?? (mode == "progress" || mode == "waiting");
+    var showCheckpoints = ViewData["ShowCheckpoints"] as bool? ?? (mode == "progress");
+    var bubbleText = ViewData["BubbleText"] as string;
+    var initialState = mode == "waiting" ? "walking" : "idle";
+}
+<div class="doc-mascot doc-mascot--@mode doc-mascot--@size" id="@stageId"
+     data-mode="@mode" data-testid="@testId">
+    @if (showSoundToggle)
+    {
+        <button type="button" class="doc-sound-toggle" data-doc-sound-toggle
+                title="Sunet on/off" aria-label="Comutator sunet">
+            <span aria-hidden="true" data-doc-sound-icon>&#128266;</span>
+        </button>
+    }
+    <div class="doc-track">
+        @if (showCheckpoints)
+        {
+            <div class="doc-checkpoints" data-doc-checkpoints></div>
+        }
+    </div>
+    <div class="doc-walker" data-doc-walker data-state="@initialState" aria-hidden="true">
+        <div class="doc-bouncer">
+            <svg viewBox="0 0 80 110" xmlns="http://www.w3.org/2000/svg">
+                <ellipse cx="40" cy="106" rx="20" ry="3" fill="rgba(0,0,0,0.18)" />
+                <!-- Picioare -->
+                <g transform="translate(35 78)"><g class="doc-leg-left">
+                    <rect x="-3" y="0" width="6" height="22" rx="2" fill="#1f3a8a" />
+                    <ellipse cx="0" cy="25" rx="5.5" ry="2.5" fill="#1f2937" />
+                </g></g>
+                <g transform="translate(45 78)"><g class="doc-leg-right">
+                    <rect x="-3" y="0" width="6" height="22" rx="2" fill="#1f3a8a" />
+                    <ellipse cx="0" cy="25" rx="5.5" ry="2.5" fill="#1f2937" />
+                </g></g>
+                <!-- Halat -->
+                <path d="M22 50 Q22 48 24 48 L56 48 Q58 48 58 50 L58 84 Q58 86 56 86 L24 86 Q22 86 22 84 Z"
+                      fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2" />
+                <!-- Guler V -->
+                <path d="M36 48 L40 60 L44 48 Z" fill="#0ea5e9" />
+                <!-- Buzunar cu pix -->
+                <rect x="44" y="62" width="10" height="11" fill="none" stroke="#cbd5e1" stroke-width="0.8" rx="1" />
+                <rect x="47.5" y="58" width="1.5" height="9" fill="#ef4444" />
+                <!-- Cruce roșie pe halat -->
+                <g transform="translate(30 68)">
+                    <rect x="-3" y="-1" width="6" height="2" fill="#ef4444" />
+                    <rect x="-1" y="-3" width="2" height="6" fill="#ef4444" />
+                </g>
+                <!-- Stetoscop -->
+                <path d="M33 50 Q31 70 37 72" stroke="#374151" stroke-width="1.5" fill="none" />
+                <path d="M47 50 Q49 70 43 72" stroke="#374151" stroke-width="1.5" fill="none" />
+                <circle cx="40" cy="74" r="3" fill="#9ca3af" stroke="#374151" stroke-width="0.8" />
+                <!-- Brațe -->
+                <g transform="translate(22 52)"><g class="doc-arm-left">
+                    <rect x="-3" y="0" width="6" height="22" rx="3" fill="#ffffff" stroke="#cbd5e1" stroke-width="0.8" />
+                    <circle cx="0" cy="23" r="3.5" fill="#fbcfa1" />
+                </g></g>
+                <g transform="translate(58 52)"><g class="doc-arm-right">
+                    <rect x="-3" y="0" width="6" height="22" rx="3" fill="#ffffff" stroke="#cbd5e1" stroke-width="0.8" />
+                    <circle cx="0" cy="23" r="3.5" fill="#fbcfa1" />
+                </g></g>
+                <!-- Cap -->
+                <circle cx="40" cy="34" r="14" fill="#fbcfa1" stroke="#e8a878" stroke-width="0.8" />
+                <!-- Păr -->
+                <path d="M27 31 Q27 18 40 18 Q53 18 53 31 Q47 26 40 26 Q33 26 27 31 Z" fill="#3b2615" />
+                <!-- Ochi -->
+                <circle cx="35" cy="35" r="1.5" fill="#1f2937" />
+                <circle cx="45" cy="35" r="1.5" fill="#1f2937" />
+                <!-- Zâmbet -->
+                <path d="M34 41 Q40 46 46 41" stroke="#1f2937" stroke-width="1.5" fill="none" stroke-linecap="round" />
+                <!-- Obrăjori -->
+                <circle cx="31" cy="40" r="1.6" fill="#fda4af" opacity="0.65" />
+                <circle cx="49" cy="40" r="1.6" fill="#fda4af" opacity="0.65" />
+            </svg>
+        </div>
+    </div>
+    <div class="doc-confetti" aria-hidden="true"></div>
+    @if (!string.IsNullOrWhiteSpace(bubbleText))
+    {
+        <div class="doc-bubble">@bubbleText</div>
+    }
+</div>

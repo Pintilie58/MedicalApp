@@ -111,8 +111,17 @@
 <!-- ============================================================= -->
 <div id="processingOverlay" class="processing-overlay" aria-hidden="true" role="status" aria-live="polite">
     <div class="processing-box">
-        <div class="processing-spinner" aria-hidden="true"></div>
         <h3 class="processing-title">@Loc.T("PleaseWaitFewSeconds")</h3>
+        @{
+            var uploadMascotVd = new ViewDataDictionary(ViewData)
+            {
+                ["Mode"] = "waiting",
+                ["Size"] = "medium",
+                ["StageId"] = "uploadWaitMascot",
+                ["TestId"] = "upload-wait-mascot"
+            };
+        }
+        <partial name="_DoctorMascot" view-data="uploadMascotVd" />
         <p class="processing-subtitle">@Loc.T("PleaseWaitDoNotClose")</p>
     </div>
 </div>
@@ -160,16 +169,6 @@
         box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
     }
 
-    .processing-spinner {
-        width: 72px;
-        height: 72px;
-        margin: 0 auto 24px auto;
-        border: 6px solid #e3f2fd;
-        border-top-color: #0d47a1;
-        border-radius: 50%;
-        animation: spin 0.9s linear infinite;
-    }
-
     .processing-title {
         color: #0d47a1;
         font-weight: 700;
@@ -183,11 +182,6 @@
         font-size: 0.95rem;
         line-height: 1.5;
     }
-
-    @@keyframes spin {
-        to {
-            transform: rotate(360deg);
-        }    }
 
     @@keyframes fadeIn {
         from {

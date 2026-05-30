@@ -14,7 +14,20 @@
 }
 
 <div class="container py-5">
-    <div class="row mb-4">
+    <div class="row mb-4 align-items-center">
+        <div class="col-auto">
+            @{
+                var camDashMascotVd = new ViewDataDictionary(ViewData)
+                {
+                    ["Mode"] = "greeting",
+                    ["Size"] = "small",
+                    ["StageId"] = "camDashGreeting",
+                    ["TestId"] = "cam-dashboard-mascot",
+                    ["BubbleText"] = "Bună, " + Model.ClinicName + "!"
+                };
+            }
+            <partial name="_DoctorMascot" view-data="camDashMascotVd" />
+        </div>
         <div class="col">
             <h1 class="h2 fw-bold text-primary mb-1" data-testid="cam-dashboard-heading">
                 @Model.ClinicName

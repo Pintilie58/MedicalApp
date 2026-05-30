@@ -1,0 +1,233 @@
+/* ============================================================
+   doctor-mascot.js — API global pentru mascota animată.
+   Folosit de:
+     - CAM Batch Progress  → onProgress(processed, total, finished, status)
+     - B2C Interpretation Upload (overlay) → auto-walking
+     - Dashboard greeting → idle (CSS-only)
+   ============================================================ */
+(function() {
+    'use strict';
+
+    var STORAGE_KEY = 'docSoundMuted';
+
+    function $(sel, root) { return (root || document).querySelector(sel); }
+    function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+
+    function getAudioCtx(instance) {
+        if (!instance._audioCtx) {
+            try {
+                instance._audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            } catch (e) {
+                instance._audioCtx = null;
+            }
+        }
+        return instance._audioCtx;
+    }
+
+    function playDing(instance) {
+        if (instance.soundMuted) return;
+        var ctx = getAudioCtx(instance);
+        if (!ctx) return;
+        try {
+            var o = ctx.createOscillator();
+            var g = ctx.createGain();
+            o.type = 'sine';
+            o.frequency.setValueAtTime(880, ctx.currentTime);
+            o.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.08);
+            g.gain.setValueAtTime(0.0001, ctx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.28, ctx.currentTime + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.45);
+            o.connect(g).connect(ctx.destination);
+            o.start();
+            o.stop(ctx.currentTime + 0.45);
+        } catch (e) { /* ignore */ }
+    }
+
+    function playFanfare(instance) {
+        if (instance.soundMuted) return;
+        var ctx = getAudioCtx(instance);
+        if (!ctx) return;
+        try {
+            var notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
+            notes.forEach(function(freq, i) {
+                var t = ctx.currentTime + i * 0.14;
+                var o = ctx.createOscillator();
+                var g = ctx.createGain();
+                o.type = 'triangle';
+                o.frequency.setValueAtTime(freq, t);
+                g.gain.setValueAtTime(0.0001, t);
+                g.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+                g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+                o.connect(g).connect(ctx.destination);
+                o.start(t);
+                o.stop(t + 0.45);
+            });
+        } catch (e) { /* ignore */ }
+    }
+
+    function setupSoundToggle(instance) {
+        var btn = $('[data-doc-sound-toggle]', instance.root);
+        var icon = $('[data-doc-sound-icon]', instance.root);
+        if (!btn || !icon) return;
+        function updateUi() {
+            btn.classList.toggle('muted', instance.soundMuted);
+            icon.textContent = instance.soundMuted ? '\uD83D\uDD07' : '\uD83D\uDD0A';
+            btn.setAttribute('aria-pressed', instance.soundMuted ? 'true' : 'false');
+        }
+        btn.addEventListener('click', function() {
+            instance.soundMuted = !instance.soundMuted;
+            try { localStorage.setItem(STORAGE_KEY, instance.soundMuted ? '1' : '0'); } catch (e) { /* ignore */ }
+            updateUi();
+            if (!instance.soundMuted) {
+                var ctx = getAudioCtx(instance);
+                if (ctx && ctx.state === 'suspended') { ctx.resume(); }
+                playDing(instance);
+            }
+        });
+        updateUi();
+    }
+
+    function ensureConfetti(instance, active) {
+        var conf = $('.doc-confetti', instance.root);
+        if (!conf) return;
+        if (active && conf.childElementCount === 0) {
+            var colors = ['#ef4444', '#10b981', '#0ea5e9', '#f59e0b', '#a855f7', '#ec4899'];
+            for (var i = 0; i < 18; i++) {
+                var s = document.createElement('span');
+                s.style.left = (Math.random() * 100) + '%';
+                s.style.background = colors[i % colors.length];
+                s.style.animationDelay = (Math.random() * 2).toFixed(2) + 's';
+                s.style.animationDuration = (1.6 + Math.random() * 1.4).toFixed(2) + 's';
+                conf.appendChild(s);
+            }
+        } else if (!active && conf.childElementCount > 0) {
+            conf.innerHTML = '';
+        }
+    }
+
+    function DoctorMascot(rootEl) {
+        this.root = rootEl;
+        this.mode = rootEl.getAttribute('data-mode') || 'greeting';
+        this.walker = $('[data-doc-walker]', rootEl);
+        this.checkpointsEl = $('[data-doc-checkpoints]', rootEl);
+        this.soundMuted = (function() {
+            try { return localStorage.getItem(STORAGE_KEY) === '1'; }
+            catch (e) { return false; }
+        })();
+        this._lastTotal = -1;
+        this._prevProcessed = -1;
+        this._jumpResetTimer = null;
+        this._finaleTimer = null;
+        this._batchEndSoundPlayed = false;
+        this._audioCtx = null;
+
+        if (this.mode === 'progress' || this.mode === 'waiting') {
+            setupSoundToggle(this);
+        }
+        if (this.mode === 'waiting') {
+            // Pornește din start în mers
+            this.setState('walking');
+        }
+    }
+
+    DoctorMascot.prototype.setState = function(state) {
+        if (!this.walker) return;
+        if (this.walker.getAttribute('data-state') !== state) {
+            this.walker.setAttribute('data-state', state);
+        }
+    };
+
+    DoctorMascot.prototype.updateCheckpoints = function(total, processed) {
+        if (!this.checkpointsEl) return;
+        total = Math.max(0, total | 0);
+        processed = Math.max(0, processed | 0);
+        if (total !== this._lastTotal) {
+            this.checkpointsEl.innerHTML = '';
+            var visible = Math.min(total, 30);
+            for (var i = 0; i < visible; i++) {
+                var d = document.createElement('div');
+                d.className = 'doc-checkpoint';
+                this.checkpointsEl.appendChild(d);
+            }
+            this._lastTotal = total;
+        }
+        var dots = this.checkpointsEl.children;
+        var ratio = total > 0 ? (processed / total) : 0;
+        var doneVisible = Math.round(ratio * dots.length);
+        for (var j = 0; j < dots.length; j++) {
+            if (j < doneVisible) dots[j].classList.add('done');
+            else dots[j].classList.remove('done');
+        }
+    };
+
+    /**
+     * API public pentru CAM Batch: trimite la fiecare poll.
+     * processed/total/status string + finished bool.
+     */
+    DoctorMascot.prototype.onProgress = function(processed, total, finished, status) {
+        var self = this;
+        this.updateCheckpoints(total, processed);
+
+        if (finished) {
+            if (status === 'Completed') {
+                this.setState('celebrate');
+                ensureConfetti(this, true);
+                if (!this._batchEndSoundPlayed) {
+                    playFanfare(this);
+                    this._batchEndSoundPlayed = true;
+                }
+                if (!this._finaleTimer) {
+                    this._finaleTimer = setTimeout(function() {
+                        self.setState('finale');
+                    }, 10000);
+                }
+            } else {
+                this.setState('idle');
+                ensureConfetti(this, false);
+            }
+            this._prevProcessed = processed;
+            return;
+        }
+
+        if (this._prevProcessed >= 0 && processed > this._prevProcessed) {
+            this.setState('jumping');
+            playDing(this);
+            if (this._jumpResetTimer) clearTimeout(this._jumpResetTimer);
+            this._jumpResetTimer = setTimeout(function() {
+                if (self.walker.getAttribute('data-state') === 'jumping') {
+                    self.setState('walking');
+                }
+            }, 1900);
+        } else if (this.walker.getAttribute('data-state') !== 'jumping') {
+            this.setState(status === 'Running' ? 'walking' : 'idle');
+        }
+        this._prevProcessed = processed;
+    };
+
+    // Auto-init pentru toate .doc-mascot din pagină
+    function autoInit() {
+        $$('.doc-mascot').forEach(function(el) {
+            if (!el._docMascot) {
+                el._docMascot = new DoctorMascot(el);
+            }
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', autoInit);
+    } else {
+        autoInit();
+    }
+
+    // Expune API global
+    window.DoctorMascot = {
+        get: function(id) {
+            var el = typeof id === 'string' ? document.getElementById(id) : id;
+            return el && el._docMascot ? el._docMascot : null;
+        },
+        init: function(el) {
+            if (!el._docMascot) el._docMascot = new DoctorMascot(el);
+            return el._docMascot;
+        }
+    };
+})();

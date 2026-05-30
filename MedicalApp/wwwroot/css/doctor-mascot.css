@@ -1,0 +1,248 @@
+/* ============================================================
+   Mascotă Doctoraș — reutilizabil între CAM Progress, B2C Upload
+   și ecranele de Dashboard.
+   Mode-uri:
+     - progress  : animație completă cu state machine (walking,
+                   jumping, celebrate, finale) + checkpoint-uri.
+     - waiting   : se plimbă continuu stânga/dreapta (folosit în
+                   overlay-ul de procesare B2C).
+     - greeting  : idle/breathing static, decorativ pentru
+                   Dashboard-uri. Cu zambet și un mic „wave”.
+   Mărimi:
+     - small  (~48px), medium (~88px), large (~120px)
+   ============================================================ */
+
+.doc-mascot {
+    position: relative;
+    user-select: none;
+    --doc-size: 88px;
+    --doc-stage-h: 130px;
+}
+.doc-mascot--small  { --doc-size: 56px;  --doc-stage-h: 90px; }
+.doc-mascot--medium { --doc-size: 88px;  --doc-stage-h: 130px; }
+.doc-mascot--large  { --doc-size: 120px; --doc-stage-h: 170px; }
+
+.doc-mascot {
+    height: var(--doc-stage-h);
+}
+
+.doc-track {
+    position: absolute;
+    left: 10px; right: 10px; bottom: 6px;
+    height: 6px;
+    background: linear-gradient(90deg, #cbd5e1, #e2e8f0);
+    border-radius: 3px;
+}
+.doc-checkpoints {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 6px;
+}
+.doc-checkpoint {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #cbd5e1;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px #94a3b8;
+    transition: background-color .35s ease, transform .25s ease, box-shadow .25s ease;
+    flex-shrink: 0;
+}
+.doc-checkpoint.done {
+    background: #10b981;
+    box-shadow: 0 0 0 1px #059669, 0 0 10px rgba(16, 185, 129, .55);
+    transform: scale(1.18);
+}
+
+/* Pentru greeting mode, ascundem track-ul și checkpoint-urile */
+.doc-mascot--greeting .doc-track,
+.doc-mascot--greeting .doc-checkpoints {
+    display: none;
+}
+
+.doc-walker {
+    position: absolute;
+    left: 8px;
+    bottom: 6px;
+    width: calc(var(--doc-size) * 0.73);
+    height: calc(var(--doc-size) * 1.14);
+    will-change: left;
+}
+.doc-mascot--greeting .doc-walker {
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 0;
+}
+.doc-bouncer {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    will-change: transform;
+}
+.doc-bouncer svg {
+    width: 100%;
+    height: 100%;
+}
+
+/* ------------- IDLE — respirație blândă ------------- */
+.doc-walker[data-state="idle"] .doc-bouncer {
+    animation: doc-breathe 2.4s ease-in-out infinite;
+}
+@keyframes doc-breathe {
+    0%, 100% { transform: translateY(0) }
+    50%      { transform: translateY(-2px) }
+}
+
+/* ------------- GREETING — saluт cu mâna dreaptă ------------- */
+.doc-mascot--greeting .doc-walker .doc-arm-right {
+    animation: doc-wave 2.4s ease-in-out infinite;
+    transform-box: fill-box;
+    transform-origin: center top;
+}
+@keyframes doc-wave {
+    0%, 80%, 100% { transform: rotate(0deg)   }
+    20%           { transform: rotate(-140deg) }
+    40%           { transform: rotate(-110deg) }
+    60%           { transform: rotate(-140deg) }
+}
+
+/* ------------- WALKING — traversare + balans brațe/picioare ------------- */
+.doc-walker[data-state="walking"] {
+    animation: doc-traverse 8s ease-in-out infinite alternate;
+}
+@keyframes doc-traverse {
+    0%   { left: 6px; }
+    100% { left: calc(100% - var(--doc-size) * 0.73 - 6px); }
+}
+.doc-walker[data-state="walking"] .doc-bouncer {
+    animation: doc-bob 0.5s ease-in-out infinite;
+}
+@keyframes doc-bob {
+    0%, 100% { transform: translateY(0) }
+    50%      { transform: translateY(-3px) }
+}
+.doc-walker[data-state="walking"] .doc-leg-left  { animation: doc-leg-l 0.5s ease-in-out infinite; transform-box: fill-box; transform-origin: center top; }
+.doc-walker[data-state="walking"] .doc-leg-right { animation: doc-leg-r 0.5s ease-in-out infinite; transform-box: fill-box; transform-origin: center top; }
+@keyframes doc-leg-l { 0%,100% { transform: rotate(-14deg) } 50% { transform: rotate(14deg) } }
+@keyframes doc-leg-r { 0%,100% { transform: rotate(14deg)  } 50% { transform: rotate(-14deg) } }
+.doc-walker[data-state="walking"] .doc-arm-left  { animation: doc-arm-l 0.5s ease-in-out infinite; transform-box: fill-box; transform-origin: center top; }
+.doc-walker[data-state="walking"] .doc-arm-right { animation: doc-arm-r 0.5s ease-in-out infinite; transform-box: fill-box; transform-origin: center top; }
+@keyframes doc-arm-l { 0%,100% { transform: rotate(18deg)  } 50% { transform: rotate(-18deg) } }
+@keyframes doc-arm-r { 0%,100% { transform: rotate(-18deg) } 50% { transform: rotate(18deg)  } }
+
+/* ------------- JUMPING — fișier terminat (4 salturi) ------------- */
+.doc-walker[data-state="jumping"] .doc-bouncer {
+    animation: doc-jump 0.45s ease-out 4;
+}
+@keyframes doc-jump {
+    0%, 100% { transform: translateY(0) }
+    45%      { transform: translateY(-34px) }
+}
+
+/* ------------- CELEBRATE — lot terminat (10s) ------------- */
+.doc-walker[data-state="celebrate"] .doc-bouncer {
+    animation: doc-jump 0.55s ease-out infinite;
+}
+.doc-walker[data-state="celebrate"] .doc-arm-left,
+.doc-walker[data-state="finale"]   .doc-arm-left {
+    transform: rotate(155deg);
+    transition: transform .4s ease;
+    transform-box: fill-box;
+    transform-origin: center top;
+}
+.doc-walker[data-state="celebrate"] .doc-arm-right,
+.doc-walker[data-state="finale"]   .doc-arm-right {
+    transform: rotate(-155deg);
+    transition: transform .4s ease;
+    transform-box: fill-box;
+    transform-origin: center top;
+}
+
+/* ------------- FINALE — brațe sus, leagăn lin ------------- */
+.doc-walker[data-state="finale"] .doc-bouncer {
+    animation: doc-bob 1.8s ease-in-out infinite;
+}
+
+/* ------------- Comutator sunet ------------- */
+.doc-sound-toggle {
+    position: absolute;
+    top: 2px; right: 4px;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #475569;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+    line-height: 1;
+    z-index: 4;
+    transition: opacity .15s ease, transform .15s ease, box-shadow .15s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+.doc-sound-toggle:hover { transform: scale(1.08); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+.doc-sound-toggle.muted { opacity: 0.5; }
+
+/* ------------- Confetti la final ------------- */
+.doc-confetti {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 2;
+}
+.doc-confetti span {
+    position: absolute;
+    top: -10px;
+    width: 8px; height: 8px;
+    opacity: 0;
+    border-radius: 1px;
+    animation: doc-confetti-fall 2.2s linear infinite;
+}
+.doc-walker[data-state="celebrate"] ~ .doc-confetti span,
+.doc-walker[data-state="finale"]    ~ .doc-confetti span {
+    opacity: 1;
+}
+@keyframes doc-confetti-fall {
+    0%   { transform: translateY(-10px) rotate(0deg);   opacity: 0; }
+    10%  { opacity: 1; }
+    100% { transform: translateY(160px) rotate(540deg); opacity: 0; }
+}
+
+/* ------------- Bulă de dialog (pentru greeting) ------------- */
+.doc-bubble {
+    position: absolute;
+    top: 6px;
+    left: calc(50% + var(--doc-size) * 0.45);
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 14px;
+    padding: 8px 14px;
+    font-size: 0.9rem;
+    color: #1f2937;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    white-space: nowrap;
+    animation: doc-bubble-pop 0.5s ease-out;
+}
+.doc-bubble::after {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 14px;
+    width: 0; height: 0;
+    border: 7px solid transparent;
+    border-right-color: #fff;
+}
+@keyframes doc-bubble-pop {
+    0%   { transform: scale(0.5); opacity: 0; }
+    100% { transform: scale(1);   opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .doc-walker, .doc-walker *, .doc-bouncer, .doc-confetti span,
+    .doc-mascot--greeting .doc-arm-right { animation: none !important; }
+}

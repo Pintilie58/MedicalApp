@@ -3,180 +3,6 @@
     ViewData["Title"] = "Progres lot — " + Model.ClinicName;
 }
 
-<style>
-/* ============================================
-   Doctoraș animat pe traseu cu checkpoint-uri
-   ============================================ */
-.doc-stage {
-    position: relative;
-    height: 130px;
-    margin-top: 14px;
-    user-select: none;
-}
-.doc-track {
-    position: absolute;
-    left: 10px; right: 10px; bottom: 6px;
-    height: 6px;
-    background: linear-gradient(90deg, #cbd5e1, #e2e8f0);
-    border-radius: 3px;
-}
-.doc-checkpoints {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0 6px;
-}
-.doc-checkpoint {
-    width: 14px; height: 14px;
-    border-radius: 50%;
-    background: #cbd5e1;
-    border: 2px solid #fff;
-    box-shadow: 0 0 0 1px #94a3b8;
-    transition: background-color .35s ease, transform .25s ease, box-shadow .25s ease;
-    flex-shrink: 0;
-}
-.doc-checkpoint.done {
-    background: #10b981;
-    box-shadow: 0 0 0 1px #059669, 0 0 10px rgba(16, 185, 129, .55);
-    transform: scale(1.18);
-}
-
-.doc-walker {
-    position: absolute;
-    left: 8px;
-    bottom: 6px;
-    width: 64px;
-    height: 100px;
-    will-change: left;
-}
-.doc-bouncer {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    will-change: transform;
-}
-
-/* IDLE — respirație blândă */
-.doc-walker[data-state="idle"] .doc-bouncer {
-    animation: doc-breathe 2.4s ease-in-out infinite;
-}
-@@keyframes doc-breathe {
-    0%, 100% { transform: translateY(0) }
-    50%      { transform: translateY(-2px) }
-}
-
-/* WALKING — traversare stânga/dreapta + animații brațe/picioare */
-.doc-walker[data-state="walking"] {
-    animation: doc-traverse 8s ease-in-out infinite alternate;
-}
-@@keyframes doc-traverse {
-    0%   { left: 6px; }
-    100% { left: calc(100% - 70px); }
-}
-.doc-walker[data-state="walking"] .doc-bouncer {
-    animation: doc-bob 0.5s ease-in-out infinite;
-}
-@@keyframes doc-bob {
-    0%, 100% { transform: translateY(0) }
-    50%      { transform: translateY(-3px) }
-}
-.doc-walker[data-state="walking"] .doc-leg-left  { animation: doc-leg-l 0.5s ease-in-out infinite; transform-box: fill-box; transform-origin: center top; }
-.doc-walker[data-state="walking"] .doc-leg-right { animation: doc-leg-r 0.5s ease-in-out infinite; transform-box: fill-box; transform-origin: center top; }
-@@keyframes doc-leg-l { 0%,100% { transform: rotate(-14deg) } 50% { transform: rotate(14deg) } }
-@@keyframes doc-leg-r { 0%,100% { transform: rotate(14deg)  } 50% { transform: rotate(-14deg) } }
-.doc-walker[data-state="walking"] .doc-arm-left  { animation: doc-arm-l 0.5s ease-in-out infinite; transform-box: fill-box; transform-origin: center top; }
-.doc-walker[data-state="walking"] .doc-arm-right { animation: doc-arm-r 0.5s ease-in-out infinite; transform-box: fill-box; transform-origin: center top; }
-@@keyframes doc-arm-l { 0%,100% { transform: rotate(18deg)  } 50% { transform: rotate(-18deg) } }
-@@keyframes doc-arm-r { 0%,100% { transform: rotate(-18deg) } 50% { transform: rotate(18deg)  } }
-
-/* JUMPING — un fișier tocmai a fost terminat (sare de 4 ori) */
-.doc-walker[data-state="jumping"] .doc-bouncer {
-    animation: doc-jump 0.45s ease-out 4;
-}
-@@keyframes doc-jump {
-    0%, 100% { transform: translateY(0) }
-    45%      { transform: translateY(-34px) }
-}
-
-/* CELEBRATE — lotul s-a terminat (10s salturi cu brațele sus) */
-.doc-walker[data-state="celebrate"] .doc-bouncer {
-    animation: doc-jump 0.55s ease-out infinite;
-}
-.doc-walker[data-state="celebrate"] .doc-arm-left,
-.doc-walker[data-state="finale"]   .doc-arm-left {
-    transform: rotate(155deg);
-    transition: transform .4s ease;
-    transform-box: fill-box;
-    transform-origin: center top;
-}
-.doc-walker[data-state="celebrate"] .doc-arm-right,
-.doc-walker[data-state="finale"]   .doc-arm-right {
-    transform: rotate(-155deg);
-    transition: transform .4s ease;
-    transform-box: fill-box;
-    transform-origin: center top;
-}
-
-/* FINALE — după 10s de salturi, rămâne fericit cu brațele sus, leagăn lin */
-.doc-walker[data-state="finale"] .doc-bouncer {
-    animation: doc-bob 1.8s ease-in-out infinite;
-}
-
-/* Comutator sunet */
-.doc-sound-toggle {
-    position: absolute;
-    top: 2px; right: 4px;
-    width: 32px; height: 32px;
-    border-radius: 50%;
-    border: 1px solid #cbd5e1;
-    background: #fff;
-    color: #475569;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 15px;
-    line-height: 1;
-    z-index: 4;
-    transition: opacity .15s ease, transform .15s ease, box-shadow .15s ease;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-}
-.doc-sound-toggle:hover { transform: scale(1.08); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
-.doc-sound-toggle.muted { opacity: 0.5; }
-
-/* Confetti la final */
-.doc-confetti {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    overflow: hidden;
-    z-index: 2;
-}
-.doc-confetti span {
-    position: absolute;
-    top: -10px;
-    width: 8px; height: 8px;
-    opacity: 0;
-    border-radius: 1px;
-    animation: doc-confetti-fall 2.2s linear infinite;
-}
-.doc-walker[data-state="celebrate"] ~ .doc-confetti span,
-.doc-walker[data-state="finale"]    ~ .doc-confetti span {
-    opacity: 1;
-}
-@@keyframes doc-confetti-fall {
-    0%   { transform: translateY(-10px) rotate(0deg);   opacity: 0; }
-    10%  { opacity: 1; }
-    100% { transform: translateY(140px) rotate(540deg); opacity: 0; }
-}
-
-@@media (prefers-reduced-motion: reduce) {
-    .doc-walker, .doc-walker *, .doc-bouncer, .doc-confetti span { animation: none !important; }
-}
-</style>
-
 <div class="container py-5">
     <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
         <h2 class="text-primary fw-bold mb-0" data-testid="cam-batch-progress-heading">
@@ -225,73 +51,17 @@
                 Fișier curent: <code id="prgCurrent" data-testid="cam-progress-current">—</code>
             </div>
 
-            <!-- Doctoraș animat pe traseul cu checkpoint-uri -->
-            <div class="doc-stage" data-testid="cam-progress-doc-stage">
-                <button type="button" class="doc-sound-toggle" id="docSoundToggle"
-                        title="Sunet on/off" aria-label="Comutator sunet"
-                        data-testid="cam-progress-sound-toggle">
-                    <span id="docSoundIcon" aria-hidden="true">&#128266;</span>
-                </button>
-                <div class="doc-track">
-                    <div class="doc-checkpoints" id="docCheckpoints" data-testid="cam-progress-checkpoints"></div>
-                </div>
-                <div class="doc-walker" id="docWalker" data-state="idle" aria-hidden="true"
-                     data-testid="cam-progress-doc-walker">
-                    <div class="doc-bouncer">
-                        <svg viewBox="0 0 80 110" width="64" height="100" xmlns="http://www.w3.org/2000/svg">
-                            <ellipse cx="40" cy="106" rx="20" ry="3" fill="rgba(0,0,0,0.18)" />
-                            <!-- Picioare (rotație de la șold) -->
-                            <g transform="translate(35 78)"><g class="doc-leg-left">
-                                <rect x="-3" y="0" width="6" height="22" rx="2" fill="#1f3a8a" />
-                                <ellipse cx="0" cy="25" rx="5.5" ry="2.5" fill="#1f2937" />
-                            </g></g>
-                            <g transform="translate(45 78)"><g class="doc-leg-right">
-                                <rect x="-3" y="0" width="6" height="22" rx="2" fill="#1f3a8a" />
-                                <ellipse cx="0" cy="25" rx="5.5" ry="2.5" fill="#1f2937" />
-                            </g></g>
-                            <!-- Halat -->
-                            <path d="M22 50 Q22 48 24 48 L56 48 Q58 48 58 50 L58 84 Q58 86 56 86 L24 86 Q22 86 22 84 Z"
-                                  fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2" />
-                            <!-- Guler V cu cămașă albastră -->
-                            <path d="M36 48 L40 60 L44 48 Z" fill="#0ea5e9" />
-                            <!-- Buzunar cu pix -->
-                            <rect x="44" y="62" width="10" height="11" fill="none" stroke="#cbd5e1" stroke-width="0.8" rx="1" />
-                            <rect x="47.5" y="58" width="1.5" height="9" fill="#ef4444" />
-                            <!-- Cruce roșie pe halat -->
-                            <g transform="translate(30 68)">
-                                <rect x="-3" y="-1" width="6" height="2" fill="#ef4444" />
-                                <rect x="-1" y="-3" width="2" height="6" fill="#ef4444" />
-                            </g>
-                            <!-- Stetoscop -->
-                            <path d="M33 50 Q31 70 37 72" stroke="#374151" stroke-width="1.5" fill="none" />
-                            <path d="M47 50 Q49 70 43 72" stroke="#374151" stroke-width="1.5" fill="none" />
-                            <circle cx="40" cy="74" r="3" fill="#9ca3af" stroke="#374151" stroke-width="0.8" />
-                            <!-- Brațe (rotație de la umăr) -->
-                            <g transform="translate(22 52)"><g class="doc-arm-left">
-                                <rect x="-3" y="0" width="6" height="22" rx="3" fill="#ffffff" stroke="#cbd5e1" stroke-width="0.8" />
-                                <circle cx="0" cy="23" r="3.5" fill="#fbcfa1" />
-                            </g></g>
-                            <g transform="translate(58 52)"><g class="doc-arm-right">
-                                <rect x="-3" y="0" width="6" height="22" rx="3" fill="#ffffff" stroke="#cbd5e1" stroke-width="0.8" />
-                                <circle cx="0" cy="23" r="3.5" fill="#fbcfa1" />
-                            </g></g>
-                            <!-- Cap -->
-                            <circle cx="40" cy="34" r="14" fill="#fbcfa1" stroke="#e8a878" stroke-width="0.8" />
-                            <!-- Păr -->
-                            <path d="M27 31 Q27 18 40 18 Q53 18 53 31 Q47 26 40 26 Q33 26 27 31 Z" fill="#3b2615" />
-                            <!-- Ochi -->
-                            <circle cx="35" cy="35" r="1.5" fill="#1f2937" />
-                            <circle cx="45" cy="35" r="1.5" fill="#1f2937" />
-                            <!-- Zâmbet -->
-                            <path d="M34 41 Q40 46 46 41" stroke="#1f2937" stroke-width="1.5" fill="none" stroke-linecap="round" />
-                            <!-- Obrăjori -->
-                            <circle cx="31" cy="40" r="1.6" fill="#fda4af" opacity="0.65" />
-                            <circle cx="49" cy="40" r="1.6" fill="#fda4af" opacity="0.65" />
-                        </svg>
-                    </div>
-                </div>
-                <div class="doc-confetti" aria-hidden="true"></div>
-            </div>
+            <!-- Mascotă doctoraș (state machine driven de polling) -->
+            @{
+                var camProgressMascotVd = new ViewDataDictionary(ViewData)
+                {
+                    ["Mode"] = "progress",
+                    ["Size"] = "medium",
+                    ["StageId"] = "camProgressMascot",
+                    ["TestId"] = "cam-progress-doc-stage"
+                };
+            }
+            <partial name="_DoctorMascot" view-data="camProgressMascotVd" />
         </div>
     </div>
 
@@ -359,175 +129,9 @@
     var pollMs = 3000;
     var pollTimer = null;
 
-    // === Doctoraș: state machine + sunet + checkpoints ============================
-    var docWalker = document.getElementById('docWalker');
-    var docCheckpoints = document.getElementById('docCheckpoints');
-    var docConfetti = document.querySelector('.doc-confetti');
-    var docSoundBtn = document.getElementById('docSoundToggle');
-    var docSoundIcon = document.getElementById('docSoundIcon');
-
-    var prevProcessed = -1;
-    var lastTotal = -1;
-    var jumpResetTimer = null;
-    var finaleTimer = null;
-    var batchEndSoundPlayed = false;
-    var soundMuted = localStorage.getItem('docSoundMuted') === '1';
-    var audioCtx = null;
-
-    function getAudioCtx() {
-        if (!audioCtx) {
-            try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
-            catch (e) { audioCtx = null; }
-        }
-        return audioCtx;
-    }
-    function playDing() {
-        if (soundMuted) return;
-        var ctx = getAudioCtx();
-        if (!ctx) return;
-        try {
-            var o = ctx.createOscillator();
-            var g = ctx.createGain();
-            o.type = 'sine';
-            o.frequency.setValueAtTime(880, ctx.currentTime);
-            o.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.08);
-            g.gain.setValueAtTime(0.0001, ctx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.28, ctx.currentTime + 0.02);
-            g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.45);
-            o.connect(g).connect(ctx.destination);
-            o.start();
-            o.stop(ctx.currentTime + 0.45);
-        } catch (e) { /* ignore */ }
-    }
-    function playFanfare() {
-        if (soundMuted) return;
-        var ctx = getAudioCtx();
-        if (!ctx) return;
-        try {
-            var notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
-            notes.forEach(function(freq, i) {
-                var t = ctx.currentTime + i * 0.14;
-                var o = ctx.createOscillator();
-                var g = ctx.createGain();
-                o.type = 'triangle';
-                o.frequency.setValueAtTime(freq, t);
-                g.gain.setValueAtTime(0.0001, t);
-                g.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
-                g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
-                o.connect(g).connect(ctx.destination);
-                o.start(t);
-                o.stop(t + 0.45);
-            });
-        } catch (e) { /* ignore */ }
-    }
-
-    function updateSoundUi() {
-        docSoundBtn.classList.toggle('muted', soundMuted);
-        // 🔊 = U+1F50A (sunet pornit), 🔇 = U+1F507 (sunet oprit)
-        docSoundIcon.textContent = soundMuted ? '\uD83D\uDD07' : '\uD83D\uDD0A';
-        docSoundBtn.setAttribute('aria-pressed', soundMuted ? 'true' : 'false');
-    }
-    docSoundBtn.addEventListener('click', function() {
-        soundMuted = !soundMuted;
-        localStorage.setItem('docSoundMuted', soundMuted ? '1' : '0');
-        updateSoundUi();
-        if (!soundMuted) {
-            // Resume audio context (unblocked by user gesture) + sample ding
-            var ctx = getAudioCtx();
-            if (ctx && ctx.state === 'suspended') { ctx.resume(); }
-            playDing();
-        }
-    });
-    updateSoundUi();
-
-    function setDocState(state) {
-        if (docWalker.getAttribute('data-state') !== state) {
-            docWalker.setAttribute('data-state', state);
-        }
-    }
-
-    function ensureConfetti(active) {
-        if (!docConfetti) return;
-        if (active && docConfetti.childElementCount === 0) {
-            var colors = ['#ef4444', '#10b981', '#0ea5e9', '#f59e0b', '#a855f7', '#ec4899'];
-            for (var i = 0; i < 18; i++) {
-                var s = document.createElement('span');
-                s.style.left = (Math.random() * 100) + '%';
-                s.style.background = colors[i % colors.length];
-                s.style.animationDelay = (Math.random() * 2).toFixed(2) + 's';
-                s.style.animationDuration = (1.6 + Math.random() * 1.4).toFixed(2) + 's';
-                docConfetti.appendChild(s);
-            }
-        } else if (!active && docConfetti.childElementCount > 0) {
-            docConfetti.innerHTML = '';
-        }
-    }
-
-    function updateCheckpoints(total, processed) {
-        total = Math.max(0, total | 0);
-        processed = Math.max(0, processed | 0);
-        if (total !== lastTotal) {
-            docCheckpoints.innerHTML = '';
-            // Limităm la max 30 puncte vizibile (UI breakable peste asta)
-            var visible = Math.min(total, 30);
-            for (var i = 0; i < visible; i++) {
-                var d = document.createElement('div');
-                d.className = 'doc-checkpoint';
-                docCheckpoints.appendChild(d);
-            }
-            lastTotal = total;
-        }
-        var dots = docCheckpoints.children;
-        var ratio = total > 0 ? (processed / total) : 0;
-        var doneVisible = Math.round(ratio * dots.length);
-        for (var j = 0; j < dots.length; j++) {
-            if (j < doneVisible) dots[j].classList.add('done');
-            else dots[j].classList.remove('done');
-        }
-    }
-
-    function updateDocState(data) {
-        updateCheckpoints(data.total, data.processed);
-
-        if (data.finished) {
-            if (data.status === 'Completed') {
-                setDocState('celebrate');
-                ensureConfetti(true);
-                if (!batchEndSoundPlayed) {
-                    playFanfare();
-                    batchEndSoundPlayed = true;
-                }
-                // După ~10s de salturi → pozitie finală: brațe sus, leagăn lin
-                if (!finaleTimer) {
-                    finaleTimer = setTimeout(function() {
-                        setDocState('finale');
-                    }, 10000);
-                }
-            } else {
-                // Cancelled / Failed → revine în idle
-                setDocState('idle');
-                ensureConfetti(false);
-            }
-            return;
-        }
-
-        // Lot încă în execuție:
-        if (prevProcessed >= 0 && data.processed > prevProcessed) {
-            // Un fișier tocmai s-a terminat → 4 salturi + ding
-            setDocState('jumping');
-            playDing();
-            if (jumpResetTimer) clearTimeout(jumpResetTimer);
-            jumpResetTimer = setTimeout(function() {
-                if (docWalker.getAttribute('data-state') === 'jumping') {
-                    setDocState('walking');
-                }
-            }, 1900); // 4 × 450ms ≈ 1.8s
-        } else if (docWalker.getAttribute('data-state') !== 'jumping') {
-            // Stare normală de procesare
-            setDocState(data.status === 'Running' ? 'walking' : 'idle');
-        }
-    }
-    // === Sfârșit doctoraș =========================================================
+    // Mascota e instanțiată automat la DOMContentLoaded de doctor-mascot.js.
+    // O preluăm aici prin API-ul global.
+    var mascot = window.DoctorMascot && window.DoctorMascot.get('camProgressMascot');
 
     function render(data) {
         document.getElementById('prgProcessed').textContent = data.processed;
@@ -570,9 +174,10 @@
             if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
         }
 
-        // Update doctoraș după ce am citit datele
-        updateDocState(data);
-        prevProcessed = data.processed;
+        // Update mascotă pe baza progresului (state machine în doctor-mascot.js)
+        if (mascot) {
+            mascot.onProgress(data.processed, data.total, data.finished, data.status);
+        }
     }
 
     function poll() {
@@ -584,6 +189,13 @@
             .then(function(r) { return r.ok ? r.json() : null; })
             .then(function(d) { if (d) render(d); })
             .catch(function() { /* keep polling on transient errors */ });
+    }
+
+    // Așteptăm puțin ca să fie sigur că mascota a fost inițializată (DOMContentLoaded)
+    if (!mascot) {
+        document.addEventListener('DOMContentLoaded', function() {
+            mascot = window.DoctorMascot && window.DoctorMascot.get('camProgressMascot');
+        });
     }
 
     poll();
