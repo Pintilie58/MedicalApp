@@ -25,17 +25,29 @@
         <div class="alert alert-info" data-testid="cam-batch-progress-flash">@TempData["SuccessMessage"]</div>
     }
 
-    <div class="card mb-3">
+    <div class="card mb-3 border-primary">
         <div class="card-body">
-            <div class="d-flex justify-content-between mb-2">
-                <strong>Progres:</strong>
-                <span><span id="prgProcessed" data-testid="cam-progress-processed">0</span> / <span id="prgTotal">0</span> fișiere</span>
+            <div class="d-flex align-items-center flex-wrap gap-3 mb-2">
+                <div>
+                    <div class="small text-muted">Fișiere selectate</div>
+                    <div class="display-5 fw-bold text-primary" id="prgTotal" data-testid="cam-progress-total">0</div>
+                </div>
+                <div class="vr d-none d-md-block" style="height: 60px;"></div>
+                <div>
+                    <div class="small text-muted">Procesate până acum</div>
+                    <div class="display-6 fw-semibold" id="prgProcessed" data-testid="cam-progress-processed">0</div>
+                </div>
+                <div class="ms-auto text-end">
+                    <div class="badge bg-info-subtle text-info-emphasis fs-6 px-3 py-2"
+                         id="prgWaitMsg" data-testid="cam-progress-wait-msg">
+                        &#9203; Așteptați câteva secunde…
+                    </div>
+                    <div class="small text-muted mt-1">
+                        Interpretarea AI durează ~2-3 min/fișier.
+                    </div>
+                </div>
             </div>
-            <div class="progress" style="height: 20px;">
-                <div id="prgBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
-                     role="progressbar" style="width: 0%;" data-testid="cam-progress-bar">0%</div>
-            </div>
-            <div class="text-muted small mt-2">
+            <div class="text-muted small">
                 Fișier curent: <code id="prgCurrent" data-testid="cam-progress-current">—</code>
             </div>
         </div>
@@ -112,10 +124,6 @@
         document.getElementById('prgCompared').textContent = data.compared;
         document.getElementById('prgNotSends').textContent = data.notSends;
         document.getElementById('prgCurrent').textContent = data.currentFile || '—';
-        var pct = data.total > 0 ? Math.round((data.processed / data.total) * 100) : 0;
-        var bar = document.getElementById('prgBar');
-        bar.style.width = pct + '%';
-        bar.textContent = pct + '%';
 
         var statusEl = document.getElementById('prgStatus');
         statusEl.textContent = data.status;
@@ -132,8 +140,19 @@
         }
 
         if (data.finished) {
-            // Stop animation + switch button.
-            bar.classList.remove('progress-bar-animated', 'progress-bar-striped');
+            // Swap the "Așteptați…" message for a clear completion badge,
+            // hide Cancel, show "Lansează lot nou".
+            var waitMsg = document.getElementById('prgWaitMsg');
+            if (data.status === 'Completed') {
+                waitMsg.className = 'badge bg-success fs-6 px-3 py-2';
+                waitMsg.textContent = '✓ Procesare finalizată';
+            } else if (data.status === 'Cancelled') {
+                waitMsg.className = 'badge bg-warning text-dark fs-6 px-3 py-2';
+                waitMsg.textContent = '⏹ Anulat';
+            } else {
+                waitMsg.className = 'badge bg-danger fs-6 px-3 py-2';
+                waitMsg.textContent = '✘ Eșuat';
+            }
             document.getElementById('cancelForm').classList.add('d-none');
             document.getElementById('newBatchBtn').classList.remove('d-none');
             if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }

@@ -380,6 +380,21 @@ namespace MedicalApp.Controllers
 
             HttpContext.Session.SetString("UserEmail", user.Email);
             HttpContext.Session.SetString("JustLoggedIn", "1");
+            // Cache ClinicId la login pentru utilizatorii de tip "Clinic", să
+            // putem evita query-ul "SELECT Id FROM Clinics WHERE UserEmail=..."
+            // pe căile hot (cum e polling-ul de progress care rulează la 3s).
+            // Pentru utilizatorii non-Clinic sau cei fără rând în Clinics
+            // (improbabil dar posibil), sărim peste — fast path-ul din Status
+            // se descurcă cu fallback la DB.
+            if (string.Equals(user.UserType, "Clinic", StringComparison.OrdinalIgnoreCase))
+            {
+                var clinicId = await _db.Clinics.AsNoTracking()
+                    .Where(c => c.UserEmail == user.Email)
+                    .Select(c => c.Id)
+                    .FirstOrDefaultAsync();
+                if (clinicId > 0)
+                    HttpContext.Session.SetInt32("ClinicId", clinicId);
+            }
             return RedirectToAction("Dashboard", "Account");
         }
 

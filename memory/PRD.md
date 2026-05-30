@@ -483,6 +483,13 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
     * **Fix #1**: `appsettings.json` Gemini.MaxOutputTokens: 32000 → 65000 (limita Gemini 2.5 Flash e 65536).
     * **Fix #2 (auto-fallback la Pro pe MAX_TOKENS)**: `CamBatchService.CallGeminiWithRetryAsync` are catch nou pentru `InvalidOperationException` cu mesaj `"MaxOutputTokens"`. Detectează automat că Flash a fost trunchiat și comută IMEDIAT pe Pro (output mai mare + acceptă mai bine PDF-uri complexe), FĂRĂ să consume din quota retry (5 încercări tranziente).
     * **Fix #3 (perf Status endpoint)**: pagina Progress făcea polling la 3s → 2 SQL queries per poll (`Clinic` + `ClinicBatchRun`) → ~100 polls pe un lot = 200 queries inutile. Acum când registry-ul in-memory are entry `Status="Running"`, Status face DOAR 1 query mic ("SELECT ClinicId WHERE Email=...") pentru AuthZ, restul se servește din memorie. Reducere ~50% queries. DB fallback rămâne pentru loturi finalizate.
+- ✅ **[Feb 2026 — Faza 4.4: Zero-query polling + UX simplificat (renunțat la bara progres)]**
+    * **Zero-query polling**: cache `ClinicId` în `HttpContext.Session` la login (pentru `UserType="Clinic"`). Status endpoint compară `p.ClinicId == Session.ClinicId` direct, fără DB. Reduce ~60 SELECTs per lot la 0 (plus 1 sesiune-prima-dată ca migrare blândă pentru session-uri vechi).
+    * **UX renunțat la bara progres** (sugestie utilizator): bara striped/animated era misleading pentru AI async (nu putem estima realist). Înlocuită cu:
+        - Casetă proeminentă **„Fișiere selectate: N"** + **„Procesate până acum: K"**
+        - Badge **„⏳ Așteptați câteva secunde…"** + hint **„Interpretarea AI durează ~2-3 min/fișier"**
+        - La finalizare, badge-ul comută la ✓ Finalizat / ⏹ Anulat / ✘ Eșuat
+        - Contorii Trimise/Comparate/NotSends + Log live rămân neschimbați (informația cu adevărat utilă)
 - 📊 **[Feb 2026 — Audit tehnic complet creat în `/app/memory/AUDIT.md`]**
     * 3 P0 + 6 P1 + 8 P2 + 4 P3 elemente prioritizate cu plan de remediere.
 

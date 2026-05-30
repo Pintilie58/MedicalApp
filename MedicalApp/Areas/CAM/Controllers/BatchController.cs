@@ -180,15 +180,24 @@ namespace MedicalApp.Areas.CAM.Controllers
                 return Unauthorized();
 
             // FAST PATH: in-memory registry has the live state. AuthZ via ClinicId
-            // (still requires one cheap "SELECT clinic by email" but we cache the
-            // result on HttpContext.Items so repeat calls within the same request
-            // — currently none, but cheap insurance — don't re-query).
+            // cached in Session at login. ZERO DB queries on the hot polling path.
             var p = _registry.Get(id);
             if (p != null && p.Status == "Running")
             {
-                var clinicId = await GetClinicIdAsync();
-                if (clinicId == 0) return NotFound();
-                if (p.ClinicId != clinicId) return NotFound();
+                var sessionClinicId = HttpContext.Session.GetInt32("ClinicId");
+                if (sessionClinicId.HasValue)
+                {
+                    if (p.ClinicId != sessionClinicId.Value) return NotFound();
+                }
+                else
+                {
+                    // Session cache missing (legacy session pre-fix, or non-Clinic user).
+                    // One-time DB lookup + memoize back in Session so next polls are free.
+                    var clinicId = await GetClinicIdAsync();
+                    if (clinicId == 0) return NotFound();
+                    HttpContext.Session.SetInt32("ClinicId", clinicId);
+                    if (p.ClinicId != clinicId) return NotFound();
+                }
 
                 return Json(new
                 {
