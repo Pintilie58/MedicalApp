@@ -125,62 +125,24 @@ namespace MedicalApp.Areas.CAM.Controllers
                 .Distinct()
                 .CountAsync();
 
-            // ----- Top 5 pacienți după nr. analize -----
-            var topRaw = await _db.ClinicAnalyses.AsNoTracking()
-                .Where(a => a.ClinicId == clinicId)
-                .GroupBy(a => a.PatientId)
-                .Select(g => new
-                {
-                    PatientId = g.Key,
-                    Count = g.Count(),
-                    LastDate = g.Max(a => a.SamplingDate ?? a.ProcessedAt)
-                })
-                .OrderByDescending(x => x.Count)
-                .ThenByDescending(x => x.LastDate)
-                .Take(5)
-                .ToListAsync();
+            // ----- Loturi pe anul curent / luna curentă (UTC) -----
+            var nowUtc = DateTime.UtcNow;
+            var startOfYear = new DateTime(nowUtc.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            var startOfMonth = new DateTime(nowUtc.Year, nowUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 
-            if (topRaw.Count > 0)
-            {
-                var patientIds = topRaw.Select(t => t.PatientId).ToList();
-                var patients = await _db.ClinicPatients.AsNoTracking()
-                    .Where(p => patientIds.Contains(p.Id))
-                    .Select(p => new { p.Id, p.Name, p.Email })
-                    .ToListAsync();
-                vm.TopPatients = topRaw
-                    .Select(t =>
-                    {
-                        var p = patients.FirstOrDefault(x => x.Id == t.PatientId);
-                        return new Models.CamDashboardViewModel.TopPatientRow
-                        {
-                            PatientId = t.PatientId,
-                            Name = p?.Name ?? "(pacient șters)",
-                            Email = p?.Email ?? "-",
-                            AnalysesCount = t.Count,
-                            LastSamplingDate = t.LastDate
-                        };
-                    })
-                    .ToList();
-            }
-
-            // ----- Activitate 30 zile (fișiere procesate / zi) -----
-            // EffectiveDate: SamplingDate dacă există, altfel ProcessedAt.
-            var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30).Date;
-            var bucketsRaw = await _db.ClinicAnalyses.AsNoTracking()
-                .Where(a => a.ClinicId == clinicId
-                            && (a.SamplingDate ?? a.ProcessedAt) >= thirtyDaysAgo)
-                .Select(a => new { D = (a.SamplingDate ?? a.ProcessedAt).Date })
-                .GroupBy(x => x.D)
-                .Select(g => new { Day = g.Key, N = g.Count() })
-                .ToListAsync();
-            var bucketsMap = bucketsRaw.ToDictionary(b => b.Day, b => b.N);
-
-            for (int i = 29; i >= 0; i--)
-            {
-                var day = DateTime.UtcNow.Date.AddDays(-i);
-                vm.ActivityLabels.Add(day.ToString("dd MMM"));
-                vm.ActivityCounts.Add(bucketsMap.TryGetValue(day, out var n) ? n : 0);
-            }
+            vm.BatchesThisYear = await _db.ClinicBatchRuns.AsNoTracking()
+                .Where(b => b.ClinicId == clinicId && b.StartedAt >= startOfYear)
+                .CountAsync();
+            vm.BatchesThisMonth = await _db.ClinicBatchRuns.AsNoTracking()
+                .Where(b => b.ClinicId == clinicId && b.StartedAt >= startOfMonth)
+                .CountAsync();
+            vm.CurrentYear = nowUtc.Year;
+            // Format "Mai-2026" — ro-RO month name, capitalized, then dash + year.
+            var ro = new System.Globalization.CultureInfo("ro-RO");
+            var monthName = ro.DateTimeFormat.GetMonthName(nowUtc.Month);
+            if (monthName.Length > 0)
+                monthName = char.ToUpper(monthName[0], ro) + monthName.Substring(1);
+            vm.CurrentMonthLabel = $"{monthName}-{nowUtc.Year}";
 
             // ----- Ultimele 20 loturi -----
             var recent = await _db.ClinicBatchRuns.AsNoTracking()

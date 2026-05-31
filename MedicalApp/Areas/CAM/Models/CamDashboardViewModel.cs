@@ -39,26 +39,18 @@ namespace MedicalApp.Areas.CAM.Models
         /// <summary>Numărul DISTINCT de pacienți cu cel puțin o analiză înregistrată.</summary>
         public int TotalPatients { get; set; }
 
-        // ----------------- Faza 4 — Top 5 pacienți după nr. analize -----------------
-        public List<TopPatientRow> TopPatients { get; set; } = new();
+        // ----------------- Loturi pe an / lună (anul & luna curentă) -----------------
+        /// <summary>Total loturi rulate în anul curent (UTC).</summary>
+        public int BatchesThisYear { get; set; }
+        /// <summary>Anul curent (server UTC), folosit pentru afișaj în card.</summary>
+        public int CurrentYear { get; set; }
+        /// <summary>Total loturi rulate în luna curentă (UTC).</summary>
+        public int BatchesThisMonth { get; set; }
+        /// <summary>Eticheta lunii curente, ex. "Mai-2026".</summary>
+        public string CurrentMonthLabel { get; set; } = string.Empty;
 
         // ----------------- Faza 4 — Istoric ultimele 20 loturi -----------------
         public List<BatchHistoryRow> RecentBatches { get; set; } = new();
-
-        // ----------------- Faza 4 — Activitate 30 zile (Chart.js bar) -----------------
-        /// <summary>Labels — datele ultimelor 30 zile, format "dd MMM".</summary>
-        public List<string> ActivityLabels { get; set; } = new();
-        /// <summary>Counts — fișiere procesate / zi, aliniat cu ActivityLabels.</summary>
-        public List<int> ActivityCounts { get; set; } = new();
-
-        public class TopPatientRow
-        {
-            public int PatientId { get; set; }
-            public string Name { get; set; } = string.Empty;
-            public string Email { get; set; } = string.Empty;
-            public int AnalysesCount { get; set; }
-            public DateTime? LastSamplingDate { get; set; }
-        }
 
         public class BatchHistoryRow
         {

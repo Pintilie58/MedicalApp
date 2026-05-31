@@ -1,0 +1,140 @@
+@*
+    _ConfirmDialog.cshtml — Modal Bootstrap pentru confirmări (înlocuiește
+    native confirm() care arăta "localhost:5001 says").
+
+    Folosire: include partial-ul O DATĂ pe pagină, apoi pe orice form/buton
+    adaugă atributul:
+        data-confirm-title="..."
+        data-confirm-body="..."
+        data-confirm-ok-label="Șterge"
+        data-confirm-ok-class="btn-danger"   (opțional, default: btn-danger)
+    Apoi în JS apelează:
+        window.ConfirmDialog.attach(formElement, options);
+    SAU pune un form cu clasa `js-confirm-form` și data-attributes — se
+    înregistrează automat.
+*@
+<div class="modal fade" id="appConfirmModal" tabindex="-1" aria-hidden="true"
+     data-testid="app-confirm-modal">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="appConfirmTitle">Confirmare</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Închide"></button>
+            </div>
+            <div class="modal-body" id="appConfirmBody" style="white-space: pre-line;">
+                Ești sigur?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary"
+                        data-bs-dismiss="modal" data-testid="app-confirm-cancel">
+                    Renunță
+                </button>
+                <button type="button" class="btn btn-danger fw-bold" id="appConfirmOk"
+                        data-testid="app-confirm-ok">
+                    Confirmă
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    'use strict';
+    var modalEl = document.getElementById('appConfirmModal');
+    if (!modalEl) return;
+
+    var titleEl = document.getElementById('appConfirmTitle');
+    var bodyEl  = document.getElementById('appConfirmBody');
+    var okBtn   = document.getElementById('appConfirmOk');
+    var bsModal = null;
+
+    function getBsModal() {
+        if (!bsModal) bsModal = new bootstrap.Modal(modalEl);
+        return bsModal;
+    }
+
+    /**
+     * Show the confirmation dialog and call onConfirm() if user clicks OK.
+     */
+    function show(options) {
+        options = options || {};
+        titleEl.textContent = options.title || 'Confirmare';
+        bodyEl.textContent = options.body || 'Ești sigur?';
+        okBtn.textContent = options.okLabel || 'Confirmă';
+        okBtn.className = 'btn fw-bold ' + (options.okClass || 'btn-danger');
+        okBtn.setAttribute('data-testid', 'app-confirm-ok');
+
+        // Reset listeners — replace node to drop any previous handler.
+        var fresh = okBtn.cloneNode(true);
+        okBtn.parentNode.replaceChild(fresh, okBtn);
+        okBtn = fresh;
+        okBtn.addEventListener('click', function() {
+            getBsModal().hide();
+            if (typeof options.onConfirm === 'function') options.onConfirm();
+        });
+        getBsModal().show();
+    }
+
+    /**
+     * Wire a form so that submitting it first opens the confirm modal.
+     * Reads `data-confirm-*` attributes if `opts` not provided.
+     */
+    function attach(form, opts) {
+        if (!form || form._confirmAttached) return;
+        form._confirmAttached = true;
+        form.addEventListener('submit', function(e) {
+            if (form._confirmedThrough) return; // second pass: actually submit
+            e.preventDefault();
+            show({
+                title: (opts && opts.title) || form.dataset.confirmTitle || 'Confirmare',
+                body:  (opts && opts.body)  || form.dataset.confirmBody  || 'Ești sigur?',
+                okLabel: (opts && opts.okLabel) || form.dataset.confirmOkLabel || 'Confirmă',
+                okClass: (opts && opts.okClass) || form.dataset.confirmOkClass || 'btn-danger',
+                onConfirm: function() {
+                    form._confirmedThrough = true;
+                    // Use requestSubmit so the originating button (if any) is preserved.
+                    if (typeof form.requestSubmit === 'function') form.requestSubmit();
+                    else form.submit();
+                }
+            });
+        });
+    }
+
+    /**
+     * Wire a button that lives INSIDE a form but should submit to a different
+     * action (uses formaction). On click → confirm → real click. Avoids the
+     * "submit but ask first" race.
+     */
+    function attachButton(button, opts) {
+        if (!button || button._confirmAttached) return;
+        button._confirmAttached = true;
+        button.addEventListener('click', function(e) {
+            if (button._confirmedThrough) return;
+            e.preventDefault();
+            show({
+                title: (opts && opts.title) || button.dataset.confirmTitle || 'Confirmare',
+                body:  (opts && opts.body)  || button.dataset.confirmBody  || 'Ești sigur?',
+                okLabel: (opts && opts.okLabel) || button.dataset.confirmOkLabel || 'Confirmă',
+                okClass: (opts && opts.okClass) || button.dataset.confirmOkClass || 'btn-danger',
+                onConfirm: function() {
+                    button._confirmedThrough = true;
+                    button.click();
+                }
+            });
+        });
+    }
+
+    function autoWire() {
+        document.querySelectorAll('form.js-confirm-form').forEach(function(f) { attach(f); });
+        document.querySelectorAll('button.js-confirm-btn, a.js-confirm-btn').forEach(function(b) { attachButton(b); });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', autoWire);
+    } else {
+        autoWire();
+    }
+
+    window.ConfirmDialog = { show: show, attach: attach, attachButton: attachButton };
+})();
+</script>

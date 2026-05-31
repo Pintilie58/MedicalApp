@@ -276,9 +276,12 @@ Email: ion.popescu@example.com</pre>
                 <button type="submit"
                         formaction="@Url.Action("DeletePdf", "CheckPdfs", new { area = "CAM" })"
                         formnovalidate
-                        class="btn btn-outline-danger me-auto fw-bold"
+                        class="btn btn-outline-danger me-auto fw-bold js-confirm-btn"
                         data-testid="cam-checkpdfs-edit-delete"
-                        onclick="return confirm('Ești sigur că vrei să ȘTERGI fișierul „' + document.getElementById('editFileName').value + '” din folderul Original?\n\nAcțiunea este ireversibilă. Override-ul manual asociat (dacă există) va fi șters automat.');">
+                        data-confirm-title="Ștergere fișier"
+                        data-confirm-body="Această acțiune este ireversibilă. Override-ul manual asociat (dacă există) va fi șters automat."
+                        data-confirm-ok-label="Da, șterge fișierul"
+                        data-confirm-ok-class="btn-danger">
                     &#128465; Șterge fișier
                 </button>
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Renunță</button>
@@ -289,6 +292,8 @@ Email: ion.popescu@example.com</pre>
     </div>
 </div>
 
+<partial name="_ConfirmDialog" />
+
 @section Scripts {
 <script>
     document.addEventListener('DOMContentLoaded', function () {
@@ -296,9 +301,17 @@ Email: ion.popescu@example.com</pre>
         if (!editModal) return;
         editModal.addEventListener('show.bs.modal', function (event) {
             var btn = event.relatedTarget;
-            document.getElementById('editFileName').value = btn.getAttribute('data-filename') || '';
+            var fname = btn.getAttribute('data-filename') || '';
+            document.getElementById('editFileName').value = fname;
             document.getElementById('editName').value     = btn.getAttribute('data-name')     || '';
             document.getElementById('editEmail').value    = btn.getAttribute('data-email')    || '';
+            // Update delete-button confirm message to include the file name.
+            var delBtn = document.querySelector('[data-testid="cam-checkpdfs-edit-delete"]');
+            if (delBtn) {
+                delBtn.dataset.confirmBody =
+                    'Vei ȘTERGE definitiv fișierul „' + fname + '" din folderul Original.\n\n' +
+                    'Acțiunea este ireversibilă. Override-ul manual asociat (dacă există) va fi șters automat.';
+            }
         });
     });
 </script>

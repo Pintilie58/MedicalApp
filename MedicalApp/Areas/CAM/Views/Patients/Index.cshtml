@@ -86,8 +86,11 @@
                             </td>
                             <td class="small text-muted">@p.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td>
                             <td class="text-end">
-                                <form asp-action="Delete" method="post" class="d-inline"
-                                      onsubmit="return confirm('Ești sigur că vrei să ȘTERGI pacientul „@p.Name”?\n\nVor fi șterse și cele @p.AnalysesCount analiză(e) asociate. Acțiunea este ireversibilă.');">
+                                <form asp-action="Delete" method="post" class="d-inline js-confirm-form"
+                                      data-confirm-title="Ștergere pacient"
+                                      data-confirm-body="Vei șterge definitiv pacientul „@p.Name” și cele @p.AnalysesCount analiză(e) asociate. Acțiunea este ireversibilă."
+                                      data-confirm-ok-label="Da, șterge pacientul"
+                                      data-confirm-ok-class="btn-danger">
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="id" value="@p.Id" />
                                     <button type="submit"
@@ -105,3 +108,5 @@
         </div>
     }
 </div>
+
+<partial name="_ConfirmDialog" />
