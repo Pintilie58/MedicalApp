@@ -865,6 +865,40 @@ CONTENT GUIDELINES:
 - ""disclaimer"": educational only, NOT a medical diagnosis, qualified doctor must be consulted.
 
 ==========================================================
+RISK FACTORS (OPTIONAL, GENERATE ONLY WHEN MEDICALLY MEANINGFUL)
+==========================================================
+You MAY emit a field ""risk_factors"" — an array of short standalone sentences
+(0 to 6 entries) in the SAME language as the rest of the interpretation.
+
+WHEN TO INCLUDE a risk factor:
+- ONLY when the combination of (a) abnormal lab values found in THIS PDF and
+  (b) the patient's age/sex (from patient_info or the user-declared context)
+  points to a recognized clinical risk pattern.
+- Combine BOTH validated medical scores (CHA2DS2-VASc, ASCVD/Framingham, FRAX,
+  HEART score, FINDRISC, MELD, CKD-EPI eGFR staging, etc.) AND well-known
+  general associations (e.g. low ferritin + low Hb → iron-deficiency risk;
+  elevated TSH + low FT4 → hypothyroidism risk).
+- The sentence MUST cite (1) WHICH lab values are involved + (2) the suspected
+  CONDITION/RISK + (3) the medical score name when an actual validated score
+  applies (omit the score reference for plain associations).
+
+WHEN TO OMIT:
+- If there are no abnormal values, or abnormalities are isolated and do not
+  combine into a recognized risk pattern → emit an EMPTY ARRAY [].
+- If you cannot be confident about a score's applicability, OMIT that entry —
+  it is much safer to leave the array empty than to fabricate a fake score.
+- NEVER invent a score name. If you don't know a score, describe the
+  association without naming a score.
+- NEVER state a diagnosis. Always phrase it as a RISK or possibility.
+
+FORMAT for each entry (free-form sentence, no bullet markers, no numbering):
+  ""<Because LDL=180 mg/dL and HDL=35 mg/dL at age 52,> <there is increased
+   cardiovascular risk> <according to the Framingham score.>""
+
+If the language is Romanian, write in Romanian; if English, write in English;
+if German, German; etc. Match the same language used for ""summary"".
+
+==========================================================
 PARAMETER NORMALIZATION (per parameter) — MANDATORY FIELD
 ==========================================================
 For EVERY entry in ""key_results"" you MUST emit ONE additional field:
@@ -1074,7 +1108,9 @@ Rules:
 
 OUTPUT FORMAT (CRITICAL):
 - Respond ONLY with a JSON OBJECT (no markdown, no code fences, no commentary).
-- The JSON MUST conform exactly to this schema (all keys required, no extra keys except _extraction_audit):
+- The JSON MUST conform exactly to this schema. All keys are required, EXCEPT
+  ""risk_factors"" and ""_extraction_audit"" which are optional (emit them ONLY
+  when relevant; do not emit any other extra keys):
 {
   ""is_medical_analysis"": boolean,
   ""rejection_reason"": string|null,
@@ -1085,6 +1121,7 @@ OUTPUT FORMAT (CRITICAL):
   ""correlations"": string,
   ""recommendations"": string,
   ""disclaimer"": string,
+  ""risk_factors"": [string, ...],
   ""_extraction_audit"": { ""expected_count"": integer, ""parameter_names"": [string, ...] }
 }";
 

@@ -95,6 +95,28 @@ namespace MedicalApp.Services
                     col.Item().Text(r.Summary!).FontSize(10);
                 }
 
+                // Risk Factors — placed right after Summary so abnormal-value
+                // implications are surfaced early. Optional + graceful: if AI
+                // didn't emit any, or list is empty, nothing renders.
+                if (r.RiskFactors != null && r.RiskFactors.Count > 0)
+                {
+                    col.Item().Element(e => Section(e, labels.RiskFactors));
+                    foreach (var rf in r.RiskFactors)
+                    {
+                        if (string.IsNullOrWhiteSpace(rf)) continue;
+                        col.Item().PaddingBottom(3).Row(row =>
+                        {
+                            row.AutoItem().PaddingRight(6).Text("⚠")
+                                .FontColor(AccentYellow).Bold().FontSize(11);
+                            row.RelativeItem().Text(rf).FontSize(10);
+                        });
+                    }
+                    // Mandatory short medical disclaimer right below the list.
+                    col.Item().PaddingTop(2).Background("#FFF7E6")
+                        .Padding(8).Text(labels.RiskFactorsDisclaimer)
+                        .FontSize(8).Italic().FontColor(MutedText);
+                }
+
                 // Key results table
                 if (r.KeyResults != null && r.KeyResults.Count > 0)
                 {
@@ -362,6 +384,8 @@ namespace MedicalApp.Services
         public string Laboratory { get; set; } = "";
         public string DoctorRequesting { get; set; } = "";
         public string Summary { get; set; } = "";
+        public string RiskFactors { get; set; } = "";
+        public string RiskFactorsDisclaimer { get; set; } = "";
         public string KeyResults { get; set; } = "";
         public string Parameter { get; set; } = "";
         public string Value { get; set; } = "";
@@ -395,6 +419,8 @@ namespace MedicalApp.Services
             Laboratory = Loc.T("Laboratory"),
             DoctorRequesting = Loc.T("DoctorRequesting"),
             Summary = Loc.T("SummarySection"),
+            RiskFactors = Loc.T("RiskFactorsSection"),
+            RiskFactorsDisclaimer = Loc.T("RiskFactorsDisclaimer"),
             KeyResults = Loc.T("KeyResultsSection"),
             Parameter = Loc.T("Parameter"),
             Value = Loc.T("ValueLabel"),

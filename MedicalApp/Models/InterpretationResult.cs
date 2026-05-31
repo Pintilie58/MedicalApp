@@ -36,6 +36,25 @@ namespace MedicalApp.Models
         public string? Disclaimer { get; set; }
 
         /// <summary>
+        /// Lista factorilor de risc generată opțional de Gemini, bazată pe
+        /// valorile anormale din PDF + vârsta pacientului. Fiecare element
+        /// este o frază naturală în limba interpretării (ex.
+        /// „Având LDL=180 mg/dL și HDL=35 mg/dL la 52 ani, există risc
+        /// cardiovascular crescut conform scorului Framingham.").
+        ///
+        /// CARACTERISTICI DE SIGURANȚĂ:
+        /// - <c>null</c> și listă vidă sunt valide → secțiunea pur și
+        ///   simplu nu se randează (vechi interpretări sau pacienți fără
+        ///   anormalități semnificative).
+        /// - NU este diagnostic medical; ViewModel-ul afișează un
+        ///   disclaimer obligatoriu lângă secțiune.
+        /// - Câmp opțional în schema JSON → orice eroare de extracție
+        ///   nu afectează restul interpretării (graceful degradation).
+        /// </summary>
+        [JsonPropertyName("risk_factors")]
+        public List<string>? RiskFactors { get; set; }
+
+        /// <summary>
         /// Self-audit field added by the model so we can detect silent extraction
         /// gaps. If <see cref="ExtractionAudit.ExpectedCount"/> &gt; the number of
         /// items in <see cref="KeyResults"/>, the model skipped parameters and we
