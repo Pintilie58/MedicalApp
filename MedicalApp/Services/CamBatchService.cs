@@ -253,9 +253,9 @@ namespace MedicalApp.Services
                     // Per user policy: NO AI fallback for patient identification.
                     // Operator must add [MedicalApp] block in PDF OR set a manual
                     // override via "Editează" on the Verificare PDF-uri page.
-                    progress.Log("   ✘ Fără bloc [MedicalApp] și fără override manual — apasă „Editează" în pagina Verificare PDF-uri.");
+                    progress.Log("   ✘ Fără bloc [MedicalApp] și fără override manual — apasă „Editează” în pagina Verificare PDF-uri.");
                     await RecordErrorAsync(db, batch, path, null,
-                        "PDF fără bloc [MedicalApp] și fără override manual. Apasă „Editează" în pagina Verificare PDF-uri.");
+                        "PDF fără bloc [MedicalApp] și fără override manual. Apasă „Editează” în pagina Verificare PDF-uri.");
                     batch.NotSends++; progress.NotSends++;
                     await MoveToErrorsIfRetriesExhaustedAsync(db, batch, path, errorsFolder);
                     return;

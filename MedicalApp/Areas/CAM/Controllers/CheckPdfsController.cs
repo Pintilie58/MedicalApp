@@ -129,7 +129,7 @@ namespace MedicalApp.Areas.CAM.Controllers
                             // No [MedicalApp] block → operator must use "Editează"
                             // to set a manual override. AI fallback is disabled by policy.
                             row.IsValid = false;
-                            row.Reason = "PDF fără bloc [MedicalApp]. Apasă „Editează" pentru a introduce manual numele și emailul.";
+                            row.Reason = "PDF fără bloc [MedicalApp]. Apasă „Editează” pentru a introduce manual numele și emailul.";
                         }
                     }
                     catch (Exception ex)
