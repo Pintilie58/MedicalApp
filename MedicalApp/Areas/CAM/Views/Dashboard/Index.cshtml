@@ -122,38 +122,61 @@
             <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-body">
-                        <h6 class="fw-bold text-muted small mb-2">LOTURI</h6>
-                        <div class="d-flex flex-wrap gap-3">
+                        <h6 class="fw-bold text-muted small mb-3">LOTURI</h6>
+
+                        @* Rândul 1 — anul curent *@
+                        <div class="small text-muted mb-1" data-testid="cam-batches-year-label">
+                            Loturi/@Model.CurrentYear
+                        </div>
+                        <div class="d-flex flex-wrap gap-3 mb-3" data-testid="cam-batches-year-row">
                             <div>
-                                <div class="fs-3 fw-bold" data-testid="cam-batches-total">@Model.TotalBatches</div>
+                                <div class="fs-3 fw-bold" data-testid="cam-year-total">@Model.YearStats.Total</div>
                                 <div class="small text-muted">Total</div>
                             </div>
                             <div>
-                                <div class="fs-3 fw-bold text-success" data-testid="cam-batches-completed">@Model.CompletedBatches</div>
+                                <div class="fs-3 fw-bold text-success" data-testid="cam-year-completed">@Model.YearStats.Completed</div>
                                 <div class="small text-muted">Completed</div>
                             </div>
                             <div>
-                                <div class="fs-3 fw-bold text-danger" data-testid="cam-batches-failed">@Model.FailedBatches</div>
+                                <div class="fs-3 fw-bold text-danger" data-testid="cam-year-failed">@Model.YearStats.Failed</div>
                                 <div class="small text-muted">Failed</div>
                             </div>
                             <div>
-                                <div class="fs-3 fw-bold text-warning" data-testid="cam-batches-cancelled">@Model.CancelledBatches</div>
+                                <div class="fs-3 fw-bold text-warning" data-testid="cam-year-cancelled">@Model.YearStats.Cancelled</div>
                                 <div class="small text-muted">Cancelled</div>
                             </div>
                             <div class="ms-auto">
-                                <div class="fs-3 fw-bold text-info" data-testid="cam-patients-total">@Model.TotalPatients</div>
+                                <div class="fs-3 fw-bold text-info" data-testid="cam-year-patients">@Model.YearStats.Patients</div>
                                 <div class="small text-muted">Pacienți</div>
                             </div>
                         </div>
-                        <hr class="my-3" />
-                        <div class="d-flex flex-wrap gap-4" data-testid="cam-batches-aggregations">
+
+                        <hr class="my-2" />
+
+                        @* Rândul 2 — luna curentă *@
+                        <div class="small text-muted mb-1" data-testid="cam-batches-month-label">
+                            Loturi/@Model.CurrentMonthLabel
+                        </div>
+                        <div class="d-flex flex-wrap gap-3" data-testid="cam-batches-month-row">
                             <div>
-                                <div class="small text-muted">Loturi/@Model.CurrentYear</div>
-                                <div class="fs-4 fw-bold text-primary" data-testid="cam-batches-this-year">@Model.BatchesThisYear</div>
+                                <div class="fs-3 fw-bold" data-testid="cam-month-total">@Model.MonthStats.Total</div>
+                                <div class="small text-muted">Total</div>
                             </div>
                             <div>
-                                <div class="small text-muted">Loturi/Luna-@Model.CurrentMonthLabel</div>
-                                <div class="fs-4 fw-bold text-primary" data-testid="cam-batches-this-month">@Model.BatchesThisMonth</div>
+                                <div class="fs-3 fw-bold text-success" data-testid="cam-month-completed">@Model.MonthStats.Completed</div>
+                                <div class="small text-muted">Completed</div>
+                            </div>
+                            <div>
+                                <div class="fs-3 fw-bold text-danger" data-testid="cam-month-failed">@Model.MonthStats.Failed</div>
+                                <div class="small text-muted">Failed</div>
+                            </div>
+                            <div>
+                                <div class="fs-3 fw-bold text-warning" data-testid="cam-month-cancelled">@Model.MonthStats.Cancelled</div>
+                                <div class="small text-muted">Cancelled</div>
+                            </div>
+                            <div class="ms-auto">
+                                <div class="fs-3 fw-bold text-info" data-testid="cam-month-patients">@Model.MonthStats.Patients</div>
+                                <div class="small text-muted">Pacienți</div>
                             </div>
                         </div>
                     </div>

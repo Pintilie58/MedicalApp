@@ -89,16 +89,12 @@ namespace MedicalApp.Areas.CAM.Controllers
         /// </summary>
         private async Task PopulateStatsAsync(Models.CamDashboardViewModel vm, int clinicId)
         {
-            // ----- KPI loturi (aggregations) -----
-            var batchStats = await _db.ClinicBatchRuns.AsNoTracking()
+            // ----- KPI lifetime (sume cumulate pe fișiere — păstrate pentru cardurile sus) -----
+            var lifetimeStats = await _db.ClinicBatchRuns.AsNoTracking()
                 .Where(b => b.ClinicId == clinicId)
                 .GroupBy(_ => 1)
                 .Select(g => new
                 {
-                    Total = g.Count(),
-                    Completed = g.Count(b => b.Status == "Completed"),
-                    Failed = g.Count(b => b.Status == "Failed"),
-                    Cancelled = g.Count(b => b.Status == "Cancelled"),
                     Interpreted = g.Sum(b => (int?)b.FilesInterpreted) ?? 0,
                     Sent = g.Sum(b => (int?)b.FilesSent) ?? 0,
                     Compared = g.Sum(b => (int?)b.FilesCompared) ?? 0,
@@ -106,36 +102,22 @@ namespace MedicalApp.Areas.CAM.Controllers
                 })
                 .FirstOrDefaultAsync();
 
-            if (batchStats != null)
+            if (lifetimeStats != null)
             {
-                vm.TotalBatches = batchStats.Total;
-                vm.CompletedBatches = batchStats.Completed;
-                vm.FailedBatches = batchStats.Failed;
-                vm.CancelledBatches = batchStats.Cancelled;
-                vm.LifetimeFilesInterpreted = batchStats.Interpreted;
-                vm.LifetimeFilesSent = batchStats.Sent;
-                vm.LifetimeFilesCompared = batchStats.Compared;
-                vm.LifetimeNotSends = batchStats.NotSends;
+                vm.LifetimeFilesInterpreted = lifetimeStats.Interpreted;
+                vm.LifetimeFilesSent = lifetimeStats.Sent;
+                vm.LifetimeFilesCompared = lifetimeStats.Compared;
+                vm.LifetimeNotSends = lifetimeStats.NotSends;
             }
-
-            // ----- Pacienți unici cu cel puțin o analiză -----
-            vm.TotalPatients = await _db.ClinicAnalyses.AsNoTracking()
-                .Where(a => a.ClinicId == clinicId)
-                .Select(a => a.PatientId)
-                .Distinct()
-                .CountAsync();
 
             // ----- Loturi pe anul curent / luna curentă (UTC) -----
             var nowUtc = DateTime.UtcNow;
             var startOfYear = new DateTime(nowUtc.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc);
             var startOfMonth = new DateTime(nowUtc.Year, nowUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 
-            vm.BatchesThisYear = await _db.ClinicBatchRuns.AsNoTracking()
-                .Where(b => b.ClinicId == clinicId && b.StartedAt >= startOfYear)
-                .CountAsync();
-            vm.BatchesThisMonth = await _db.ClinicBatchRuns.AsNoTracking()
-                .Where(b => b.ClinicId == clinicId && b.StartedAt >= startOfMonth)
-                .CountAsync();
+            vm.YearStats = await ComputeBatchPeriodAsync(clinicId, startOfYear);
+            vm.MonthStats = await ComputeBatchPeriodAsync(clinicId, startOfMonth);
+
             vm.CurrentYear = nowUtc.Year;
             // Format "Mai-2026" — ro-RO month name, capitalized, then dash + year.
             var ro = new System.Globalization.CultureInfo("ro-RO");
@@ -165,6 +147,44 @@ namespace MedicalApp.Areas.CAM.Controllers
                     DurationDisplay = (b.FinishedAt - b.StartedAt)?.ToString(@"hh\:mm\:ss") ?? "-"
                 })
                 .ToList();
+        }
+
+        /// <summary>
+        /// Computes batch counts (Total/Completed/Failed/Cancelled) and
+        /// distinct patient count for a given period start (UTC, inclusive).
+        /// Period end is implicit = "now" (latest batches always included).
+        /// </summary>
+        private async Task<Models.CamDashboardViewModel.BatchPeriodStats> ComputeBatchPeriodAsync(
+            int clinicId, DateTime startUtc)
+        {
+            var batchAgg = await _db.ClinicBatchRuns.AsNoTracking()
+                .Where(b => b.ClinicId == clinicId && b.StartedAt >= startUtc)
+                .GroupBy(_ => 1)
+                .Select(g => new
+                {
+                    Total = g.Count(),
+                    Completed = g.Count(b => b.Status == "Completed"),
+                    Failed = g.Count(b => b.Status == "Failed"),
+                    Cancelled = g.Count(b => b.Status == "Cancelled")
+                })
+                .FirstOrDefaultAsync();
+
+            // Distinct patients with at least one analysis in this period.
+            // ProcessedAt is the safe key (always set); SamplingDate is optional.
+            var patients = await _db.ClinicAnalyses.AsNoTracking()
+                .Where(a => a.ClinicId == clinicId && a.ProcessedAt >= startUtc)
+                .Select(a => a.PatientId)
+                .Distinct()
+                .CountAsync();
+
+            return new Models.CamDashboardViewModel.BatchPeriodStats
+            {
+                Total = batchAgg?.Total ?? 0,
+                Completed = batchAgg?.Completed ?? 0,
+                Failed = batchAgg?.Failed ?? 0,
+                Cancelled = batchAgg?.Cancelled ?? 0,
+                Patients = patients
+            };
         }
 
         // -------------------------------------------------------------

@@ -30,27 +30,29 @@ namespace MedicalApp.Areas.CAM.Models
         public int LifetimeFilesCompared { get; set; }
         /// <summary>Total fișiere NotSends (aggregat).</summary>
         public int LifetimeNotSends { get; set; }
-        /// <summary>Total loturi finalizate (orice status terminal).</summary>
-        public int TotalBatches { get; set; }
-        public int CompletedBatches { get; set; }
-        public int FailedBatches { get; set; }
-        public int CancelledBatches { get; set; }
 
-        /// <summary>Numărul DISTINCT de pacienți cu cel puțin o analiză înregistrată.</summary>
-        public int TotalPatients { get; set; }
-
-        // ----------------- Loturi pe an / lună (anul & luna curentă) -----------------
-        /// <summary>Total loturi rulate în anul curent (UTC).</summary>
-        public int BatchesThisYear { get; set; }
-        /// <summary>Anul curent (server UTC), folosit pentru afișaj în card.</summary>
+        // ----------------- Loturi pe perioade (an curent + luna curentă) -----------------
+        /// <summary>Anul curent (server UTC), folosit pentru titlul rândului 1.</summary>
         public int CurrentYear { get; set; }
-        /// <summary>Total loturi rulate în luna curentă (UTC).</summary>
-        public int BatchesThisMonth { get; set; }
-        /// <summary>Eticheta lunii curente, ex. "Mai-2026".</summary>
+        /// <summary>Eticheta lunii curente, ex. "Mai-2026". Folosit pentru titlul rândului 2.</summary>
         public string CurrentMonthLabel { get; set; } = string.Empty;
+        /// <summary>Statistici loturi pentru anul curent.</summary>
+        public BatchPeriodStats YearStats { get; set; } = new();
+        /// <summary>Statistici loturi pentru luna curentă.</summary>
+        public BatchPeriodStats MonthStats { get; set; } = new();
 
         // ----------------- Faza 4 — Istoric ultimele 20 loturi -----------------
         public List<BatchHistoryRow> RecentBatches { get; set; } = new();
+
+        public class BatchPeriodStats
+        {
+            public int Total { get; set; }
+            public int Completed { get; set; }
+            public int Failed { get; set; }
+            public int Cancelled { get; set; }
+            /// <summary>Pacienți distincți cu cel puțin o analiză în această perioadă.</summary>
+            public int Patients { get; set; }
+        }
 
         public class BatchHistoryRow
         {
