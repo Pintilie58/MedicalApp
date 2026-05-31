@@ -59,10 +59,21 @@
         </div>
     </div>
 
-    @* ===== Help block [MedicalApp] ===== *@
+    @* ===== Help: cele 2 metode în ordinea recomandată ===== *@
+    <div class="card mb-3 border-warning">
+        <div class="card-header bg-warning-subtle fw-bold">
+            &#9999; Metoda 1 — Editare manuală
+        </div>
+        <div class="card-body small">
+            Apasă butonul <strong>&#9999; Editează</strong> de pe fiecare rând și introdu manual
+            numele și emailul pacientului. Datele sunt salvate ca <em>override</em> și folosite
+            direct la lansarea lotului (badge galben „Manual").
+        </div>
+    </div>
+
     <div class="card mb-3 border-success">
         <div class="card-header bg-success-subtle fw-bold">
-            &#11088; Convenție recomandată pentru identificare 100% sigură
+            &#11088; Metoda 2 — Bloc <code>[MedicalApp]</code> în PDF (recomandată pentru loturi mari)
         </div>
         <div class="card-body small">
             Adaugă pe ultima pagină a fiecărui PDF (sau în șablonul lab-ului) un bloc cu acest format <strong>exact</strong>:
@@ -71,8 +82,8 @@
 Pacient: Ion Popescu
 Email: ion.popescu@example.com</pre>
             Când blocul există, aplicația îl folosește direct (badge verde <strong>"[MedicalApp]"</strong>) și
-            ignoră restul textului. Pentru PDF-urile fără bloc, aplicația apelează Gemini AI
-            pentru a identifica numele pacientului automat din conținutul PDF-ului.
+            ignoră restul textului. Pentru PDF-urile care nu au nici bloc, nici override manual,
+            rândul rămâne <strong>Blocat</strong> — folosește <em>Metoda 1</em> (Editează) pentru ele.
         </div>
     </div>
 
@@ -85,32 +96,26 @@ Email: ion.popescu@example.com</pre>
     }
     else
     {
-        @* Rebucket rows: "ready" = override / explicit block / auto with name+email.
-           Anything else where the PDF still looks medical is "AI-pending" (will be
-           identified by Gemini at batch time). PDFs that aren't medical reports at
-           all are the only truly-blocked rows. *@
-        var aiPending = Model.Items.Count(r => !r.IsValid &&
-            (r.Reason ?? "").Contains("Patient name not found", StringComparison.OrdinalIgnoreCase));
-        var realErrors = notOkCount - aiPending;
+        // Rândurile invalide nu mai au fallback AI — sunt pur și simplu blocate
+        // până când operatorul apasă „Editează".
+        var blockedCount = notOkCount;
 
         <div class="alert alert-info small mb-3" data-testid="cam-checkpdfs-help">
             &#128161; <strong>Cum decide aplicația cine e pacientul:</strong>
-            (1) dacă există un override manual ✏ → folosește direct;
-            (2) dacă PDF-ul conține blocul <code>[MedicalApp]</code> ⭐ → folosește direct;
-            (3) altfel, la rularea lotului <strong>Gemini AI</strong> va citi PDF-ul și va
-            identifica numele și emailul pacientului. Rândurile marcate „AI va identifica"
-            sunt OK — vor fi procesate corect la lot.
+            (1) dacă există un <strong>override manual</strong> &#9999; (prin „Editează") → folosește direct;
+            (2) dacă PDF-ul conține blocul <code>[MedicalApp]</code> &#11088; → folosește direct.
+            Rândurile fără niciuna din cele două rămân <strong>Blocate</strong> și nu sunt incluse în lot —
+            apasă <em>&#9999; Editează</em> pentru a introduce manual numele și emailul.
         </div>
 
         <div class="d-flex gap-2 mb-3 flex-wrap" data-testid="cam-checkpdfs-summary">
             <span class="badge bg-success fs-6 px-3 py-2">&#10003; Gata: @okCount</span>
-            <span class="badge bg-info fs-6 px-3 py-2 text-dark">&#129302; AI va identifica: @aiPending</span>
-            @if (realErrors > 0)
-            {
-                <span class="badge bg-danger fs-6 px-3 py-2">&#10007; Blocate: @realErrors</span>
-            }
-            <span class="badge bg-success-subtle fs-6 px-3 py-2 text-success border border-success">&#11088; [MedicalApp]: @goldCount</span>
             <span class="badge bg-warning fs-6 px-3 py-2 text-dark">&#9999; Manual: @overrideCount</span>
+            <span class="badge bg-success-subtle fs-6 px-3 py-2 text-success border border-success">&#11088; [MedicalApp]: @goldCount</span>
+            @if (blockedCount > 0)
+            {
+                <span class="badge bg-danger fs-6 px-3 py-2">&#10007; Blocate: @blockedCount</span>
+            }
             <span class="badge bg-secondary fs-6 px-3 py-2">Total: @Model.Items.Count</span>
             <div class="ms-auto">
                 <form method="get" class="d-inline">
@@ -146,15 +151,12 @@ Email: ion.popescu@example.com</pre>
                     <tbody>
                         @foreach (var r in Model.Items)
                         {
-                            // Decide the "real" status: ready / ai-pending / blocked.
-                            var willBeAiResolved = !r.IsValid &&
-                                (r.Reason ?? "").Contains("Patient name not found", StringComparison.OrdinalIgnoreCase);
-
+                            // No AI fallback: row is either valid (override / [MedicalApp])
+                            // or blocked. Blocked rows prompt the operator to use Editează.
                             string rowClass;
                             if (r.IsValid && r.MatchedExplicitBlock) rowClass = "table-success";
                             else if (r.IsValid && r.IsManualOverride) rowClass = "table-warning";
                             else if (r.IsValid) rowClass = "";
-                            else if (willBeAiResolved) rowClass = "table-info";
                             else rowClass = "table-danger";
 
                             <tr class="@rowClass" data-testid="cam-checkpdfs-row">
@@ -162,10 +164,6 @@ Email: ion.popescu@example.com</pre>
                                     @if (r.IsValid)
                                     {
                                         <span class="text-success fs-5">&#10003;</span>
-                                    }
-                                    else if (willBeAiResolved)
-                                    {
-                                        <span class="text-info fs-5">&#129302;</span>
                                     }
                                     else
                                     {
@@ -188,10 +186,6 @@ Email: ion.popescu@example.com</pre>
                                     {
                                         <span class="badge bg-secondary">Auto</span>
                                     }
-                                    else if (willBeAiResolved)
-                                    {
-                                        <span class="badge bg-info text-dark">AI la lot</span>
-                                    }
                                     else
                                     {
                                         <span class="badge bg-danger">Blocat</span>
@@ -202,15 +196,12 @@ Email: ion.popescu@example.com</pre>
                                     {
                                         <span class="text-success">Gata pentru lot.</span>
                                     }
-                                    else if (willBeAiResolved)
-                                    {
-                                        <span class="text-info">
-                                            Gemini va identifica pacientul la lot.
-                                        </span>
-                                    }
                                     else
                                     {
-                                        <span class="text-danger">@r.Reason</span>
+                                        <span class="text-danger">
+                                            Dacă fișierul nu conține grupul <code>[MedicalApp-Nume+Email]</code>,
+                                            atunci apasă <strong>&#9999; Editează</strong>.
+                                        </span>
                                     }
                                 </td>
                                 <td>

@@ -126,9 +126,10 @@ namespace MedicalApp.Areas.CAM.Controllers
                         }
                         else
                         {
-                            // Medical PDF without an explicit block — defer to Gemini.
+                            // No [MedicalApp] block → operator must use "Editează"
+                            // to set a manual override. AI fallback is disabled by policy.
                             row.IsValid = false;
-                            row.Reason = "Patient name not found — AI will identify at batch time.";
+                            row.Reason = "PDF fără bloc [MedicalApp]. Apasă „Editează" pentru a introduce manual numele și emailul.";
                         }
                     }
                     catch (Exception ex)

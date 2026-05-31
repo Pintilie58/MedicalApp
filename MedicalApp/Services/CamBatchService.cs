@@ -210,14 +210,12 @@ namespace MedicalApp.Services
                 return;
             }
 
-            // 1. Decide patient identification path:
+            // 1. Decide patient identification path (NO AI fallback, per user policy):
             //    (a) operator override → use as-is, skip auto-extraction
-            //    (b) explicit [MedicalApp] block → use, no Gemini cost saved later
-            //    (c) Gemini-first → call Gemini once, then read PatientInfo.Name
-            //        from the AI's structured output (which is much more reliable
-            //        than PdfPig text + regex on weird PDF layouts).
+            //    (b) explicit [MedicalApp] block in PDF → use directly
+            //    (c) otherwise → reject; operator must press "Editează" in the
+            //        Verificare PDF-uri page to set a manual override.
             CamPdfMetadata? meta = null;
-            bool needGeminiForName = false;
 
             var overrideRow = await db.ClinicPdfOverrides
                 .FirstOrDefaultAsync(o => o.ClinicId == clinic.Id && o.FileName == fileName);
@@ -252,31 +250,15 @@ namespace MedicalApp.Services
                 }
                 else
                 {
-                    // No block, valid medical PDF → identify via Gemini's PatientInfo.
-                    needGeminiForName = true;
-                    // We still need an email candidate. Re-run extractor with NO
-                    // blacklist (per user's decision to drop the blacklist UI),
-                    // pick the first email — Gemini will provide the authoritative
-                    // patient name a moment later.
-                    var emailRx = new System.Text.RegularExpressions.Regex(
-                        @"\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b",
-                        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                    var raw = PdfTextExtractor.Extract(new MemoryStream(bytes));
-                    var emailMatch = emailRx.Match(raw);
-                    if (!emailMatch.Success)
-                    {
-                        progress.Log("   ✘ Niciun email găsit în PDF.");
-                        await RecordErrorAsync(db, batch, path, null, "Email not found in PDF");
-                        batch.NotSends++; progress.NotSends++;
-                        await MoveToErrorsIfRetriesExhaustedAsync(db, batch, path, errorsFolder);
-                        return;
-                    }
-                    meta = new CamPdfMetadata
-                    {
-                        PatientEmail = emailMatch.Value.Trim(),
-                        IsMedicalLabReport = true,
-                        IsValid = false // name still missing — filled after Gemini
-                    };
+                    // Per user policy: NO AI fallback for patient identification.
+                    // Operator must add [MedicalApp] block in PDF OR set a manual
+                    // override via "Editează" on the Verificare PDF-uri page.
+                    progress.Log("   ✘ Fără bloc [MedicalApp] și fără override manual — apasă „Editează" în pagina Verificare PDF-uri.");
+                    await RecordErrorAsync(db, batch, path, null,
+                        "PDF fără bloc [MedicalApp] și fără override manual. Apasă „Editează" în pagina Verificare PDF-uri.");
+                    batch.NotSends++; progress.NotSends++;
+                    await MoveToErrorsIfRetriesExhaustedAsync(db, batch, path, errorsFolder);
+                    return;
                 }
             }
 
@@ -301,23 +283,6 @@ namespace MedicalApp.Services
                 // present on all the other NotSends paths.)
                 await MoveToErrorsIfRetriesExhaustedAsync(db, batch, path, errorsFolder);
                 return;
-            }
-
-            // 3b. If we still need the patient name, pull it from Gemini's structured output.
-            if (needGeminiForName)
-            {
-                var aiName = result.PatientInfo?.Name?.Trim();
-                if (string.IsNullOrWhiteSpace(aiName))
-                {
-                    progress.Log("   ✘ Gemini nu a putut identifica numele pacientului.");
-                    await RecordErrorAsync(db, batch, path, null, "Patient name missing from AI output");
-                    batch.NotSends++; progress.NotSends++;
-                    await MoveToErrorsIfRetriesExhaustedAsync(db, batch, path, errorsFolder);
-                    return;
-                }
-                meta!.PatientName = aiName;
-                meta.IsValid = true;
-                progress.Log($"   ✓ Identificat de Gemini: {aiName} <{meta.PatientEmail}>");
             }
 
             // 3c. CAM now uses the SAME LOINC matcher as the B2C interpretation
