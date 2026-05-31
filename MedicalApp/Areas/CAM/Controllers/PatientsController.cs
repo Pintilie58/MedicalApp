@@ -78,5 +78,43 @@ namespace MedicalApp.Areas.CAM.Controllers
 
             return View(vm);
         }
+
+        // ----- POST: șterge pacient + toate analizele asociate -----
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Delete(int id)
+        {
+            if (string.IsNullOrEmpty(CurrentEmail))
+                return RedirectToAction("Index", "Home", new { area = "" });
+
+            var clinic = await _db.Clinics.FirstOrDefaultAsync(c => c.UserEmail == CurrentEmail);
+            if (clinic == null)
+                return RedirectToAction("Index", "Dashboard", new { area = "CAM" });
+
+            // Scope by ClinicId to prevent cross-clinic deletion.
+            var patient = await _db.ClinicPatients
+                .FirstOrDefaultAsync(p => p.Id == id && p.ClinicId == clinic.Id);
+            if (patient == null)
+            {
+                TempData["ErrorMessage"] = "Pacientul nu a fost găsit (sau nu aparține acestei clinici).";
+                return RedirectToAction(nameof(Index));
+            }
+
+            // Remove all analyses tied to this patient first (FK chain).
+            var analyses = await _db.ClinicAnalyses
+                .Where(a => a.PatientId == patient.Id)
+                .ToListAsync();
+            if (analyses.Count > 0)
+            {
+                _db.ClinicAnalyses.RemoveRange(analyses);
+            }
+
+            _db.ClinicPatients.Remove(patient);
+            await _db.SaveChangesAsync();
+
+            TempData["SuccessMessage"] =
+                $"Pacientul „{patient.Name}” a fost șters (împreună cu {analyses.Count} analiză(e)).";
+            return RedirectToAction(nameof(Index));
+        }
     }
 }

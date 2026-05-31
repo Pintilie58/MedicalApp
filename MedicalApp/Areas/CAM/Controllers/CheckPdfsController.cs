@@ -217,6 +217,64 @@ namespace MedicalApp.Areas.CAM.Controllers
             return RedirectToAction(nameof(Index));
         }
 
+        // ----- POST: șterge un PDF din folderul Original + override-ul asociat -----
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeletePdf(string fileName)
+        {
+            if (string.IsNullOrEmpty(CurrentEmail))
+                return RedirectToAction("Index", "Home", new { area = "" });
+
+            var clinic = await _db.Clinics.FirstOrDefaultAsync(c => c.UserEmail == CurrentEmail);
+            if (clinic == null) return RedirectToAction("Index", "Dashboard", new { area = "CAM" });
+
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                TempData["ErrorMessage"] = "Nume fișier lipsă.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            // Defensive: refuse path traversal — accept only a bare file name.
+            var safeName = Path.GetFileName(fileName);
+            if (!string.Equals(safeName, fileName, StringComparison.Ordinal))
+            {
+                TempData["ErrorMessage"] = "Nume fișier invalid.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            var originalFolder = _files.GetOriginalFolder(clinic);
+            var path = Path.Combine(originalFolder, safeName);
+
+            if (!System.IO.File.Exists(path))
+            {
+                TempData["ErrorMessage"] = $"Fișierul „{safeName}” nu mai există în folderul Original.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            try
+            {
+                System.IO.File.Delete(path);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "DeletePdf: failed to delete {Path}", path);
+                TempData["ErrorMessage"] = "Eroare la ștergere: " + ex.Message;
+                return RedirectToAction(nameof(Index));
+            }
+
+            // Drop any override row tied to this file name (no orphans).
+            var ov = await _db.ClinicPdfOverrides
+                .FirstOrDefaultAsync(o => o.ClinicId == clinic.Id && o.FileName == safeName);
+            if (ov != null)
+            {
+                _db.ClinicPdfOverrides.Remove(ov);
+                await _db.SaveChangesAsync();
+            }
+
+            TempData["SuccessMessage"] = $"Fișierul „{safeName}” a fost șters din folderul Original.";
+            return RedirectToAction(nameof(Index));
+        }
+
         // ----- POST: salvează blacklist-ul de domenii al clinicii -----
         [HttpPost]
         [ValidateAntiForgeryToken]

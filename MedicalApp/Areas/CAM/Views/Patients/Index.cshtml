@@ -19,6 +19,15 @@
         </div>
     </div>
 
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger" data-testid="cam-patients-error">@TempData["ErrorMessage"]</div>
+    }
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success" data-testid="cam-patients-success">@TempData["SuccessMessage"]</div>
+    }
+
     <form method="get" class="mb-4" data-testid="cam-patients-search-form">
         <div class="input-group">
             <input name="q" value="@Model.Query" class="form-control"
@@ -63,6 +72,7 @@
                         <th>Email</th>
                         <th class="text-center">Nr. analize</th>
                         <th>Adăugat</th>
+                        <th class="text-end" style="width: 130px;">&nbsp;</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -75,6 +85,19 @@
                                 <span class="badge bg-light text-dark border">@p.AnalysesCount</span>
                             </td>
                             <td class="small text-muted">@p.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td>
+                            <td class="text-end">
+                                <form asp-action="Delete" method="post" class="d-inline"
+                                      onsubmit="return confirm('Ești sigur că vrei să ȘTERGI pacientul „@p.Name”?\n\nVor fi șterse și cele @p.AnalysesCount analiză(e) asociate. Acțiunea este ireversibilă.');">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@p.Id" />
+                                    <button type="submit"
+                                            class="btn btn-sm btn-outline-danger"
+                                            title="Șterge pacientul și toate analizele asociate"
+                                            data-testid="cam-patient-delete-@p.Id">
+                                        &#128465; Șterge
+                                    </button>
+                                </form>
+                            </td>
                         </tr>
                     }
                 </tbody>

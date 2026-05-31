@@ -273,6 +273,14 @@ Email: ion.popescu@example.com</pre>
                 </div>
             </div>
             <div class="modal-footer">
+                <button type="submit"
+                        formaction="@Url.Action("DeletePdf", "CheckPdfs", new { area = "CAM" })"
+                        formnovalidate
+                        class="btn btn-outline-danger me-auto fw-bold"
+                        data-testid="cam-checkpdfs-edit-delete"
+                        onclick="return confirm('Ești sigur că vrei să ȘTERGI fișierul „' + document.getElementById('editFileName').value + '” din folderul Original?\n\nAcțiunea este ireversibilă. Override-ul manual asociat (dacă există) va fi șters automat.');">
+                    &#128465; Șterge fișier
+                </button>
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Renunță</button>
                 <button type="submit" class="btn btn-primary fw-bold"
                         data-testid="cam-checkpdfs-edit-save">Salvează</button>
