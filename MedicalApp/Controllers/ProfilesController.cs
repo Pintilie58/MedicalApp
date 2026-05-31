@@ -16,6 +16,7 @@ namespace MedicalApp.Controllers
         private readonly AppDbContext _db;
         private readonly PdfReportGenerator _pdfGenerator;
         private readonly EvolutionPdfGenerator _evolutionPdf;
+        private readonly ProfileComparePdfGenerator _comparePdf;
         private readonly ArchiveAccessService _archiveAccess;
         private readonly IEmailService _emailService;
         private readonly ILogger<ProfilesController> _logger;
@@ -24,6 +25,7 @@ namespace MedicalApp.Controllers
             AppDbContext db,
             PdfReportGenerator pdfGenerator,
             EvolutionPdfGenerator evolutionPdf,
+            ProfileComparePdfGenerator comparePdf,
             ArchiveAccessService archiveAccess,
             IEmailService emailService,
             ILogger<ProfilesController> logger)
@@ -31,6 +33,7 @@ namespace MedicalApp.Controllers
             _db = db;
             _pdfGenerator = pdfGenerator;
             _evolutionPdf = evolutionPdf;
+            _comparePdf = comparePdf;
             _archiveAccess = archiveAccess;
             _emailService = emailService;
             _logger = logger;
@@ -361,6 +364,132 @@ namespace MedicalApp.Controllers
             var vm = BuildComparison(profile, parsed);
             vm.CreditConsumed = check.CreditConsumed;
             return View(vm);
+        }
+
+        // ====================================================================
+        // COMPARE EXPORT — generate a PDF of the same comparison and either
+        // stream it as a download or send it by email to the logged-in user.
+        // Does NOT consume an archive credit (the user already paid when they
+        // opened the comparison view). Mirrors EvolutionExport's UX.
+        // ====================================================================
+        public class CompareExportRequest
+        {
+            public int ProfileId { get; set; }
+            /// <summary>Same interpretation IDs as the Compare view (max 4).</summary>
+            public int[] Ids { get; set; } = Array.Empty<int>();
+            /// <summary>"download" or "email".</summary>
+            public string Mode { get; set; } = "download";
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CompareExport([FromForm] CompareExportRequest req)
+        {
+            if (string.IsNullOrEmpty(CurrentEmail))
+                return Unauthorized();
+
+            // Same sanitation as Compare(): distinct, positive, capped at MaxSelections.
+            var distinctIds = (req.Ids ?? Array.Empty<int>())
+                .Where(i => i > 0)
+                .Distinct()
+                .Take(CompareInterpretationsViewModel.MaxSelections)
+                .ToArray();
+
+            if (distinctIds.Length < CompareInterpretationsViewModel.MinSelections)
+            {
+                TempData["ErrorMessage"] =
+                    $"Selectează între {CompareInterpretationsViewModel.MinSelections} și " +
+                    $"{CompareInterpretationsViewModel.MaxSelections} interpretări.";
+                return RedirectToAction(nameof(History), new { id = req.ProfileId });
+            }
+
+            var profile = await _db.Profiles.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == req.ProfileId && p.UserEmail == CurrentEmail);
+            if (profile == null)
+                return NotFound("Profil inexistent.");
+
+            var items = await _db.InterpretationHistories
+                .AsNoTracking()
+                .Where(h => distinctIds.Contains(h.Id)
+                            && h.UserEmail == CurrentEmail
+                            && h.ProfileId == profile.Id
+                            && h.Status == "success"
+                            && h.RawJsonResult != null)
+                .ToListAsync();
+
+            if (items.Count != distinctIds.Length)
+            {
+                TempData["ErrorMessage"] = "Una sau mai multe interpretări nu au fost găsite.";
+                return RedirectToAction(nameof(History), new { id = req.ProfileId });
+            }
+
+            // Rebuild VM exactly as Compare() does, but skip credit consumption.
+            var parsed = new List<(InterpretationHistory h, InterpretationResult r)>();
+            foreach (var h in items)
+            {
+                var r = DeserializeSafe(h.RawJsonResult);
+                if (r != null) parsed.Add((h, r));
+            }
+            if (parsed.Count < CompareInterpretationsViewModel.MinSelections)
+            {
+                TempData["ErrorMessage"] = "Comparația nu a putut fi generată din datele stocate.";
+                return RedirectToAction(nameof(History), new { id = req.ProfileId });
+            }
+
+            parsed = parsed
+                .Select(t => (t.h, t.r,
+                              eff: ParseSamplingDate(t.r.PatientInfo?.DateTaken) ?? t.h.CreatedAt))
+                .OrderBy(t => t.eff)
+                .Select(t => (t.h, t.r))
+                .ToList();
+
+            var vm = BuildComparison(profile, parsed);
+
+            byte[] pdfBytes;
+            try
+            {
+                pdfBytes = _comparePdf.Generate(profile, vm);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "CompareExport: PDF generation failed.");
+                return StatusCode(500, "Generarea PDF a eșuat. Vezi log-ul aplicației.");
+            }
+
+            var fileName = $"Comparatie_{Sanitize(profile.Name)}_{DateTime.Now:yyyyMMdd_HHmm}.pdf";
+
+            if (string.Equals(req.Mode, "email", StringComparison.OrdinalIgnoreCase))
+            {
+                var html =
+                    $"<p>Bună,</p>" +
+                    $"<p>Ai cerut raportul de comparație pentru profilul " +
+                    $"<strong>{System.Net.WebUtility.HtmlEncode(profile.Name)}</strong>. " +
+                    $"Îl găsești atașat acestui email ({vm.Columns.Count} interpretări, " +
+                    $"{vm.Rows.Count} parametri).</p>" +
+                    $"<p>O zi bună!<br/>— MedicalApp</p>";
+                try
+                {
+                    await _emailService.SendEmailWithAttachmentAsync(
+                        CurrentEmail,
+                        $"Comparație analize — {profile.Name}",
+                        html,
+                        pdfBytes,
+                        fileName);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "CompareExport: email send failed to {Email}.", CurrentEmail);
+                    TempData["ErrorMessage"] = "Trimiterea emailului a eșuat. Încearcă \u201EDescarcă PDF\u201D în schimb.";
+                    return RedirectToAction(nameof(Compare),
+                        new { profileId = req.ProfileId, ids = distinctIds });
+                }
+
+                TempData["SuccessMessage"] = $"Raportul a fost trimis pe email la {CurrentEmail}.";
+                return RedirectToAction(nameof(Compare),
+                    new { profileId = req.ProfileId, ids = distinctIds });
+            }
+
+            return File(pdfBytes, "application/pdf", fileName);
         }
 
         private static InterpretationResult? DeserializeSafe(string? raw)

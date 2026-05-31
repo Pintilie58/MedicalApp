@@ -40,13 +40,39 @@
                 <span class="badge bg-secondary align-self-center" data-testid="compare-column-count">
                     @Model.Columns.Count interpretări
                 </span>
-                <div class="ms-auto">
+                <div class="ms-auto d-flex gap-2 flex-wrap">
+                    @if (Model.Columns.Count >= CompareInterpretationsViewModel.MinSelections)
+                    {
+                        <button type="button" id="btnCompareExportDownload"
+                                class="btn btn-outline-primary"
+                                data-testid="btn-compare-export-download">
+                            &#128229; Descarcă PDF
+                        </button>
+                        <button type="button" id="btnCompareExportEmail"
+                                class="btn btn-outline-success"
+                                data-testid="btn-compare-export-email">
+                            &#9993; Trimite pe email
+                        </button>
+                    }
                     <a asp-action="History" asp-route-id="@Model.ProfileId"
                        class="btn btn-outline-secondary" data-testid="btn-back-history">
                         &larr; Înapoi la arhivă
                     </a>
                 </div>
             </div>
+
+            @if (TempData["SuccessMessage"] != null)
+            {
+                <div class="alert alert-success" data-testid="compare-success">
+                    @TempData["SuccessMessage"]
+                </div>
+            }
+            @if (TempData["ErrorMessage"] != null)
+            {
+                <div class="alert alert-danger" data-testid="compare-error">
+                    @TempData["ErrorMessage"]
+                </div>
+            }
 
             @if (Model.CreditConsumed)
             {
@@ -231,3 +257,34 @@
         </div>
     </div>
 </div>
+
+@if (Model.Columns.Count >= CompareInterpretationsViewModel.MinSelections)
+{
+    @* Hidden form used to POST to CompareExport. Anti-forgery token is
+       auto-injected by the form tag helper. Mirrors Evolution's pattern. *@
+    <form id="compareExportForm" asp-action="CompareExport" method="post" style="display:none;">
+        <input type="hidden" name="ProfileId" value="@Model.ProfileId" />
+        @foreach (var c in Model.Columns)
+        {
+            <input type="hidden" name="Ids" value="@c.HistoryId" />
+        }
+        <input type="hidden" name="Mode" id="compareExportMode" value="download" />
+    </form>
+
+    <script>
+        (function () {
+            var form    = document.getElementById('compareExportForm');
+            var modeEl  = document.getElementById('compareExportMode');
+            var btnDl   = document.getElementById('btnCompareExportDownload');
+            var btnMail = document.getElementById('btnCompareExportEmail');
+
+            function submitAs(mode) {
+                if (!form || !modeEl) return;
+                modeEl.value = mode;
+                form.submit();
+            }
+            if (btnDl)   btnDl.addEventListener('click',   function () { submitAs('download'); });
+            if (btnMail) btnMail.addEventListener('click', function () { submitAs('email'); });
+        })();
+    </script>
+}
