@@ -122,11 +122,43 @@
             <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-body">
-                        <h6 class="fw-bold text-muted small mb-3">LOTURI</h6>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="fw-bold text-muted small mb-0">LOTURI</h6>
+                        </div>
 
-                        @* Rândul 1 — anul curent *@
-                        <div class="small text-muted mb-1" data-testid="cam-batches-year-label">
-                            Loturi/@Model.CurrentYear
+                        @* Rândul 1 — anul selectat (dropdown stânga-sus a rândului) *@
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <div class="small text-muted" data-testid="cam-batches-year-label">
+                                Loturi/@Model.CurrentYear
+                            </div>
+                            @{
+                                var localUrl = Url.Action("Index", new { area = "CAM" }) ?? "/CAM/Dashboard";
+                            }
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle py-0 px-2"
+                                        type="button"
+                                        id="yearDropdownBtn"
+                                        data-bs-toggle="dropdown"
+                                        aria-expanded="false"
+                                        data-testid="cam-year-dropdown-btn">
+                                    @Model.SelectedYear
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end"
+                                    aria-labelledby="yearDropdownBtn"
+                                    data-testid="cam-year-dropdown-menu">
+                                    @foreach (var y in Model.AvailableYears)
+                                    {
+                                        var url = $"{localUrl}?year={y}&month={Model.SelectedMonth}";
+                                        var active = y == Model.SelectedYear ? "active" : "";
+                                        <li>
+                                            <a class="dropdown-item @active" href="@url"
+                                               data-testid="cam-year-option-@y">
+                                                @y
+                                            </a>
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
                         </div>
                         <div class="d-flex flex-wrap gap-3 mb-3" data-testid="cam-batches-year-row">
                             <div>
@@ -153,9 +185,46 @@
 
                         <hr class="my-2" />
 
-                        @* Rândul 2 — luna curentă *@
-                        <div class="small text-muted mb-1" data-testid="cam-batches-month-label">
-                            Loturi/@Model.CurrentMonthLabel
+                        @* Rândul 2 — luna selectată din anul selectat *@
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <div class="small text-muted" data-testid="cam-batches-month-label">
+                                Loturi/@Model.CurrentMonthLabel
+                            </div>
+                            @{
+                                var ro = new System.Globalization.CultureInfo("ro-RO");
+                                string MonthLabel(int m)
+                                {
+                                    var n = ro.DateTimeFormat.GetMonthName(m);
+                                    if (n.Length == 0) return m.ToString();
+                                    return char.ToUpper(n[0], ro) + n.Substring(1);
+                                }
+                            }
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle py-0 px-2"
+                                        type="button"
+                                        id="monthDropdownBtn"
+                                        data-bs-toggle="dropdown"
+                                        aria-expanded="false"
+                                        data-testid="cam-month-dropdown-btn">
+                                    @MonthLabel(Model.SelectedMonth)
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end"
+                                    aria-labelledby="monthDropdownBtn"
+                                    style="max-height: 320px; overflow-y: auto;"
+                                    data-testid="cam-month-dropdown-menu">
+                                    @for (int m = 1; m <= 12; m++)
+                                    {
+                                        var url = $"{localUrl}?year={Model.SelectedYear}&month={m}";
+                                        var active = m == Model.SelectedMonth ? "active" : "";
+                                        <li>
+                                            <a class="dropdown-item @active" href="@url"
+                                               data-testid="cam-month-option-@m">
+                                                @MonthLabel(m)
+                                            </a>
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
                         </div>
                         <div class="d-flex flex-wrap gap-3" data-testid="cam-batches-month-row">
                             <div>
@@ -210,7 +279,7 @@
            ============================================================ *@
         <div class="card mb-4">
             <div class="card-header bg-white d-flex align-items-center">
-                <span class="fw-bold">Istoric loturi (ultimele 20)</span>
+                <span class="fw-bold">Istoric loturi (ultimele 10)</span>
                 <span class="badge bg-secondary ms-2">@Model.RecentBatches.Count</span>
             </div>
             <div class="card-body p-0">

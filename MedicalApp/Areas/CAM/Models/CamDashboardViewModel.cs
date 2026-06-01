@@ -36,6 +36,12 @@ namespace MedicalApp.Areas.CAM.Models
         public int CurrentYear { get; set; }
         /// <summary>Eticheta lunii curente, ex. "Mai-2026". Folosit pentru titlul rândului 2.</summary>
         public string CurrentMonthLabel { get; set; } = string.Empty;
+        /// <summary>Anul selectat curent în dropdown (default = anul curent UTC).</summary>
+        public int SelectedYear { get; set; }
+        /// <summary>Luna selectată în dropdown 1..12 (default = luna curentă UTC).</summary>
+        public int SelectedMonth { get; set; }
+        /// <summary>Anii care apar în dropdown — extrași din DB, desc. Mereu include și anul curent.</summary>
+        public List<int> AvailableYears { get; set; } = new();
         /// <summary>Statistici loturi pentru anul curent.</summary>
         public BatchPeriodStats YearStats { get; set; } = new();
         /// <summary>Statistici loturi pentru luna curentă.</summary>

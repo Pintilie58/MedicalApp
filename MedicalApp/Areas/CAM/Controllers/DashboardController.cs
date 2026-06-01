@@ -34,7 +34,7 @@ namespace MedicalApp.Areas.CAM.Controllers
         private string? CurrentEmail => HttpContext.Session.GetString("UserEmail");
 
         [HttpGet]
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(int? year, int? month)
         {
             if (string.IsNullOrEmpty(CurrentEmail))
                 return RedirectToAction("Index", "Home", new { area = "" });
@@ -78,7 +78,7 @@ namespace MedicalApp.Areas.CAM.Controllers
                 ErrorsFolder = _files.GetErrorsFolder(clinic)
             };
 
-            await PopulateStatsAsync(vm, clinic.Id);
+            await PopulateStatsAsync(vm, clinic.Id, year, month);
             return View(vm);
         }
 
@@ -87,7 +87,8 @@ namespace MedicalApp.Areas.CAM.Controllers
         /// the recent-batches table for the CAM dashboard. All EF queries run
         /// AsNoTracking to keep this read-only path fast.
         /// </summary>
-        private async Task PopulateStatsAsync(Models.CamDashboardViewModel vm, int clinicId)
+        private async Task PopulateStatsAsync(Models.CamDashboardViewModel vm, int clinicId,
+            int? selectedYear, int? selectedMonth)
         {
             // ----- KPI lifetime (sume cumulate pe fișiere — păstrate pentru cardurile sus) -----
             var lifetimeStats = await _db.ClinicBatchRuns.AsNoTracking()
@@ -110,27 +111,57 @@ namespace MedicalApp.Areas.CAM.Controllers
                 vm.LifetimeNotSends = lifetimeStats.NotSends;
             }
 
-            // ----- Loturi pe anul curent / luna curentă (UTC) -----
+            // ----- Available years (descending) — for the year dropdown.
+            //       Query StartedAt years that actually have batches. -----
+            var availableYears = await _db.ClinicBatchRuns.AsNoTracking()
+                .Where(b => b.ClinicId == clinicId)
+                .Select(b => b.StartedAt.Year)
+                .Distinct()
+                .ToListAsync();
+            availableYears = availableYears.OrderByDescending(y => y).ToList();
+
             var nowUtc = DateTime.UtcNow;
-            var startOfYear = new DateTime(nowUtc.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-            var startOfMonth = new DateTime(nowUtc.Year, nowUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+            // Ensure current year is always pickable even before any batch is launched.
+            if (!availableYears.Contains(nowUtc.Year))
+                availableYears.Insert(0, nowUtc.Year);
+            vm.AvailableYears = availableYears;
 
-            vm.YearStats = await ComputeBatchPeriodAsync(clinicId, startOfYear);
-            vm.MonthStats = await ComputeBatchPeriodAsync(clinicId, startOfMonth);
+            // ----- Resolve selected year/month (defaults = now) -----
+            int year = selectedYear ?? nowUtc.Year;
+            // Clamp month to 1..12; default to current month when no year override is given,
+            // otherwise default to month=1 when navigating to a past year.
+            int month;
+            if (selectedMonth.HasValue && selectedMonth.Value >= 1 && selectedMonth.Value <= 12)
+                month = selectedMonth.Value;
+            else if (selectedYear.HasValue && selectedYear.Value != nowUtc.Year)
+                month = 1;
+            else
+                month = nowUtc.Month;
 
-            vm.CurrentYear = nowUtc.Year;
-            // Format "Mai-2026" — ro-RO month name, capitalized, then dash + year.
+            // ----- Stats for the selected year (1 Jan .. 31 Dec inclusive) -----
+            var startOfYear = new DateTime(year, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            var endOfYear = startOfYear.AddYears(1);
+            vm.YearStats = await ComputeBatchPeriodRangeAsync(clinicId, startOfYear, endOfYear);
+
+            // ----- Stats for the selected month (1st .. last day inclusive) -----
+            var startOfMonth = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
+            var endOfMonth = startOfMonth.AddMonths(1);
+            vm.MonthStats = await ComputeBatchPeriodRangeAsync(clinicId, startOfMonth, endOfMonth);
+
+            vm.SelectedYear = year;
+            vm.SelectedMonth = month;
+            vm.CurrentYear = year;
             var ro = new System.Globalization.CultureInfo("ro-RO");
-            var monthName = ro.DateTimeFormat.GetMonthName(nowUtc.Month);
+            var monthName = ro.DateTimeFormat.GetMonthName(month);
             if (monthName.Length > 0)
                 monthName = char.ToUpper(monthName[0], ro) + monthName.Substring(1);
-            vm.CurrentMonthLabel = $"{monthName}-{nowUtc.Year}";
+            vm.CurrentMonthLabel = $"{monthName}-{year}";
 
-            // ----- Ultimele 20 loturi -----
+            // ----- Ultimele 10 loturi -----
             var recent = await _db.ClinicBatchRuns.AsNoTracking()
                 .Where(b => b.ClinicId == clinicId)
                 .OrderByDescending(b => b.StartedAt)
-                .Take(20)
+                .Take(10)
                 .ToListAsync();
 
             vm.RecentBatches = recent
@@ -150,15 +181,17 @@ namespace MedicalApp.Areas.CAM.Controllers
         }
 
         /// <summary>
-        /// Computes batch counts (Total/Completed/Failed/Cancelled) and
-        /// distinct patient count for a given period start (UTC, inclusive).
-        /// Period end is implicit = "now" (latest batches always included).
+        /// Computes batch counts + distinct patients for an explicit
+        /// [startUtc, endUtc) range. Replaces the older open-ended variant
+        /// so we can scope a stat to one specific year or month.
         /// </summary>
-        private async Task<Models.CamDashboardViewModel.BatchPeriodStats> ComputeBatchPeriodAsync(
-            int clinicId, DateTime startUtc)
+        private async Task<Models.CamDashboardViewModel.BatchPeriodStats> ComputeBatchPeriodRangeAsync(
+            int clinicId, DateTime startUtc, DateTime endUtc)
         {
             var batchAgg = await _db.ClinicBatchRuns.AsNoTracking()
-                .Where(b => b.ClinicId == clinicId && b.StartedAt >= startUtc)
+                .Where(b => b.ClinicId == clinicId
+                            && b.StartedAt >= startUtc
+                            && b.StartedAt < endUtc)
                 .GroupBy(_ => 1)
                 .Select(g => new
                 {
@@ -169,10 +202,10 @@ namespace MedicalApp.Areas.CAM.Controllers
                 })
                 .FirstOrDefaultAsync();
 
-            // Distinct patients with at least one analysis in this period.
-            // ProcessedAt is the safe key (always set); SamplingDate is optional.
             var patients = await _db.ClinicAnalyses.AsNoTracking()
-                .Where(a => a.ClinicId == clinicId && a.ProcessedAt >= startUtc)
+                .Where(a => a.ClinicId == clinicId
+                            && a.ProcessedAt >= startUtc
+                            && a.ProcessedAt < endUtc)
                 .Select(a => a.PatientId)
                 .Distinct()
                 .CountAsync();
