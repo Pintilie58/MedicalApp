@@ -1,3 +1,4 @@
+using System.Net.Http;
 using System.Text.Json;
 using MedicalApp.Data;
 using MedicalApp.Models;
@@ -558,6 +559,28 @@ namespace MedicalApp.Services
         ///   * Progressive backoff: 5s, 15s, 30s, 60s.
         /// Returns null when all attempts are exhausted; never throws.
         /// </summary>
+        /// <summary>
+        /// Robust Gemini call with 3-tier fallback + transient retry.
+        ///
+        /// Attempts (max 7 total):
+        ///   • Tries 1-2 : primary model       (Flash)            → "motor MedicalApp"
+        ///   • Tries 3-5 : first  fallback     (Pro)              → "motor MedicalApp+"
+        ///   • Tries 6-7 : second fallback     (next-gen Pro)     → "motor MedicalApp Plus"
+        ///
+        /// Treated as TRANSIENT (eligible for retry + tier promotion):
+        ///   • GeminiTransientException (HTTP 429/503/5xx)
+        ///   • HttpClient.Timeout → TaskCanceledException / OperationCanceledException
+        ///     when the user has NOT requested cancellation
+        ///   • HttpRequestException with "timeout" in the message
+        ///
+        /// MaxOutputTokens truncation triggers an IMMEDIATE tier promotion
+        /// without consuming a retry attempt (output-size issue, not a
+        /// transient upstream problem).
+        ///
+        /// All operator-facing log lines mask the underlying model name to
+        /// "motor MedicalApp" / "motor MedicalApp+" / "motor MedicalApp Plus"
+        /// so the public log doesn't disclose which AI engine is in use.
+        /// </summary>
         private async Task<InterpretationResult?> CallGeminiWithRetryAsync(
             IMedicalInterpretationProvider gemini,
             byte[] pdfBytes,
@@ -565,74 +588,175 @@ namespace MedicalApp.Services
             CamBatchProgress progress,
             CancellationToken ct)
         {
-            const int maxAttempts = 5;
-            const int fallbackThreshold = 2;
-            // Pull fallback settings via the registered options inside the runner's scope.
-            // We do this lazily here (instead of constructor-inject) to keep the service
-            // constructor signature stable.
+            const int maxAttempts = 7;
+            const int firstFallbackThreshold = 2;   // after attempt 2 → switch to Pro
+            const int secondFallbackThreshold = 5;  // after attempt 5 → switch to next-gen Pro
+
             using var settingsScope = _scopeFactory.CreateScope();
             var settings = settingsScope.ServiceProvider
                 .GetRequiredService<IOptions<GeminiSettings>>().Value;
 
-            int transient = 0;
-            string? modelOverride = null;
+            string? modelOverride = null;     // null = use primary (Flash)
+            int currentTier = 1;              // 1 = primary, 2 = first fallback, 3 = second fallback
+
+            // Resolve display labels once (operator-facing, anonymized).
+            string LabelFor(int tier) => tier switch
+            {
+                2 => "motor MedicalApp+",
+                3 => "motor MedicalApp Plus",
+                _ => "motor MedicalApp"
+            };
+
+            int attempts = 0;
             Exception? lastEx = null;
 
-            while (transient < maxAttempts)
+            while (attempts < maxAttempts)
             {
+                attempts++;
                 try
                 {
                     using var ms = new MemoryStream(pdfBytes);
-                    var resp = await gemini.InterpretPdfAsync(ms, fileName, "ro", patientContext: null, ct: ct, modelOverride: modelOverride);
+                    var resp = await gemini.InterpretPdfAsync(
+                        ms, fileName, "ro",
+                        patientContext: null,
+                        ct: ct,
+                        modelOverride: modelOverride);
                     return resp.Result;
                 }
+                // ---------- TRANSIENT: explicit upstream error (429/503/5xx) ----------
                 catch (GeminiTransientException ex)
                 {
-                    transient++;
                     lastEx = ex;
-                    if (modelOverride == null
-                        && transient >= fallbackThreshold
-                        && !string.IsNullOrWhiteSpace(settings.FallbackModel)
-                        && !string.Equals(settings.FallbackModel, settings.Model, StringComparison.OrdinalIgnoreCase))
-                    {
-                        modelOverride = settings.FallbackModel;
-                        progress.Log($"   ↪ Comut pe modelul fallback: {modelOverride}");
-                    }
-                    if (transient >= maxAttempts) break;
+                    if (TryPromoteTier(attempts, ref currentTier, ref modelOverride, settings, progress))
+                        continue; // promoted — try again immediately without delay
+                    if (attempts >= maxAttempts) break;
 
-                    int[] delaysMs = { 5_000, 15_000, 30_000, 60_000 };
-                    int wait = delaysMs[Math.Min(transient - 1, delaysMs.Length - 1)];
-                    progress.Log($"   ⏳ Gemini suprasolicitat ({ex.HttpStatusCode}), reîncerc în {wait / 1000}s (try {transient}/{maxAttempts})...");
+                    int wait = BackoffMs(attempts);
+                    progress.Log($"   ⏳ {LabelFor(currentTier)} suprasolicitat ({ex.HttpStatusCode}), " +
+                                 $"reîncerc în {wait / 1000}s (try {attempts}/{maxAttempts})…");
                     try { await Task.Delay(wait, ct); }
                     catch (OperationCanceledException) { return null; }
                 }
+                // ---------- TRANSIENT: HttpClient timeout (5-10 min per call) ----------
+                // HttpClient.Timeout produces TaskCanceledException / OperationCanceledException.
+                // We MUST distinguish it from a real user-initiated cancellation:
+                // ct.IsCancellationRequested == true → operator hit "Anulează", honor it.
+                catch (Exception ex) when (
+                    (ex is TaskCanceledException || ex is OperationCanceledException)
+                    && !ct.IsCancellationRequested)
+                {
+                    lastEx = ex;
+                    progress.Log($"   ⌛ {LabelFor(currentTier)} a depășit timpul de răspuns " +
+                                 $"(try {attempts}/{maxAttempts}).");
+                    if (TryPromoteTier(attempts, ref currentTier, ref modelOverride, settings, progress))
+                        continue;
+                    if (attempts >= maxAttempts) break;
+
+                    int wait = BackoffMs(attempts);
+                    progress.Log($"   ⏳ Reîncerc în {wait / 1000}s…");
+                    try { await Task.Delay(wait, ct); }
+                    catch (OperationCanceledException) { return null; }
+                }
+                // ---------- TRANSIENT: network-level timeout via HttpRequestException ----------
+                catch (HttpRequestException ex) when (
+                    ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("timed out", StringComparison.OrdinalIgnoreCase))
+                {
+                    lastEx = ex;
+                    progress.Log($"   ⌛ {LabelFor(currentTier)} răspuns întârziat de rețea " +
+                                 $"(try {attempts}/{maxAttempts}).");
+                    if (TryPromoteTier(attempts, ref currentTier, ref modelOverride, settings, progress))
+                        continue;
+                    if (attempts >= maxAttempts) break;
+
+                    int wait = BackoffMs(attempts);
+                    progress.Log($"   ⏳ Reîncerc în {wait / 1000}s…");
+                    try { await Task.Delay(wait, ct); }
+                    catch (OperationCanceledException) { return null; }
+                }
+                // ---------- IMMEDIATE TIER PROMOTION: MaxOutputTokens truncation ----------
+                // Not a transient issue — output is too big for the current model.
+                // Promote to next tier and DO NOT consume a retry attempt.
                 catch (Exception ex) when (
                     ex is InvalidOperationException
                     && ex.Message.Contains("MaxOutputTokens", StringComparison.OrdinalIgnoreCase)
-                    && modelOverride == null
-                    && !string.IsNullOrWhiteSpace(settings.FallbackModel)
-                    && !string.Equals(settings.FallbackModel, settings.Model, StringComparison.OrdinalIgnoreCase))
+                    && currentTier < 3)
                 {
-                    // Flash a truncated răspunsul la MaxOutputTokens. Pro suportă output
-                    // mai mare și e mai puțin chitros pe parametri (Examen sumar urină
-                    // + sediment = 20+ parametri = ~30k+ tokens output). Comut imediat
-                    // pe Pro fără să consum din quota celorlalte retries — ăsta NU e
-                    // un error tranzient ci o decizie de model.
-                    modelOverride = settings.FallbackModel;
-                    progress.Log($"   ⚠ Răspuns trunchiat de limita de tokens. Comut pe {modelOverride} (output mai mare).");
                     lastEx = ex;
-                    // NU incrementăm `transient` — comutarea pe Pro NU consumă din retry budget.
+                    string? nextModel = currentTier == 1 ? settings.FallbackModel : settings.SecondaryFallbackModel;
+                    if (string.IsNullOrWhiteSpace(nextModel)
+                        || string.Equals(nextModel, modelOverride ?? settings.Model, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // No next tier configured — fall through to non-transient handling below.
+                        progress.Log($"   ⚠ Răspuns trunchiat și nu există alt motor configurat.");
+                        return null;
+                    }
+                    modelOverride = nextModel;
+                    currentTier++;
+                    attempts--; // refund this attempt — promotion is "free"
+                    progress.Log($"   ↪ Răspuns trunchiat. Comut pe {LabelFor(currentTier)} (output mai mare).");
                 }
+                // ---------- USER CANCELLATION: honor immediately ----------
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    progress.Log("   ✘ Anulat de operator.");
+                    return null;
+                }
+                // ---------- NON-TRANSIENT: fail fast ----------
                 catch (Exception ex)
                 {
-                    // Non-transient — fail fast.
-                    progress.Log("   ✘ Gemini a eșuat (non-transient): " + ex.Message);
+                    progress.Log($"   ✘ {LabelFor(currentTier)} a eșuat (non-transient): {ex.Message}");
                     return null;
                 }
             }
 
-            progress.Log("   ✘ Gemini a eșuat după toate încercările (inclusiv fallback): " + (lastEx?.Message ?? "?"));
+            progress.Log($"   ✘ Toate încercările au eșuat (max {maxAttempts}, ultima cu {LabelFor(currentTier)}): " +
+                         (lastEx?.Message ?? "?"));
             return null;
+        }
+
+        /// <summary>
+        /// Promotes the active model tier when the attempt count crosses a
+        /// threshold (Flash → Pro after attempt 2, Pro → next-gen after
+        /// attempt 5). Returns <c>true</c> if a promotion happened (the
+        /// caller should immediately re-try without sleeping).
+        /// </summary>
+        private static bool TryPromoteTier(
+            int attempts,
+            ref int currentTier, ref string? modelOverride,
+            GeminiSettings settings, CamBatchProgress progress)
+        {
+            // 1 → 2 : after attempt 2, switch to FallbackModel (Pro)
+            if (currentTier == 1
+                && attempts >= 2
+                && !string.IsNullOrWhiteSpace(settings.FallbackModel)
+                && !string.Equals(settings.FallbackModel, settings.Model, StringComparison.OrdinalIgnoreCase))
+            {
+                modelOverride = settings.FallbackModel;
+                currentTier = 2;
+                progress.Log($"   ↪ Comut pe motor MedicalApp+.");
+                return true;
+            }
+            // 2 → 3 : after attempt 5, switch to SecondaryFallbackModel (next-gen Pro)
+            if (currentTier == 2
+                && attempts >= 5
+                && !string.IsNullOrWhiteSpace(settings.SecondaryFallbackModel)
+                && !string.Equals(settings.SecondaryFallbackModel, settings.FallbackModel, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(settings.SecondaryFallbackModel, settings.Model, StringComparison.OrdinalIgnoreCase))
+            {
+                modelOverride = settings.SecondaryFallbackModel;
+                currentTier = 3;
+                progress.Log($"   ↪ Comut pe motor MedicalApp Plus (plasă de siguranță).");
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Exponential-ish backoff: 5s, 15s, 30s, 60s, 60s, 60s.</summary>
+        private static int BackoffMs(int attempt)
+        {
+            int[] delays = { 5_000, 15_000, 30_000, 60_000, 60_000, 60_000 };
+            return delays[Math.Min(attempt - 1, delays.Length - 1)];
         }
 
         private static DateTime? TryParseDate(string? raw)

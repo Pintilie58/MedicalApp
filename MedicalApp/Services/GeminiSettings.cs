@@ -31,8 +31,17 @@ namespace MedicalApp.Services
         /// </summary>
         public string? FallbackModel { get; set; } = "gemini-2.5-pro";
 
+        /// <summary>
+        /// SECOND-tier fallback used only when both the primary AND the first
+        /// fallback have exhausted their retry budgets. This is a "safety net"
+        /// (e.g. <c>gemini-3-pro-preview</c>): it should very rarely be
+        /// reached, but keeps the batch moving instead of marking the file
+        /// as NotSends. Set to <c>null</c> or empty to disable.
+        /// </summary>
+        public string? SecondaryFallbackModel { get; set; } = "gemini-3-pro-preview";
+
         public int MaxOutputTokens { get; set; } = 32000;
         public float Temperature { get; set; } = 0.0f;
-        public int TimeoutSeconds { get; set; } = 300;
+        public int TimeoutSeconds { get; set; } = 600;
     }
 }
