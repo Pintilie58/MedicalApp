@@ -25,5 +25,16 @@ namespace MedicalApp.Services
         /// don't touch the disk directly.
         /// </summary>
         public string FilesRoot { get; set; } = @"C:\MedicalApp_files";
+
+        /// <summary>
+        /// Default retention (in days) for files in <c>Sends</c>, <c>Sumar</c>
+        /// and <c>Errors</c>. Files older than this are eligible for the
+        /// automatic cleanup that runs before every "Lansează lot".
+        /// <c>Original</c> is NEVER touched (operator-controlled).
+        /// Files from the LAST completed batch are also protected regardless
+        /// of age. Default = 30 days. Operator can override per-cleanup from
+        /// the dashboard.
+        /// </summary>
+        public int RetentionDays { get; set; } = 30;
     }
 }

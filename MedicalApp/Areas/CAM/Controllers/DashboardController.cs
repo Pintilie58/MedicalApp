@@ -17,17 +17,20 @@ namespace MedicalApp.Areas.CAM.Controllers
         private readonly AppDbContext _db;
         private readonly ICamFileStore _files;
         private readonly CamBatchSumarPdfGenerator _sumarPdfGen;
+        private readonly CamRetentionService _retention;
         private readonly ILogger<DashboardController> _logger;
 
         public DashboardController(
             AppDbContext db,
             ICamFileStore files,
             CamBatchSumarPdfGenerator sumarPdfGen,
+            CamRetentionService retention,
             ILogger<DashboardController> logger)
         {
             _db = db;
             _files = files;
             _sumarPdfGen = sumarPdfGen;
+            _retention = retention;
             _logger = logger;
         }
 
@@ -79,7 +82,73 @@ namespace MedicalApp.Areas.CAM.Controllers
             };
 
             await PopulateStatsAsync(vm, clinic.Id, year, month);
+
+            // Disk usage snapshot — read-only, runs after stats so this never
+            // breaks the dashboard if the disk is unreachable.
+            try
+            {
+                var usage = _retention.MeasureUsage(clinic);
+                vm.DiskBytesTotal = usage.BytesTotal;
+                vm.DiskFilesTotal = usage.FilesTotal;
+                vm.DiskBytesSends = usage.BytesSends;
+                vm.DiskBytesSumar = usage.BytesSumar;
+                vm.DiskBytesErrors = usage.BytesErrors;
+                vm.DiskBytesOriginal = usage.BytesOriginal;
+                vm.RetentionDaysDefault =
+                    HttpContext.RequestServices.GetService<Microsoft.Extensions.Options.IOptions<CamSettings>>()?
+                        .Value.RetentionDays ?? 30;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Disk usage measurement failed for clinic {Id}", clinic.Id);
+            }
+
             return View(vm);
+        }
+
+        // -------------------------------------------------------------
+        // Manual cleanup — operator-initiated retention sweep from the
+        // dashboard "Curăță fișiere vechi" button. Auto-cleanup also runs
+        // automatically before every "Lansează lot" in BatchController.
+        // -------------------------------------------------------------
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Cleanup(int? days)
+        {
+            if (string.IsNullOrEmpty(CurrentEmail))
+                return RedirectToAction("Index", "Home", new { area = "" });
+
+            var clinic = await _db.Clinics
+                .FirstOrDefaultAsync(c => c.UserEmail == CurrentEmail);
+            if (clinic == null)
+                return RedirectToAction(nameof(Index));
+
+            try
+            {
+                var result = await _retention.CleanupAsync(clinic, days);
+                if (result.TotalDeleted == 0)
+                {
+                    TempData["SuccessMessage"] =
+                        $"Niciun fișier nu era mai vechi de {result.RetentionDaysUsed} zile " +
+                        $"(protejate de ultimul lot: {result.FilesProtectedByLastBatch}).";
+                }
+                else
+                {
+                    TempData["SuccessMessage"] =
+                        $"Au fost șterse {result.TotalDeleted} fișiere ({result.HumanSize} eliberat) " +
+                        $"— retenție {result.RetentionDaysUsed} zile. " +
+                        $"Sends: {result.FilesDeletedSends} · Sumar: {result.FilesDeletedSumar} · " +
+                        $"Errors: {result.FilesDeletedErrors}. " +
+                        $"Protejate de ultimul lot: {result.FilesProtectedByLastBatch}.";
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Manual cleanup failed for clinic {Email}", CurrentEmail);
+                TempData["ErrorMessage"] = "Curățarea a eșuat: " + ex.Message;
+            }
+
+            return RedirectToAction(nameof(Index));
         }
 
         /// <summary>

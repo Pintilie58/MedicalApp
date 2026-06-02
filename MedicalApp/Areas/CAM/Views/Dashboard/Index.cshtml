@@ -255,7 +255,7 @@
                 <div class="card h-100">
                     <div class="card-body">
                         <h6 class="fw-bold text-muted small mb-2">ACȚIUNI RAPIDE</h6>
-                        <div class="d-flex flex-wrap gap-2">
+                        <div class="d-flex flex-wrap gap-2 mb-3">
                             <a asp-controller="Batch" asp-action="Start" asp-area="CAM"
                                class="btn btn-primary fw-bold" data-testid="cam-go-batch">
                                 Lansează lot
@@ -268,6 +268,56 @@
                                class="btn btn-outline-secondary" data-testid="cam-go-checkpdfs">
                                 Verifică PDF-uri
                             </a>
+                        </div>
+
+                        <hr class="my-2" />
+
+                        @* ----------- Disk usage + Cleanup ----------- *@
+                        @{
+                            var warn = Model.DiskWarnLevel;
+                            var warnClass = warn == 2 ? "text-danger"
+                                          : warn == 1 ? "text-warning"
+                                          : "text-muted";
+                        }
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <h6 class="fw-bold text-muted small mb-0">SPAȚIU FOLOSIT</h6>
+                            <span class="small @warnClass fw-bold" data-testid="cam-disk-summary">
+                                @Model.DiskHumanTotal · @Model.DiskFilesTotal fișiere
+                            </span>
+                        </div>
+                        @if (warn > 0)
+                        {
+                            <div class="alert @(warn == 2 ? "alert-danger" : "alert-warning") py-1 px-2 small mb-2"
+                                 data-testid="cam-disk-warning">
+                                @if (warn == 2)
+                                {
+                                    <span>Spațiul folosit e mare. Recomandăm curățarea fișierelor vechi.</span>
+                                }
+                                else
+                                {
+                                    <span>Spațiul folosit crește. Verifică periodic.</span>
+                                }
+                            </div>
+                        }
+                        <form asp-action="Cleanup" method="post" class="d-flex gap-2 align-items-center js-confirm-form"
+                              data-confirm-title="Curățare fișiere vechi"
+                              data-confirm-body="Vor fi șterse PDF-urile din Sends/Sumar/Errors mai vechi decât numărul de zile specificat. Folderul Original NU este afectat. Fișierele din ultimul lot complet sunt protejate. Continui?"
+                              data-confirm-ok-label="Da, curăță acum"
+                              data-confirm-ok-class="btn-danger">
+                            @Html.AntiForgeryToken()
+                            <label for="cleanupDays" class="small text-muted mb-0">Mai vechi de</label>
+                            <input type="number" class="form-control form-control-sm" id="cleanupDays"
+                                   name="days" value="@Model.RetentionDaysDefault" min="1" max="365"
+                                   style="width: 80px;" data-testid="cam-cleanup-days" />
+                            <span class="small text-muted">zile</span>
+                            <button type="submit" class="btn btn-sm btn-outline-danger ms-auto"
+                                    data-testid="cam-cleanup-btn">
+                                &#129529; Curăță acum
+                            </button>
+                        </form>
+                        <div class="small text-muted mt-2">
+                            Curățarea rulează și automat înainte de fiecare lot.
+                            <span class="text-secondary">Original nu este atins niciodată.</span>
                         </div>
                     </div>
                 </div>
@@ -385,6 +435,8 @@
         </p>
     </div>
 </div>
+
+<partial name="_ConfirmDialog" />
 
 @section Scripts {
 @* Dashboard nu mai folosește Chart.js — agregările pe an/lună sunt afișate direct ca numere. *@

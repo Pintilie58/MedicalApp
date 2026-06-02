@@ -42,6 +42,39 @@ namespace MedicalApp.Areas.CAM.Models
         public int SelectedMonth { get; set; }
         /// <summary>Anii care apar în dropdown — extrași din DB, desc. Mereu include și anul curent.</summary>
         public List<int> AvailableYears { get; set; } = new();
+
+        // ----------------- Disk usage (Sends/Sumar/Errors/Original) -----------------
+        public long DiskBytesTotal { get; set; }
+        public int DiskFilesTotal { get; set; }
+        public long DiskBytesSends { get; set; }
+        public long DiskBytesSumar { get; set; }
+        public long DiskBytesErrors { get; set; }
+        public long DiskBytesOriginal { get; set; }
+        public int RetentionDaysDefault { get; set; }
+
+        public string DiskHumanTotal
+        {
+            get
+            {
+                double s = DiskBytesTotal;
+                string[] units = { "B", "KB", "MB", "GB" };
+                int i = 0;
+                while (s >= 1024 && i < units.Length - 1) { s /= 1024; i++; }
+                return $"{s:0.##} {units[i]}";
+            }
+        }
+
+        /// <summary>UI alert level: 0=ok, 1=warn, 2=critical.</summary>
+        public int DiskWarnLevel
+        {
+            get
+            {
+                // 500 MB or 1000 files → yellow; 2 GB or 5000 files → red.
+                if (DiskBytesTotal > 2L * 1024 * 1024 * 1024 || DiskFilesTotal > 5000) return 2;
+                if (DiskBytesTotal > 500L * 1024 * 1024 || DiskFilesTotal > 1000) return 1;
+                return 0;
+            }
+        }
         /// <summary>Statistici loturi pentru anul curent.</summary>
         public BatchPeriodStats YearStats { get; set; } = new();
         /// <summary>Statistici loturi pentru luna curentă.</summary>

@@ -80,6 +80,7 @@ builder.Services.AddSingleton<ICamFileStore, LocalDiskCamFileStore>();
 builder.Services.AddScoped<CamPdfMetadataExtractor>();
 builder.Services.AddSingleton<CamBatchRegistry>();
 builder.Services.AddScoped<CamBatchService>();
+builder.Services.AddScoped<CamRetentionService>();
 builder.Services.AddScoped<CamComparePdfGenerator>();
 builder.Services.AddScoped<ProfileComparePdfGenerator>();
 builder.Services.AddScoped<CamBatchSumarPdfGenerator>();

@@ -17,6 +17,7 @@ namespace MedicalApp.Areas.CAM.Controllers
         private readonly ICamFileStore _files;
         private readonly CamBatchRegistry _registry;
         private readonly CamBatchService _runner;
+        private readonly CamRetentionService _retention;
         private readonly ILogger<BatchController> _logger;
 
         public BatchController(
@@ -24,12 +25,14 @@ namespace MedicalApp.Areas.CAM.Controllers
             ICamFileStore files,
             CamBatchRegistry registry,
             CamBatchService runner,
+            CamRetentionService retention,
             ILogger<BatchController> logger)
         {
             _db = db;
             _files = files;
             _registry = registry;
             _runner = runner;
+            _retention = retention;
             _logger = logger;
         }
 
@@ -99,6 +102,26 @@ namespace MedicalApp.Areas.CAM.Controllers
             {
                 TempData["ErrorMessage"] = "Există deja un lot în execuție pentru această clinică.";
                 return RedirectToAction(nameof(Start));
+            }
+
+            // Auto-cleanup of Sends/Sumar/Errors before launching the batch.
+            // Original is never touched. Files from the LAST completed batch
+            // are protected regardless of age. Never throws.
+            try
+            {
+                var cleanup = await _retention.CleanupAsync(clinic);
+                if (cleanup.TotalDeleted > 0)
+                {
+                    _logger.LogInformation(
+                        "Auto-cleanup before batch start for clinic {Email}: {Total} files deleted, {Bytes} freed.",
+                        clinic.UserEmail, cleanup.TotalDeleted, cleanup.HumanSize);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Never let cleanup failures block a batch launch — log and move on.
+                _logger.LogWarning(ex, "Auto-cleanup failed for clinic {Email}; continuing with batch start.",
+                    clinic.UserEmail);
             }
 
             // Create the ClinicBatchRun row up-front so we have a stable id
