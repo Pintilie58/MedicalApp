@@ -589,8 +589,9 @@ namespace MedicalApp.Services
             CancellationToken ct)
         {
             const int maxAttempts = 7;
-            const int firstFallbackThreshold = 2;   // after attempt 2 → switch to Pro
-            const int secondFallbackThreshold = 5;  // after attempt 5 → switch to next-gen Pro
+            // Note: tier promotion thresholds (Flash→Pro at attempt 2,
+            // Pro→Plus at attempt 5) are encoded directly in TryPromoteTier
+            // below — kept as magic numbers there for locality.
 
             using var settingsScope = _scopeFactory.CreateScope();
             var settings = settingsScope.ServiceProvider
