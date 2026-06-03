@@ -83,6 +83,56 @@ namespace MedicalApp.Services
         }
 
         /// <summary>
+        /// Bidirectionally syncs each User.IsAdmin flag with the current
+        /// AdminSettings.Emails list:
+        ///   - Promotes (IsAdmin = true) every user whose email is configured.
+        ///   - Demotes  (IsAdmin = false) every user whose email is NOT in the
+        ///     list but is currently flagged as admin.
+        /// This makes admin assignment fully declarative — editing
+        /// appsettings.json is enough; no manual SQL update is needed.
+        /// Idempotent and safe to run on every startup.
+        /// </summary>
+        public static async Task EnsureAdminConsistencyAsync(
+            IServiceProvider services,
+            AdminSettings adminSettings,
+            ILogger logger)
+        {
+            using var scope = services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var configured = (adminSettings.Emails ?? new List<string>())
+                .Where(e => !string.IsNullOrWhiteSpace(e))
+                .Select(e => e.Trim().ToLowerInvariant())
+                .ToHashSet();
+
+            int promoted = 0;
+            int demoted = 0;
+
+            // Promote: any configured email currently NOT admin
+            if (configured.Count > 0)
+            {
+                var toPromote = await db.Users
+                    .Where(u => configured.Contains(u.Email) && !u.IsAdmin)
+                    .ToListAsync();
+                foreach (var u in toPromote) { u.IsAdmin = true; promoted++; }
+            }
+
+            // Demote: any current admin NOT in the configured list
+            var toDemote = await db.Users
+                .Where(u => u.IsAdmin && !configured.Contains(u.Email))
+                .ToListAsync();
+            foreach (var u in toDemote) { u.IsAdmin = false; demoted++; }
+
+            if (promoted > 0 || demoted > 0)
+                await db.SaveChangesAsync();
+
+            logger.LogInformation(
+                "StartupSeed: admin consistency sync — promoted={Promoted}, demoted={Demoted}, configured={Configured}.",
+                promoted, demoted, configured.Count);
+        }
+
+
+        /// <summary>
         /// Demo seed for the CAM (Clinici Analize Medicale) module.
         /// Creates a ready-to-use clinic account with:
         ///   * email:  <c>clinica.demo@medicalapp.test</c>

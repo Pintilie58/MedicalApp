@@ -387,9 +387,12 @@ namespace MedicalApp.Controllers
                 return View("~/Views/Home/Index.cshtml");
             }
 
-            // Auto-promote to admin if configured email
-            if (!user.IsAdmin && _adminSettings.IsAdminEmail(user.Email))
-                user.IsAdmin = true;
+            // Sync admin flag with AdminSettings.Emails on every login (both directions):
+            //   - Promote if email is in the list and user isn't admin yet
+            //   - Demote  if user is currently admin but email was removed from the list
+            bool shouldBeAdmin = _adminSettings.IsAdminEmail(user.Email);
+            if (user.IsAdmin != shouldBeAdmin)
+                user.IsAdmin = shouldBeAdmin;
 
             user.LastLoginAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();

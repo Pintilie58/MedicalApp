@@ -135,6 +135,10 @@ using (var scopedServices = app.Services.CreateScope())
     {
         await StartupSeed.EnsureDefaultProfilesAsync(app.Services, seedLogger);
         await StartupSeed.EnsureFreeArchiveUntilAsync(app.Services, seedLogger);
+        // Sync IsAdmin flag in DB with AdminSettings.Emails (promote + demote).
+        var adminSettingsForSeed = scopedServices.ServiceProvider
+            .GetRequiredService<Microsoft.Extensions.Options.IOptions<AdminSettings>>().Value;
+        await StartupSeed.EnsureAdminConsistencyAsync(app.Services, adminSettingsForSeed, seedLogger);
         // CAM: idempotent demo clinic seed — only inserts when missing.
         var camFilesForSeed = scopedServices.ServiceProvider.GetRequiredService<ICamFileStore>();
         await StartupSeed.EnsureClinicaDemoAsync(app.Services, camFilesForSeed, seedLogger);
