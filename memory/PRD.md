@@ -502,6 +502,14 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
     * Total: ~40 test cases care prind regresia bug-urilor istorice fără un nou run de PDF.
 - 📊 **[Feb 2026 — Audit tehnic complet creat în `/app/memory/AUDIT.md`]**
     * 3 P0 + 6 P1 + 8 P2 + 4 P3 elemente prioritizate cu plan de remediere.
+- ✅ **[Feb 2026 — Freemium PDF blur + 1 credit gratuit la înregistrare + traduceri RO Landing Page]**
+    * **1 credit gratuit la înregistrare** (`AccountController.VerifyEmail`): orice cont nou primește `BonusCredits = 1` (chiar și când codul promo este invalid/expirat). Acoperă atât B2C cât și B2B (Clinic). Promo valid suprascrie cu numărul de credite din promo.
+    * **Blur intercalat 60% în `PdfReportGenerator`**: overload nou `Generate(result, labels, isFreemium)` activează un pattern de blur la pozițiile `i % 5 ∈ {1,2,4}` (3 din 5 rânduri = 60% intercalat). Se aplică pe Key Results, Abnormal Findings, Risk Factors, Correlations (split pe propoziții), Recommendations (split pe propoziții). Patient Info + Summary rămân vizibile ca teaser. Rândurile blurate au fundal gri `#f5f6f7`, text înlocuit cu `█` în `#dadce0`, plus etichetă `🔒 Blocat — cumpără credite pentru deblocare`.
+    * **Watermark DEMO** pe fiecare pagină (font 140pt în `#eef0f2`, centrat) via `page.Background()`.
+    * **Bandă portocalie sus** + **bandă verde de CTA jos** explică user-ului ce e de făcut.
+    * **Regulă freemium**: `isFreemium = (user.Credite == 0)` (utilizatorul nu a cumpărat niciodată un pachet plătit). Bonus credits + promo credits → tot blurat. Cumpărarea unui pachet plătit (orice pack) → toate raportele se generează clar, inclusiv re-descărcarea celor vechi din `ProfilesController.DownloadReport`.
+    * **Traduceri RO Landing Page complete** în `Loc.cs` (~60 chei: NavHow…FootDisclaimer + 6 chei PdfFreemium*). Fallback la EN pentru fr/es/de.
+    * Cale CAM (clinici): nemodificat — apelează overload-ul legacy `Generate(result, labels)` care implicit `isFreemium=false`.
 
 ### P1 – Family profiles (multi-session focus)
 - 🔜 **P1.6**: Denormalize parameters into `AnalysisResults` table on each interpretation (ParameterCode, Value, Unit, Status, SamplingDate, per profile)

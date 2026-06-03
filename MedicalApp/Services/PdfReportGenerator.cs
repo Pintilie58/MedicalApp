@@ -2,6 +2,7 @@ using MedicalApp.Models;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using System.Text.RegularExpressions;
 
 namespace MedicalApp.Services
 {
@@ -19,6 +20,12 @@ namespace MedicalApp.Services
         private const string AccentYellow = "#f9a825";// borderline
         private const string MutedText = "#6c757d";
 
+        // Freemium blur palette — kept here so the blur visually reads as a single
+        // "redacted" effect across the whole report.
+        private const string BlurBlockColor = "#dadce0";   // text replaced by gray bars
+        private const string BlurRowBackground = "#f5f6f7"; // subtle background tint
+        private const string WatermarkColor = "#eef0f2";   // very light gray "DEMO"
+
         static PdfReportGenerator()
         {
             // QuestPDF Community license is free for personal use and companies
@@ -26,7 +33,18 @@ namespace MedicalApp.Services
             QuestPDF.Settings.License = LicenseType.Community;
         }
 
+        /// <summary>Legacy entry point — generates an unblurred (paid) report.</summary>
         public byte[] Generate(InterpretationResult result, LocalizedLabels labels)
+            => Generate(result, labels, isFreemium: false);
+
+        /// <summary>
+        /// Generates the PDF. When <paramref name="isFreemium"/> is true, ~60% of the
+        /// data-heavy sections (results table, abnormal findings, correlations,
+        /// recommendations, risk factors) are replaced with redacted gray blocks
+        /// and a large "DEMO" watermark is painted across every page.
+        /// The summary stays visible so the user can taste the value before paying.
+        /// </summary>
+        public byte[] Generate(InterpretationResult result, LocalizedLabels labels, bool isFreemium)
         {
             return Document.Create(container =>
             {
@@ -35,16 +53,22 @@ namespace MedicalApp.Services
                     page.Size(PageSizes.A4);
                     page.Margin(2, Unit.Centimetre);
                     page.PageColor(Colors.White);
-                    // We pin the font to Arial (instead of the QuestPDF default
-                    // Lato) to avoid OpenType ligatures for "ti", "fi", "fl"
-                    // which the PDF text-extraction layer of most viewers
-                    // can't reverse — when the user copy-pasted parameter
-                    // names like "Prothrombin time" or "Coagulation assay"
-                    // the "ti" sequence silently dropped from the clipboard.
                     page.DefaultTextStyle(x => x.FontSize(10).FontColor(Colors.Black).FontFamily(Fonts.Arial));
 
+                    if (isFreemium)
+                    {
+                        // Big light "DEMO" diagonal-ish watermark behind every page.
+                        // We use AlignCenter+Middle for a centered banner; QuestPDF
+                        // doesn't expose arbitrary-angle rotation in a portable way,
+                        // so we ship with a horizontal large-font version which is
+                        // perfectly readable and works on all renderers.
+                        page.Background().AlignCenter().AlignMiddle()
+                            .Text(labels.FreemiumWatermarkText)
+                            .FontSize(140).Bold().FontColor(WatermarkColor);
+                    }
+
                     page.Header().Element(h => ComposeHeader(h, labels));
-                    page.Content().Element(c => ComposeContent(c, result, labels));
+                    page.Content().Element(c => ComposeContent(c, result, labels, isFreemium));
                     page.Footer().Element(f => ComposeFooter(f, labels));
                 });
             }).GeneratePdf();
@@ -71,44 +95,61 @@ namespace MedicalApp.Services
         }
 
         // -------------------- Content --------------------
-        private static void ComposeContent(IContainer container, InterpretationResult r, LocalizedLabels labels)
+        private static void ComposeContent(IContainer container, InterpretationResult r, LocalizedLabels labels, bool isFreemium)
         {
             container.PaddingVertical(10).Column(col =>
             {
                 col.Spacing(14);
 
+                // Freemium banner — sits right at the top so the user can never
+                // miss why parts of the report are redacted.
+                if (isFreemium)
+                {
+                    col.Item().Background("#FFF8E1").BorderLeft(4).BorderColor("#F9A825")
+                        .Padding(10).Column(b =>
+                        {
+                            b.Item().Text(labels.FreemiumBannerTitle)
+                                .FontSize(11).Bold().FontColor("#7A5700");
+                            b.Item().PaddingTop(2).Text(labels.FreemiumBannerBody)
+                                .FontSize(9).FontColor("#7A5700");
+                        });
+                }
+
                 // Opening tagline
                 col.Item().AlignCenter().Text(labels.Tagline)
                     .FontSize(11).Italic().FontColor(BrandColor);
 
-                // Patient info
+                // Patient info — never blurred (the user already has this info)
                 if (r.PatientInfo != null)
                 {
                     col.Item().Element(e => Section(e, labels.PatientInfo));
                     col.Item().Element(e => PatientInfoTable(e, r.PatientInfo, labels));
                 }
 
-                // Summary
+                // Summary — never blurred (teaser to lure the upgrade)
                 if (!string.IsNullOrWhiteSpace(r.Summary))
                 {
                     col.Item().Element(e => Section(e, labels.Summary));
                     col.Item().Text(r.Summary!).FontSize(10);
                 }
 
-                // Risk Factors — placed right after Summary so abnormal-value
-                // implications are surfaced early. Optional + graceful: if AI
-                // didn't emit any, or list is empty, nothing renders.
+                // Risk Factors — list, intercalated blur in freemium
                 if (r.RiskFactors != null && r.RiskFactors.Count > 0)
                 {
                     col.Item().Element(e => Section(e, labels.RiskFactors));
-                    foreach (var rf in r.RiskFactors)
+                    var visibleRisks = r.RiskFactors.Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+                    for (int i = 0; i < visibleRisks.Count; i++)
                     {
-                        if (string.IsNullOrWhiteSpace(rf)) continue;
+                        var rf = visibleRisks[i];
+                        bool blur = isFreemium && BlurAt(i);
                         col.Item().PaddingBottom(3).Row(row =>
                         {
                             row.AutoItem().PaddingRight(6).Text("⚠")
-                                .FontColor(AccentYellow).Bold().FontSize(11);
-                            row.RelativeItem().Text(rf).FontSize(10);
+                                .FontColor(blur ? BlurBlockColor : AccentYellow).Bold().FontSize(11);
+                            if (blur)
+                                row.RelativeItem().Element(e => BlurifyTextBlock(e, rf, labels));
+                            else
+                                row.RelativeItem().Text(rf).FontSize(10);
                         });
                     }
                     // Mandatory short medical disclaimer right below the list.
@@ -117,41 +158,46 @@ namespace MedicalApp.Services
                         .FontSize(8).Italic().FontColor(MutedText);
                 }
 
-                // Key results table
+                // Key results table — most data-heavy section, prime blur target
                 if (r.KeyResults != null && r.KeyResults.Count > 0)
                 {
                     col.Item().Element(e => Section(e, labels.KeyResults));
-                    col.Item().Element(e => KeyResultsTable(e, r.KeyResults, labels));
+                    col.Item().Element(e => KeyResultsTable(e, r.KeyResults, labels, isFreemium));
                 }
 
-                // Abnormal findings
+                // Abnormal findings — list, intercalated blur in freemium
                 if (r.AbnormalFindings != null && r.AbnormalFindings.Count > 0)
                 {
                     col.Item().Element(e => Section(e, labels.AbnormalFindings));
-                    foreach (var f in r.AbnormalFindings)
+                    for (int i = 0; i < r.AbnormalFindings.Count; i++)
                     {
-                        col.Item().Element(e => AbnormalFindingBlock(e, f));
+                        var f = r.AbnormalFindings[i];
+                        bool blur = isFreemium && BlurAt(i);
+                        col.Item().Element(e => AbnormalFindingBlock(e, f, blur, labels));
                     }
                 }
 
-                // Correlations
+                // Correlations — sentence-level intercalated blur
                 if (!string.IsNullOrWhiteSpace(r.Correlations))
                 {
                     col.Item().Element(e => Section(e, labels.Correlations));
-                    col.Item().Text(r.Correlations!).FontSize(10);
+                    if (isFreemium)
+                        col.Item().Element(e => BlurifySentenceText(e, r.Correlations!, labels));
+                    else
+                        col.Item().Text(r.Correlations!).FontSize(10);
                 }
 
-                // Recommendations
+                // Recommendations — sentence-level intercalated blur
                 if (!string.IsNullOrWhiteSpace(r.Recommendations))
                 {
                     col.Item().Element(e => Section(e, labels.Recommendations));
-                    col.Item().Text(r.Recommendations!).FontSize(10);
+                    if (isFreemium)
+                        col.Item().Element(e => BlurifySentenceText(e, r.Recommendations!, labels));
+                    else
+                        col.Item().Text(r.Recommendations!).FontSize(10);
                 }
 
-                // LOINC source legend — small dotted explanation right
-                // before the disclaimer so users understand the colored
-                // dots next to each parameter. Only emitted when there's
-                // actually a results table to legend.
+                // LOINC source legend
                 if (r.KeyResults != null && r.KeyResults.Count > 0)
                 {
                     col.Item().PaddingTop(4).Text(t =>
@@ -171,6 +217,19 @@ namespace MedicalApp.Services
                 {
                     col.Item().Element(e => Section(e, labels.Disclaimer));
                     col.Item().Text(r.Disclaimer!).FontSize(9).Italic().FontColor(MutedText);
+                }
+
+                // Final freemium CTA — restate the upgrade message at the bottom.
+                if (isFreemium)
+                {
+                    col.Item().PaddingTop(12).Background("#E8F5E9").BorderLeft(4).BorderColor(AccentGreen)
+                        .Padding(10).Column(b =>
+                        {
+                            b.Item().Text(labels.FreemiumCtaTitle)
+                                .FontSize(11).Bold().FontColor("#1B5E20");
+                            b.Item().PaddingTop(2).Text(labels.FreemiumCtaBody)
+                                .FontSize(9).FontColor("#1B5E20");
+                        });
                 }
             });
         }
@@ -199,9 +258,6 @@ namespace MedicalApp.Services
                     text.TotalPages().FontSize(8).FontColor(MutedText);
                 });
 
-                // Optional processing-mode badge: tiny, discreet, italic. Helps the user
-                // know whether digits in this report came from a literal text extraction
-                // (rock-solid) or from a vision OCR pass (rare, only for scanned PDFs).
                 if (!string.IsNullOrWhiteSpace(labels.ProcessingMode))
                 {
                     col.Item().AlignCenter().Text(labels.ProcessingMode)
@@ -245,26 +301,18 @@ namespace MedicalApp.Services
             });
         }
 
-        private static void KeyResultsTable(IContainer e, List<KeyResult> results, LocalizedLabels labels)
+        private static void KeyResultsTable(IContainer e, List<KeyResult> results, LocalizedLabels labels, bool isFreemium)
         {
             e.PaddingVertical(4).Table(t =>
             {
                 t.ColumnsDefinition(c =>
                 {
-                    // Wider parameter column so the explanation text below each
-                    // parameter wraps less and uses fewer vertical lines.
-                    // Previously: 3/8 (~37.5%) of the page width — explanations
-                    // wrapped to many lines. Now: 5/10 (50%), with the other
-                    // three columns shrunk proportionally. The value/reference
-                    // columns stay readable because their content is short
-                    // (numbers, units, "12-18 mg/dL", and an arrow).
                     c.RelativeColumn(5);   // parameter + explanation + LOINC
                     c.RelativeColumn(2);   // value + unit
                     c.RelativeColumn(2);   // reference
                     c.RelativeColumn(1);   // status (arrow)
                 });
 
-                // Header row with bottom line only
                 t.Header(h =>
                 {
                     h.Cell().PaddingBottom(4).Text(labels.Parameter).SemiBold().FontColor(BrandColor).FontSize(10);
@@ -273,74 +321,91 @@ namespace MedicalApp.Services
                     h.Cell().PaddingBottom(4).AlignCenter().Text(labels.Status).SemiBold().FontColor(BrandColor).FontSize(10);
                 });
 
-                foreach (var r in results)
+                for (int i = 0; i < results.Count; i++)
                 {
+                    var r = results[i];
                     var (arrow, color) = StatusArrow(r.Status);
+                    bool blur = isFreemium && BlurAt(i);
 
+                    // Parameter cell
                     t.Cell().PaddingVertical(4).BorderTop(0.25f).BorderColor(Colors.Grey.Lighten2)
+                        .Background(blur ? BlurRowBackground : Colors.White)
                         .Column(c =>
                         {
-                            c.Item().Text(r.Parameter).SemiBold().FontSize(10);
-                            if (!string.IsNullOrWhiteSpace(r.Explanation))
-                                c.Item().PaddingTop(1).Text(r.Explanation).FontSize(8).FontColor(MutedText);
-
-                            // Show the official LOINC code + long common name in a
-                            // small grey footer line under each parameter. This makes
-                            // the report internationally recognizable: the same code
-                            // identifies the same test in any hospital / EHR /
-                            // research database worldwide. The block is only rendered
-                            // when the matcher actually resolved a code (LoincCode
-                            // is null for proprietary indices or low-confidence
-                            // skips, in which case we just don't print it).
-                            if (!string.IsNullOrWhiteSpace(r.LoincCode))
+                            if (blur)
                             {
+                                c.Item().Text(BlockText(r.Parameter ?? "Parameter", 18))
+                                    .SemiBold().FontSize(10).FontColor(BlurBlockColor);
+                                c.Item().PaddingTop(1).Text(BlockText("explanation", 50))
+                                    .FontSize(8).FontColor(BlurBlockColor);
                                 c.Item().PaddingTop(2).Text(text =>
                                 {
-                                    text.Span("LOINC ").FontSize(7).FontColor(MutedText);
-                                    text.Span(r.LoincCode!).FontSize(7).SemiBold().FontColor(MutedText);
-                                    if (!string.IsNullOrWhiteSpace(r.LoincLongName))
-                                    {
-                                        text.Span("  ·  ").FontSize(7).FontColor(MutedText);
-                                        text.Span(r.LoincLongName!).FontSize(7).FontColor(MutedText);
-                                    }
-                                    // Compact colored dot (●) replaces the older
-                                    // "verified/auto" badge — the codes are
-                                    // correct in BOTH cases; the dot is just a
-                                    // hint about provenance. A legend at the
-                                    // end of the PDF explains the convention.
-                                    text.Span("  ").FontSize(7);
-                                    text.Span("●").FontSize(8)
-                                        .FontColor(LoincSourceBadge.GetPdfColor(r.LoincSource));
-                                    // Score% — shown only for semantic mappings
-                                    // (anchors are always 1.0, so the number
-                                    // would be redundant).
-                                    if (!LoincSourceBadge.IsVerified(r.LoincSource) && r.LoincScore.HasValue)
-                                    {
-                                        text.Span($" {(int)System.Math.Round(r.LoincScore.Value * 100)}%")
-                                            .FontSize(7).FontColor(MutedText);
-                                    }
+                                    text.Span("🔒 ").FontSize(8).FontColor(MutedText);
+                                    text.Span(labels.FreemiumLockedLabel).FontSize(7).Italic().FontColor(MutedText);
                                 });
+                            }
+                            else
+                            {
+                                c.Item().Text(r.Parameter).SemiBold().FontSize(10);
+                                if (!string.IsNullOrWhiteSpace(r.Explanation))
+                                    c.Item().PaddingTop(1).Text(r.Explanation).FontSize(8).FontColor(MutedText);
+                                if (!string.IsNullOrWhiteSpace(r.LoincCode))
+                                {
+                                    c.Item().PaddingTop(2).Text(text =>
+                                    {
+                                        text.Span("LOINC ").FontSize(7).FontColor(MutedText);
+                                        text.Span(r.LoincCode!).FontSize(7).SemiBold().FontColor(MutedText);
+                                        if (!string.IsNullOrWhiteSpace(r.LoincLongName))
+                                        {
+                                            text.Span("  ·  ").FontSize(7).FontColor(MutedText);
+                                            text.Span(r.LoincLongName!).FontSize(7).FontColor(MutedText);
+                                        }
+                                        text.Span("  ").FontSize(7);
+                                        text.Span("●").FontSize(8)
+                                            .FontColor(LoincSourceBadge.GetPdfColor(r.LoincSource));
+                                        if (!LoincSourceBadge.IsVerified(r.LoincSource) && r.LoincScore.HasValue)
+                                        {
+                                            text.Span($" {(int)System.Math.Round(r.LoincScore.Value * 100)}%")
+                                                .FontSize(7).FontColor(MutedText);
+                                        }
+                                    });
+                                }
                             }
                         });
 
+                    // Value cell
                     t.Cell().PaddingVertical(4).BorderTop(0.25f).BorderColor(Colors.Grey.Lighten2)
+                        .Background(blur ? BlurRowBackground : Colors.White)
                         .AlignRight().Text(text =>
                         {
-                            text.Span(r.Value ?? "-").FontSize(10).SemiBold().FontColor(color);
-                            if (!string.IsNullOrWhiteSpace(r.Unit))
-                                text.Span(" " + r.Unit).FontSize(9).FontColor(MutedText);
+                            if (blur)
+                            {
+                                text.Span("████").FontSize(10).SemiBold().FontColor(BlurBlockColor);
+                            }
+                            else
+                            {
+                                text.Span(r.Value ?? "-").FontSize(10).SemiBold().FontColor(color);
+                                if (!string.IsNullOrWhiteSpace(r.Unit))
+                                    text.Span(" " + r.Unit).FontSize(9).FontColor(MutedText);
+                            }
                         });
 
+                    // Reference cell
                     t.Cell().PaddingVertical(4).BorderTop(0.25f).BorderColor(Colors.Grey.Lighten2)
-                        .AlignCenter().Text(r.ReferenceRange ?? "-").FontSize(9).FontColor(MutedText);
+                        .Background(blur ? BlurRowBackground : Colors.White)
+                        .AlignCenter().Text(blur ? "█████" : (r.ReferenceRange ?? "-"))
+                        .FontSize(9).FontColor(blur ? BlurBlockColor : MutedText);
 
+                    // Status cell
                     t.Cell().PaddingVertical(4).BorderTop(0.25f).BorderColor(Colors.Grey.Lighten2)
-                        .AlignCenter().Text(arrow).FontSize(12).Bold().FontColor(color);
+                        .Background(blur ? BlurRowBackground : Colors.White)
+                        .AlignCenter().Text(blur ? "?" : arrow)
+                        .FontSize(12).Bold().FontColor(blur ? BlurBlockColor : color);
                 }
             });
         }
 
-        private static void AbnormalFindingBlock(IContainer e, AbnormalFinding f)
+        private static void AbnormalFindingBlock(IContainer e, AbnormalFinding f, bool blur, LocalizedLabels labels)
         {
             var severityColor = f.Severity switch
             {
@@ -350,14 +415,104 @@ namespace MedicalApp.Services
             };
             e.PaddingVertical(3).Row(row =>
             {
-                row.ConstantItem(6).Background(severityColor);
+                row.ConstantItem(6).Background(blur ? BlurBlockColor : severityColor);
                 row.ConstantItem(6);
                 row.RelativeItem().Column(c =>
                 {
-                    c.Item().Text(f.Parameter).Bold().FontSize(10).FontColor(severityColor);
-                    if (!string.IsNullOrWhiteSpace(f.Explanation))
-                        c.Item().Text(f.Explanation).FontSize(9);
+                    if (blur)
+                    {
+                        c.Item().Text(BlockText(f.Parameter ?? "Parameter", 22))
+                            .Bold().FontSize(10).FontColor(BlurBlockColor);
+                        c.Item().Text(BlockText(f.Explanation ?? "explanation explanation", 60))
+                            .FontSize(9).FontColor(BlurBlockColor);
+                        c.Item().PaddingTop(1).Text(t =>
+                        {
+                            t.Span("🔒 ").FontSize(8).FontColor(MutedText);
+                            t.Span(labels.FreemiumLockedLabel).FontSize(7).Italic().FontColor(MutedText);
+                        });
+                    }
+                    else
+                    {
+                        c.Item().Text(f.Parameter).Bold().FontSize(10).FontColor(severityColor);
+                        if (!string.IsNullOrWhiteSpace(f.Explanation))
+                            c.Item().Text(f.Explanation).FontSize(9);
+                    }
                 });
+            });
+        }
+
+        // -------------------- Freemium helpers --------------------
+
+        /// <summary>
+        /// Intercalated blur pattern: hides ~60% of items in a list while keeping
+        /// visible items distributed (positions 0 and 3 visible, 1, 2, 4 hidden,
+        /// then the pattern repeats). Gives a natural "you see some, you miss
+        /// most" feel rather than a clean truncation at the end.
+        /// </summary>
+        private static bool BlurAt(int index) => (index % 5) is 1 or 2 or 4;
+
+        /// <summary>
+        /// Replaces visible text characters with the Unicode full block "█"
+        /// using approximately the same width as the original, so the line
+        /// still looks like a real text row.
+        /// </summary>
+        private static string BlockText(string original, int approxLength)
+        {
+            int len = Math.Clamp(string.IsNullOrEmpty(original) ? approxLength : original.Length, 6, approxLength);
+            return new string('█', len);
+        }
+
+        /// <summary>
+        /// Renders a single text item as a gray redacted block — used inside
+        /// risk-factor and abnormal-finding lists.
+        /// </summary>
+        private static void BlurifyTextBlock(IContainer e, string original, LocalizedLabels labels)
+        {
+            e.Column(c =>
+            {
+                c.Item().Text(BlockText(original, 60)).FontSize(10).FontColor(BlurBlockColor);
+                c.Item().Text(t =>
+                {
+                    t.Span("🔒 ").FontSize(8).FontColor(MutedText);
+                    t.Span(labels.FreemiumLockedLabel).FontSize(7).Italic().FontColor(MutedText);
+                });
+            });
+        }
+
+        /// <summary>
+        /// Sentence-level intercalated blur for free-text fields (Correlations,
+        /// Recommendations). Splits on sentence boundaries and replaces ~60%
+        /// of sentences with gray block text, keeping the rest readable.
+        /// </summary>
+        private static void BlurifySentenceText(IContainer e, string original, LocalizedLabels labels)
+        {
+            _ = labels; // labels reserved for future per-sentence "[locked]" annotations
+            var sentences = Regex.Split(original, @"(?<=[\.\!\?])\s+")
+                                 .Where(s => !string.IsNullOrWhiteSpace(s))
+                                 .ToList();
+
+            if (sentences.Count == 0)
+            {
+                e.Text(original).FontSize(10);
+                return;
+            }
+
+            e.Text(t =>
+            {
+                for (int i = 0; i < sentences.Count; i++)
+                {
+                    if (BlurAt(i))
+                    {
+                        t.Span(BlockText(sentences[i], Math.Min(sentences[i].Length, 90)))
+                            .FontSize(10).FontColor(BlurBlockColor);
+                        t.Span(" ");
+                    }
+                    else
+                    {
+                        t.Span(sentences[i]).FontSize(10);
+                        t.Span(" ");
+                    }
+                }
             });
         }
 
@@ -398,11 +553,14 @@ namespace MedicalApp.Services
         public string GeneratedOn { get; set; } = "";
         public string Page { get; set; } = "";
 
-        /// <summary>
-        /// Optional footer note describing how the PDF was processed: text-mode (literal
-        /// extraction by PdfPig) vs vision-mode (Gemini visual OCR). Caller sets this
-        /// per-interpretation; if left blank the footer line is omitted entirely.
-        /// </summary>
+        // Freemium-only labels
+        public string FreemiumBannerTitle { get; set; } = "";
+        public string FreemiumBannerBody { get; set; } = "";
+        public string FreemiumWatermarkText { get; set; } = "";
+        public string FreemiumLockedLabel { get; set; } = "";
+        public string FreemiumCtaTitle { get; set; } = "";
+        public string FreemiumCtaBody { get; set; } = "";
+
         public string ProcessingMode { get; set; } = "";
 
         /// <summary>Builds the label set using the current UI culture's translations.</summary>
@@ -431,7 +589,13 @@ namespace MedicalApp.Services
             Recommendations = Loc.T("RecommendationsSection"),
             Disclaimer = Loc.T("DisclaimerSection"),
             GeneratedOn = Loc.T("GeneratedOn"),
-            Page = Loc.T("Page")
+            Page = Loc.T("Page"),
+            FreemiumBannerTitle = Loc.T("PdfFreemiumBannerTitle"),
+            FreemiumBannerBody = Loc.T("PdfFreemiumBannerBody"),
+            FreemiumWatermarkText = Loc.T("PdfFreemiumWatermark"),
+            FreemiumLockedLabel = Loc.T("PdfFreemiumLockedLabel"),
+            FreemiumCtaTitle = Loc.T("PdfFreemiumCtaTitle"),
+            FreemiumCtaBody = Loc.T("PdfFreemiumCtaBody")
         };
     }
 }

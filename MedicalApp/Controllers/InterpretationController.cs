@@ -564,7 +564,14 @@ namespace MedicalApp.Controllers
                 labels.ProcessingMode = useGemini
                     ? Loc.T(geminiUseTextMode ? "ProcessingModeText" : "ProcessingModeVision")
                     : "";
-                reportPdfBytes = _pdfGenerator.Generate(result, labels);
+                // Freemium rule: a user is "freemium" until they buy at least one
+                // paid pack. user.Credite is the cumulative bought-credits counter
+                // (it grows on every CreditsController purchase). When it's still
+                // zero, the user is either on the initial 1 free bonus credit or
+                // on promo bonus credits — both of those produce blurred PDFs to
+                // motivate the upgrade.
+                bool isFreemium = user.Credite == 0;
+                reportPdfBytes = _pdfGenerator.Generate(result, labels, isFreemium);
             }
             catch (Exception ex)
             {

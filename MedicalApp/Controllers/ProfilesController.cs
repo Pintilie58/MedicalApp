@@ -229,7 +229,14 @@ namespace MedicalApp.Controllers
             byte[] pdfBytes;
             try
             {
-                pdfBytes = _pdfGenerator.Generate(result, LocalizedLabels.ForCurrentUi());
+                // Freemium gating also applies to re-downloads of past reports —
+                // otherwise users could bypass the blur by re-pulling old history.
+                var paidStatus = await _db.Users.AsNoTracking()
+                    .Where(u => u.Email == CurrentEmail)
+                    .Select(u => u.Credite)
+                    .FirstOrDefaultAsync();
+                bool isFreemium = paidStatus == 0;
+                pdfBytes = _pdfGenerator.Generate(result, LocalizedLabels.ForCurrentUi(), isFreemium);
             }
             catch (Exception ex)
             {

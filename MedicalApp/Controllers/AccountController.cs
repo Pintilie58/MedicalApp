@@ -253,7 +253,21 @@ namespace MedicalApp.Controllers
                     _logger.LogInformation(
                         "Promo code {Code} entered by {Email} at register is invalid/expired - ignored.",
                         codeNorm, pending.Email);
+                    // Promo failed validation → fall back to the default freemium
+                    // grant of 1 bonus credit, same as users who didn't enter any code.
+                    user.BonusCredits = 1;
+                    user.BonusCreditsConsumed = 0;
                 }
+            }
+            else
+            {
+                // Freemium default: every new B2C user gets 1 bonus credit so they
+                // can try the service for free. The resulting PDF is blurred until
+                // they buy a paid pack (see PdfReportGenerator freemium path).
+                // Clinics (B2B) also receive it — harmless, since clinics buy
+                // packs immediately to unlock the CAM dashboard anyway.
+                user.BonusCredits = 1;
+                user.BonusCreditsConsumed = 0;
             }
 
             _db.Users.Add(user);
@@ -288,11 +302,13 @@ namespace MedicalApp.Controllers
             }
             else if (!string.IsNullOrWhiteSpace(pending.PromoCode))
             {
-                TempData["SuccessMessage"] = Loc.T("RegistrationSuccessPromoInvalid");
+                // Promo entered but rejected — user still gets the default freemium bonus.
+                TempData["SuccessMessage"] = Loc.T("RegistrationSuccessPromoInvalidFreebie");
             }
             else
             {
-                TempData["SuccessMessage"] = Loc.T("RegistrationSuccess");
+                // Default freemium: 1 free interpretation, blurred PDF until upgrade.
+                TempData["SuccessMessage"] = Loc.T("RegistrationSuccessFreebie");
             }
             TempData["ActiveTab"] = "login";
             return RedirectToAction("Index", "Home");
