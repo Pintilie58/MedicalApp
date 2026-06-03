@@ -1,0 +1,424 @@
+@{
+    Layout = null;
+    ViewData["Title"] = "MedicalApp — AI Medical Analysis Interpretation";
+    var current = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+    var langs = new (string code, string label)[]
+    {
+        ("en", "English"),
+        ("ro", "Română"),
+        ("fr", "Français"),
+        ("es", "Español"),
+        ("de", "Deutsch")
+    };
+    string AuthUrl(string tab) => Url.Action("Auth", "Home", new { tab = tab }) ?? "/Home/Auth";
+}
+<!DOCTYPE html>
+<html lang="@current">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>@ViewData["Title"]</title>
+    <meta name="description" content="@Loc.T("LandingMetaDesc")" />
+    <link rel="icon" href="~/favicon.ico" />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+          integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN"
+          crossorigin="anonymous">
+    <link rel="stylesheet" href="~/css/landing.css" asp-append-version="true" />
+</head>
+<body class="landing-body">
+
+@* =========================== NAVBAR =========================== *@
+<nav class="land-nav" data-testid="land-nav">
+    <div class="land-nav-inner">
+        <a class="land-brand" href="/" data-testid="land-brand">
+            <span class="land-brand-mark">M+</span> MedicalApp+
+        </a>
+        <ul class="land-nav-links">
+            <li><a href="#how" data-testid="nav-how">@Loc.T("NavHow")</a></li>
+            <li><a href="#features" data-testid="nav-features">@Loc.T("NavFeatures")</a></li>
+            <li><a href="#clinics" data-testid="nav-clinics">@Loc.T("NavClinics")</a></li>
+            <li><a href="#pricing" data-testid="nav-pricing">@Loc.T("NavPricing")</a></li>
+        </ul>
+        <div class="d-flex align-items-center gap-2">
+            <div class="land-lang">
+                <button class="land-lang-btn" id="landLangBtn" aria-haspopup="true" aria-expanded="false"
+                        data-testid="land-lang-btn">
+                    @current.ToUpper()
+                    <span aria-hidden="true">▾</span>
+                </button>
+                <div class="land-lang-menu d-none" id="landLangMenu" data-testid="land-lang-menu">
+                    @foreach (var l in langs)
+                    {
+                        <form asp-controller="Home" asp-action="SetLanguage" method="post">
+                            <input type="hidden" name="culture" value="@l.code" />
+                            <input type="hidden" name="returnUrl" value="/" />
+                            <button type="submit" data-testid="land-lang-@l.code">@l.label</button>
+                        </form>
+                    }
+                </div>
+            </div>
+            <a href="@AuthUrl("login")" class="land-btn land-btn-ghost" data-testid="land-signin">
+                @Loc.T("NavSignIn")
+            </a>
+            <a href="@AuthUrl("register")" class="land-btn land-btn-primary d-none d-md-inline-flex" data-testid="land-getstarted">
+                @Loc.T("NavGetStarted")
+            </a>
+        </div>
+    </div>
+</nav>
+
+@* =========================== HERO =========================== *@
+<section class="land-hero" data-testid="land-hero">
+    <div class="land-container">
+        <div class="land-hero-grid">
+            <div>
+                <span class="land-eyebrow">@Loc.T("HeroEyebrow")</span>
+                <h1>@Loc.T("HeroTitle")</h1>
+                <p class="lead" style="font-size:1.15rem; max-width: 540px;">
+                    @Loc.T("HeroLead")
+                </p>
+                <div class="land-hero-cta">
+                    <a href="@AuthUrl("register")" class="land-btn land-btn-accent land-btn-lg"
+                       data-testid="hero-cta-primary">
+                        @Loc.T("HeroCtaPrimary") &rarr;
+                    </a>
+                    <a href="#how" class="land-btn land-btn-ghost land-btn-lg" data-testid="hero-cta-secondary">
+                        @Loc.T("HeroCtaSecondary")
+                    </a>
+                </div>
+                <div class="land-hero-stats">
+                    <div><strong>30+</strong><span>@Loc.T("HeroStatLangs")</span></div>
+                    <div><strong>~30s</strong><span>@Loc.T("HeroStatSpeed")</span></div>
+                    <div><strong>LOINC</strong><span>@Loc.T("HeroStatLoinc")</span></div>
+                </div>
+            </div>
+
+            <div class="land-hero-visual" data-testid="land-hero-visual">
+                <div class="land-hero-visual-header">
+                    <h4>@Loc.T("PreviewSampleTitle")</h4>
+                    <span style="font-size:.8rem; opacity:.85;">PDF · @Loc.T("PreviewSampleSpeed")</span>
+                </div>
+                <div class="land-hero-visual-body">
+                    <div class="land-mock-row"><span class="land-mock-label">Hemoglobin</span><span class="land-mock-value high">15.8 g/dL ↑</span></div>
+                    <div class="land-mock-row"><span class="land-mock-label">Glucose</span><span class="land-mock-value norm">94 mg/dL ✓</span></div>
+                    <div class="land-mock-row"><span class="land-mock-label">LDL cholesterol</span><span class="land-mock-value high">142 mg/dL ↑</span></div>
+                    <div class="land-mock-row"><span class="land-mock-label">HDL cholesterol</span><span class="land-mock-value norm">52 mg/dL ✓</span></div>
+                    <div class="land-mock-row"><span class="land-mock-label">TSH</span><span class="land-mock-value norm">2.4 mIU/L ✓</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@* =========================== AUDIENCE PILLARS =========================== *@
+<section class="land-section" id="audience" data-testid="land-audience">
+    <div class="land-container">
+        <div class="text-center mb-5">
+            <span class="land-eyebrow">@Loc.T("AudienceEyebrow")</span>
+            <h2>@Loc.T("AudienceTitle")</h2>
+            <p style="max-width: 640px; margin: 0 auto;">@Loc.T("AudienceLead")</p>
+        </div>
+        <div class="land-pillars">
+            <div class="land-pillar" data-testid="pillar-individuals">
+                <div class="land-pillar-icon">👤</div>
+                <h3>@Loc.T("PillarIndTitle")</h3>
+                <p>@Loc.T("PillarIndLead")</p>
+                <ul>
+                    <li>@Loc.T("PillarIndPt1")</li>
+                    <li>@Loc.T("PillarIndPt2")</li>
+                    <li>@Loc.T("PillarIndPt3")</li>
+                </ul>
+                <a href="@AuthUrl("register")" class="land-btn land-btn-ghost mt-3" data-testid="pillar-ind-cta">
+                    @Loc.T("PillarIndCta") &rarr;
+                </a>
+            </div>
+            <div class="land-pillar" data-testid="pillar-labs">
+                <div class="land-pillar-icon">🧪</div>
+                <h3>@Loc.T("PillarLabTitle")</h3>
+                <p>@Loc.T("PillarLabLead")</p>
+                <ul>
+                    <li>@Loc.T("PillarLabPt1")</li>
+                    <li>@Loc.T("PillarLabPt2")</li>
+                    <li>@Loc.T("PillarLabPt3")</li>
+                </ul>
+                <a href="#clinics" class="land-btn land-btn-ghost mt-3" data-testid="pillar-lab-cta">
+                    @Loc.T("PillarLabCta") &rarr;
+                </a>
+            </div>
+            <div class="land-pillar" data-testid="pillar-clinics">
+                <div class="land-pillar-icon">🏥</div>
+                <h3>@Loc.T("PillarClnTitle")</h3>
+                <p>@Loc.T("PillarClnLead")</p>
+                <ul>
+                    <li>@Loc.T("PillarClnPt1")</li>
+                    <li>@Loc.T("PillarClnPt2")</li>
+                    <li>@Loc.T("PillarClnPt3")</li>
+                </ul>
+                <a href="#clinics" class="land-btn land-btn-ghost mt-3" data-testid="pillar-cln-cta">
+                    @Loc.T("PillarClnCta") &rarr;
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+@* =========================== HOW IT WORKS =========================== *@
+<section class="land-section" id="how" style="background: var(--land-surface);" data-testid="land-how">
+    <div class="land-container">
+        <div class="text-center mb-5">
+            <span class="land-eyebrow">@Loc.T("HowEyebrow")</span>
+            <h2>@Loc.T("HowTitle")</h2>
+        </div>
+        <div class="land-steps">
+            <div class="land-step">
+                <div class="land-step-num">1</div>
+                <h3>@Loc.T("HowStep1Title")</h3>
+                <p>@Loc.T("HowStep1Body")</p>
+            </div>
+            <div class="land-step">
+                <div class="land-step-num">2</div>
+                <h3>@Loc.T("HowStep2Title")</h3>
+                <p>@Loc.T("HowStep2Body")</p>
+            </div>
+            <div class="land-step">
+                <div class="land-step-num">3</div>
+                <h3>@Loc.T("HowStep3Title")</h3>
+                <p>@Loc.T("HowStep3Body")</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+@* =========================== FEATURES GRID =========================== *@
+<section class="land-section" id="features" data-testid="land-features">
+    <div class="land-container">
+        <div class="text-center mb-5">
+            <span class="land-eyebrow">@Loc.T("FeaturesEyebrow")</span>
+            <h2>@Loc.T("FeaturesTitle")</h2>
+        </div>
+        <div class="land-features">
+            <div class="land-feature"><span class="land-feature-icon">🌍</span>
+                <h4>@Loc.T("Feat1Title")</h4><p>@Loc.T("Feat1Body")</p></div>
+            <div class="land-feature"><span class="land-feature-icon">👨‍👩‍👧</span>
+                <h4>@Loc.T("Feat2Title")</h4><p>@Loc.T("Feat2Body")</p></div>
+            <div class="land-feature"><span class="land-feature-icon">📈</span>
+                <h4>@Loc.T("Feat3Title")</h4><p>@Loc.T("Feat3Body")</p></div>
+            <div class="land-feature"><span class="land-feature-icon">⚖️</span>
+                <h4>@Loc.T("Feat4Title")</h4><p>@Loc.T("Feat4Body")</p></div>
+            <div class="land-feature"><span class="land-feature-icon">🧬</span>
+                <h4>@Loc.T("Feat5Title")</h4><p>@Loc.T("Feat5Body")</p></div>
+            <div class="land-feature"><span class="land-feature-icon">⚠️</span>
+                <h4>@Loc.T("Feat6Title")</h4><p>@Loc.T("Feat6Body")</p></div>
+        </div>
+    </div>
+</section>
+
+@* =========================== PREVIEW (BLURRED 60%) =========================== *@
+<section class="land-section" id="preview" style="background: var(--land-surface);" data-testid="land-preview-section">
+    <div class="land-container">
+        <div class="text-center mb-5">
+            <span class="land-eyebrow">@Loc.T("PreviewEyebrow")</span>
+            <h2>@Loc.T("PreviewTitle")</h2>
+            <p style="max-width: 640px; margin: 0 auto;">@Loc.T("PreviewLead")</p>
+        </div>
+        <div class="land-preview" data-testid="land-preview-card">
+            <div class="land-preview-head"><h3>@Loc.T("PreviewReportTitle")</h3></div>
+            <div class="land-preview-body">
+                <div class="land-preview-section">
+                    <div class="land-preview-section-title">@Loc.T("PreviewSec1Sumar")</div>
+                    <p>@Loc.T("PreviewSec1Body")</p>
+                </div>
+                <div class="land-preview-section">
+                    <div class="land-preview-section-title">@Loc.T("PreviewSec2Results")</div>
+                    @* 5 rows: 2 visible (40%), 3 blurred (60%) *@
+                    <div class="land-preview-row"><strong>Hemoglobin (Hb)</strong><span>15.8 g/dL · ref 12–16 · ↑ slightly elevated</span></div>
+                    <div class="land-preview-row"><strong>Glucose</strong><span>94 mg/dL · ref 70–100 · normal</span></div>
+                    <div class="land-blur">
+                        <div class="land-preview-row"><strong>LDL Cholesterol</strong><span>142 mg/dL · ref &lt;130 · elevated, dietary review suggested</span></div>
+                        <div class="land-preview-row"><strong>Creatinine</strong><span>0.96 mg/dL · ref 0.7–1.2 · normal</span></div>
+                        <div class="land-preview-row"><strong>TSH</strong><span>2.4 mIU/L · ref 0.4–4.0 · normal</span></div>
+                    </div>
+                </div>
+                <div class="land-preview-section">
+                    <div class="land-preview-section-title">@Loc.T("PreviewSec3Correl")</div>
+                    @* 1 visible + 2 blurred (40%/60%) *@
+                    <p style="margin:0 0 .5rem 0;">@Loc.T("PreviewCorrelLine1")</p>
+                    <div class="land-blur">
+                        <p style="margin:0 0 .5rem 0;">@Loc.T("PreviewCorrelLine2")</p>
+                        <p style="margin:0;">@Loc.T("PreviewCorrelLine3")</p>
+                    </div>
+                </div>
+                <div class="land-preview-section">
+                    <div class="land-preview-section-title">@Loc.T("PreviewSec4Recom")</div>
+                    @* 2 visible + 3 blurred (40%/60%) *@
+                    <p style="margin:0 0 .5rem 0;">@Loc.T("PreviewRecLine1")</p>
+                    <p style="margin:0 0 .5rem 0;">@Loc.T("PreviewRecLine2")</p>
+                    <div class="land-blur">
+                        <p style="margin:0 0 .5rem 0;">@Loc.T("PreviewRecLine3")</p>
+                        <p style="margin:0 0 .5rem 0;">@Loc.T("PreviewRecLine4")</p>
+                        <p style="margin:0;">@Loc.T("PreviewRecLine5")</p>
+                    </div>
+                </div>
+            </div>
+            <div class="land-preview-cta">
+                <p><strong>@Loc.T("PreviewCtaTitle")</strong></p>
+                <p style="font-size: .9rem; max-width: 480px;">@Loc.T("PreviewCtaBody")</p>
+                <a href="@AuthUrl("register")" class="land-btn land-btn-accent land-btn-lg"
+                   data-testid="preview-cta">
+                    @Loc.T("PreviewCtaButton") &rarr;
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+@* =========================== PRICING TEASER =========================== *@
+<section class="land-section" id="pricing" data-testid="land-pricing-section">
+    <div class="land-container">
+        <div class="land-pricing">
+            <span class="land-eyebrow">@Loc.T("PriceEyebrow")</span>
+            <h2>@Loc.T("PriceTitle")</h2>
+            <div class="land-pricing-bigprice">
+                @Loc.T("PriceFree") <small>· @Loc.T("PriceFreeSub")</small>
+            </div>
+            <p style="max-width: 480px; margin: 0 auto 1.25rem;">@Loc.T("PriceBody")</p>
+            <a href="@AuthUrl("register")" class="land-btn land-btn-accent land-btn-lg"
+               data-testid="pricing-cta">
+                @Loc.T("PriceCtaButton") &rarr;
+            </a>
+        </div>
+    </div>
+</section>
+
+@* =========================== B2B CTA STRIP =========================== *@
+<section class="land-section" id="clinics" style="padding-top:0;" data-testid="land-b2b">
+    <div class="land-container">
+        <div class="land-b2b">
+            <div>
+                <h2>@Loc.T("B2bTitle")</h2>
+                <p>@Loc.T("B2bBody")</p>
+            </div>
+            <a href="mailto:contact@medicalapp.ro?subject=CAM%20Demo%20Request"
+               class="land-btn land-btn-accent land-btn-lg" data-testid="b2b-cta">
+                @Loc.T("B2bCtaButton") &rarr;
+            </a>
+        </div>
+    </div>
+</section>
+
+@* =========================== TESTIMONIALS =========================== *@
+<section class="land-section" style="background: var(--land-surface);" data-testid="land-testimonials-section">
+    <div class="land-container">
+        <div class="text-center mb-5">
+            <span class="land-eyebrow">@Loc.T("TestiEyebrow")</span>
+            <h2>@Loc.T("TestiTitle")</h2>
+        </div>
+        <div class="land-testimonials">
+            <div class="land-testi">
+                <p class="land-testi-quote">&ldquo;@Loc.T("Testi1Quote")&rdquo;</p>
+                <div class="land-testi-author">
+                    <div class="land-testi-avatar">A</div>
+                    <div><div class="land-testi-name">@Loc.T("Testi1Name")</div>
+                         <div class="land-testi-role">@Loc.T("Testi1Role")</div></div>
+                </div>
+            </div>
+            <div class="land-testi">
+                <p class="land-testi-quote">&ldquo;@Loc.T("Testi2Quote")&rdquo;</p>
+                <div class="land-testi-author">
+                    <div class="land-testi-avatar">M</div>
+                    <div><div class="land-testi-name">@Loc.T("Testi2Name")</div>
+                         <div class="land-testi-role">@Loc.T("Testi2Role")</div></div>
+                </div>
+            </div>
+            <div class="land-testi">
+                <p class="land-testi-quote">&ldquo;@Loc.T("Testi3Quote")&rdquo;</p>
+                <div class="land-testi-author">
+                    <div class="land-testi-avatar">D</div>
+                    <div><div class="land-testi-name">@Loc.T("Testi3Name")</div>
+                         <div class="land-testi-role">@Loc.T("Testi3Role")</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@* =========================== FOOTER =========================== *@
+<footer class="land-footer" data-testid="land-footer">
+    <div class="land-footer-grid">
+        <div>
+            <div class="land-brand mb-3"><span class="land-brand-mark">M+</span> MedicalApp+</div>
+            <p style="font-size: .9rem; max-width: 360px;">@Loc.T("FootTagline")</p>
+        </div>
+        <div>
+            <h5>@Loc.T("FootProduct")</h5>
+            <ul>
+                <li><a href="#how">@Loc.T("NavHow")</a></li>
+                <li><a href="#features">@Loc.T("NavFeatures")</a></li>
+                <li><a href="#pricing">@Loc.T("NavPricing")</a></li>
+            </ul>
+        </div>
+        <div>
+            <h5>@Loc.T("FootCompany")</h5>
+            <ul>
+                <li><a href="#clinics">@Loc.T("NavClinics")</a></li>
+                <li><a href="mailto:contact@medicalapp.ro">@Loc.T("FootContact")</a></li>
+            </ul>
+        </div>
+        <div>
+            <h5>@Loc.T("FootLegal")</h5>
+            <ul>
+                <li><a href="#">@Loc.T("FootTerms")</a></li>
+                <li><a href="#">@Loc.T("FootPrivacy")</a></li>
+                <li><a href="#">GDPR</a></li>
+            </ul>
+        </div>
+    </div>
+    <div class="land-footer-bottom">
+        <div>© @DateTime.UtcNow.Year MedicalApp+. @Loc.T("FootRights")</div>
+        <div>@Loc.T("FootDisclaimer")</div>
+    </div>
+</footer>
+
+<script>
+(function(){
+    // Language dropdown open/close
+    var btn = document.getElementById('landLangBtn');
+    var menu = document.getElementById('landLangMenu');
+    if (btn && menu) {
+        btn.addEventListener('click', function(e){
+            e.stopPropagation();
+            menu.classList.toggle('d-none');
+            btn.setAttribute('aria-expanded', menu.classList.contains('d-none') ? 'false' : 'true');
+        });
+        document.addEventListener('click', function(e){
+            if (!menu.contains(e.target) && e.target !== btn) menu.classList.add('d-none');
+        });
+    }
+    // Scroll reveal (intersection observer)
+    if ('IntersectionObserver' in window) {
+        var els = document.querySelectorAll('.land-reveal');
+        var io = new IntersectionObserver(function(entries){
+            entries.forEach(function(e){
+                if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+            });
+        }, { threshold: 0.15 });
+        els.forEach(function(el){ io.observe(el); });
+    }
+    // Smooth anchor scroll
+    document.querySelectorAll('a[href^="#"]').forEach(function(a){
+        a.addEventListener('click', function(e){
+            var href = a.getAttribute('href');
+            if (href === '#' || href.length < 2) return;
+            var target = document.querySelector(href);
+            if (target) {
+                e.preventDefault();
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    });
+})();
+</script>
+
+</body>
+</html>
