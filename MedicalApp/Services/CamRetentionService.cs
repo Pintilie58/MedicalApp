@@ -159,10 +159,17 @@ namespace MedicalApp.Services
 
             if (lastBatch != null && lastBatchInGrace)
             {
+                // Precompute the end-of-batch timestamp so EF Core doesn't
+                // have to translate a nullable coalesce inside the Where —
+                // newer EF Core versions throw "op_LessThanOrEqual" when
+                // (DateTime? ?? DateTime) appears in a SQL translation.
+                DateTime batchStart = lastBatch.StartedAt;
+                DateTime batchEnd = lastBatch.FinishedAt ?? DateTime.UtcNow;
+
                 var lastBatchFiles = await _db.ClinicAnalyses.AsNoTracking()
                     .Where(a => a.ClinicId == clinic.Id
-                                && a.ProcessedAt >= lastBatch.StartedAt
-                                && a.ProcessedAt <= (lastBatch.FinishedAt ?? DateTime.UtcNow))
+                                && a.ProcessedAt >= batchStart
+                                && a.ProcessedAt <= batchEnd)
                     .Select(a => a.OriginalFileName)
                     .ToListAsync(ct);
                 foreach (var f in lastBatchFiles)
