@@ -135,11 +135,15 @@ namespace MedicalApp.Services
             var cutoff = DateTime.UtcNow.AddDays(-days);
 
             // ---- Find protected file names (the last fully-completed batch) ----
-            // We protect by exact file name match. SamplingPdfFileName +
-            // OriginalFileName are the two ways a file can have ended up in
-            // Sends/Sumar/Errors. ClinicAnalyses keeps OriginalFileName; that
-            // is sufficient because Sumar files are named with timestamps and
-            // are short-lived anyway.
+            // Files from the LAST completed batch are protected by exact name
+            // match against ClinicAnalyses.OriginalFileName, BUT ONLY for a
+            // short grace window AFTER the batch finished. This prevents the
+            // safeguard from becoming permanent ("this file is from the last
+            // batch and we never run a new one, so it lives forever").
+            //
+            // Grace window = max(48h, retention/2) — generous enough to cover
+            // patient call-backs the day after, but not so long that a clinic
+            // that runs one batch every 60 days keeps stale files indefinitely.
             var lastBatch = await _db.ClinicBatchRuns.AsNoTracking()
                 .Where(b => b.ClinicId == clinic.Id
                             && b.Status == "Completed"
@@ -148,7 +152,12 @@ namespace MedicalApp.Services
                 .FirstOrDefaultAsync(ct);
 
             var protectedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (lastBatch != null)
+            int graceWindowHours = Math.Max(48, (days * 24) / 2);
+            var graceCutoff = DateTime.UtcNow.AddHours(-graceWindowHours);
+            bool lastBatchInGrace = lastBatch?.FinishedAt != null
+                                    && lastBatch.FinishedAt > graceCutoff;
+
+            if (lastBatch != null && lastBatchInGrace)
             {
                 var lastBatchFiles = await _db.ClinicAnalyses.AsNoTracking()
                     .Where(a => a.ClinicId == clinic.Id

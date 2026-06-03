@@ -130,7 +130,9 @@ namespace MedicalApp.Areas.CAM.Controllers
                 {
                     TempData["SuccessMessage"] =
                         $"Niciun fișier nu era mai vechi de {result.RetentionDaysUsed} zile " +
-                        $"(protejate de ultimul lot: {result.FilesProtectedByLastBatch}).";
+                        $"(protejate de ultimul lot: {result.FilesProtectedByLastBatch}). " +
+                        $"Notă: folderul Original NU este atins niciodată — fișierele de acolo " +
+                        $"rămân până le ștergi manual.";
                 }
                 else
                 {

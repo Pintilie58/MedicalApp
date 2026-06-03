@@ -285,6 +285,27 @@
                                 @Model.DiskHumanTotal · @Model.DiskFilesTotal fișiere
                             </span>
                         </div>
+                        @{
+                            string FormatBytes(long b)
+                            {
+                                double s = b;
+                                string[] units = { "B", "KB", "MB", "GB" };
+                                int i = 0;
+                                while (s >= 1024 && i < units.Length - 1) { s /= 1024; i++; }
+                                return $"{s:0.##} {units[i]}";
+                            }
+                        }
+                        <div class="small text-muted mb-2" data-testid="cam-disk-breakdown">
+                            <span title="Original NU este afectat de curățare">
+                                Original: <strong>@FormatBytes(Model.DiskBytesOriginal)</strong>
+                            </span>
+                            <span class="ms-2">·</span>
+                            <span class="ms-2">Sends: <strong>@FormatBytes(Model.DiskBytesSends)</strong></span>
+                            <span class="ms-2">·</span>
+                            <span class="ms-2">Sumar: <strong>@FormatBytes(Model.DiskBytesSumar)</strong></span>
+                            <span class="ms-2">·</span>
+                            <span class="ms-2">Errors: <strong>@FormatBytes(Model.DiskBytesErrors)</strong></span>
+                        </div>
                         @if (warn > 0)
                         {
                             <div class="alert @(warn == 2 ? "alert-danger" : "alert-warning") py-1 px-2 small mb-2"
