@@ -1,0 +1,251 @@
+{
+  "project_context": {
+    "domain": "Medical / Health / AI Interpretation",
+    "theme": "Light",
+    "archetype": "1 (Organic & Earthy)",
+    "tone": "Trustworthy, professional, warm, accessible",
+    "technical_constraints": [
+      "ASP.NET Core MVC (.NET 9) Razor views",
+      "Bootstrap 5.3.2 (existing)",
+      "NO React/Vue/JS frameworks",
+      "CSS confined to ~/css/landing.css",
+      "ZERO modifications to existing pages/components, except HomeController.Index()",
+      "All text default in English (using Loc.T() keys)",
+      "Must include data-testid on interactive elements"
+    ],
+    "design_constraints": [
+      "NO purple-violet gradients (avoid AI-slop)",
+      "Re-use _DoctorMascot.cshtml in hero or onboarding section",
+      "Warm/organic accents combined with brand blue"
+    ]
+  },
+  "colors": {
+    "primary": "#0d6efd",
+    "primary_dark": "#0a58ca",
+    "primary_light": "#e7f1ff",
+    "accent": "#ea7a53",
+    "accent_hover": "#d16643",
+    "secondary": "#728c69",
+    "background_base": "#fbfbf9",
+    "surface_white": "#ffffff",
+    "text_main": "#1c252e",
+    "text_muted": "#515e6b",
+    "border_subtle": "rgba(28, 37, 46, 0.08)",
+    "success_green": "#28a745",
+    "warning_yellow": "#ffc107",
+    "danger_red": "#dc3545"
+  },
+  "typography": {
+    "font_family_heading": "'Manrope', system-ui, sans-serif",
+    "font_family_body": "'Manrope', system-ui, sans-serif",
+    "hierarchy": {
+      "h1": {
+        "size": "clamp(2.5rem, 5vw, 4rem)",
+        "weight": "800",
+        "letter_spacing": "-0.03em",
+        "line_height": "1.1"
+      },
+      "h2": {
+        "size": "clamp(2rem, 4vw, 2.5rem)",
+        "weight": "700",
+        "letter_spacing": "-0.02em",
+        "line_height": "1.2"
+      },
+      "h3": {
+        "size": "clamp(1.5rem, 3vw, 1.75rem)",
+        "weight": "700",
+        "letter_spacing": "-0.01em"
+      },
+      "body_lg": {
+        "size": "1.125rem",
+        "weight": "400",
+        "line_height": "1.6"
+      },
+      "body_base": {
+        "size": "1rem",
+        "weight": "400",
+        "line_height": "1.6"
+      },
+      "overline": {
+        "size": "0.75rem",
+        "weight": "700",
+        "letter_spacing": "0.15em",
+        "text_transform": "uppercase"
+      }
+    }
+  },
+  "spacing_and_layout": {
+    "philosophy": "Generous Spacing, Optical Alignment",
+    "container": "Bootstrap .container or .container-lg",
+    "section_padding": "py-5 py-lg-6 (Custom CSS: .py-lg-6 { padding-top: 6rem; padding-bottom: 6rem; })",
+    "border_radius": {
+      "sm": "0.25rem",
+      "md": "0.5rem",
+      "lg": "1rem",
+      "xl": "1.5rem",
+      "pill": "50rem"
+    },
+    "shadows": {
+      "subtle": "0 4px 20px rgba(0, 0, 0, 0.03)",
+      "hover": "0 10px 30px rgba(0, 0, 0, 0.08)",
+      "glass": "0 8px 32px rgba(0, 0, 0, 0.12)"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": {
+        "classes": "btn btn-primary btn-lg rounded-pill px-5 fw-bold",
+        "css_overrides": "background-color: var(--accent); border-color: var(--accent); color: white; transition: transform 0.2s ease, box-shadow 0.2s ease;",
+        "hover": "transform: translateY(-2px); box-shadow: var(--shadow-hover);"
+      },
+      "secondary": {
+        "classes": "btn btn-outline-primary btn-lg rounded-pill px-4 fw-bold"
+      },
+      "ghost": {
+        "classes": "btn btn-link text-decoration-none fw-bold"
+      }
+    },
+    "cards": {
+      "base": "card border-0 h-100",
+      "css_overrides": "background: var(--surface-white); border-radius: var(--radius-lg); box-shadow: var(--shadow-subtle); transition: transform 0.3s ease;",
+      "hover": "transform: translateY(-5px); box-shadow: var(--shadow-hover);"
+    },
+    "navbar": {
+      "behavior": "Sticky-top, starts transparent, becomes solid white with subtle shadow on scroll (implement via simple JS or CSS sticky).",
+      "elements": "Logo left, Links center, Language selector + Sign In + CTA right."
+    },
+    "blurred_preview": {
+      "wrapper": "position-relative overflow-hidden rounded-4 border",
+      "content": "A mock interpretation report layout (HTML/CSS)",
+      "blur_overlay": "position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center",
+      "css_blur": "backdrop-filter: blur(8px); background: linear-gradient(to bottom, rgba(255,255,255,0.1), rgba(255,255,255,0.9) 60%);"
+    }
+  },
+  "sections": [
+    {
+      "name": "Header / Navbar",
+      "content": [
+        "Logo",
+        "Links: How it works, For Clinics, Pricing",
+        "Right: Language Selector (Loc.T dropdown), Sign In (data-testid='nav-login-btn'), Try Free CTA (data-testid='nav-cta-btn')"
+      ]
+    },
+    {
+      "name": "Hero Section",
+      "layout": "Row with 2 columns (col-lg-7 text, col-lg-5 visual).",
+      "content": [
+        "Overline: 'Medical-grade AI in your pocket' (Loc.T)",
+        "H1: 'Understand your lab results in 30 seconds' (Loc.T)",
+        "Subtitle: 'Upload your PDF and get a clear, personalized explanation of your biomarkers.' (Loc.T)",
+        "CTA Primary: 'Try free now' -> Redirects to upload/register (data-testid='hero-cta-btn')",
+        "Trust text: '1 free credit on registration • No credit card required'",
+        "Visual: EITHER an abstract medical dashboard mockup OR an image of the existing Mascot (_DoctorMascot.cshtml) greeting the user beside a clean UI card."
+      ],
+      "styling": "Background: var(--background_base). Huge padding. No gradients."
+    },
+    {
+      "name": "Audience Pillars",
+      "layout": "Container, Row with 3 equal columns (col-md-4).",
+      "content": [
+        "H2 (Center): 'Built for everyone in healthcare'",
+        "Card 1: For Individuals (Patient Icon, 'Understand your health trends...', CTA: 'Get my report')",
+        "Card 2: For Labs (Microscope Icon, 'Automate interpretations...', CTA: 'Partner with us')",
+        "Card 3: For Clinics (Stethoscope Icon, 'Process 100s of reports/day...', CTA: 'See CAM module')"
+      ]
+    },
+    {
+      "name": "Why Interpret Your Results",
+      "layout": "Row (col-lg-5 image, col-lg-7 text list).",
+      "content": [
+        "Image: 'modern medical clinic' or 'doctor patient consultation' (from media_urls)",
+        "H2: 'Why interpretation matters'",
+        "List items: Catch issues early, communicate better with doctors, monitor chronic conditions, track family health."
+      ],
+      "styling": "Generous spacing. Image max-height 80vh with soft rounded corners."
+    },
+    {
+      "name": "How It Works",
+      "layout": "Row with 3 staggered columns or step cards.",
+      "content": [
+        "Step 1: Upload PDF (Secure & encrypted)",
+        "Step 2: AI Interprets (30s processing, 15,000+ biomarkers)",
+        "Step 3: Get Full Report (Clear language, actionable insights)"
+      ]
+    },
+    {
+      "name": "Blurred Preview / Teaser",
+      "layout": "Container centered, large mock card.",
+      "content": [
+        "Top half of card: Shows fake patient data, 'Cholesterol: 218 mg/dL (High)' with clear UI.",
+        "Bottom half: Blurred heavily using backdrop-filter.",
+        "Overlay CTA on blurred section: 'Sign up to unlock the full medical report & recommendations' (data-testid='preview-unlock-btn')."
+      ]
+    },
+    {
+      "name": "Feature Grid & Pricing Teaser",
+      "layout": "Bento-style grid or 2-column list.",
+      "content": [
+        "Features: 30 Languages, Family Profiles, Compare Reports, LOINC Standardization, Risk Factors.",
+        "Pricing block: 'Free first interpretation. Then simple pay-as-you-go credit packages.'"
+      ],
+      "styling": "Card backgrounds soft secondary (Sage) or primary_light for visual break."
+    },
+    {
+      "name": "Trust & Credibility Row",
+      "layout": "4 columns displaying stats.",
+      "content": [
+        "Stats: 30+ Languages, GDPR Compliant, HIPAA-style security, X+ Interpretations.",
+        "Muted logos or trust badges."
+      ]
+    },
+    {
+      "name": "Testimonials",
+      "layout": "Row with 2 or 3 cards.",
+      "content": [
+        "Cards with 5 stars, generic medical/patient feedback (lorem or Loc.T placeholders)."
+      ]
+    },
+    {
+      "name": "B2B Clinic CTA",
+      "layout": "Full width banner (bg-primary text-white).",
+      "content": [
+        "H2: 'Process 100s of reports a day?'",
+        "Subtitle: 'Discover our CAM module for clinics.'",
+        "CTA Secondary (White/Outline): 'Request Demo' (data-testid='b2b-demo-btn')"
+      ]
+    },
+    {
+      "name": "Footer",
+      "layout": "Standard 4-column footer.",
+      "content": [
+        "Brand Logo",
+        "Language Selector",
+        "Links: Terms, Privacy, GDPR, Contact",
+        "Social Icons"
+      ]
+    }
+  ],
+  "media_urls": [
+    {
+      "category": "clinic_lifestyle",
+      "url": "https://images.pexels.com/photos/7579823/pexels-photo-7579823.jpeg",
+      "description": "Female doctor consulting a patient in a modern medical office. Use for 'Why Interpret' section."
+    },
+    {
+      "category": "abstract_clinic",
+      "url": "https://images.pexels.com/photos/7108114/pexels-photo-7108114.jpeg",
+      "description": "Clean, sterile modern medical facility. Use for B2B/Clinic background or Hero visual alternative."
+    }
+  ],
+  "implementation_notes_for_agent": [
+    "CREATE a new CSS file at ~/css/landing.css. DO NOT edit site.css.",
+    "Map colors to CSS variables in landing.css root: --primary, --accent, etc.",
+    "Use Bootstrap utility classes (d-flex, align-items-center, py-5, gap-4) extensively.",
+    "DO NOT use React or JS frameworks. Build views in pure HTML/Razor inside Views/Home/Landing.cshtml (or equivalent).",
+    "In HomeController.cs, modify Index() to check if User.Identity.IsAuthenticated. If false, return View(\"Landing\"); else return RedirectToAction(\"Dashboard\");",
+    "Always use Loc.T('...') for text. Example: @Loc.T(\"Try free now\")",
+    "Include the _DoctorMascot.cshtml partial in the Hero section.",
+    "Implement the blurred preview card using raw HTML + CSS backdrop-filter, demonstrating exactly the 60% blur requirement.",
+    "Add 'data-testid' to ALL buttons and forms as specified."
+  ]
+}
