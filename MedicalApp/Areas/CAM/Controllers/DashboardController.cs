@@ -129,8 +129,7 @@ namespace MedicalApp.Areas.CAM.Controllers
                 if (result.TotalDeleted == 0)
                 {
                     TempData["SuccessMessage"] =
-                        $"Niciun fișier nu era mai vechi de {result.RetentionDaysUsed} zile " +
-                        $"(protejate de ultimul lot: {result.FilesProtectedByLastBatch}). " +
+                        $"Niciun fișier nu era mai vechi de {result.RetentionDaysUsed} zile. " +
                         $"Notă: folderul Original NU este atins niciodată — fișierele de acolo " +
                         $"rămân până le ștergi manual.";
                 }
@@ -140,8 +139,7 @@ namespace MedicalApp.Areas.CAM.Controllers
                         $"Au fost șterse {result.TotalDeleted} fișiere ({result.HumanSize} eliberat) " +
                         $"— retenție {result.RetentionDaysUsed} zile. " +
                         $"Sends: {result.FilesDeletedSends} · Sumar: {result.FilesDeletedSumar} · " +
-                        $"Errors: {result.FilesDeletedErrors}. " +
-                        $"Protejate de ultimul lot: {result.FilesProtectedByLastBatch}.";
+                        $"Errors: {result.FilesDeletedErrors}.";
                 }
             }
             catch (Exception ex)

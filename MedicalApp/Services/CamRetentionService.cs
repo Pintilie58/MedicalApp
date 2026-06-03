@@ -1,6 +1,4 @@
-using MedicalApp.Data;
 using MedicalApp.Models;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace MedicalApp.Services
@@ -24,21 +22,17 @@ namespace MedicalApp.Services
     /// </summary>
     public class CamRetentionService
     {
-        private readonly AppDbContext _db;
         private readonly ICamFileStore _files;
         private readonly ILogger<CamRetentionService> _logger;
         private readonly int _defaultRetentionDays;
 
         public CamRetentionService(
-            AppDbContext db,
             ICamFileStore files,
             IOptions<CamSettings> camSettings,
             ILogger<CamRetentionService> logger)
         {
-            _db = db;
             _files = files;
             _logger = logger;
-            // Default retention if appsettings.json doesn't override it.
             _defaultRetentionDays = camSettings.Value.RetentionDays > 0
                 ? camSettings.Value.RetentionDays
                 : 30;
@@ -123,7 +117,7 @@ namespace MedicalApp.Services
         /// dashboard, where the operator may type their own value).
         /// When null, uses appsettings.json default.
         /// </param>
-        public async Task<CleanupResult> CleanupAsync(Clinic clinic,
+        public Task<CleanupResult> CleanupAsync(Clinic clinic,
             int? overrideRetentionDays = null,
             CancellationToken ct = default)
         {
@@ -134,49 +128,12 @@ namespace MedicalApp.Services
                 : _defaultRetentionDays;
             var cutoff = DateTime.UtcNow.AddDays(-days);
 
-            // ---- Find protected file names (the last fully-completed batch) ----
-            // Files from the LAST completed batch are protected by exact name
-            // match against ClinicAnalyses.OriginalFileName, BUT ONLY for a
-            // short grace window AFTER the batch finished. This prevents the
-            // safeguard from becoming permanent ("this file is from the last
-            // batch and we never run a new one, so it lives forever").
-            //
-            // Grace window = max(48h, retention/2) — generous enough to cover
-            // patient call-backs the day after, but not so long that a clinic
-            // that runs one batch every 60 days keeps stale files indefinitely.
-            var lastBatch = await _db.ClinicBatchRuns.AsNoTracking()
-                .Where(b => b.ClinicId == clinic.Id
-                            && b.Status == "Completed"
-                            && b.FinishedAt != null)
-                .OrderByDescending(b => b.FinishedAt)
-                .FirstOrDefaultAsync(ct);
-
+            // Cleanup is PURE FILE-SYSTEM — no DB lookups needed. We rely
+            // exclusively on the file LastWriteTimeUtc to decide eligibility.
+            // Files from the latest batch are naturally protected by their
+            // own freshness (they were written today, so even with retention=1
+            // they won't be touched until tomorrow).
             var protectedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            int graceWindowHours = Math.Max(48, (days * 24) / 2);
-            var graceCutoff = DateTime.UtcNow.AddHours(-graceWindowHours);
-            bool lastBatchInGrace = lastBatch?.FinishedAt != null
-                                    && lastBatch.FinishedAt > graceCutoff;
-
-            if (lastBatch != null && lastBatchInGrace)
-            {
-                // Precompute the end-of-batch timestamp so EF Core doesn't
-                // have to translate a nullable coalesce inside the Where —
-                // newer EF Core versions throw "op_LessThanOrEqual" when
-                // (DateTime? ?? DateTime) appears in a SQL translation.
-                DateTime batchStart = lastBatch.StartedAt;
-                DateTime batchEnd = lastBatch.FinishedAt ?? DateTime.UtcNow;
-
-                var lastBatchFiles = await _db.ClinicAnalyses.AsNoTracking()
-                    .Where(a => a.ClinicId == clinic.Id
-                                && a.ProcessedAt >= batchStart
-                                && a.ProcessedAt <= batchEnd)
-                    .Select(a => a.OriginalFileName)
-                    .ToListAsync(ct);
-                foreach (var f in lastBatchFiles)
-                {
-                    if (!string.IsNullOrWhiteSpace(f)) protectedNames.Add(f);
-                }
-            }
 
             var result = new CleanupResult
             {
@@ -205,7 +162,7 @@ namespace MedicalApp.Services
                     result.FilesDeletedSends, result.FilesDeletedSumar, result.FilesDeletedErrors,
                     result.BytesFreed, days, result.FilesProtectedByLastBatch);
             }
-            return result;
+            return Task.FromResult(result);
         }
 
         // ------------- helpers (private) -------------
