@@ -1,251 +1,71 @@
 {
-  "project_context": {
-    "domain": "Medical / Health / AI Interpretation",
-    "theme": "Light",
-    "archetype": "1 (Organic & Earthy)",
-    "tone": "Trustworthy, professional, warm, accessible",
-    "technical_constraints": [
-      "ASP.NET Core MVC (.NET 9) Razor views",
-      "Bootstrap 5.3.2 (existing)",
-      "NO React/Vue/JS frameworks",
-      "CSS confined to ~/css/landing.css",
-      "ZERO modifications to existing pages/components, except HomeController.Index()",
-      "All text default in English (using Loc.T() keys)",
-      "Must include data-testid on interactive elements"
-    ],
-    "design_constraints": [
-      "NO purple-violet gradients (avoid AI-slop)",
-      "Re-use _DoctorMascot.cshtml in hero or onboarding section",
-      "Warm/organic accents combined with brand blue"
-    ]
-  },
+  "theme": "LIGHT",
+  "archetype": "1 (Organic & Earthy)",
   "colors": {
-    "primary": "#0d6efd",
-    "primary_dark": "#0a58ca",
-    "primary_light": "#e7f1ff",
-    "accent": "#ea7a53",
-    "accent_hover": "#d16643",
-    "secondary": "#728c69",
-    "background_base": "#fbfbf9",
-    "surface_white": "#ffffff",
-    "text_main": "#1c252e",
-    "text_muted": "#515e6b",
-    "border_subtle": "rgba(28, 37, 46, 0.08)",
-    "success_green": "#28a745",
-    "warning_yellow": "#ffc107",
-    "danger_red": "#dc3545"
+    "background_cream": "#FAFAF7",
+    "surface_white": "#FFFFFF",
+    "primary_sage": "#7A9180",
+    "primary_sage_dark": "#4A5C50",
+    "primary_sage_light": "#EAF0EB",
+    "accent_coral": "#E07A5F",
+    "accent_coral_hover": "#D1674A",
+    "text_main": "#2B302D",
+    "text_muted": "#5C6660",
+    "status_normal": { "text": "#3F5C47", "bg": "#EAF0EB", "border": "#BBD0C1" },
+    "status_high": { "text": "#993C24", "bg": "#FCEEEB", "border": "#F3BEB1" },
+    "status_low": { "text": "#915A24", "bg": "#FDF4EB", "border": "#EAC6A3" },
+    "status_borderline": { "text": "#91761F", "bg": "#FDF8EB", "border": "#EADEA8" }
   },
   "typography": {
-    "font_family_heading": "'Manrope', system-ui, sans-serif",
-    "font_family_body": "'Manrope', system-ui, sans-serif",
-    "hierarchy": {
-      "h1": {
-        "size": "clamp(2.5rem, 5vw, 4rem)",
-        "weight": "800",
-        "letter_spacing": "-0.03em",
-        "line_height": "1.1"
-      },
-      "h2": {
-        "size": "clamp(2rem, 4vw, 2.5rem)",
-        "weight": "700",
-        "letter_spacing": "-0.02em",
-        "line_height": "1.2"
-      },
-      "h3": {
-        "size": "clamp(1.5rem, 3vw, 1.75rem)",
-        "weight": "700",
-        "letter_spacing": "-0.01em"
-      },
-      "body_lg": {
-        "size": "1.125rem",
-        "weight": "400",
-        "line_height": "1.6"
-      },
-      "body_base": {
-        "size": "1rem",
-        "weight": "400",
-        "line_height": "1.6"
-      },
-      "overline": {
-        "size": "0.75rem",
-        "weight": "700",
-        "letter_spacing": "0.15em",
-        "text_transform": "uppercase"
-      }
-    }
+    "headings": "Outfit",
+    "body": "Plus Jakarta Sans",
+    "imports": "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap');"
   },
-  "spacing_and_layout": {
-    "philosophy": "Generous Spacing, Optical Alignment",
-    "container": "Bootstrap .container or .container-lg",
-    "section_padding": "py-5 py-lg-6 (Custom CSS: .py-lg-6 { padding-top: 6rem; padding-bottom: 6rem; })",
-    "border_radius": {
-      "sm": "0.25rem",
-      "md": "0.5rem",
-      "lg": "1rem",
-      "xl": "1.5rem",
-      "pill": "50rem"
-    },
-    "shadows": {
-      "subtle": "0 4px 20px rgba(0, 0, 0, 0.03)",
-      "hover": "0 10px 30px rgba(0, 0, 0, 0.08)",
-      "glass": "0 8px 32px rgba(0, 0, 0, 0.12)"
-    }
+  "icons": "FontAwesome 6 (https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css)",
+  "hero_card_details": {
+    "layout": "Main data card positioned on the right half, with a subtle box-shadow. An overlapping SVG trend chart is positioned absolutely at the bottom-left corner of the main card to break the grid organically.",
+    "features": [
+      "Pulsing 'Analyzed in 28s' indicator at the top right of the card.",
+      "10 data parameters with color-coded status badges.",
+      "Mini area chart partially popping out, showing an LDL 6-month trend."
+    ]
   },
-  "components": {
-    "buttons": {
-      "primary": {
-        "classes": "btn btn-primary btn-lg rounded-pill px-5 fw-bold",
-        "css_overrides": "background-color: var(--accent); border-color: var(--accent); color: white; transition: transform 0.2s ease, box-shadow 0.2s ease;",
-        "hover": "transform: translateY(-2px); box-shadow: var(--shadow-hover);"
-      },
-      "secondary": {
-        "classes": "btn btn-outline-primary btn-lg rounded-pill px-4 fw-bold"
-      },
-      "ghost": {
-        "classes": "btn btn-link text-decoration-none fw-bold"
-      }
-    },
-    "cards": {
-      "base": "card border-0 h-100",
-      "css_overrides": "background: var(--surface-white); border-radius: var(--radius-lg); box-shadow: var(--shadow-subtle); transition: transform 0.3s ease;",
-      "hover": "transform: translateY(-5px); box-shadow: var(--shadow-hover);"
-    },
-    "navbar": {
-      "behavior": "Sticky-top, starts transparent, becomes solid white with subtle shadow on scroll (implement via simple JS or CSS sticky).",
-      "elements": "Logo left, Links center, Language selector + Sign In + CTA right."
-    },
-    "blurred_preview": {
-      "wrapper": "position-relative overflow-hidden rounded-4 border",
-      "content": "A mock interpretation report layout (HTML/CSS)",
-      "blur_overlay": "position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center",
-      "css_blur": "backdrop-filter: blur(8px); background: linear-gradient(to bottom, rgba(255,255,255,0.1), rgba(255,255,255,0.9) 60%);"
-    }
-  },
-  "sections": [
+  "loc_cs_keys_to_update": [
     {
-      "name": "Header / Navbar",
-      "content": [
-        "Logo",
-        "Links: How it works, For Clinics, Pricing",
-        "Right: Language Selector (Loc.T dropdown), Sign In (data-testid='nav-login-btn'), Try Free CTA (data-testid='nav-cta-btn')"
-      ]
+      "key": "HeroTitle",
+      "en": "Your blood tests, made simple \u2014 in seconds",
+      "ro": "Analizele tale de s\u00e2nge, explicate clar \u00een c\u00e2teva secunde"
     },
     {
-      "name": "Hero Section",
-      "layout": "Row with 2 columns (col-lg-7 text, col-lg-5 visual).",
-      "content": [
-        "Overline: 'Medical-grade AI in your pocket' (Loc.T)",
-        "H1: 'Understand your lab results in 30 seconds' (Loc.T)",
-        "Subtitle: 'Upload your PDF and get a clear, personalized explanation of your biomarkers.' (Loc.T)",
-        "CTA Primary: 'Try free now' -> Redirects to upload/register (data-testid='hero-cta-btn')",
-        "Trust text: '1 free credit on registration • No credit card required'",
-        "Visual: EITHER an abstract medical dashboard mockup OR an image of the existing Mascot (_DoctorMascot.cshtml) greeting the user beside a clean UI card."
-      ],
-      "styling": "Background: var(--background_base). Huge padding. No gradients."
+      "key": "HeroAudienceLine",
+      "en": "For individuals, doctors, clinics, and laboratories",
+      "ro": "Pentru persoane fizice, cabinete medicale, clinici \u0219i laboratoare"
     },
     {
-      "name": "Audience Pillars",
-      "layout": "Container, Row with 3 equal columns (col-md-4).",
-      "content": [
-        "H2 (Center): 'Built for everyone in healthcare'",
-        "Card 1: For Individuals (Patient Icon, 'Understand your health trends...', CTA: 'Get my report')",
-        "Card 2: For Labs (Microscope Icon, 'Automate interpretations...', CTA: 'Partner with us')",
-        "Card 3: For Clinics (Stethoscope Icon, 'Process 100s of reports/day...', CTA: 'See CAM module')"
-      ]
-    },
-    {
-      "name": "Why Interpret Your Results",
-      "layout": "Row (col-lg-5 image, col-lg-7 text list).",
-      "content": [
-        "Image: 'modern medical clinic' or 'doctor patient consultation' (from media_urls)",
-        "H2: 'Why interpretation matters'",
-        "List items: Catch issues early, communicate better with doctors, monitor chronic conditions, track family health."
-      ],
-      "styling": "Generous spacing. Image max-height 80vh with soft rounded corners."
-    },
-    {
-      "name": "How It Works",
-      "layout": "Row with 3 staggered columns or step cards.",
-      "content": [
-        "Step 1: Upload PDF (Secure & encrypted)",
-        "Step 2: AI Interprets (30s processing, 15,000+ biomarkers)",
-        "Step 3: Get Full Report (Clear language, actionable insights)"
-      ]
-    },
-    {
-      "name": "Blurred Preview / Teaser",
-      "layout": "Container centered, large mock card.",
-      "content": [
-        "Top half of card: Shows fake patient data, 'Cholesterol: 218 mg/dL (High)' with clear UI.",
-        "Bottom half: Blurred heavily using backdrop-filter.",
-        "Overlay CTA on blurred section: 'Sign up to unlock the full medical report & recommendations' (data-testid='preview-unlock-btn')."
-      ]
-    },
-    {
-      "name": "Feature Grid & Pricing Teaser",
-      "layout": "Bento-style grid or 2-column list.",
-      "content": [
-        "Features: 30 Languages, Family Profiles, Compare Reports, LOINC Standardization, Risk Factors.",
-        "Pricing block: 'Free first interpretation. Then simple pay-as-you-go credit packages.'"
-      ],
-      "styling": "Card backgrounds soft secondary (Sage) or primary_light for visual break."
-    },
-    {
-      "name": "Trust & Credibility Row",
-      "layout": "4 columns displaying stats.",
-      "content": [
-        "Stats: 30+ Languages, GDPR Compliant, HIPAA-style security, X+ Interpretations.",
-        "Muted logos or trust badges."
-      ]
-    },
-    {
-      "name": "Testimonials",
-      "layout": "Row with 2 or 3 cards.",
-      "content": [
-        "Cards with 5 stars, generic medical/patient feedback (lorem or Loc.T placeholders)."
-      ]
-    },
-    {
-      "name": "B2B Clinic CTA",
-      "layout": "Full width banner (bg-primary text-white).",
-      "content": [
-        "H2: 'Process 100s of reports a day?'",
-        "Subtitle: 'Discover our CAM module for clinics.'",
-        "CTA Secondary (White/Outline): 'Request Demo' (data-testid='b2b-demo-btn')"
-      ]
-    },
-    {
-      "name": "Footer",
-      "layout": "Standard 4-column footer.",
-      "content": [
-        "Brand Logo",
-        "Language Selector",
-        "Links: Terms, Privacy, GDPR, Contact",
-        "Social Icons"
-      ]
+      "key": "HeroLead",
+      "en": "Upload your lab results and get an instant, human-friendly interpretation using advanced medical AI.",
+      "ro": "\u00cencarc\u0103 rezultatele analizelor \u0219i prime\u0219te instant o interpretare clar\u0103 \u0219i prietenoas\u0103, folosind un AI medical avansat."
     }
   ],
-  "media_urls": [
-    {
-      "category": "clinic_lifestyle",
-      "url": "https://images.pexels.com/photos/7579823/pexels-photo-7579823.jpeg",
-      "description": "Female doctor consulting a patient in a modern medical office. Use for 'Why Interpret' section."
-    },
-    {
-      "category": "abstract_clinic",
-      "url": "https://images.pexels.com/photos/7108114/pexels-photo-7108114.jpeg",
-      "description": "Clean, sterile modern medical facility. Use for B2B/Clinic background or Hero visual alternative."
-    }
+  "razor_markup_snippets": {
+    "removal_instructions": "Completely remove the `<section class=\"land-preview\">` (the blurred preview section) and all its child contents.",
+    "hero_section_html": "<section class=\"land-hero py-5\">\n    <div class=\"container\">\n        <div class=\"row align-items-center min-vh-75\">\n            <div class=\"col-lg-6 mb-5 mb-lg-0 pe-lg-5\">\n                <span class=\"land-eyebrow mb-3 d-inline-block px-3 py-1 rounded-pill\">@Loc.T(\"HeroEyebrow\")</span>\n                <h1 class=\"land-hero-title mb-3 fw-bold\">@Loc.T(\"HeroTitle\")</h1>\n                <div class=\"land-audience-line mb-4\">\n                    <i class=\"fa-solid fa-users-medical text-coral me-2\"></i>\n                    <span class=\"fw-medium fs-5 text-muted\">@Loc.T(\"HeroAudienceLine\")</span>\n                </div>\n                <p class=\"land-hero-lead mb-4 fs-5 text-muted\">@Loc.T(\"HeroLead\")</p>\n                <div class=\"d-flex flex-wrap gap-3\">\n                    <a href=\"/upload\" class=\"btn btn-coral btn-lg px-4 rounded-3 fw-semibold\" data-testid=\"hero-primary-cta\">@Loc.T(\"HeroCtaPrimary\")</a>\n                    <a href=\"/demo\" class=\"btn btn-outline-sage btn-lg px-4 rounded-3 fw-semibold\" data-testid=\"hero-secondary-cta\">@Loc.T(\"HeroCtaSecondary\")</a>\n                </div>\n                <div class=\"mt-5 d-flex flex-wrap gap-4 land-hero-stats\">\n                    <!-- Retain existing stats or use placeholders -->\n                </div>\n            </div>\n            <div class=\"col-lg-6 position-relative\">\n                <div class=\"land-hero-visual ms-lg-auto position-relative\" data-testid=\"hero-visual-card\">\n                    <!-- Main Data Card -->\n                    <div class=\"land-data-card p-4 rounded-4 bg-white shadow-lg position-relative z-1 border border-sage-light\">\n                        <div class=\"d-flex justify-content-between align-items-center mb-4 border-bottom border-sage-light pb-3\">\n                            <h5 class=\"mb-0 fw-semibold text-main\"><i class=\"fa-solid fa-file-medical text-sage me-2\"></i>Analysis Results</h5>\n                            <span class=\"badge bg-sage-light text-sage border border-sage-light rounded-pill px-3 py-1 fw-medium\">\n                                <span class=\"pulse-dot bg-sage d-inline-block rounded-circle me-2\"></span>Analyzed in 28s\n                            </span>\n                        </div>\n                        <div class=\"land-data-grid\">\n                            <div class=\"d-flex justify-content-between align-items-center py-2\">\n                                <span class=\"text-muted fw-medium\">Hemoglobin</span>\n                                <div class=\"d-flex align-items-center gap-3\">\n                                    <span class=\"fw-bold text-main\">13.5 <small class=\"text-muted fw-normal\">g/dL</small></span>\n                                    <span class=\"badge land-status-normal rounded-pill text-center\" style=\"width: 70px;\">Normal</span>\n                                </div>\n                            </div>\n                            <div class=\"d-flex justify-content-between align-items-center py-2\">\n                                <span class=\"text-muted fw-medium\">Glucose</span>\n                                <div class=\"d-flex align-items-center gap-3\">\n                                    <span class=\"fw-bold text-main\">105 <small class=\"text-muted fw-normal\">mg/dL</small></span>\n                                    <span class=\"badge land-status-borderline rounded-pill text-center\" style=\"width: 70px;\">Border</span>\n                                </div>\n                            </div>\n                            <div class=\"d-flex justify-content-between align-items-center py-2\">\n                                <span class=\"text-muted fw-medium\">LDL Chol</span>\n                                <div class=\"d-flex align-items-center gap-3\">\n                                    <span class=\"fw-bold text-main\">150 <small class=\"text-muted fw-normal\">mg/dL</small></span>\n                                    <span class=\"badge land-status-high rounded-pill text-center\" style=\"width: 70px;\">High</span>\n                                </div>\n                            </div>\n                            <div class=\"d-flex justify-content-between align-items-center py-2\">\n                                <span class=\"text-muted fw-medium\">HDL Chol</span>\n                                <div class=\"d-flex align-items-center gap-3\">\n                                    <span class=\"fw-bold text-main\">45 <small class=\"text-muted fw-normal\">mg/dL</small></span>\n                                    <span class=\"badge land-status-low rounded-pill text-center\" style=\"width: 70px;\">Low</span>\n                                </div>\n                            </div>\n                            <div class=\"d-flex justify-content-between align-items-center py-2\">\n                                <span class=\"text-muted fw-medium\">TSH</span>\n                                <div class=\"d-flex align-items-center gap-3\">\n                                    <span class=\"fw-bold text-main\">2.1 <small class=\"text-muted fw-normal\">mIU/L</small></span>\n                                    <span class=\"badge land-status-normal rounded-pill text-center\" style=\"width: 70px;\">Normal</span>\n                                </div>\n                            </div>\n                            <div class=\"d-flex justify-content-between align-items-center py-2\">\n                                <span class=\"text-muted fw-medium\">WBC</span>\n                                <div class=\"d-flex align-items-center gap-3\">\n                                    <span class=\"fw-bold text-main\">6.5 <small class=\"text-muted fw-normal\">x10\u2079/L</small></span>\n                                    <span class=\"badge land-status-normal rounded-pill text-center\" style=\"width: 70px;\">Normal</span>\n                                </div>\n                            </div>\n                            <div class=\"d-flex justify-content-between align-items-center py-2\">\n                                <span class=\"text-muted fw-medium\">RBC</span>\n                                <div class=\"d-flex align-items-center gap-3\">\n                                    <span class=\"fw-bold text-main\">4.8 <small class=\"text-muted fw-normal\">x10\u00b9\u00b2/L</small></span>\n                                    <span class=\"badge land-status-normal rounded-pill text-center\" style=\"width: 70px;\">Normal</span>\n                                </div>\n                            </div>\n                            <div class=\"d-flex justify-content-between align-items-center py-2\">\n                                <span class=\"text-muted fw-medium\">Platelets</span>\n                                <div class=\"d-flex align-items-center gap-3\">\n                                    <span class=\"fw-bold text-main\">250 <small class=\"text-muted fw-normal\">x10\u2079/L</small></span>\n                                    <span class=\"badge land-status-normal rounded-pill text-center\" style=\"width: 70px;\">Normal</span>\n                                </div>\n                            </div>\n                            <div class=\"d-flex justify-content-between align-items-center py-2\">\n                                <span class=\"text-muted fw-medium\">Iron</span>\n                                <div class=\"d-flex align-items-center gap-3\">\n                                    <span class=\"fw-bold text-main\">60 <small class=\"text-muted fw-normal\">ug/dL</small></span>\n                                    <span class=\"badge land-status-normal rounded-pill text-center\" style=\"width: 70px;\">Normal</span>\n                                </div>\n                            </div>\n                            <div class=\"d-flex justify-content-between align-items-center py-2\">\n                                <span class=\"text-muted fw-medium\">Vitamin D</span>\n                                <div class=\"d-flex align-items-center gap-3\">\n                                    <span class=\"fw-bold text-main\">15 <small class=\"text-muted fw-normal\">ng/mL</small></span>\n                                    <span class=\"badge land-status-low rounded-pill text-center\" style=\"width: 70px;\">Low</span>\n                                </div>\n                            </div>\n                        </div>\n                    </div>\n                    <!-- Overlapping Chart Card -->\n                    <div class=\"land-chart-card p-3 rounded-4 bg-white shadow-lg position-absolute z-3 border border-sage-light d-none d-md-block\" style=\"bottom: -15%; left: -10%; width: 280px;\" data-testid=\"hero-overlap-chart\">\n                        <div class=\"d-flex justify-content-between align-items-center mb-1\">\n                            <span class=\"fw-semibold text-main fs-6\">LDL Trend</span>\n                            <span class=\"text-muted\" style=\"font-size:0.75rem;\">Last 6 mo</span>\n                        </div>\n                        <svg viewBox=\"0 0 200 60\" class=\"w-100 mt-2\" height=\"60\">\n                            <path d=\"M0,50 Q25,10 50,40 T100,20 T150,30 T200,10\" fill=\"none\" stroke=\"#E07A5F\" stroke-width=\"3\" stroke-linecap=\"round\"></path>\n                            <circle cx=\"200\" cy=\"10\" r=\"5\" fill=\"#E07A5F\"></circle>\n                            <path d=\"M0,50 Q25,10 50,40 T100,20 T150,30 T200,10 L200,60 L0,60 Z\" fill=\"rgba(224, 122, 95, 0.15)\"></path>\n                        </svg>\n                    </div>\n                </div>\n            </div>\n        </div>\n    </div>\n</section>"
+  },
+  "css_styles": ":root {\n    --land-bg: #FAFAF7;\n    --land-surface: #FFFFFF;\n    --land-text-main: #2B302D;\n    --land-text-muted: #5C6660;\n    --land-sage: #7A9180;\n    --land-sage-dark: #4A5C50;\n    --land-sage-light: #EAF0EB;\n    --land-coral: #E07A5F;\n    --land-coral-hover: #D1674A;\n    --land-status-normal-text: #3F5C47;\n    --land-status-normal-bg: #EAF0EB;\n    --land-status-high-text: #993C24;\n    --land-status-high-bg: #FCEEEB;\n    --land-status-low-text: #915A24;\n    --land-status-low-bg: #FDF4EB;\n    --land-status-border-text: #91761F;\n    --land-status-border-bg: #FDF8EB;\n}\n\nbody {\n    background-color: var(--land-bg);\n    color: var(--land-text-main);\n    font-family: 'Plus Jakarta Sans', sans-serif;\n}\n\nh1, h2, h3, h4, h5, h6, .land-hero-title {\n    font-family: 'Outfit', sans-serif;\n    color: var(--land-text-main);\n    letter-spacing: -0.02em;\n}\n\n.text-main { color: var(--land-text-main) !important; }\n.text-sage { color: var(--land-sage) !important; }\n.text-coral { color: var(--land-coral) !important; }\n.bg-sage-light { background-color: var(--land-sage-light) !important; }\n.bg-sage { background-color: var(--land-sage) !important; }\n.border-sage-light { border-color: #DDE5E0 !important; }\n\n.btn-coral {\n    background-color: var(--land-coral);\n    color: white;\n    border: none;\n    transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;\n}\n.btn-coral:hover {\n    background-color: var(--land-coral-hover);\n    color: white;\n    transform: translateY(-2px);\n    box-shadow: 0 4px 12px rgba(224, 122, 95, 0.3);\n}\n\n.btn-outline-sage {\n    background-color: transparent;\n    color: var(--land-sage-dark);\n    border: 2px solid var(--land-sage);\n    transition: all 0.2s ease;\n}\n.btn-outline-sage:hover {\n    background-color: var(--land-sage-light);\n    color: var(--land-sage-dark);\n    transform: translateY(-2px);\n}\n\n.land-status-normal { background-color: var(--land-status-normal-bg); color: var(--land-status-normal-text); border: 1px solid rgba(63,92,71,0.2); }\n.land-status-high { background-color: var(--land-status-high-bg); color: var(--land-status-high-text); border: 1px solid rgba(153,60,36,0.2); }\n.land-status-low { background-color: var(--land-status-low-bg); color: var(--land-status-low-text); border: 1px solid rgba(145,90,36,0.2); }\n.land-status-borderline { background-color: var(--land-status-border-bg); color: var(--land-status-border-text); border: 1px solid rgba(145,118,31,0.2); }\n\n.pulse-dot {\n    width: 8px;\n    height: 8px;\n    animation: pulse 2s infinite;\n}\n\n@keyframes pulse {\n    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(122, 145, 128, 0.7); }\n    70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(122, 145, 128, 0); }\n    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(122, 145, 128, 0); }\n}\n\n.land-data-grid > div:not(:last-child) {\n    border-bottom: 1px dashed var(--land-sage-light);\n}\n\n.land-eyebrow {\n    background-color: var(--land-sage-light);\n    color: var(--land-sage-dark);\n    font-weight: 600;\n    font-size: 0.875rem;\n    letter-spacing: 0.05em;\n    text-transform: uppercase;\n}\n\n.land-hero-visual {\n    max-width: 500px;\n}",
+  "instructions_to_main_agent": [
+    "1. Replace the existing design_guidelines.json with this file, or read this json payload to begin implementation.",
+    "2. Open /app/MedicalApp/Views/Home/Landing.cshtml.",
+    "3. Add FontAwesome 6 CDN to the <head> if missing and swap emojis (like 👨‍⚕️) for real icons (e.g., <i class=\"fa-solid fa-hospital\"></i>).",
+    "4. Replace the old Hero section with the 'hero_section_html' provided here. Preserve any critical Razor integrations.",
+    "5. Delete the entire 'Vezi o mostră' (Preview Blurred 60%) section. Do not leave its wrapper behind.",
+    "6. Open /app/MedicalApp/wwwroot/css/landing.css. Import the new Google Fonts (Outfit & Plus Jakarta Sans).",
+    "7. Overwrite the root variables with the new wellness palette and append the custom CSS classes from 'css_styles'.",
+    "8. Open /app/MedicalApp/Services/Loc.cs. Update 'HeroTitle' and 'HeroLead' for EN/RO, and add the new 'HeroAudienceLine' key."
   ],
-  "implementation_notes_for_agent": [
-    "CREATE a new CSS file at ~/css/landing.css. DO NOT edit site.css.",
-    "Map colors to CSS variables in landing.css root: --primary, --accent, etc.",
-    "Use Bootstrap utility classes (d-flex, align-items-center, py-5, gap-4) extensively.",
-    "DO NOT use React or JS frameworks. Build views in pure HTML/Razor inside Views/Home/Landing.cshtml (or equivalent).",
-    "In HomeController.cs, modify Index() to check if User.Identity.IsAuthenticated. If false, return View(\"Landing\"); else return RedirectToAction(\"Dashboard\");",
-    "Always use Loc.T('...') for text. Example: @Loc.T(\"Try free now\")",
-    "Include the _DoctorMascot.cshtml partial in the Hero section.",
-    "Implement the blurred preview card using raw HTML + CSS backdrop-filter, demonstrating exactly the 60% blur requirement.",
-    "Add 'data-testid' to ALL buttons and forms as specified."
-  ]
+  "reasoning": {
+    "color": "Wellness palette (sage/coral/cream) feels highly medical, calm, and trustworthy, escaping the generic tech-bro purple.",
+    "typography": "Outfit combined with Plus Jakarta Sans offers reliable clarity with a warm, human, geometric tone.",
+    "hero_card": "The rich, asymmetric layered UI with an overlapping mini-chart proves the app's capability immediately, eliminating the need for a separate 'Preview' scroll section.",
+    "removal": "Removing the preview section streamlines the funnel and matches the updated, richer visual proof in the hero area."
+  }
 }
