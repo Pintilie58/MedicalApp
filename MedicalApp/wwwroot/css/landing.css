@@ -541,7 +541,165 @@ body.landing-body a:hover { color: var(--land-coral); }
 }
 .land-lang-menu button:hover { background: var(--land-sage-light); color: var(--land-sage-dark); }
 
-/* ============== Reveal animations ============== */
+/* ============== Comparison table (Self / Doctor / MedicalApp+) ============== */
+.land-compare {
+    background: var(--land-surface);
+    border: 1px solid var(--land-border);
+    border-radius: var(--land-radius-lg);
+    box-shadow: var(--land-shadow-md);
+    overflow: hidden;
+    max-width: 1100px; margin: 0 auto;
+}
+
+/* Header row: 4 columns = empty + Self + Doctor + Us */
+.land-compare-head {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr 1.15fr;
+    align-items: stretch;
+    background: linear-gradient(180deg, var(--land-sage-light) 0%, var(--land-surface) 100%);
+}
+.land-compare-feature-spacer { padding: 1rem; }
+.land-compare-provider {
+    padding: 1.75rem 1.25rem 1.5rem 1.25rem;
+    text-align: center;
+    position: relative;
+    border-left: 1px solid var(--land-border);
+}
+.land-compare-provider h3 {
+    font-size: 1.05rem; font-weight: 600;
+    margin: 0.6rem 0 0.2rem 0;
+    color: var(--land-ink);
+}
+.land-compare-provider p {
+    margin: 0; font-size: 0.78rem;
+    color: var(--land-mute); line-height: 1.35;
+}
+.land-compare-provider-icon {
+    width: 48px; height: 48px;
+    margin: 0 auto;
+    border-radius: 14px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 1.25rem; font-weight: 700;
+    font-family: 'Outfit', sans-serif;
+}
+.land-compare-self  .land-compare-provider-icon { background: var(--status-border-bg); color: var(--status-border-fg); }
+.land-compare-doctor .land-compare-provider-icon { background: var(--status-low-bg);   color: var(--status-low-fg); }
+.land-compare-us-icon {
+    background: linear-gradient(135deg, var(--land-sage) 0%, var(--land-coral) 100%);
+    color: #fff !important;
+    box-shadow: 0 6px 14px rgba(122, 145, 128, 0.30);
+}
+/* The "Us" column wins visually */
+.land-compare-us {
+    background: linear-gradient(180deg, rgba(122, 145, 128, 0.12) 0%, rgba(122, 145, 128, 0.04) 100%);
+    border-left: 2px solid var(--land-sage);
+    border-right: 2px solid var(--land-sage);
+}
+.land-compare-us h3 { color: var(--land-sage-dark); }
+.land-compare-best {
+    position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    background: var(--land-coral); color: #fff;
+    padding: 0.32rem 0.85rem;
+    border-radius: var(--land-radius-pill);
+    font-size: 0.72rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    box-shadow: 0 6px 14px rgba(224, 122, 95, 0.35);
+    white-space: nowrap;
+}
+
+/* Body rows */
+.land-compare-rows { background: var(--land-surface); }
+.land-compare-row {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr 1.15fr;
+    align-items: stretch;
+    border-top: 1px solid var(--land-border);
+    transition: background-color .15s ease;
+}
+.land-compare-row:hover { background: rgba(122, 145, 128, 0.04); }
+.land-compare-feature {
+    padding: 1rem 1.25rem;
+    font-weight: 600; font-size: 0.92rem;
+    color: var(--land-ink);
+    display: flex; align-items: center;
+    font-family: 'Outfit', sans-serif;
+}
+.land-compare-cell {
+    padding: 1rem 1rem;
+    display: flex; flex-direction: row; align-items: center; gap: 0.55rem;
+    font-size: 0.88rem; color: var(--land-mute);
+    border-left: 1px solid var(--land-border);
+    line-height: 1.35;
+}
+.land-compare-cell i {
+    width: 22px; height: 22px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    font-size: 0.72rem;
+    flex-shrink: 0;
+}
+/* Self column = neutral / often grim */
+.land-compare-cell-self i {
+    background: var(--status-border-bg); color: var(--status-border-fg);
+}
+/* Doctor column = mixed */
+.land-compare-cell-doctor i {
+    background: var(--status-low-bg); color: var(--status-low-fg);
+}
+/* Us column = winning */
+.land-compare-cell-us {
+    background: rgba(122, 145, 128, 0.06);
+    border-left: 2px solid var(--land-sage);
+    border-right: 2px solid var(--land-sage);
+    color: var(--land-ink);
+    font-weight: 600;
+}
+.land-compare-cell-us i {
+    background: var(--land-sage); color: #fff;
+}
+.land-compare-row:last-child .land-compare-cell-us {
+    border-bottom-left-radius: 0; border-bottom-right-radius: 0;
+}
+
+/* Bottom CTA */
+.land-compare-cta {
+    padding: 2rem 1.5rem;
+    text-align: center;
+    background: linear-gradient(180deg, var(--land-surface) 0%, var(--land-sage-light) 100%);
+    border-top: 1px solid var(--land-border);
+}
+
+/* ----- Tablet (700-900px): tighter spacing, smaller fonts ----- */
+@media (max-width: 900px) {
+    .land-compare-head,
+    .land-compare-row {
+        grid-template-columns: 1.4fr 1fr 1fr 1.15fr;
+    }
+    .land-compare-provider { padding: 1.4rem 0.6rem 1.1rem 0.6rem; }
+    .land-compare-provider h3 { font-size: 0.92rem; }
+    .land-compare-provider p { font-size: 0.7rem; }
+    .land-compare-provider-icon { width: 40px; height: 40px; font-size: 1rem; }
+    .land-compare-feature { padding: 0.85rem 0.7rem; font-size: 0.82rem; }
+    .land-compare-cell { padding: 0.85rem 0.55rem; font-size: 0.78rem; gap: 0.4rem; }
+    .land-compare-cell i { width: 18px; height: 18px; font-size: 0.62rem; }
+    .land-compare-best { font-size: 0.65rem; padding: 0.25rem 0.65rem; }
+}
+
+/* ----- Mobile (<700px): collapse "Self" column, keep "Doctor + Us" ----- */
+@media (max-width: 700px) {
+    .land-compare-head,
+    .land-compare-row {
+        grid-template-columns: 1.1fr 1fr 1.1fr;
+    }
+    .land-compare-self,
+    .land-compare-cell-self {
+        display: none;
+    }
+    .land-compare-feature { padding: 0.85rem 0.55rem; font-size: 0.78rem; }
+    .land-compare-cell { padding: 0.85rem 0.5rem; font-size: 0.75rem; }
+}
+
 @media (prefers-reduced-motion: no-preference) {
     .land-reveal {
         opacity: 0; transform: translateY(16px);

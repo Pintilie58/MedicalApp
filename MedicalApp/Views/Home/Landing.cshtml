@@ -39,6 +39,7 @@
         </a>
         <ul class="land-nav-links">
             <li><a href="#how" data-testid="nav-how">@Loc.T("NavHow")</a></li>
+            <li><a href="#compare" data-testid="nav-compare">@Loc.T("CompareEyebrow")</a></li>
             <li><a href="#features" data-testid="nav-features">@Loc.T("NavFeatures")</a></li>
             <li><a href="#clinics" data-testid="nav-clinics">@Loc.T("NavClinics")</a></li>
             <li><a href="#pricing" data-testid="nav-pricing">@Loc.T("NavPricing")</a></li>
@@ -256,6 +257,94 @@
                 </ul>
                 <a href="#clinics" class="land-btn land-btn-ghost mt-3" data-testid="pillar-cln-cta">
                     @Loc.T("PillarClnCta") &rarr;
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+@* =========================== COMPARISON TABLE =========================== *@
+<section class="land-section" id="compare" data-testid="land-compare">
+    <div class="land-container">
+        <div class="text-center mb-5">
+            <span class="land-eyebrow">@Loc.T("CompareEyebrow")</span>
+            <h2>@Loc.T("CompareTitle")</h2>
+            <p style="max-width: 640px; margin: 0 auto;">@Loc.T("CompareLead")</p>
+        </div>
+
+        <div class="land-compare" data-testid="compare-table">
+            @* ----- Table HEADER (3 provider cards) ----- *@
+            <div class="land-compare-head">
+                <div class="land-compare-feature-spacer" aria-hidden="true"></div>
+
+                <div class="land-compare-provider land-compare-self" data-testid="compare-col-self">
+                    <div class="land-compare-provider-icon">
+                        <i class="fa-solid fa-user" aria-hidden="true"></i>
+                    </div>
+                    <h3>@Loc.T("CompareColSelf")</h3>
+                    <p>@Loc.T("CompareColSelfSub")</p>
+                </div>
+
+                <div class="land-compare-provider land-compare-doctor" data-testid="compare-col-doctor">
+                    <div class="land-compare-provider-icon">
+                        <i class="fa-solid fa-user-doctor" aria-hidden="true"></i>
+                    </div>
+                    <h3>@Loc.T("CompareColDoctor")</h3>
+                    <p>@Loc.T("CompareColDoctorSub")</p>
+                </div>
+
+                <div class="land-compare-provider land-compare-us" data-testid="compare-col-us">
+                    <span class="land-compare-best">
+                        <i class="fa-solid fa-star" aria-hidden="true"></i>
+                        @Loc.T("CompareBestBadge")
+                    </span>
+                    <div class="land-compare-provider-icon land-compare-us-icon">M+</div>
+                    <h3>@Loc.T("CompareColUs")</h3>
+                    <p>@Loc.T("CompareColUsSub")</p>
+                </div>
+            </div>
+
+            @* ----- Table ROWS ----- *@
+            @{
+                var compareRows = new[]
+                {
+                    new { Label = "CompareRow1Label", Self = "CompareRow1Self", Doctor = "CompareRow1Doctor", Us = "CompareRow1Us", SelfIcon = "fa-clock", DoctorIcon = "fa-hourglass-half", UsIcon = "fa-bolt" },
+                    new { Label = "CompareRow2Label", Self = "CompareRow2Self", Doctor = "CompareRow2Doctor", Us = "CompareRow2Us", SelfIcon = "fa-circle-question", DoctorIcon = "fa-euro-sign", UsIcon = "fa-tag" },
+                    new { Label = "CompareRow3Label", Self = "CompareRow3Self", Doctor = "CompareRow3Doctor", Us = "CompareRow3Us", SelfIcon = "fa-circle-question", DoctorIcon = "fa-circle-exclamation", UsIcon = "fa-check" },
+                    new { Label = "CompareRow4Label", Self = "CompareRow4Self", Doctor = "CompareRow4Doctor", Us = "CompareRow4Us", SelfIcon = "fa-xmark", DoctorIcon = "fa-pen", UsIcon = "fa-chart-line" },
+                    new { Label = "CompareRow5Label", Self = "CompareRow5Self", Doctor = "CompareRow5Doctor", Us = "CompareRow5Us", SelfIcon = "fa-xmark", DoctorIcon = "fa-circle-exclamation", UsIcon = "fa-shield-heart" },
+                    new { Label = "CompareRow6Label", Self = "CompareRow6Self", Doctor = "CompareRow6Doctor", Us = "CompareRow6Us", SelfIcon = "fa-check", DoctorIcon = "fa-xmark", UsIcon = "fa-clock-rotate-left" },
+                    new { Label = "CompareRow7Label", Self = "CompareRow7Self", Doctor = "CompareRow7Doctor", Us = "CompareRow7Us", SelfIcon = "fa-xmark", DoctorIcon = "fa-circle-exclamation", UsIcon = "fa-users" },
+                };
+                int rowIdx = 0;
+            }
+            <div class="land-compare-rows" data-testid="compare-rows">
+                @foreach (var r in compareRows)
+                {
+                    rowIdx++;
+                    <div class="land-compare-row" data-testid="compare-row-@rowIdx">
+                        <div class="land-compare-feature">@Loc.T(r.Label)</div>
+                        <div class="land-compare-cell land-compare-cell-self">
+                            <i class="fa-solid @r.SelfIcon" aria-hidden="true"></i>
+                            <span>@Loc.T(r.Self)</span>
+                        </div>
+                        <div class="land-compare-cell land-compare-cell-doctor">
+                            <i class="fa-solid @r.DoctorIcon" aria-hidden="true"></i>
+                            <span>@Loc.T(r.Doctor)</span>
+                        </div>
+                        <div class="land-compare-cell land-compare-cell-us">
+                            <i class="fa-solid @r.UsIcon" aria-hidden="true"></i>
+                            <span>@Loc.T(r.Us)</span>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @* ----- Bottom CTA ----- *@
+            <div class="land-compare-cta">
+                <a href="@AuthUrl("register")" class="land-btn land-btn-accent land-btn-lg"
+                   data-testid="compare-cta">
+                    @Loc.T("CompareCta") &rarr;
                 </a>
             </div>
         </div>
