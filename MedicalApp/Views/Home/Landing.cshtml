@@ -20,10 +20,13 @@
     <title>@ViewData["Title"]</title>
     <meta name="description" content="@Loc.T("LandingMetaDesc")" />
     <link rel="icon" href="~/favicon.ico" />
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
           integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN"
           crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+          integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
+          crossorigin="anonymous" referrerpolicy="no-referrer">
     <link rel="stylesheet" href="~/css/landing.css" asp-append-version="true" />
 </head>
 <body class="landing-body">
@@ -75,7 +78,11 @@
             <div>
                 <span class="land-eyebrow">@Loc.T("HeroEyebrow")</span>
                 <h1>@Loc.T("HeroTitle")</h1>
-                <p class="lead" style="font-size:1.15rem; max-width: 540px;">
+                <div class="land-audience-line" data-testid="hero-audience-line">
+                    <i class="fa-solid fa-user-group land-audience-icon" aria-hidden="true"></i>
+                    <span>@Loc.T("HeroAudienceLine")</span>
+                </div>
+                <p class="lead" style="font-size:1.10rem; max-width: 540px;">
                     @Loc.T("HeroLead")
                 </p>
                 <div class="land-hero-cta">
@@ -94,17 +101,109 @@
                 </div>
             </div>
 
-            <div class="land-hero-visual" data-testid="land-hero-visual">
-                <div class="land-hero-visual-header">
-                    <h4>@Loc.T("PreviewSampleTitle")</h4>
-                    <span style="font-size:.8rem; opacity:.85;">PDF · @Loc.T("PreviewSampleSpeed")</span>
+            <div class="land-hero-visual-wrap" data-testid="land-hero-visual">
+                @* Main data card – rich, color-coded analysis snapshot *@
+                <div class="land-data-card" data-testid="hero-data-card">
+                    <div class="land-data-card-head">
+                        <div class="land-data-card-title">
+                            <i class="fa-solid fa-file-waveform" aria-hidden="true"></i>
+                            <span>@Loc.T("HeroCardTitle")</span>
+                        </div>
+                        <div class="land-data-badge" data-testid="hero-data-badge">
+                            <span class="land-pulse-dot" aria-hidden="true"></span>
+                            <span>@Loc.T("HeroCardBadge")</span>
+                        </div>
+                    </div>
+                    <div class="land-data-grid">
+                        <div class="land-data-row">
+                            <span class="land-data-label">Hemoglobin</span>
+                            <div class="land-data-right">
+                                <span class="land-data-value">13.5 <small>g/dL</small></span>
+                                <span class="land-status land-status-normal">@Loc.T("HeroStatusNormal")</span>
+                            </div>
+                        </div>
+                        <div class="land-data-row">
+                            <span class="land-data-label">Glucose</span>
+                            <div class="land-data-right">
+                                <span class="land-data-value">105 <small>mg/dL</small></span>
+                                <span class="land-status land-status-borderline">@Loc.T("HeroStatusBorder")</span>
+                            </div>
+                        </div>
+                        <div class="land-data-row">
+                            <span class="land-data-label">LDL Cholesterol</span>
+                            <div class="land-data-right">
+                                <span class="land-data-value">150 <small>mg/dL</small></span>
+                                <span class="land-status land-status-high">@Loc.T("HeroStatusHigh")</span>
+                            </div>
+                        </div>
+                        <div class="land-data-row">
+                            <span class="land-data-label">HDL Cholesterol</span>
+                            <div class="land-data-right">
+                                <span class="land-data-value">45 <small>mg/dL</small></span>
+                                <span class="land-status land-status-low">@Loc.T("HeroStatusLow")</span>
+                            </div>
+                        </div>
+                        <div class="land-data-row">
+                            <span class="land-data-label">TSH</span>
+                            <div class="land-data-right">
+                                <span class="land-data-value">2.1 <small>mIU/L</small></span>
+                                <span class="land-status land-status-normal">@Loc.T("HeroStatusNormal")</span>
+                            </div>
+                        </div>
+                        <div class="land-data-row">
+                            <span class="land-data-label">Vitamin D</span>
+                            <div class="land-data-right">
+                                <span class="land-data-value">15 <small>ng/mL</small></span>
+                                <span class="land-status land-status-low">@Loc.T("HeroStatusLow")</span>
+                            </div>
+                        </div>
+                        <div class="land-data-row">
+                            <span class="land-data-label">Platelets</span>
+                            <div class="land-data-right">
+                                <span class="land-data-value">250 <small>×10⁹/L</small></span>
+                                <span class="land-status land-status-normal">@Loc.T("HeroStatusNormal")</span>
+                            </div>
+                        </div>
+                        <div class="land-data-row">
+                            <span class="land-data-label">Creatinine</span>
+                            <div class="land-data-right">
+                                <span class="land-data-value">0.96 <small>mg/dL</small></span>
+                                <span class="land-status land-status-normal">@Loc.T("HeroStatusNormal")</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="land-hero-visual-body">
-                    <div class="land-mock-row"><span class="land-mock-label">Hemoglobin</span><span class="land-mock-value high">15.8 g/dL ↑</span></div>
-                    <div class="land-mock-row"><span class="land-mock-label">Glucose</span><span class="land-mock-value norm">94 mg/dL ✓</span></div>
-                    <div class="land-mock-row"><span class="land-mock-label">LDL cholesterol</span><span class="land-mock-value high">142 mg/dL ↑</span></div>
-                    <div class="land-mock-row"><span class="land-mock-label">HDL cholesterol</span><span class="land-mock-value norm">52 mg/dL ✓</span></div>
-                    <div class="land-mock-row"><span class="land-mock-label">TSH</span><span class="land-mock-value norm">2.4 mIU/L ✓</span></div>
+
+                @* Overlapping mini-chart card *@
+                <div class="land-chart-card" data-testid="hero-chart-card" aria-hidden="true">
+                    <div class="land-chart-head">
+                        <span class="land-chart-title">@Loc.T("HeroCardChartTitle")</span>
+                        <span class="land-chart-period">@Loc.T("HeroCardChartPeriod")</span>
+                    </div>
+                    <svg viewBox="0 0 220 70" class="land-chart-svg" preserveAspectRatio="none">
+                        <defs>
+                            <linearGradient id="chartFill" x1="0" x2="0" y1="0" y2="1">
+                                <stop offset="0%" stop-color="#E07A5F" stop-opacity="0.30" />
+                                <stop offset="100%" stop-color="#E07A5F" stop-opacity="0.02" />
+                            </linearGradient>
+                        </defs>
+                        @* area *@
+                        <path d="M0,55 Q22,18 45,42 T90,22 T135,30 T180,14 T220,20 L220,70 L0,70 Z"
+                              fill="url(#chartFill)"></path>
+                        @* stroke *@
+                        <path d="M0,55 Q22,18 45,42 T90,22 T135,30 T180,14 T220,20"
+                              fill="none" stroke="#E07A5F" stroke-width="2.4" stroke-linecap="round"
+                              stroke-linejoin="round"></path>
+                        @* latest point *@
+                        <circle cx="220" cy="20" r="4" fill="#E07A5F"></circle>
+                        <circle cx="220" cy="20" r="8" fill="#E07A5F" opacity="0.20"></circle>
+                    </svg>
+                    <div class="land-chart-foot">
+                        <span class="land-chart-delta land-chart-delta-up">
+                            <i class="fa-solid fa-arrow-trend-up" aria-hidden="true"></i> +8%
+                        </span>
+                        <span class="land-chart-foot-note">@Loc.T("HeroCardChartNote")</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -210,65 +309,6 @@
                 <h4>@Loc.T("Feat5Title")</h4><p>@Loc.T("Feat5Body")</p></div>
             <div class="land-feature"><span class="land-feature-icon">⚠️</span>
                 <h4>@Loc.T("Feat6Title")</h4><p>@Loc.T("Feat6Body")</p></div>
-        </div>
-    </div>
-</section>
-
-@* =========================== PREVIEW (BLURRED 60%) =========================== *@
-<section class="land-section" id="preview" style="background: var(--land-surface);" data-testid="land-preview-section">
-    <div class="land-container">
-        <div class="text-center mb-5">
-            <span class="land-eyebrow">@Loc.T("PreviewEyebrow")</span>
-            <h2>@Loc.T("PreviewTitle")</h2>
-            <p style="max-width: 640px; margin: 0 auto;">@Loc.T("PreviewLead")</p>
-        </div>
-        <div class="land-preview" data-testid="land-preview-card">
-            <div class="land-preview-head"><h3>@Loc.T("PreviewReportTitle")</h3></div>
-            <div class="land-preview-body">
-                <div class="land-preview-section">
-                    <div class="land-preview-section-title">@Loc.T("PreviewSec1Sumar")</div>
-                    <p>@Loc.T("PreviewSec1Body")</p>
-                </div>
-                <div class="land-preview-section">
-                    <div class="land-preview-section-title">@Loc.T("PreviewSec2Results")</div>
-                    @* 5 rows: 2 visible (40%), 3 blurred (60%) *@
-                    <div class="land-preview-row"><strong>Hemoglobin (Hb)</strong><span>15.8 g/dL · ref 12–16 · ↑ slightly elevated</span></div>
-                    <div class="land-preview-row"><strong>Glucose</strong><span>94 mg/dL · ref 70–100 · normal</span></div>
-                    <div class="land-blur">
-                        <div class="land-preview-row"><strong>LDL Cholesterol</strong><span>142 mg/dL · ref &lt;130 · elevated, dietary review suggested</span></div>
-                        <div class="land-preview-row"><strong>Creatinine</strong><span>0.96 mg/dL · ref 0.7–1.2 · normal</span></div>
-                        <div class="land-preview-row"><strong>TSH</strong><span>2.4 mIU/L · ref 0.4–4.0 · normal</span></div>
-                    </div>
-                </div>
-                <div class="land-preview-section">
-                    <div class="land-preview-section-title">@Loc.T("PreviewSec3Correl")</div>
-                    @* 1 visible + 2 blurred (40%/60%) *@
-                    <p style="margin:0 0 .5rem 0;">@Loc.T("PreviewCorrelLine1")</p>
-                    <div class="land-blur">
-                        <p style="margin:0 0 .5rem 0;">@Loc.T("PreviewCorrelLine2")</p>
-                        <p style="margin:0;">@Loc.T("PreviewCorrelLine3")</p>
-                    </div>
-                </div>
-                <div class="land-preview-section">
-                    <div class="land-preview-section-title">@Loc.T("PreviewSec4Recom")</div>
-                    @* 2 visible + 3 blurred (40%/60%) *@
-                    <p style="margin:0 0 .5rem 0;">@Loc.T("PreviewRecLine1")</p>
-                    <p style="margin:0 0 .5rem 0;">@Loc.T("PreviewRecLine2")</p>
-                    <div class="land-blur">
-                        <p style="margin:0 0 .5rem 0;">@Loc.T("PreviewRecLine3")</p>
-                        <p style="margin:0 0 .5rem 0;">@Loc.T("PreviewRecLine4")</p>
-                        <p style="margin:0;">@Loc.T("PreviewRecLine5")</p>
-                    </div>
-                </div>
-            </div>
-            <div class="land-preview-cta">
-                <p><strong>@Loc.T("PreviewCtaTitle")</strong></p>
-                <p style="font-size: .9rem; max-width: 480px;">@Loc.T("PreviewCtaBody")</p>
-                <a href="@AuthUrl("register")" class="land-btn land-btn-accent land-btn-lg"
-                   data-testid="preview-cta">
-                    @Loc.T("PreviewCtaButton") &rarr;
-                </a>
-            </div>
         </div>
     </div>
 </section>
