@@ -180,6 +180,17 @@ body.landing-body a:hover { color: var(--land-coral); }
     margin-bottom: 1.1rem;
     text-transform: uppercase;
 }
+.land-eyebrow-row {
+    display: flex; flex-wrap: wrap; gap: 0.5rem;
+    margin-bottom: 1.1rem;
+}
+.land-eyebrow-row .land-eyebrow {
+    margin-bottom: 0;
+}
+.land-eyebrow-coral {
+    background: var(--land-coral-soft);
+    color: var(--land-coral-dark);
+}
 .land-audience-line {
     display: inline-flex; align-items: center; gap: 0.6rem;
     margin: 0.2rem 0 1.2rem 0;

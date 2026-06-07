@@ -22,6 +22,7 @@ namespace MedicalApp.Services
                 ["NavGetStarted"] = "Get started free",
 
                 ["HeroEyebrow"] = "Medical-grade AI · 30 languages",
+                ["HeroEyebrow2"] = "Trained for medical analysis interpretation",
                 ["HeroTitle"] = "Your blood tests, made simple — in seconds.",
                 ["HeroAudienceLine"] = "For individuals, doctors, clinics and laboratories",
                 ["HeroLead"] = "Upload your lab PDF and get a warm, plain-language interpretation with evolution charts, risk factors and personalized recommendations — sent straight to your inbox.",
@@ -410,6 +411,7 @@ namespace MedicalApp.Services
                 ["NavGetStarted"] = "Începe gratuit",
 
                 ["HeroEyebrow"] = "AI medical · 30 de limbi",
+                ["HeroEyebrow2"] = "Instruit pentru interpretarea analizelor medicale",
                 ["HeroTitle"] = "Analizele tale de sânge, explicate clar în câteva secunde.",
                 ["HeroAudienceLine"] = "Pentru persoane fizice, cabinete medicale, clinici și laboratoare",
                 ["HeroLead"] = "Încarcă PDF-ul cu analizele tale și primești o interpretare caldă, pe înțelesul tău, cu grafice de evoluție, factori de risc și recomandări personalizate — direct pe email.",
