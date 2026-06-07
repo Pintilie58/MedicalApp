@@ -1,6 +1,6 @@
 @model MedicalApp.Models.CompareInterpretationsViewModel
 @{
-    ViewData["Title"] = $"Comparație - {Model.ProfileName}";
+    ViewData["Title"] = string.Format(MedicalApp.Services.Loc.T("CompareViewTabTitle"), Model.ProfileName);
 
     string CellClass(string d) => d switch
     {
@@ -35,10 +35,10 @@
         <div class="col-12 col-xxl-11">
             <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
                 <h2 class="text-primary fw-bold mb-0" data-testid="compare-heading">
-                    &#128200; Comparație: @Model.ProfileName
+                    &#128200; @Loc.T("CompareViewTitle") @Model.ProfileName
                 </h2>
                 <span class="badge bg-secondary align-self-center" data-testid="compare-column-count">
-                    @Model.Columns.Count interpretări
+                    @string.Format(Loc.T("ProfileCompareInterpretationsCount"), Model.Columns.Count)
                 </span>
                 <div class="ms-auto d-flex gap-2 flex-wrap">
                     @if (Model.Columns.Count >= CompareInterpretationsViewModel.MinSelections)
@@ -46,17 +46,17 @@
                         <button type="button" id="btnCompareExportDownload"
                                 class="btn btn-outline-primary"
                                 data-testid="btn-compare-export-download">
-                            &#128229; Descarcă PDF
+                            &#128229; @Loc.T("CompareViewDownloadPdf")
                         </button>
                         <button type="button" id="btnCompareExportEmail"
                                 class="btn btn-outline-success"
                                 data-testid="btn-compare-export-email">
-                            &#9993; Trimite pe email
+                            &#9993; @Loc.T("CompareViewSendEmail")
                         </button>
                     }
                     <a asp-action="History" asp-route-id="@Model.ProfileId"
                        class="btn btn-outline-secondary" data-testid="btn-back-history">
-                        &larr; Înapoi la arhivă
+                        &larr; @Loc.T("CompareViewBackToArchive")
                     </a>
                 </div>
             </div>
@@ -77,15 +77,12 @@
             @if (Model.CreditConsumed)
             {
                 <div class="alert alert-warning" data-testid="compare-credit-consumed-msg">
-                    &#128181; A fost consumat 1 credit pentru această comparație
-                    (pachetul de 3 utilizări gratuite a fost epuizat).
+                    &#128181; @Loc.T("CompareViewCreditConsumed")
                 </div>
             }
 
             <p class="text-muted small mb-3">
-                Coloanele sunt ordonate cronologic, <strong>de la stânga (mai vechi)</strong>
-                la <strong>dreapta (mai recent)</strong>, după <strong>data recoltării</strong>
-                (sau, dacă lipsește, după data interpretării).
+                @Loc.T("ProfileCompareColumnOrderHint")
             </p>
 
             @* Column headers as cards *@
@@ -100,26 +97,26 @@
                     <div class="col-12 col-md-6 col-xl-3">
                         <div class="card @border h-100" data-testid="compare-col-card-@i">
                             <div class="card-body py-2">
-                                <div class="small text-muted">Interpretarea @(i + 1)</div>
+                                <div class="small text-muted">@string.Format(Loc.T("ProfileCompareInterpretationN"), i + 1)</div>
                                 @if (!string.IsNullOrWhiteSpace(col.PatientName))
                                 {
                                     <div class="fw-semibold text-dark mb-1"
                                          data-testid="compare-col-patient-@i"
-                                         title="Numele pacientului extras de Gemini din PDF-ul original — pentru a depista buletinele atribuite greșit altui pacient.">
-                                        <span class="text-muted small">Pacient:</span> @col.PatientName
+                                         title="@Loc.T("CompareViewPatientTooltip")">
+                                        <span class="text-muted small">@Loc.T("ProfileComparePatientLabel")</span> @col.PatientName
                                     </div>
                                 }
                                 <h6 class="fw-bold mb-1" data-testid="compare-col-sampled-@i">
-                                    Recoltare:
+                                    @Loc.T("ProfileCompareSamplingLabel")
                                     <span class="text-dark">
                                         @col.EffectiveDate.ToLocalTime().ToString("yyyy-MM-dd")
                                     </span>
                                 </h6>
                                 <div class="small text-muted">
-                                    Interpretat: @col.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")
+                                    @Loc.T("ProfileCompareInterpretedLabel") @col.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")
                                 </div>
                                 <div class="small text-muted">
-                                    @col.KeyResultsCount parametri · @col.AbnormalFindingsCount anormalități
+                                    @string.Format(Loc.T("ProfileCompareParamsAbnormalFormat"), col.KeyResultsCount, col.AbnormalFindingsCount)
                                 </div>
                             </div>
                         </div>
@@ -128,13 +125,13 @@
             </div>
 
             <div class="d-flex flex-wrap gap-2 mb-3" data-testid="compare-summary-badges">
-                <span class="badge bg-danger">&#8599; Crescute: @Model.RisenCount</span>
-                <span class="badge bg-info text-dark">&#8600; Scăzute: @Model.FallenCount</span>
-                <span class="badge bg-success">= Neschimbate: @Model.UnchangedCount</span>
+                <span class="badge bg-danger">@string.Format(Loc.T("ProfileCompareBadgeRisen"), Model.RisenCount)</span>
+                <span class="badge bg-info text-dark">@string.Format(Loc.T("ProfileCompareBadgeFallen"), Model.FallenCount)</span>
+                <span class="badge bg-success">@string.Format(Loc.T("ProfileCompareBadgeUnchanged"), Model.UnchangedCount)</span>
                 @if (Model.PartialCount > 0)
                 {
                     <span class="badge bg-warning text-dark" data-testid="compare-partial-badge">
-                        &#9888; Doar parțial: @Model.PartialCount
+                        @string.Format(Loc.T("ProfileCompareBadgePartial"), Model.PartialCount)
                     </span>
                 }
             </div>
@@ -143,7 +140,7 @@
                 <table class="table table-hover align-middle" data-testid="compare-table">
                     <thead class="table-light">
                         <tr>
-                            <th style="min-width:180px;">Parametru</th>
+                            <th style="min-width:180px;">@Loc.T("ProfileCompareHeaderParameter")</th>
                             @for (int i = 0; i < Model.Columns.Count; i++)
                             {
                                 var col = Model.Columns[i];
@@ -151,7 +148,7 @@
                                     @col.EffectiveDate.ToLocalTime().ToString("yyyy-MM-dd")
                                 </th>
                             }
-                            <th class="text-muted small">Referință</th>
+                            <th class="text-muted small">@Loc.T("ProfileCompareHeaderReference")</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -167,7 +164,7 @@
                                         @if (!string.IsNullOrWhiteSpace(row.LoincClass))
                                         {
                                             <span class="badge bg-light text-secondary border ms-2 small fw-normal"
-                                                  title="Cod LOINC CLASS oficial">
+                                                  title="@Loc.T("CompareViewLoincClassTooltip")">
                                                 @row.LoincClass
                                             </span>
                                         }
@@ -183,7 +180,7 @@
                                     {
                                         <span class="ms-1"
                                               style="color:#fd7e14;cursor:help;font-weight:700;"
-                                              title="Atenție: același nume de parametru („@row.Parameter”) a primit coduri LOINC diferite în interpretările comparate (acest rând: @row.LoincCode; celelalte: @string.Join(", ", row.DriftLoincCodes)). Cauza tipică: Gemini a extras analitul cu denumiri ușor diferite în fiecare buletin, iar matcher-ul le-a mapat la coduri distincte. Verifică manual dacă este vorba de aceeași analiză."
+                                              title="@string.Format(Loc.T("CompareViewDriftWarningTooltip"), row.Parameter, row.LoincCode, string.Join(", ", row.DriftLoincCodes))"
                                               data-testid="compare-row-drift-warning">&#9888;</span>
                                     }
                                     @if (!string.IsNullOrWhiteSpace(row.LoincCode))
@@ -230,20 +227,9 @@
             </div>
 
             <p class="small text-muted mt-3">
-                Rândurile sunt grupate pe <strong>clase de analize</strong>
-                (Hematologie, Coagulare, Biochimie serică, Endocrinologie, Serologie,
-                Biochimie urinară etc.) folosind <strong>câmpul oficial LOINC CLASS</strong>,
-                exact ca în ordinea standard a unui buletin de analize.
-                În interiorul fiecărei clase, rândurile sunt aliniate după
-                <strong>codul LOINC</strong> când acesta este disponibil — același test
-                apare pe același rând chiar dacă laboratoarele l-au scris diferit
-                (ex. „VSH", „ESR" și „Vitesse de sédimentation" apar pe un singur rând).
+                @Loc.T("CompareViewLegendGrouping")
                 <br />
-                Prima coloană (cea cu fundal gri) este referința.
-                &#8599; roșu = valoare crescută față de prima coloană &nbsp;·&nbsp;
-                &#8600; albastru = scăzută &nbsp;·&nbsp;
-                = neschimbat &nbsp;·&nbsp;
-                galben „—" = parametru lipsă în interpretarea respectivă.
+                @Loc.T("CompareViewLegendColors")
                 <br />
                 <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background:#198754;vertical-align:middle;"></span>
                 @Loc.T("LoincSourceLegendVerified")
@@ -252,7 +238,7 @@
                 @Loc.T("LoincSourceLegendAuto")
                 &nbsp;·&nbsp;
                 <span style="color:#fd7e14;font-weight:700;">&#9888;</span>
-                = același nume de parametru a primit coduri LOINC diferite în interpretările comparate (posibilă variație de extragere a textului de către AI).
+                @Loc.T("CompareViewLegendDrift")
             </p>
         </div>
     </div>
