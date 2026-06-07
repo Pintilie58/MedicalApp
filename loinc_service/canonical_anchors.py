@@ -250,6 +250,18 @@ _RAW_ANCHORS: dict[str, str] = {
     # ----- eGFR (CKD-EPI is the modern adult formula) -----
     "Glomerular filtration rate/1.73 sq M.predicted [Volume Rate/Area] in Serum, Plasma or Blood by Creatinine-based formula (CKD-EPI 2021)": "98979-8",
     "Glomerular filtration rate/1.73 sq M.predicted in Serum, Plasma or Blood by Creatinine-based formula": "62238-1",
+
+    # ----- Urine sediment (microscopy) -----
+    # Erythrocytes/RBCs in urine sediment can semantically match either
+    # 13945-1 (#/area, count per HPF) or 20409-9 (Presence). When the
+    # reference range is "[0-5]" (a count) we want the deterministic
+    # 13945-1; otherwise the semantic matcher flip-flops between the two
+    # on every interpretation, producing different LOINCs in the Compare
+    # PDF for the same patient. Both natural-English spellings emitted by
+    # Gemini are anchored here so the result is stable.
+    "Erythrocytes [#/area] in Urine sediment by Light microscopy": "13945-1",
+    "Erythrocytes in Urine sediment by Light microscopy": "13945-1",
+    "Red blood cells [#/area] in Urine sediment by Light microscopy": "13945-1",
 }
 
 

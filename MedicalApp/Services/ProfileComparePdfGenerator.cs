@@ -46,19 +46,18 @@ namespace MedicalApp.Services
                         {
                             r.RelativeItem().Text(t =>
                             {
-                                t.Span("Comparație profil: ").FontSize(15).Bold().FontColor(Colors.Blue.Darken3);
+                                t.Span(Loc.T("ProfileCompareTitle") + " ").FontSize(15).Bold().FontColor(Colors.Blue.Darken3);
                                 t.Span(profile.Name).FontSize(15).Bold().FontColor(Colors.Blue.Darken3);
                             });
                             r.ConstantItem(140)
                                 .AlignRight()
                                 .Background(Colors.Grey.Darken1)
                                 .PaddingVertical(3).PaddingHorizontal(8)
-                                .Text($"{vm.Columns.Count} interpretări")
+                                .Text(string.Format(Loc.T("ProfileCompareInterpretationsCount"), vm.Columns.Count))
                                 .FontSize(9).FontColor(Colors.White).Bold();
                         });
                         col.Item().PaddingTop(4).PaddingBottom(2).Text(
-                            "Coloanele sunt ordonate cronologic, de la stânga (mai vechi) la dreapta (mai recent), " +
-                            "după data recoltării (sau, dacă lipsește, după data interpretării).")
+                            Loc.T("ProfileCompareColumnOrderHint"))
                             .FontSize(8).Italic().FontColor(Colors.Grey.Darken1);
                     });
 
@@ -80,28 +79,28 @@ namespace MedicalApp.Services
                                     .Border(0.7f).BorderColor(border)
                                     .Padding(6).Column(card =>
                                 {
-                                    card.Item().Text($"Interpretarea {i + 1}")
+                                    card.Item().Text(string.Format(Loc.T("ProfileCompareInterpretationN"), i + 1))
                                         .FontSize(8).FontColor(Colors.Grey.Darken1);
                                     if (!string.IsNullOrWhiteSpace(c.PatientName))
                                     {
                                         card.Item().Text(t =>
                                         {
-                                            t.Span("Pacient: ").FontSize(8).FontColor(Colors.Grey.Darken1);
+                                            t.Span(Loc.T("ProfileComparePatientLabel") + " ").FontSize(8).FontColor(Colors.Grey.Darken1);
                                             t.Span(c.PatientName).FontSize(9).SemiBold()
                                                 .FontColor(Colors.Grey.Darken3);
                                         });
                                     }
                                     card.Item().Text(t =>
                                     {
-                                        t.Span("Recoltare: ").FontSize(9).Bold();
+                                        t.Span(Loc.T("ProfileCompareSamplingLabel") + " ").FontSize(9).Bold();
                                         t.Span(c.EffectiveDate.ToLocalTime().ToString("yyyy-MM-dd"))
                                             .FontSize(9).Bold();
                                     });
                                     card.Item().Text(
-                                        $"Interpretat: {c.CreatedAt.ToLocalTime():yyyy-MM-dd}")
+                                        $"{Loc.T("ProfileCompareInterpretedLabel")} {c.CreatedAt.ToLocalTime():yyyy-MM-dd}")
                                         .FontSize(8).FontColor(Colors.Grey.Darken1);
                                     card.Item().Text(
-                                        $"{c.KeyResultsCount} parametri · {c.AbnormalFindingsCount} anormalități")
+                                        string.Format(Loc.T("ProfileCompareParamsAbnormalFormat"), c.KeyResultsCount, c.AbnormalFindingsCount))
                                         .FontSize(8).FontColor(Colors.Grey.Darken1);
                                 });
                             }
@@ -118,11 +117,11 @@ namespace MedicalApp.Services
                                     .PaddingVertical(3).PaddingHorizontal(8)
                                     .Text(text).FontSize(8).Bold().FontColor(fg);
                             }
-                            Badge($"↗ Crescute: {vm.RisenCount}", Colors.Red.Medium, Colors.White);
-                            Badge($"↘ Scăzute: {vm.FallenCount}", Colors.Blue.Lighten2, Colors.Black);
-                            Badge($"= Neschimbate: {vm.UnchangedCount}", Colors.Green.Medium, Colors.White);
+                            Badge(string.Format(Loc.T("ProfileCompareBadgeRisen"), vm.RisenCount), Colors.Red.Medium, Colors.White);
+                            Badge(string.Format(Loc.T("ProfileCompareBadgeFallen"), vm.FallenCount), Colors.Blue.Lighten2, Colors.Black);
+                            Badge(string.Format(Loc.T("ProfileCompareBadgeUnchanged"), vm.UnchangedCount), Colors.Green.Medium, Colors.White);
                             if (vm.PartialCount > 0)
-                                Badge($"⚠ Doar parțial: {vm.PartialCount}",
+                                Badge(string.Format(Loc.T("ProfileCompareBadgePartial"), vm.PartialCount),
                                     Colors.Yellow.Medium, Colors.Black);
                             row.RelativeItem();
                         });
@@ -140,10 +139,10 @@ namespace MedicalApp.Services
 
                             table.Header(h =>
                             {
-                                h.Cell().Element(HeaderCellStyle).Text("Parametru").Bold();
+                                h.Cell().Element(HeaderCellStyle).Text(Loc.T("ProfileCompareHeaderParameter")).Bold();
                                 foreach (var lbl in dateLabels)
                                     h.Cell().Element(HeaderCellStyle).AlignCenter().Text(lbl).Bold();
-                                h.Cell().Element(HeaderCellStyle).Text("Referință")
+                                h.Cell().Element(HeaderCellStyle).Text(Loc.T("ProfileCompareHeaderReference"))
                                     .FontSize(8).FontColor(Colors.Grey.Darken2).Bold();
                             });
 
@@ -229,26 +228,20 @@ namespace MedicalApp.Services
                         content.Item().PaddingTop(10).Text(t =>
                         {
                             t.DefaultTextStyle(s => s.FontSize(7).FontColor(Colors.Grey.Darken1));
-                            t.Line("Rândurile sunt grupate pe clase de analize (Hematologie, Coagulare, Biochimie serică, " +
-                                "Endocrinologie, Serologie, Biochimie urinară etc.) folosind câmpul oficial LOINC CLASS. " +
-                                "În interiorul fiecărei clase, rândurile sunt aliniate după codul LOINC când este disponibil.");
-                            t.Line("Prima coloană (cea cu fundal gri) este referința. " +
-                                "↗ roșu = valoare crescută față de prima coloană · " +
-                                "↘ albastru = scăzută · " +
-                                "= neschimbat · " +
-                                "galben „—\" = parametru lipsă în interpretarea respectivă.");
+                            t.Line(Loc.T("ProfileCompareLegendGrouping"));
+                            t.Line(Loc.T("ProfileCompareLegendColors"));
                             t.Span("● ").FontColor("#198754");
-                            t.Span("verificat (anchor) · ");
+                            t.Span(Loc.T("ProfileCompareLegendAnchor") + " · ");
                             t.Span("● ").FontColor("#0d6efd");
-                            t.Span("auto (semantic) · ");
+                            t.Span(Loc.T("ProfileCompareLegendSemantic") + " · ");
                             t.Span("⚠ ").FontColor(Colors.Orange.Darken2).Bold();
-                            t.Span("același nume de parametru a primit coduri LOINC diferite în interpretările comparate.");
+                            t.Span(Loc.T("ProfileCompareLegendDrift"));
                         });
                     });
 
                     page.Footer().AlignCenter().Text(t =>
                     {
-                        t.Span("Generat automat de MedicalApp+ — ").FontSize(7).FontColor(Colors.Grey.Medium);
+                        t.Span(Loc.T("ProfileCompareFooterGen") + " ").FontSize(7).FontColor(Colors.Grey.Medium);
                         t.Span("medicalapp.ro").FontSize(7).FontColor(Colors.Blue.Medium);
                     });
                 });
