@@ -223,7 +223,7 @@ body.landing-body a:hover { color: var(--land-coral); }
 /* ============== Live activity ticker (Hero) ============== */
 .land-live-ticker {
     display: inline-flex; align-items: center; gap: 0.7rem;
-    margin-top: 1.25rem; max-width: 100%;
+    margin-bottom: 1.4rem; max-width: 100%;
     padding: 0.5rem 0.85rem 0.5rem 0.55rem;
     background: var(--land-surface);
     border: 1px solid var(--land-border);

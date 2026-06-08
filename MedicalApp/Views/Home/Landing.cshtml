@@ -77,6 +77,26 @@
     <div class="land-container">
         <div class="land-hero-grid">
             <div>
+                @* ===== Live Activity ticker (mock data, JS-rotated every 8s) ===== *@
+                <div class="land-live-ticker" data-testid="land-live-ticker" aria-live="polite"
+                     data-verb-report="@Loc.T("LiveTickerVerbReport")"
+                     data-verb-interp="@Loc.T("LiveTickerVerbInterp")"
+                     data-verb-compare="@Loc.T("LiveTickerVerbCompare")"
+                     data-verb-risk="@Loc.T("LiveTickerVerbRisk")"
+                     data-verb-clinic="@Loc.T("LiveTickerVerbClinic")"
+                     data-label-ago="@Loc.T("LiveTickerAgo")"
+                     data-label-min="@Loc.T("LiveTickerMin")"
+                     data-label-sec="@Loc.T("LiveTickerSec")"
+                     data-label-someone="@Loc.T("LiveTickerSomeone")"
+                     data-label-from="@Loc.T("LiveTickerFrom")"
+                     data-label-clinic="@Loc.T("LiveTickerClinicLoc")">
+                    <span class="land-live-badge">
+                        <span class="land-live-dot" aria-hidden="true"></span>
+                        @Loc.T("LiveTickerLabel")
+                    </span>
+                    <span class="land-live-text" id="landLiveText">@Loc.T("LiveTickerLoading")</span>
+                </div>
+
                 <div class="land-eyebrow-row">
                     <span class="land-eyebrow">@Loc.T("HeroEyebrow")</span>
                     <span class="land-eyebrow land-eyebrow-coral">@Loc.T("HeroEyebrow2")</span>
@@ -102,26 +122,6 @@
                     <div><strong>30+</strong><span>@Loc.T("HeroStatLangs")</span></div>
                     <div><strong>~30s</strong><span>@Loc.T("HeroStatSpeed")</span></div>
                     <div><strong>LOINC</strong><span>@Loc.T("HeroStatLoinc")</span></div>
-                </div>
-
-                @* ===== Live Activity ticker (mock data, JS-rotated every 8s) ===== *@
-                <div class="land-live-ticker" data-testid="land-live-ticker" aria-live="polite"
-                     data-verb-report="@Loc.T("LiveTickerVerbReport")"
-                     data-verb-interp="@Loc.T("LiveTickerVerbInterp")"
-                     data-verb-compare="@Loc.T("LiveTickerVerbCompare")"
-                     data-verb-risk="@Loc.T("LiveTickerVerbRisk")"
-                     data-verb-clinic="@Loc.T("LiveTickerVerbClinic")"
-                     data-label-ago="@Loc.T("LiveTickerAgo")"
-                     data-label-min="@Loc.T("LiveTickerMin")"
-                     data-label-sec="@Loc.T("LiveTickerSec")"
-                     data-label-someone="@Loc.T("LiveTickerSomeone")"
-                     data-label-from="@Loc.T("LiveTickerFrom")"
-                     data-label-clinic="@Loc.T("LiveTickerClinicLoc")">
-                    <span class="land-live-badge">
-                        <span class="land-live-dot" aria-hidden="true"></span>
-                        @Loc.T("LiveTickerLabel")
-                    </span>
-                    <span class="land-live-text" id="landLiveText">@Loc.T("LiveTickerLoading")</span>
                 </div>
             </div>
 
