@@ -220,6 +220,56 @@ body.landing-body a:hover { color: var(--land-coral); }
     font-size: 0.82rem; color: var(--land-mute);
 }
 
+/* ============== Live activity ticker (Hero) ============== */
+.land-live-ticker {
+    display: inline-flex; align-items: center; gap: 0.7rem;
+    margin-top: 1.25rem; max-width: 100%;
+    padding: 0.5rem 0.85rem 0.5rem 0.55rem;
+    background: var(--land-surface);
+    border: 1px solid var(--land-border);
+    border-radius: var(--land-radius-pill);
+    box-shadow: var(--land-shadow-sm);
+    font-size: 0.82rem;
+    color: var(--land-mute);
+}
+.land-live-badge {
+    display: inline-flex; align-items: center; gap: 0.32rem;
+    background: var(--land-coral-soft);
+    color: var(--land-coral-dark);
+    padding: 0.18rem 0.55rem;
+    border-radius: var(--land-radius-pill);
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+.land-live-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--land-coral);
+    box-shadow: 0 0 0 0 rgba(224, 122, 95, 0.6);
+    animation: landPulse 1.6s infinite;
+}
+.land-live-text {
+    display: inline-block;
+    color: var(--land-ink);
+    font-weight: 500;
+    font-size: 0.82rem;
+    line-height: 1.35;
+    opacity: 1;
+    transition: opacity .28s ease;
+    /* Ensure long city names don't push the badge around */
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 460px;
+}
+.land-live-text.is-fading { opacity: 0; }
+@media (max-width: 600px) {
+    .land-live-ticker { font-size: 0.74rem; padding: 0.4rem 0.65rem 0.4rem 0.4rem; }
+    .land-live-text   { font-size: 0.74rem; max-width: 220px; }
+    .land-live-badge  { font-size: 0.58rem; padding: 0.15rem 0.45rem; }
+}
+
 /* ============== Hero visual: rich data card + overlapping chart ============== */
 .land-hero-visual-wrap {
     position: relative;

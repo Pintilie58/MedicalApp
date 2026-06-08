@@ -32,6 +32,21 @@ namespace MedicalApp.Services
                 ["HeroStatSpeed"] = "average interpretation",
                 ["HeroStatLoinc"] = "standardized parameters",
 
+                // ===== Live activity ticker (Hero) =====
+                ["LiveTickerLabel"] = "LIVE",
+                ["LiveTickerLoading"] = "Loading live activity…",
+                ["LiveTickerSomeone"] = "Someone",
+                ["LiveTickerFrom"] = "from",
+                ["LiveTickerClinicLoc"] = "A clinic in",
+                ["LiveTickerAgo"] = "ago",
+                ["LiveTickerMin"] = "min",
+                ["LiveTickerSec"] = "sec",
+                ["LiveTickerVerbReport"] = "received their report in",
+                ["LiveTickerVerbInterp"] = "got their interpretation in",
+                ["LiveTickerVerbCompare"] = "compared 3 past tests in",
+                ["LiveTickerVerbRisk"] = "discovered a risk factor in",
+                ["LiveTickerVerbClinic"] = "sent 24 reports in batch in",
+
                 // Hero data card
                 ["HeroCardTitle"] = "Analysis snapshot",
                 ["HeroCardBadge"] = "Analyzed in 28s",
@@ -463,6 +478,21 @@ namespace MedicalApp.Services
                 ["HeroStatLangs"] = "limbi",
                 ["HeroStatSpeed"] = "interpretare medie",
                 ["HeroStatLoinc"] = "parametri standardizați",
+
+                // ===== Live activity ticker (Hero) =====
+                ["LiveTickerLabel"] = "ACUM",
+                ["LiveTickerLoading"] = "Se încarcă activitatea live…",
+                ["LiveTickerSomeone"] = "Cineva",
+                ["LiveTickerFrom"] = "din",
+                ["LiveTickerClinicLoc"] = "O clinică din",
+                ["LiveTickerAgo"] = "în urmă",
+                ["LiveTickerMin"] = "min",
+                ["LiveTickerSec"] = "sec",
+                ["LiveTickerVerbReport"] = "a primit raportul în",
+                ["LiveTickerVerbInterp"] = "a primit interpretarea în",
+                ["LiveTickerVerbCompare"] = "a comparat 3 analize în",
+                ["LiveTickerVerbRisk"] = "a descoperit un factor de risc în",
+                ["LiveTickerVerbClinic"] = "a trimis 24 rapoarte în lot în",
 
                 // Hero data card
                 ["HeroCardTitle"] = "Sumar analize",

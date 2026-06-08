@@ -103,6 +103,26 @@
                     <div><strong>~30s</strong><span>@Loc.T("HeroStatSpeed")</span></div>
                     <div><strong>LOINC</strong><span>@Loc.T("HeroStatLoinc")</span></div>
                 </div>
+
+                @* ===== Live Activity ticker (mock data, JS-rotated every 8s) ===== *@
+                <div class="land-live-ticker" data-testid="land-live-ticker" aria-live="polite"
+                     data-verb-report="@Loc.T("LiveTickerVerbReport")"
+                     data-verb-interp="@Loc.T("LiveTickerVerbInterp")"
+                     data-verb-compare="@Loc.T("LiveTickerVerbCompare")"
+                     data-verb-risk="@Loc.T("LiveTickerVerbRisk")"
+                     data-verb-clinic="@Loc.T("LiveTickerVerbClinic")"
+                     data-label-ago="@Loc.T("LiveTickerAgo")"
+                     data-label-min="@Loc.T("LiveTickerMin")"
+                     data-label-sec="@Loc.T("LiveTickerSec")"
+                     data-label-someone="@Loc.T("LiveTickerSomeone")"
+                     data-label-from="@Loc.T("LiveTickerFrom")"
+                     data-label-clinic="@Loc.T("LiveTickerClinicLoc")">
+                    <span class="land-live-badge">
+                        <span class="land-live-dot" aria-hidden="true"></span>
+                        @Loc.T("LiveTickerLabel")
+                    </span>
+                    <span class="land-live-text" id="landLiveText">@Loc.T("LiveTickerLoading")</span>
+                </div>
             </div>
 
             <div class="land-hero-visual-wrap" data-testid="land-hero-visual">
@@ -596,6 +616,60 @@
         }, { threshold: 0.45 });
         nums.forEach(function(el){ io2.observe(el); });
     }
+    // Live activity ticker (Hero) — mock data, one item visible at a time, fades every 8s.
+    // The data is intentionally anonymized + plausible so the ticker feels real
+    // without claiming any specific patient. Translatable verbs come from data-*
+    // attributes so localized phrasings still work.
+    (function(){
+        var el = document.getElementById('landLiveText');
+        if (!el) return;
+        var rootEl = el.closest('.land-live-ticker');
+        var verbReport     = rootEl ? rootEl.getAttribute('data-verb-report')     : 'received their report in';
+        var verbInterp     = rootEl ? rootEl.getAttribute('data-verb-interp')     : 'just got their interpretation in';
+        var verbCompare    = rootEl ? rootEl.getAttribute('data-verb-compare')    : 'compared 3 past tests in';
+        var verbRisk       = rootEl ? rootEl.getAttribute('data-verb-risk')       : 'discovered a risk factor in';
+        var verbClinic     = rootEl ? rootEl.getAttribute('data-verb-clinic')     : 'sent 24 reports in batch from';
+        var labelAgo       = rootEl ? rootEl.getAttribute('data-label-ago')       : 'ago';
+        var labelMin       = rootEl ? rootEl.getAttribute('data-label-min')       : 'min';
+        var labelSec       = rootEl ? rootEl.getAttribute('data-label-sec')       : 'sec';
+        var labelSomeone   = rootEl ? rootEl.getAttribute('data-label-someone')   : 'Someone';
+        var labelFrom      = rootEl ? rootEl.getAttribute('data-label-from')      : 'from';
+        var labelClinicLoc = rootEl ? rootEl.getAttribute('data-label-clinic')    : 'A clinic in';
+
+        // Plausible distribution of Romanian cities (capital first, then big cities)
+        var cities = ['București','București','Cluj-Napoca','Timișoara','Iași','Constanța','Brașov','Sibiu','Oradea','Galați','Craiova','Ploiești'];
+        var verbs  = [
+            { type:'person', verb: verbReport,  unit:'s', range:[18, 38] },
+            { type:'person', verb: verbInterp,  unit:'s', range:[22, 34] },
+            { type:'person', verb: verbCompare, unit:'s', range:[12, 26] },
+            { type:'person', verb: verbRisk,    unit:'s', range:[24, 40] },
+            { type:'clinic', verb: verbClinic,  unit:'min', range:[2, 9] }
+        ];
+        var lastIdx = -1;
+        function pick(arr) {
+            var i; do { i = Math.floor(Math.random() * arr.length); } while (arr.length > 1 && i === lastIdx);
+            lastIdx = i; return arr[i];
+        }
+        function buildText() {
+            var v = pick(verbs);
+            var city = cities[Math.floor(Math.random() * cities.length)];
+            var n = Math.floor(v.range[0] + Math.random() * (v.range[1] - v.range[0] + 1));
+            var ago = Math.floor(1 + Math.random() * 9);
+            var subject = v.type === 'clinic' ? (labelClinicLoc + ' ' + city) : (labelSomeone + ' ' + labelFrom + ' ' + city);
+            var unitLabel = v.unit === 's' ? labelSec : labelMin;
+            return subject + ' ' + v.verb + ' ' + n + unitLabel + ' · ' + ago + ' ' + labelMin + ' ' + labelAgo;
+        }
+        function rotate() {
+            el.classList.add('is-fading');
+            setTimeout(function(){
+                el.textContent = buildText();
+                el.classList.remove('is-fading');
+            }, 280);
+        }
+        // First message shown immediately, then rotate every 8s.
+        el.textContent = buildText();
+        setInterval(rotate, 8000);
+    })();
     // Smooth anchor scroll
     document.querySelectorAll('a[href^="#"]').forEach(function(a){
         a.addEventListener('click', function(e){
