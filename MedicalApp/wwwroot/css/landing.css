@@ -371,34 +371,90 @@ body.landing-body a:hover { color: var(--land-coral); }
     background: var(--land-surface);
     border: 1px solid var(--land-border);
     border-radius: var(--land-radius);
-    padding: 2rem;
+    padding: 1.75rem 1.5rem;
     transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+    display: flex; flex-direction: column;
 }
 .land-pillar:hover {
     transform: translateY(-4px);
     box-shadow: var(--land-shadow-lg);
     border-color: rgba(122, 145, 128, 0.4);
 }
-.land-pillar-icon {
-    width: 56px; height: 56px;
-    border-radius: var(--land-radius);
-    display: inline-flex; align-items: center; justify-content: center;
-    margin-bottom: 1.25rem;
-    font-size: 1.6rem;
+.land-pillar h3 {
+    font-size: 1.25rem; font-weight: 700;
+    margin: 0 0 0.45rem 0;
+    color: var(--land-ink);
 }
-.land-pillar:nth-child(1) .land-pillar-icon { background: var(--land-sage-light);  color: var(--land-sage-dark); }
-.land-pillar:nth-child(2) .land-pillar-icon { background: var(--land-coral-soft);  color: var(--land-coral-dark); }
-.land-pillar:nth-child(3) .land-pillar-icon { background: var(--status-low-bg);    color: var(--status-low-fg); }
+.land-pillar > p {
+    font-size: 0.92rem;
+    margin: 0 0 1rem 0;
+    color: var(--land-mute);
+    line-height: 1.5;
+}
+/* === icon: bigger and more present === */
+.land-pillar-icon {
+    width: 76px; height: 76px;
+    border-radius: 18px;
+    display: inline-flex; align-items: center; justify-content: center;
+    margin-bottom: 1.1rem;
+    font-size: 2.4rem;
+    line-height: 1;
+    box-shadow: 0 6px 14px rgba(74, 92, 80, 0.10);
+    position: relative;
+}
+.land-pillar:nth-child(1) .land-pillar-icon {
+    background: linear-gradient(135deg, var(--land-sage-light) 0%, #d8e4dc 100%);
+    color: var(--land-sage-dark);
+}
+.land-pillar:nth-child(2) .land-pillar-icon {
+    background: linear-gradient(135deg, var(--land-coral-soft) 0%, #f8d8d0 100%);
+    color: var(--land-coral-dark);
+}
+.land-pillar:nth-child(3) .land-pillar-icon {
+    background: linear-gradient(135deg, var(--status-low-bg) 0%, #f5e2c4 100%);
+    color: var(--status-low-fg);
+}
 .land-pillar ul {
-    list-style: none; padding: 0; margin: 1rem 0 0 0;
+    list-style: none; padding: 0; margin: 0.5rem 0 0 0;
+    flex-grow: 1;
 }
 .land-pillar ul li {
-    padding: 0.35rem 0; padding-left: 1.5rem; position: relative;
-    color: var(--land-mute); font-size: 0.9rem;
+    padding: 0.28rem 0 0.28rem 1.35rem;
+    position: relative;
+    color: var(--land-mute);
+    font-size: 0.82rem;
+    line-height: 1.42;
 }
 .land-pillar ul li::before {
-    content: '✓'; position: absolute; left: 0; top: 0.35rem;
-    color: var(--land-sage); font-weight: 800;
+    content: '\f00c'; /* Font Awesome solid check */
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    position: absolute; left: 0; top: 0.35rem;
+    color: var(--land-sage);
+    font-size: 0.7rem;
+}
+/* The "Toate funcțiile de la Persoane fizice" row — slightly highlighted */
+.land-pillar-li-strong {
+    color: var(--land-ink) !important;
+    font-weight: 600;
+    background: linear-gradient(90deg, rgba(122,145,128,0.10) 0%, transparent 100%);
+    border-left: 3px solid var(--land-sage);
+    border-radius: 4px;
+    margin: 0 0 0.4rem -0.5rem;
+    padding-left: 1.85rem !important;
+    padding-top: 0.4rem !important;
+    padding-bottom: 0.4rem !important;
+}
+.land-pillar-li-strong::before {
+    content: '\f005' !important; /* Font Awesome solid star */
+    color: var(--land-coral) !important;
+    left: 0.5rem !important;
+    top: 0.5rem !important;
+    font-size: 0.72rem !important;
+}
+.land-pillar .land-btn {
+    margin-top: auto;
+    align-self: flex-start;
 }
 
 /* ============== Features ============== */
