@@ -391,17 +391,68 @@ body.landing-body a:hover { color: var(--land-coral); }
     color: var(--land-mute);
     line-height: 1.5;
 }
+/* === pillar head: icon (left) + live counter (right) === */
+.land-pillar-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 0.85rem;
+    margin-bottom: 1.1rem;
+}
 /* === icon: bigger and more present === */
 .land-pillar-icon {
     width: 76px; height: 76px;
     border-radius: 18px;
     display: inline-flex; align-items: center; justify-content: center;
-    margin-bottom: 1.1rem;
+    margin-bottom: 0;
     font-size: 2.4rem;
     line-height: 1;
     box-shadow: 0 6px 14px rgba(74, 92, 80, 0.10);
     position: relative;
+    flex-shrink: 0;
 }
+/* === live counter pill (right side, fills the void next to the icon) === */
+.land-pillar-counter {
+    flex-grow: 1; min-width: 0;
+    text-align: right;
+    display: flex; flex-direction: column; align-items: flex-end;
+    gap: 0.15rem;
+    padding-left: 0.25rem;
+}
+.land-pillar-counter-num {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.55rem;
+    font-weight: 700;
+    color: var(--land-sage-dark);
+    letter-spacing: -0.02em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    display: inline-flex; align-items: center;
+    gap: 0.25rem;
+}
+.land-pillar-counter-num::before {
+    content: '';
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--land-coral);
+    box-shadow: 0 0 0 0 rgba(224, 122, 95, 0.55);
+    animation: landPulse 2.2s infinite;
+    margin-right: 0.15rem;
+}
+.land-pillar-counter-label {
+    font-size: 0.7rem;
+    color: var(--land-mute);
+    font-weight: 600;
+    line-height: 1.25;
+    max-width: 130px;
+    text-transform: lowercase;
+    letter-spacing: 0.01em;
+}
+/* Coral counter for the doctor's office pillar */
+.land-pillar:nth-child(2) .land-pillar-counter-num { color: var(--land-coral-dark); }
+.land-pillar:nth-child(2) .land-pillar-counter-num::before { background: var(--land-sage); }
+/* Amber counter for the clinics pillar */
+.land-pillar:nth-child(3) .land-pillar-counter-num { color: var(--status-low-fg); }
+.land-pillar:nth-child(3) .land-pillar-counter-num::before { background: var(--land-coral); }
 .land-pillar:nth-child(1) .land-pillar-icon {
     background: linear-gradient(135deg, var(--land-sage-light) 0%, #d8e4dc 100%);
     color: var(--land-sage-dark);

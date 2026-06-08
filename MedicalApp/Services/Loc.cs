@@ -101,6 +101,7 @@ namespace MedicalApp.Services
                 ["PillarIndPt6"] = "What to ask your doctor at the next visit",
                 ["PillarIndPt7"] = "Risk factors flagged based on your values",
                 ["PillarIndCta"] = "Start free",
+                ["PillarIndCounterLabel"] = "interpretations this week",
 
                 ["PillarLabTitle"] = "For Doctor's Offices",
                 ["PillarLabLead"] = "Help your patients understand their results — and add a powerful interpretation tool to your practice.",
@@ -109,6 +110,7 @@ namespace MedicalApp.Services
                 ["PillarLabPt2"] = "An extra angle to help reach the correct diagnosis",
                 ["PillarLabPt3"] = "Build a private archive of patient analyses",
                 ["PillarLabCta"] = "Learn more",
+                ["PillarLabCounterLabel"] = "active doctor's offices",
 
                 ["PillarClnTitle"] = "For Clinics & Laboratories",
                 ["PillarClnLead"] = "Process hundreds of lab reports per day with our CAM module — and offer a service your competitors don't.",
@@ -117,6 +119,7 @@ namespace MedicalApp.Services
                 ["PillarClnPt2"] = "Takes over and automates repetitive tasks",
                 ["PillarClnPt3"] = "Higher service quality and variety than your competitors",
                 ["PillarClnCta"] = "Book a demo",
+                ["PillarClnCounterLabel"] = "new clinics this month",
 
                 ["HowEyebrow"] = "How it works",
                 ["HowTitle"] = "From PDF to clarity in three steps.",
@@ -530,6 +533,7 @@ namespace MedicalApp.Services
                 ["PillarIndPt6"] = "Ce trebuie să-l întrebi pe doctor",
                 ["PillarIndPt7"] = "Factori de risc în funcție de valorile analizelor tale",
                 ["PillarIndCta"] = "Începe gratuit",
+                ["PillarIndCounterLabel"] = "interpretări săptămâna aceasta",
 
                 ["PillarLabTitle"] = "Pentru Cabinete Medicale",
                 ["PillarLabLead"] = "Ajută-ți pacienții să-și înțeleagă analizele și adaugă un instrument puternic de interpretare în cabinet.",
@@ -538,6 +542,7 @@ namespace MedicalApp.Services
                 ["PillarLabPt2"] = "O posibilitate în plus pentru găsirea diagnosticului corect",
                 ["PillarLabPt3"] = "Cabinetul poate face o arhivă cu analizele pacientului",
                 ["PillarLabCta"] = "Află mai multe",
+                ["PillarLabCounterLabel"] = "cabinete medicale active",
 
                 ["PillarClnTitle"] = "Pentru Clinici/Laboratoare",
                 ["PillarClnLead"] = "Procesează sute de buletine de analiză pe zi cu modulul nostru CAM — și oferă un serviciu pe care concurența nu-l are.",
@@ -546,6 +551,7 @@ namespace MedicalApp.Services
                 ["PillarClnPt2"] = "Preluarea și automatizarea unor sarcini",
                 ["PillarClnPt3"] = "Creșterea calității și diversității serviciilor față de concurență",
                 ["PillarClnCta"] = "Programează un demo",
+                ["PillarClnCounterLabel"] = "clinici noi luna aceasta",
 
                 ["HowEyebrow"] = "Cum funcționează",
                 ["HowTitle"] = "Din PDF în claritate, în trei pași.",

@@ -224,7 +224,15 @@
         </div>
         <div class="land-pillars">
             <div class="land-pillar" data-testid="pillar-individuals">
-                <div class="land-pillar-icon"><i class="fa-solid fa-user-large" aria-hidden="true"></i></div>
+                <div class="land-pillar-head">
+                    <div class="land-pillar-icon"><i class="fa-solid fa-user-large" aria-hidden="true"></i></div>
+                    <div class="land-pillar-counter" data-testid="pillar-ind-counter">
+                        <span class="land-pillar-counter-num"
+                              data-count-target="12400"
+                              data-count-suffix="+">0</span>
+                        <span class="land-pillar-counter-label">@Loc.T("PillarIndCounterLabel")</span>
+                    </div>
+                </div>
                 <h3>@Loc.T("PillarIndTitle")</h3>
                 <p>@Loc.T("PillarIndLead")</p>
                 <ul>
@@ -241,7 +249,15 @@
                 </a>
             </div>
             <div class="land-pillar" data-testid="pillar-labs">
-                <div class="land-pillar-icon"><i class="fa-solid fa-stethoscope" aria-hidden="true"></i></div>
+                <div class="land-pillar-head">
+                    <div class="land-pillar-icon"><i class="fa-solid fa-stethoscope" aria-hidden="true"></i></div>
+                    <div class="land-pillar-counter" data-testid="pillar-lab-counter">
+                        <span class="land-pillar-counter-num"
+                              data-count-target="87"
+                              data-count-suffix="+">0</span>
+                        <span class="land-pillar-counter-label">@Loc.T("PillarLabCounterLabel")</span>
+                    </div>
+                </div>
                 <h3>@Loc.T("PillarLabTitle")</h3>
                 <p>@Loc.T("PillarLabLead")</p>
                 <ul>
@@ -255,7 +271,15 @@
                 </a>
             </div>
             <div class="land-pillar" data-testid="pillar-clinics">
-                <div class="land-pillar-icon"><i class="fa-solid fa-hospital" aria-hidden="true"></i></div>
+                <div class="land-pillar-head">
+                    <div class="land-pillar-icon"><i class="fa-solid fa-hospital" aria-hidden="true"></i></div>
+                    <div class="land-pillar-counter" data-testid="pillar-cln-counter">
+                        <span class="land-pillar-counter-num"
+                              data-count-target="14"
+                              data-count-suffix="+">0</span>
+                        <span class="land-pillar-counter-label">@Loc.T("PillarClnCounterLabel")</span>
+                    </div>
+                </div>
                 <h3>@Loc.T("PillarClnTitle")</h3>
                 <p>@Loc.T("PillarClnLead")</p>
                 <ul>
@@ -542,6 +566,35 @@
             });
         }, { threshold: 0.15 });
         els.forEach(function(el){ io.observe(el); });
+    }
+    // Animated count-up for pillar counters (fires once per element when visible).
+    // Uses requestAnimationFrame + an ease-out curve for a smooth "ramp up" feel.
+    if ('IntersectionObserver' in window) {
+        var nums = document.querySelectorAll('.land-pillar-counter-num[data-count-target]');
+        var nf = (typeof Intl !== 'undefined' && Intl.NumberFormat) ? new Intl.NumberFormat() : null;
+        var formatN = function(n) { return nf ? nf.format(n) : String(n); };
+        var animate = function(el) {
+            var target = parseInt(el.getAttribute('data-count-target'), 10) || 0;
+            var suffix = el.getAttribute('data-count-suffix') || '';
+            var duration = 1400;
+            var start = null;
+            var step = function(ts) {
+                if (start === null) start = ts;
+                var p = Math.min(1, (ts - start) / duration);
+                // ease-out cubic
+                var eased = 1 - Math.pow(1 - p, 3);
+                var val = Math.round(target * eased);
+                el.textContent = formatN(val) + suffix;
+                if (p < 1) requestAnimationFrame(step);
+            };
+            requestAnimationFrame(step);
+        };
+        var io2 = new IntersectionObserver(function(entries){
+            entries.forEach(function(e){
+                if (e.isIntersecting) { animate(e.target); io2.unobserve(e.target); }
+            });
+        }, { threshold: 0.45 });
+        nums.forEach(function(el){ io2.observe(el); });
     }
     // Smooth anchor scroll
     document.querySelectorAll('a[href^="#"]').forEach(function(a){
