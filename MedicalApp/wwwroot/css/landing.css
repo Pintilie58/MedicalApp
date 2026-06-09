@@ -717,16 +717,17 @@ body.landing-body a:hover { color: var(--land-coral); }
 
 /* ============== B2B CTA strip ============== */
 .land-b2b {
-    background: linear-gradient(135deg, var(--land-sage-dark) 0%, var(--land-ink) 100%);
-    color: #fff;
+    background: linear-gradient(135deg, var(--land-sage-light) 0%, #f1ece0 100%);
+    color: var(--land-ink);
     border-radius: var(--land-radius-lg);
     padding: 3rem 2.5rem;
     display: flex; justify-content: space-between; align-items: center; gap: 2rem;
     flex-wrap: wrap;
-    box-shadow: var(--land-shadow-lg);
+    box-shadow: var(--land-shadow-md);
+    border: 1px solid rgba(122, 145, 128, 0.18);
 }
-.land-b2b h2 { color: #fff; margin: 0; }
-.land-b2b p { color: rgba(255,255,255,0.78); margin: 0.5rem 0 0 0; max-width: 520px; }
+.land-b2b h2 { color: var(--land-ink); margin: 0; }
+.land-b2b p { color: var(--land-mute); margin: 0.5rem 0 0 0; max-width: 520px; }
 
 /* ============== Footer ============== */
 .land-footer {

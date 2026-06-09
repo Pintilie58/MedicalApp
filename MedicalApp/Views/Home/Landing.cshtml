@@ -130,7 +130,19 @@
                 <div class="land-deck" data-testid="land-deck">
                     @* Order in DOM = render order; data-pos is the initial logical position
                        (0 = front, 3 = bottom). Front card has zoom button. JS swaps positions on click. *@
-                    <div class="land-deck-card" data-pos="0" data-testid="deck-card-cam"
+                    <div class="land-deck-card" data-pos="0" data-testid="deck-card-summary"
+                         data-caption="@Loc.T("DeckCaptionSummary")"
+                         aria-label="@Loc.T("DeckCaptionSummary")">
+                        <img src="~/images/landing-deck/interpret-summary.jpg"
+                             alt="@Loc.T("DeckCaptionSummary")"
+                             loading="lazy" />
+                        <button type="button" class="land-deck-zoom" data-testid="deck-zoom-summary"
+                                aria-label="@Loc.T("DeckZoomLabel")">
+                            <i class="fa-solid fa-magnifying-glass-plus" aria-hidden="true"></i>
+                        </button>
+                        <span class="land-deck-tag">@Loc.T("DeckCaptionSummary")</span>
+                    </div>
+                    <div class="land-deck-card" data-pos="1" data-testid="deck-card-cam"
                          data-caption="@Loc.T("DeckCaptionCam")"
                          aria-label="@Loc.T("DeckCaptionCam")">
                         <img src="~/images/landing-deck/cam-compare.jpg"
@@ -142,7 +154,7 @@
                         </button>
                         <span class="land-deck-tag">@Loc.T("DeckCaptionCam")</span>
                     </div>
-                    <div class="land-deck-card" data-pos="1" data-testid="deck-card-graph"
+                    <div class="land-deck-card" data-pos="2" data-testid="deck-card-graph"
                          data-caption="@Loc.T("DeckCaptionGraph")"
                          aria-label="@Loc.T("DeckCaptionGraph")">
                         <img src="~/images/landing-deck/graph-b2c.jpg"
@@ -154,7 +166,7 @@
                         </button>
                         <span class="land-deck-tag">@Loc.T("DeckCaptionGraph")</span>
                     </div>
-                    <div class="land-deck-card" data-pos="2" data-testid="deck-card-correlations"
+                    <div class="land-deck-card" data-pos="3" data-testid="deck-card-correlations"
                          data-caption="@Loc.T("DeckCaptionCorrelations")"
                          aria-label="@Loc.T("DeckCaptionCorrelations")">
                         <img src="~/images/landing-deck/interpret-correlations.jpg"
@@ -165,18 +177,6 @@
                             <i class="fa-solid fa-magnifying-glass-plus" aria-hidden="true"></i>
                         </button>
                         <span class="land-deck-tag">@Loc.T("DeckCaptionCorrelations")</span>
-                    </div>
-                    <div class="land-deck-card" data-pos="3" data-testid="deck-card-summary"
-                         data-caption="@Loc.T("DeckCaptionSummary")"
-                         aria-label="@Loc.T("DeckCaptionSummary")">
-                        <img src="~/images/landing-deck/interpret-summary.jpg"
-                             alt="@Loc.T("DeckCaptionSummary")"
-                             loading="lazy" />
-                        <button type="button" class="land-deck-zoom" data-testid="deck-zoom-summary"
-                                aria-label="@Loc.T("DeckZoomLabel")">
-                            <i class="fa-solid fa-magnifying-glass-plus" aria-hidden="true"></i>
-                        </button>
-                        <span class="land-deck-tag">@Loc.T("DeckCaptionSummary")</span>
                     </div>
 
                     @* hint pill, only visible until first interaction *@
