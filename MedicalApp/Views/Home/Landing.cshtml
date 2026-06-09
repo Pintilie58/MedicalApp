@@ -184,6 +184,18 @@
                         <i class="fa-solid fa-hand-pointer" aria-hidden="true"></i>
                         <span>@Loc.T("DeckHint")</span>
                     </div>
+
+                    @* prev/next nav arrows (also keyboard ← →) *@
+                    <button type="button" class="land-deck-nav land-deck-nav-prev"
+                            id="landDeckPrev" data-testid="deck-nav-prev"
+                            aria-label="@Loc.T("DeckPrevLabel")">
+                        <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="land-deck-nav land-deck-nav-next"
+                            id="landDeckNext" data-testid="deck-nav-next"
+                            aria-label="@Loc.T("DeckNextLabel")">
+                        <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+                    </button>
                 </div>
             </div>
         </div>
@@ -670,6 +682,25 @@
             return true;
         }
         function hideHint() { if (hint) hint.classList.add('is-hidden'); }
+        // Navigate the deck "next" (› = top card slides to back; the second card comes up):
+        //   pos 0 -> 3 (moves to the very back)
+        //   pos 1 -> 0 (becomes the new front)
+        //   pos 2 -> 1, pos 3 -> 2 (each shifts forward by one)
+        function navNext() {
+            cards.forEach(function(c){
+                var p = parseInt(c.getAttribute('data-pos'), 10);
+                c.setAttribute('data-pos', String((p + 3) % 4)); // p-1 mod 4 = (p+3)%4
+            });
+        }
+        // Navigate the deck "prev" (‹ = back card jumps to the front; everyone else moves back):
+        //   pos 3 -> 0 (becomes the new front)
+        //   pos 0 -> 1, pos 1 -> 2, pos 2 -> 3
+        function navPrev() {
+            cards.forEach(function(c){
+                var p = parseInt(c.getAttribute('data-pos'), 10);
+                c.setAttribute('data-pos', String((p + 1) % 4));
+            });
+        }
         function openModal(card) {
             if (!modal) return;
             var img = card.querySelector('img');
@@ -718,8 +749,32 @@
             // Click on backdrop (outside the figure) closes
             if (e.target === modal) closeModal();
         });
+        // Deck nav arrows (prev / next) + click-then-deal animation
+        var btnPrev = document.getElementById('landDeckPrev');
+        var btnNext = document.getElementById('landDeckNext');
+        if (btnPrev) btnPrev.addEventListener('click', function(e){ e.stopPropagation(); hideHint(); navPrev(); });
+        if (btnNext) btnNext.addEventListener('click', function(e){ e.stopPropagation(); hideHint(); navNext(); });
+
+        // Keyboard nav: ← → when the deck (or any of its children) is focused/hovered.
+        // We hook on the deck element so it doesn't hijack arrow keys while the user
+        // is scrolling the page or typing somewhere else.
+        // Make the deck focusable so :focus-within actually fires.
+        deck.setAttribute('tabindex', '0');
+        var deckHover = false;
+        deck.addEventListener('mouseenter', function(){ deckHover = true;  });
+        deck.addEventListener('mouseleave', function(){ deckHover = false; });
         document.addEventListener('keydown', function(e){
-            if (e.key === 'Escape' && modal && modal.classList.contains('is-open')) closeModal();
+            if (e.key === 'Escape' && modal && modal.classList.contains('is-open')) {
+                closeModal();
+                return;
+            }
+            // Only catch ← / → if the user is hovering the deck OR has it focused.
+            var active = document.activeElement;
+            var deckFocused = active && (active === deck || deck.contains(active));
+            if (!deckHover && !deckFocused) return;
+            if (modal && modal.classList.contains('is-open')) return;
+            if (e.key === 'ArrowRight') { e.preventDefault(); hideHint(); navNext(); }
+            else if (e.key === 'ArrowLeft') { e.preventDefault(); hideHint(); navPrev(); }
         });
     })();
     // Smooth anchor scroll

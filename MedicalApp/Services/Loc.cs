@@ -55,6 +55,8 @@ namespace MedicalApp.Services
                 ["DeckHint"] = "Click a card to bring it to the front · click again to zoom",
                 ["DeckZoomLabel"] = "Zoom in",
                 ["DeckCloseLabel"] = "Close",
+                ["DeckPrevLabel"] = "Previous report",
+                ["DeckNextLabel"] = "Next report",
 
                 // Hero data card
                 ["HeroCardTitle"] = "Analysis snapshot",
@@ -511,6 +513,8 @@ namespace MedicalApp.Services
                 ["DeckHint"] = "Click pe un card să-l aduci în față · click din nou pentru zoom",
                 ["DeckZoomLabel"] = "Mărește",
                 ["DeckCloseLabel"] = "Închide",
+                ["DeckPrevLabel"] = "Raport anterior",
+                ["DeckNextLabel"] = "Raport următor",
 
                 // Hero data card
                 ["HeroCardTitle"] = "Sumar analize",
