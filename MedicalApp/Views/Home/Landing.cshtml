@@ -126,113 +126,81 @@
             </div>
 
             <div class="land-hero-visual-wrap" data-testid="land-hero-visual">
-                @* Main data card – rich, color-coded analysis snapshot *@
-                <div class="land-data-card" data-testid="hero-data-card">
-                    <div class="land-data-card-head">
-                        <div class="land-data-card-title">
-                            <i class="fa-solid fa-file-waveform" aria-hidden="true"></i>
-                            <span>@Loc.T("HeroCardTitle")</span>
-                        </div>
-                        <div class="land-data-badge" data-testid="hero-data-badge">
-                            <span class="land-pulse-dot" aria-hidden="true"></span>
-                            <span>@Loc.T("HeroCardBadge")</span>
-                        </div>
+                @* ===== Deck of 4 sample reports — click to bring forward, click front to zoom ===== *@
+                <div class="land-deck" data-testid="land-deck">
+                    @* Order in DOM = render order; data-pos is the initial logical position
+                       (0 = front, 3 = bottom). Front card has zoom button. JS swaps positions on click. *@
+                    <div class="land-deck-card" data-pos="0" data-testid="deck-card-cam"
+                         data-caption="@Loc.T("DeckCaptionCam")"
+                         aria-label="@Loc.T("DeckCaptionCam")">
+                        <img src="~/images/landing-deck/cam-compare.jpg"
+                             alt="@Loc.T("DeckCaptionCam")"
+                             loading="lazy" />
+                        <button type="button" class="land-deck-zoom" data-testid="deck-zoom-cam"
+                                aria-label="@Loc.T("DeckZoomLabel")">
+                            <i class="fa-solid fa-magnifying-glass-plus" aria-hidden="true"></i>
+                        </button>
+                        <span class="land-deck-tag">@Loc.T("DeckCaptionCam")</span>
                     </div>
-                    <div class="land-data-grid">
-                        <div class="land-data-row">
-                            <span class="land-data-label">Hemoglobin</span>
-                            <div class="land-data-right">
-                                <span class="land-data-value">13.5 <small>g/dL</small></span>
-                                <span class="land-status land-status-normal">@Loc.T("HeroStatusNormal")</span>
-                            </div>
-                        </div>
-                        <div class="land-data-row">
-                            <span class="land-data-label">Glucose</span>
-                            <div class="land-data-right">
-                                <span class="land-data-value">105 <small>mg/dL</small></span>
-                                <span class="land-status land-status-borderline">@Loc.T("HeroStatusBorder")</span>
-                            </div>
-                        </div>
-                        <div class="land-data-row">
-                            <span class="land-data-label">LDL Cholesterol</span>
-                            <div class="land-data-right">
-                                <span class="land-data-value">150 <small>mg/dL</small></span>
-                                <span class="land-status land-status-high">@Loc.T("HeroStatusHigh")</span>
-                            </div>
-                        </div>
-                        <div class="land-data-row">
-                            <span class="land-data-label">HDL Cholesterol</span>
-                            <div class="land-data-right">
-                                <span class="land-data-value">45 <small>mg/dL</small></span>
-                                <span class="land-status land-status-low">@Loc.T("HeroStatusLow")</span>
-                            </div>
-                        </div>
-                        <div class="land-data-row">
-                            <span class="land-data-label">TSH</span>
-                            <div class="land-data-right">
-                                <span class="land-data-value">2.1 <small>mIU/L</small></span>
-                                <span class="land-status land-status-normal">@Loc.T("HeroStatusNormal")</span>
-                            </div>
-                        </div>
-                        <div class="land-data-row">
-                            <span class="land-data-label">Vitamin D</span>
-                            <div class="land-data-right">
-                                <span class="land-data-value">15 <small>ng/mL</small></span>
-                                <span class="land-status land-status-low">@Loc.T("HeroStatusLow")</span>
-                            </div>
-                        </div>
-                        <div class="land-data-row">
-                            <span class="land-data-label">Platelets</span>
-                            <div class="land-data-right">
-                                <span class="land-data-value">250 <small>×10⁹/L</small></span>
-                                <span class="land-status land-status-normal">@Loc.T("HeroStatusNormal")</span>
-                            </div>
-                        </div>
-                        <div class="land-data-row">
-                            <span class="land-data-label">Creatinine</span>
-                            <div class="land-data-right">
-                                <span class="land-data-value">0.96 <small>mg/dL</small></span>
-                                <span class="land-status land-status-normal">@Loc.T("HeroStatusNormal")</span>
-                            </div>
-                        </div>
+                    <div class="land-deck-card" data-pos="1" data-testid="deck-card-graph"
+                         data-caption="@Loc.T("DeckCaptionGraph")"
+                         aria-label="@Loc.T("DeckCaptionGraph")">
+                        <img src="~/images/landing-deck/graph-b2c.jpg"
+                             alt="@Loc.T("DeckCaptionGraph")"
+                             loading="lazy" />
+                        <button type="button" class="land-deck-zoom" data-testid="deck-zoom-graph"
+                                aria-label="@Loc.T("DeckZoomLabel")">
+                            <i class="fa-solid fa-magnifying-glass-plus" aria-hidden="true"></i>
+                        </button>
+                        <span class="land-deck-tag">@Loc.T("DeckCaptionGraph")</span>
                     </div>
-                </div>
+                    <div class="land-deck-card" data-pos="2" data-testid="deck-card-correlations"
+                         data-caption="@Loc.T("DeckCaptionCorrelations")"
+                         aria-label="@Loc.T("DeckCaptionCorrelations")">
+                        <img src="~/images/landing-deck/interpret-correlations.jpg"
+                             alt="@Loc.T("DeckCaptionCorrelations")"
+                             loading="lazy" />
+                        <button type="button" class="land-deck-zoom" data-testid="deck-zoom-correlations"
+                                aria-label="@Loc.T("DeckZoomLabel")">
+                            <i class="fa-solid fa-magnifying-glass-plus" aria-hidden="true"></i>
+                        </button>
+                        <span class="land-deck-tag">@Loc.T("DeckCaptionCorrelations")</span>
+                    </div>
+                    <div class="land-deck-card" data-pos="3" data-testid="deck-card-summary"
+                         data-caption="@Loc.T("DeckCaptionSummary")"
+                         aria-label="@Loc.T("DeckCaptionSummary")">
+                        <img src="~/images/landing-deck/interpret-summary.jpg"
+                             alt="@Loc.T("DeckCaptionSummary")"
+                             loading="lazy" />
+                        <button type="button" class="land-deck-zoom" data-testid="deck-zoom-summary"
+                                aria-label="@Loc.T("DeckZoomLabel")">
+                            <i class="fa-solid fa-magnifying-glass-plus" aria-hidden="true"></i>
+                        </button>
+                        <span class="land-deck-tag">@Loc.T("DeckCaptionSummary")</span>
+                    </div>
 
-                @* Overlapping mini-chart card *@
-                <div class="land-chart-card" data-testid="hero-chart-card" aria-hidden="true">
-                    <div class="land-chart-head">
-                        <span class="land-chart-title">@Loc.T("HeroCardChartTitle")</span>
-                        <span class="land-chart-period">@Loc.T("HeroCardChartPeriod")</span>
-                    </div>
-                    <svg viewBox="0 0 220 70" class="land-chart-svg" preserveAspectRatio="none">
-                        <defs>
-                            <linearGradient id="chartFill" x1="0" x2="0" y1="0" y2="1">
-                                <stop offset="0%" stop-color="#E07A5F" stop-opacity="0.30" />
-                                <stop offset="100%" stop-color="#E07A5F" stop-opacity="0.02" />
-                            </linearGradient>
-                        </defs>
-                        @* area *@
-                        <path d="M0,55 Q22,18 45,42 T90,22 T135,30 T180,14 T220,20 L220,70 L0,70 Z"
-                              fill="url(#chartFill)"></path>
-                        @* stroke *@
-                        <path d="M0,55 Q22,18 45,42 T90,22 T135,30 T180,14 T220,20"
-                              fill="none" stroke="#E07A5F" stroke-width="2.4" stroke-linecap="round"
-                              stroke-linejoin="round"></path>
-                        @* latest point *@
-                        <circle cx="220" cy="20" r="4" fill="#E07A5F"></circle>
-                        <circle cx="220" cy="20" r="8" fill="#E07A5F" opacity="0.20"></circle>
-                    </svg>
-                    <div class="land-chart-foot">
-                        <span class="land-chart-delta land-chart-delta-up">
-                            <i class="fa-solid fa-arrow-trend-up" aria-hidden="true"></i> +8%
-                        </span>
-                        <span class="land-chart-foot-note">@Loc.T("HeroCardChartNote")</span>
+                    @* hint pill, only visible until first interaction *@
+                    <div class="land-deck-hint" id="landDeckHint" data-testid="deck-hint">
+                        <i class="fa-solid fa-hand-pointer" aria-hidden="true"></i>
+                        <span>@Loc.T("DeckHint")</span>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </section>
+
+@* ===== Zoom modal (one global, populated on click) ===== *@
+<div class="land-deck-modal" id="landDeckModal" data-testid="land-deck-modal" hidden>
+    <button type="button" class="land-deck-modal-close" id="landDeckModalClose"
+            data-testid="land-deck-modal-close" aria-label="@Loc.T("DeckCloseLabel")">
+        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+    </button>
+    <figure class="land-deck-modal-figure">
+        <img id="landDeckModalImg" src="" alt="" />
+        <figcaption id="landDeckModalCaption"></figcaption>
+    </figure>
+</div>
 
 @* =========================== AUDIENCE PILLARS =========================== *@
 <section class="land-section" id="audience" data-testid="land-audience">
@@ -669,6 +637,90 @@
         // First message shown immediately, then rotate every 8s.
         el.textContent = buildText();
         setInterval(rotate, 8000);
+    })();
+    // ===== Deck of cards in Hero (4 sample reports) =====
+    // - Click on any card brings it to the front, others shuffle back one position.
+    // - The 🔍 button on the FRONT card opens a zoom modal (lightbox).
+    // - The hint pill auto-hides on first interaction.
+    (function(){
+        var deck = document.querySelector('.land-deck');
+        if (!deck) return;
+        var cards = Array.prototype.slice.call(deck.querySelectorAll('.land-deck-card'));
+        var hint  = document.getElementById('landDeckHint');
+        var modal = document.getElementById('landDeckModal');
+        var mImg  = document.getElementById('landDeckModalImg');
+        var mCap  = document.getElementById('landDeckModalCaption');
+        var mClose= document.getElementById('landDeckModalClose');
+
+        // Each card carries data-pos; the value is the layer ordering (0 front, 3 bottom).
+        // We rotate positions so the clicked card always becomes 0 and the rest fill 1,2,3.
+        function bringToFront(targetCard) {
+            var targetPos = parseInt(targetCard.getAttribute('data-pos'), 10);
+            if (targetPos === 0) return false; // already front — caller decides what to do
+            cards.forEach(function(c){
+                var p = parseInt(c.getAttribute('data-pos'), 10);
+                if (c === targetCard) {
+                    c.setAttribute('data-pos', '0');
+                } else if (p < targetPos) {
+                    // Cards previously in front of the target get pushed back by one.
+                    c.setAttribute('data-pos', String(p + 1));
+                }
+                // Cards already behind the target keep their position.
+            });
+            return true;
+        }
+        function hideHint() { if (hint) hint.classList.add('is-hidden'); }
+        function openModal(card) {
+            if (!modal) return;
+            var img = card.querySelector('img');
+            mImg.src = img ? img.getAttribute('src') : '';
+            mImg.alt = img ? (img.getAttribute('alt') || '') : '';
+            mCap.textContent = card.getAttribute('data-caption') || '';
+            modal.hidden = false;
+            // Force reflow so the CSS transition kicks in
+            void modal.offsetWidth;
+            modal.classList.add('is-open');
+            document.body.style.overflow = 'hidden';
+        }
+        function closeModal() {
+            if (!modal) return;
+            modal.classList.remove('is-open');
+            document.body.style.overflow = '';
+            setTimeout(function(){ modal.hidden = true; mImg.src = ''; }, 220);
+        }
+
+        cards.forEach(function(card){
+            // Click on the card body (not on the zoom button) -> bring to front.
+            // If already front, ignore (the zoom button handles the modal).
+            card.addEventListener('click', function(e){
+                if (e.target.closest('.land-deck-zoom')) return; // handled below
+                hideHint();
+                bringToFront(card);
+            });
+        });
+        // Zoom buttons (one per card) — only act when their card is the front one.
+        deck.querySelectorAll('.land-deck-zoom').forEach(function(btn){
+            btn.addEventListener('click', function(e){
+                e.stopPropagation();
+                var card = btn.closest('.land-deck-card');
+                if (!card) return;
+                if (parseInt(card.getAttribute('data-pos'), 10) !== 0) {
+                    bringToFront(card);
+                    return;
+                }
+                hideHint();
+                openModal(card);
+            });
+        });
+
+        if (mClose) mClose.addEventListener('click', closeModal);
+        if (modal) modal.addEventListener('click', function(e){
+            // Click on backdrop (outside the figure) closes
+            if (e.target === modal) closeModal();
+        });
+        document.addEventListener('keydown', function(e){
+            if (e.key === 'Escape' && modal && modal.classList.contains('is-open')) closeModal();
+        });
     })();
     // Smooth anchor scroll
     document.querySelectorAll('a[href^="#"]').forEach(function(a){

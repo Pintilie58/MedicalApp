@@ -47,6 +47,15 @@ namespace MedicalApp.Services
                 ["LiveTickerVerbRisk"] = "discovered a risk factor in",
                 ["LiveTickerVerbClinic"] = "sent 24 reports in batch in",
 
+                // ===== Hero deck of sample reports =====
+                ["DeckCaptionCam"] = "Clinic-side comparison",
+                ["DeckCaptionGraph"] = "Patient evolution charts",
+                ["DeckCaptionCorrelations"] = "AI correlations & recommendations",
+                ["DeckCaptionSummary"] = "Patient summary & risk factors",
+                ["DeckHint"] = "Click a card to bring it to the front · click again to zoom",
+                ["DeckZoomLabel"] = "Zoom in",
+                ["DeckCloseLabel"] = "Close",
+
                 // Hero data card
                 ["HeroCardTitle"] = "Analysis snapshot",
                 ["HeroCardBadge"] = "Analyzed in 28s",
@@ -493,6 +502,15 @@ namespace MedicalApp.Services
                 ["LiveTickerVerbCompare"] = "a comparat 3 analize în",
                 ["LiveTickerVerbRisk"] = "a descoperit un factor de risc în",
                 ["LiveTickerVerbClinic"] = "a trimis 24 rapoarte în lot în",
+
+                // ===== Stiva de rapoarte exemplu (Hero) =====
+                ["DeckCaptionCam"] = "Comparație pe clinici",
+                ["DeckCaptionGraph"] = "Grafice de evoluție pacient",
+                ["DeckCaptionCorrelations"] = "Corelații și recomandări AI",
+                ["DeckCaptionSummary"] = "Sumar pacient și factori de risc",
+                ["DeckHint"] = "Click pe un card să-l aduci în față · click din nou pentru zoom",
+                ["DeckZoomLabel"] = "Mărește",
+                ["DeckCloseLabel"] = "Închide",
 
                 // Hero data card
                 ["HeroCardTitle"] = "Sumar analize",
