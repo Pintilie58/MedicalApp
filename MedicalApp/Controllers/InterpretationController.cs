@@ -387,6 +387,36 @@ namespace MedicalApp.Controllers
                     lastException = ex;
                     await Task.Delay(wait);
                 }
+                catch (GeminiModelRetiredException ex)
+                {
+                    // Google retired the model id we're calling. Retrying the SAME model
+                    // is futile. If we haven't already promoted to the FallbackModel
+                    // (Pro) AND it's a different id, promote immediately and re-try
+                    // without consuming a retry budget. Otherwise (we're already on
+                    // the fallback, or it's the same id, or it's also retired), fail
+                    // cleanly so the user sees ONE warning instead of a long retry log.
+                    var fallback = _geminiSettings.FallbackModel;
+                    if (currentModelOverride == null
+                        && !string.IsNullOrWhiteSpace(fallback)
+                        && !string.Equals(fallback, ex.RetiredModelId, StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(fallback, _geminiSettings.Model, StringComparison.OrdinalIgnoreCase))
+                    {
+                        currentModelOverride = fallback;
+                        _logger.LogWarning(
+                            "Gemini model '{Retired}' has been retired by Google. " +
+                            "Promoting to FALLBACK model {Fallback} and retrying immediately.",
+                            ex.RetiredModelId, currentModelOverride);
+                        lastException = ex;
+                        continue; // do NOT consume an attempt slot
+                    }
+                    // Last resort — surface a clear admin-facing log and rethrow so
+                    // the caller marks this interpretation as failed.
+                    _logger.LogError(
+                        "Gemini model '{Retired}' has been retired and no usable fallback is configured. " +
+                        "Update appsettings.json -> Gemini.Model / FallbackModel / SecondaryFallbackModel.",
+                        ex.RetiredModelId);
+                    throw;
+                }
                 catch (OperationCanceledException ex) when (transientAttempts + 1 < maxAttemptsTransient)
                 {
                     transientAttempts++;

@@ -34,11 +34,20 @@ namespace MedicalApp.Services
         /// <summary>
         /// SECOND-tier fallback used only when both the primary AND the first
         /// fallback have exhausted their retry budgets. This is a "safety net"
-        /// (e.g. <c>gemini-3-pro-preview</c>): it should very rarely be
-        /// reached, but keeps the batch moving instead of marking the file
-        /// as NotSends. Set to <c>null</c> or empty to disable.
+        /// (e.g. <c>gemini-3.1-pro-preview</c>, Google's recommended preview as
+        /// of Feb 2026): it should very rarely be reached, but keeps the batch
+        /// moving instead of marking the file as NotSends. Set to <c>null</c>
+        /// or empty to disable.
+        ///
+        /// NOTE: Google occasionally retires preview models (e.g. the older
+        /// "gemini-3-pro-preview" was retired in Feb 2026). When that happens,
+        /// the Gemini API returns HTTP 404 "no longer available" — the service
+        /// catches this with <see cref="GeminiModelRetiredException"/> and the
+        /// CAM batch falls through cleanly to non-transient handling instead
+        /// of pointlessly retrying. Keep this value in sync with the model
+        /// list at https://ai.google.dev/gemini-api/docs/models .
         /// </summary>
-        public string? SecondaryFallbackModel { get; set; } = "gemini-3-pro-preview";
+        public string? SecondaryFallbackModel { get; set; } = "gemini-3.1-pro-preview";
 
         public int MaxOutputTokens { get; set; } = 32000;
         public float Temperature { get; set; } = 0.0f;

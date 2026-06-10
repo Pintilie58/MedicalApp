@@ -181,6 +181,26 @@ namespace MedicalApp.Services
                         $"Gemini API transient error {statusInt}: {Truncate(responseString, 300)}");
                 }
 
+                // 404 + "no longer available" / "NOT_FOUND" means Google retired the
+                // model id (e.g. gemini-3-pro-preview -> gemini-3.1-pro-preview).
+                // No amount of retry will fix this — surface a dedicated exception so
+                // the CAM tier loop can fall through to the next tier IMMEDIATELY
+                // (or mark the file as NotSends if this was the last tier) and so
+                // the operator log is clear about WHY: "model retired by Google,
+                // update appsettings.json:Gemini:<tier>Model".
+                if (statusInt == 404
+                    && (responseString.Contains("no longer available", System.StringComparison.OrdinalIgnoreCase)
+                        || responseString.Contains("NOT_FOUND", System.StringComparison.Ordinal)))
+                {
+                    _logger.LogError(
+                        "Gemini model '{Model}' has been retired by Google. Update appsettings.json " +
+                        "(see https://ai.google.dev/gemini-api/docs/models for the current list).",
+                        modelName);
+                    throw new GeminiModelRetiredException(modelName,
+                        $"Gemini model '{modelName}' was retired by Google and is no longer available. " +
+                        $"Update the configured model id in appsettings.json.");
+                }
+
                 throw new InvalidOperationException(
                     $"Gemini API error {statusInt}: {Truncate(responseString, 500)}");
             }

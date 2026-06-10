@@ -697,6 +697,39 @@ namespace MedicalApp.Services
                     attempts--; // refund this attempt — promotion is "free"
                     progress.Log($"   ↪ Răspuns trunchiat. Comut pe {LabelFor(currentTier)} (output mai mare).");
                 }
+                // ---------- MODEL RETIRED by Google (404 NOT_FOUND): promote tier or fail clean ----------
+                // The configured model id no longer exists at Google (typically a
+                // preview that was rotated out). No amount of retry will fix it,
+                // and other tiers may very well be healthy — so we skip the
+                // remaining attempts on THIS tier and try the next one. If this
+                // was already the last tier, we log a clear admin-facing message
+                // and fail the file cleanly (NotSends).
+                catch (GeminiModelRetiredException ex)
+                {
+                    lastEx = ex;
+                    string? nextModel = currentTier == 1 ? settings.FallbackModel
+                                       : currentTier == 2 ? settings.SecondaryFallbackModel
+                                       : null;
+                    if (currentTier < 3 && !string.IsNullOrWhiteSpace(nextModel)
+                        && !string.Equals(nextModel, ex.RetiredModelId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        progress.Log($"   ✘ {LabelFor(currentTier)} indisponibil (modelul a fost retras de furnizor). " +
+                                     $"Comut pe {LabelFor(currentTier + 1)}.");
+                        modelOverride = nextModel;
+                        currentTier++;
+                        attempts--; // refund this attempt — promotion is "free"
+                    }
+                    else
+                    {
+                        // Last tier or no next model — surface a friendly Romanian
+                        // message in the Log Live, plus the technical detail in the
+                        // backend log (already done by the service).
+                        progress.Log($"   ✘ {LabelFor(currentTier)} indisponibil " +
+                                     $"(modelul '{ex.RetiredModelId}' a fost retras). " +
+                                     $"Actualizați appsettings.json -> Gemini.SecondaryFallbackModel cu modelul curent recomandat de Google.");
+                        return null;
+                    }
+                }
                 // ---------- USER CANCELLATION: honor immediately ----------
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
