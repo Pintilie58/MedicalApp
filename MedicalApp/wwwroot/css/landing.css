@@ -316,8 +316,14 @@ body.landing-body a:hover { color: var(--land-coral); }
 }
 .land-deck-card img {
     width: 100%; height: 100%;
-    object-fit: cover;
-    object-position: top center;
+    /* `contain` keeps the WHOLE image visible regardless of its aspect ratio
+       (the deck holds both landscape screenshots — e.g. CAM compare — and
+       portrait PDF samples). Cropping with `cover` was eating the right edge
+       of the landscape ones. Trade-off: small letterbox bands on landscape
+       images, which we hide with a card background matching the surface. */
+    object-fit: contain;
+    object-position: center;
+    background: var(--land-bg);
     display: block;
     pointer-events: none;
 }
