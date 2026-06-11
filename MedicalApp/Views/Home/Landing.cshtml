@@ -130,7 +130,19 @@
                 <div class="land-deck" data-testid="land-deck">
                     @* Order in DOM = render order; data-pos is the initial logical position
                        (0 = front, 3 = bottom). Front card has zoom button. JS swaps positions on click. *@
-                    <div class="land-deck-card" data-pos="0" data-testid="deck-card-summary"
+                    <div class="land-deck-card" data-pos="0" data-testid="deck-card-cam-clinic"
+                         data-caption="@Loc.T("DeckCaptionCamClinic")"
+                         aria-label="@Loc.T("DeckCaptionCamClinic")">
+                        <img src="~/images/landing-deck/cam-compare-clinic.png"
+                             alt="@Loc.T("DeckCaptionCamClinic")"
+                             loading="lazy" />
+                        <button type="button" class="land-deck-zoom" data-testid="deck-zoom-cam-clinic"
+                                aria-label="@Loc.T("DeckZoomLabel")">
+                            <i class="fa-solid fa-magnifying-glass-plus" aria-hidden="true"></i>
+                        </button>
+                        <span class="land-deck-tag">@Loc.T("DeckCaptionCamClinic")</span>
+                    </div>
+                    <div class="land-deck-card" data-pos="1" data-testid="deck-card-summary"
                          data-caption="@Loc.T("DeckCaptionSummary")"
                          aria-label="@Loc.T("DeckCaptionSummary")">
                         <img src="~/images/landing-deck/interpret-summary.jpg"
@@ -142,7 +154,7 @@
                         </button>
                         <span class="land-deck-tag">@Loc.T("DeckCaptionSummary")</span>
                     </div>
-                    <div class="land-deck-card" data-pos="1" data-testid="deck-card-cam"
+                    <div class="land-deck-card" data-pos="2" data-testid="deck-card-cam"
                          data-caption="@Loc.T("DeckCaptionCam")"
                          aria-label="@Loc.T("DeckCaptionCam")">
                         <img src="~/images/landing-deck/cam-compare.jpg"
@@ -154,7 +166,7 @@
                         </button>
                         <span class="land-deck-tag">@Loc.T("DeckCaptionCam")</span>
                     </div>
-                    <div class="land-deck-card" data-pos="2" data-testid="deck-card-graph"
+                    <div class="land-deck-card" data-pos="3" data-testid="deck-card-graph"
                          data-caption="@Loc.T("DeckCaptionGraph")"
                          aria-label="@Loc.T("DeckCaptionGraph")">
                         <img src="~/images/landing-deck/graph-b2c.jpg"
@@ -166,7 +178,7 @@
                         </button>
                         <span class="land-deck-tag">@Loc.T("DeckCaptionGraph")</span>
                     </div>
-                    <div class="land-deck-card" data-pos="3" data-testid="deck-card-correlations"
+                    <div class="land-deck-card" data-pos="4" data-testid="deck-card-correlations"
                          data-caption="@Loc.T("DeckCaptionCorrelations")"
                          aria-label="@Loc.T("DeckCaptionCorrelations")">
                         <img src="~/images/landing-deck/interpret-correlations.jpg"
@@ -664,11 +676,11 @@
         var mCap  = document.getElementById('landDeckModalCaption');
         var mClose= document.getElementById('landDeckModalClose');
 
-        // Each card carries data-pos; the value is the layer ordering (0 front, 3 bottom).
-        // We rotate positions so the clicked card always becomes 0 and the rest fill 1,2,3.
+        // Each card carries data-pos; the value is the layer ordering (0 = front, N-1 = bottom).
+        // We rotate positions so the clicked card always becomes 0 and the rest fill 1..N-1.
         function bringToFront(targetCard) {
             var targetPos = parseInt(targetCard.getAttribute('data-pos'), 10);
-            if (targetPos === 0) return false; // already front — caller decides what to do
+            if (targetPos === 0) return false; // already front
             cards.forEach(function(c){
                 var p = parseInt(c.getAttribute('data-pos'), 10);
                 if (c === targetCard) {
@@ -682,23 +694,22 @@
             return true;
         }
         function hideHint() { if (hint) hint.classList.add('is-hidden'); }
-        // Navigate the deck "next" (› = top card slides to back; the second card comes up):
-        //   pos 0 -> 3 (moves to the very back)
-        //   pos 1 -> 0 (becomes the new front)
-        //   pos 2 -> 1, pos 3 -> 2 (each shifts forward by one)
+        // Navigate the deck "next" (› = top card slides to back; the second card comes up).
+        // Uses modulo over the number of cards in the deck (currently 5) so the loop
+        // works regardless of how many cards we add in the future.
         function navNext() {
+            var n = cards.length;
             cards.forEach(function(c){
                 var p = parseInt(c.getAttribute('data-pos'), 10);
-                c.setAttribute('data-pos', String((p + 3) % 4)); // p-1 mod 4 = (p+3)%4
+                c.setAttribute('data-pos', String((p - 1 + n) % n));
             });
         }
-        // Navigate the deck "prev" (‹ = back card jumps to the front; everyone else moves back):
-        //   pos 3 -> 0 (becomes the new front)
-        //   pos 0 -> 1, pos 1 -> 2, pos 2 -> 3
+        // Navigate the deck "prev" (‹ = back card jumps to the front; everyone else moves back).
         function navPrev() {
+            var n = cards.length;
             cards.forEach(function(c){
                 var p = parseInt(c.getAttribute('data-pos'), 10);
-                c.setAttribute('data-pos', String((p + 1) % 4));
+                c.setAttribute('data-pos', String((p + 1) % n));
             });
         }
         function openModal(card) {

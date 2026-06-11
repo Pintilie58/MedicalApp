@@ -27,6 +27,97 @@
     {
         <div class="alert alert-success">@TempData["SuccessMessage"]</div>
     }
+
+    @* ===== LOINC microservice health widget (admin-only, polls every 30s) ===== *@
+    <div class="card mb-3 border-0 shadow-sm" data-testid="loinc-health-widget">
+        <div class="card-body py-2 px-3">
+            <div class="d-flex align-items-center flex-wrap gap-2">
+                <strong class="me-1" style="font-size:.9rem;">
+                    <i class="bi bi-cpu"></i> LOINC microservice (Python)
+                </strong>
+                <span id="loincHealthDot" data-testid="loinc-health-dot"
+                      class="rounded-circle bg-secondary"
+                      style="width:11px;height:11px;display:inline-block;"
+                      title="Se verifică..."></span>
+                <span id="loincHealthStatus" data-testid="loinc-health-status"
+                      class="badge bg-secondary text-uppercase" style="letter-spacing:.04em;font-size:.7rem;">
+                    Verific…
+                </span>
+                <span id="loincHealthDetails" data-testid="loinc-health-details"
+                      class="small text-muted ms-1"></span>
+                <span class="ms-auto small text-muted" id="loincHealthLastChecked"
+                      data-testid="loinc-health-last-checked"></span>
+                <button type="button" id="loincHealthRefresh" data-testid="loinc-health-refresh"
+                        class="btn btn-outline-secondary btn-sm py-0 px-2" title="Verifică din nou">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    @section Scripts {
+        <script>
+        (function(){
+            // Polls /Admin/LoincServiceHealth every 30s and updates the dot + badge.
+            // Runs ONLY on the Admin page — has zero impact on user-facing pages.
+            var url = '@Url.Action("LoincServiceHealth", "Admin")';
+            var dot     = document.getElementById('loincHealthDot');
+            var badge   = document.getElementById('loincHealthStatus');
+            var details = document.getElementById('loincHealthDetails');
+            var stamp   = document.getElementById('loincHealthLastChecked');
+            var refresh = document.getElementById('loincHealthRefresh');
+            if (!dot || !badge) return;
+
+            function apply(state) {
+                // state: 'ok' | 'down' | 'disabled' | 'checking' | 'timeout' | 'error'
+                var bg = 'bg-secondary', label = 'Necunoscut';
+                if (state === 'ok')       { bg = 'bg-success'; label = 'Online'; }
+                else if (state === 'down')     { bg = 'bg-danger';  label = 'Oprit'; }
+                else if (state === 'timeout')  { bg = 'bg-warning text-dark'; label = 'Timeout'; }
+                else if (state === 'error')    { bg = 'bg-danger';  label = 'Eroare'; }
+                else if (state === 'disabled') { bg = 'bg-secondary'; label = 'Dezactivat'; }
+                else                           { bg = 'bg-secondary'; label = 'Verific…'; }
+                dot.className   = 'rounded-circle ' + (state === 'ok' ? 'bg-success' :
+                                                       state === 'timeout' ? 'bg-warning' :
+                                                       (state === 'down' || state === 'error') ? 'bg-danger' : 'bg-secondary');
+                badge.className = 'badge text-uppercase ' + bg;
+                badge.style.letterSpacing = '.04em';
+                badge.style.fontSize = '.7rem';
+                badge.textContent = label;
+            }
+
+            async function poll() {
+                apply('checking');
+                try {
+                    var r = await fetch(url, { headers: { 'Accept': 'application/json' }, cache: 'no-store' });
+                    var d = await r.json();
+                    apply(d.status || (d.ok ? 'ok' : 'down'));
+                    var bits = [];
+                    if (d.baseUrl)    bits.push(d.baseUrl);
+                    if (d.loincCount) bits.push(d.loincCount.toLocaleString() + ' coduri LOINC');
+                    if (d.latencyMs != null) bits.push(d.latencyMs + ' ms');
+                    if (d.message && !d.ok) bits.push(d.message);
+                    details.textContent = bits.length ? '· ' + bits.join(' · ') : '';
+                } catch (e) {
+                    apply('error');
+                    details.textContent = '· ' + (e && e.message ? e.message : 'fetch error');
+                }
+                if (stamp) stamp.textContent = 'verificat ' + new Date().toLocaleTimeString();
+            }
+
+            poll();
+            // 30s interval — light enough to be invisible, fast enough to catch a restart.
+            var timer = setInterval(poll, 30000);
+            if (refresh) refresh.addEventListener('click', poll);
+            // Stop polling when the tab is hidden so we don't waste resources;
+            // restart when it comes back.
+            document.addEventListener('visibilitychange', function(){
+                if (document.hidden) { clearInterval(timer); timer = null; }
+                else if (!timer)     { poll(); timer = setInterval(poll, 30000); }
+            });
+        })();
+        </script>
+    }
+
     @if (TempData["ErrorMessage"] != null)
     {
         <div class="alert alert-danger">@TempData["ErrorMessage"]</div>

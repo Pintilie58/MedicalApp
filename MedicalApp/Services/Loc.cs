@@ -49,6 +49,7 @@ namespace MedicalApp.Services
 
                 // ===== Hero deck of sample reports =====
                 ["DeckCaptionCam"] = "Clinic-side comparison",
+                ["DeckCaptionCamClinic"] = "CAM dashboard — clinical comparison",
                 ["DeckCaptionGraph"] = "Patient evolution charts",
                 ["DeckCaptionCorrelations"] = "AI correlations & recommendations",
                 ["DeckCaptionSummary"] = "Patient summary & risk factors",
@@ -507,6 +508,7 @@ namespace MedicalApp.Services
 
                 // ===== Stiva de rapoarte exemplu (Hero) =====
                 ["DeckCaptionCam"] = "Comparație pe clinici",
+                ["DeckCaptionCamClinic"] = "Panou CAM — comparație clinică",
                 ["DeckCaptionGraph"] = "Grafice de evoluție pacient",
                 ["DeckCaptionCorrelations"] = "Corelații și recomandări AI",
                 ["DeckCaptionSummary"] = "Sumar pacient și factori de risc",

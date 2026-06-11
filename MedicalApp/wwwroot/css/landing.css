@@ -321,28 +321,33 @@ body.landing-body a:hover { color: var(--land-coral); }
     display: block;
     pointer-events: none;
 }
-/* === Layer positions === */
+/* === Layer positions (5 cards: 0=front .. 4=back) === */
 .land-deck-card[data-pos="0"] {
     transform: translate(0, 0) rotate(0deg) scale(1);
-    z-index: 4;
+    z-index: 5;
     box-shadow: 0 24px 50px rgba(74, 92, 80, 0.22), 0 8px 16px rgba(74, 92, 80, 0.12);
 }
 .land-deck-card[data-pos="1"] {
-    transform: translate(18px, 14px) rotate(-3deg) scale(0.97);
-    z-index: 3; opacity: 0.96;
+    transform: translate(16px, 12px) rotate(-2.5deg) scale(0.975);
+    z-index: 4; opacity: 0.97;
 }
 .land-deck-card[data-pos="2"] {
-    transform: translate(-22px, 26px) rotate(3deg) scale(0.94);
-    z-index: 2; opacity: 0.90;
+    transform: translate(-20px, 22px) rotate(2.5deg) scale(0.95);
+    z-index: 3; opacity: 0.92;
 }
 .land-deck-card[data-pos="3"] {
-    transform: translate(14px, 38px) rotate(-2deg) scale(0.91);
-    z-index: 1; opacity: 0.82;
+    transform: translate(14px, 34px) rotate(-2deg) scale(0.925);
+    z-index: 2; opacity: 0.85;
+}
+.land-deck-card[data-pos="4"] {
+    transform: translate(-12px, 46px) rotate(2deg) scale(0.9);
+    z-index: 1; opacity: 0.78;
 }
 /* Hover lift on back cards */
-.land-deck-card[data-pos="1"]:hover { transform: translate(18px, 8px) rotate(-3deg) scale(0.98); opacity: 1; }
-.land-deck-card[data-pos="2"]:hover { transform: translate(-22px, 20px) rotate(3deg) scale(0.95);  opacity: 1; }
-.land-deck-card[data-pos="3"]:hover { transform: translate(14px, 32px) rotate(-2deg) scale(0.92);  opacity: 1; }
+.land-deck-card[data-pos="1"]:hover { transform: translate(16px, 6px)  rotate(-2.5deg) scale(0.99); opacity: 1; }
+.land-deck-card[data-pos="2"]:hover { transform: translate(-20px, 16px) rotate(2.5deg) scale(0.96); opacity: 1; }
+.land-deck-card[data-pos="3"]:hover { transform: translate(14px, 28px) rotate(-2deg) scale(0.94); opacity: 1; }
+.land-deck-card[data-pos="4"]:hover { transform: translate(-12px, 40px) rotate(2deg) scale(0.91); opacity: 1; }
 /* Front card hover = subtle settle */
 .land-deck-card[data-pos="0"]:hover {
     transform: translate(0, -3px) rotate(0deg) scale(1.005);
@@ -450,9 +455,10 @@ body.landing-body a:hover { color: var(--land-coral); }
 @media (max-width: 980px) {
     .land-hero-visual-wrap { min-height: 360px; padding-top: 8px; }
     .land-deck { max-width: 380px; }
-    .land-deck-card[data-pos="1"] { transform: translate(12px, 10px) rotate(-2.5deg) scale(0.97); }
-    .land-deck-card[data-pos="2"] { transform: translate(-14px, 20px) rotate(2.5deg) scale(0.94); }
-    .land-deck-card[data-pos="3"] { transform: translate(10px, 28px) rotate(-1.5deg) scale(0.91); }
+    .land-deck-card[data-pos="1"] { transform: translate(12px, 10px) rotate(-2deg) scale(0.97); }
+    .land-deck-card[data-pos="2"] { transform: translate(-14px, 18px) rotate(2deg) scale(0.94); }
+    .land-deck-card[data-pos="3"] { transform: translate(10px, 26px) rotate(-1.5deg) scale(0.91); }
+    .land-deck-card[data-pos="4"] { transform: translate(-10px, 34px) rotate(1.5deg) scale(0.88); }
     .land-deck-hint { bottom: -52px; font-size: 0.7rem; }
 }
 @media (max-width: 480px) {
