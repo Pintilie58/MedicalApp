@@ -206,7 +206,9 @@
                     Revenue last 30 days
                 </div>
                 <div class="card-body">
-                    <canvas id="revenueChart" height="120"></canvas>
+                    <canvas id="revenueChart" height="120"
+                            data-labels='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.RevenueChart.Select(r => r.Date.ToString("dd/MM"))))'
+                            data-values='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.RevenueChart.Select(r => r.Amount)))'></canvas>
                 </div>
             </div>
         </div>
@@ -281,7 +283,10 @@
                             </div>
                             <!-- Doughnut chart -->
                             <div class="col-lg-5">
-                                <canvas id="aiUsageChart" height="220"></canvas>
+                                <canvas id="aiUsageChart" height="220"
+                                        data-labels='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AiUsage30Days.Select(u => u.ShortName + " (" + u.ModelId + ")")))'
+                                        data-counts='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AiUsage30Days.Select(u => u.Count)))'
+                                        data-colors='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AiUsage30Days.Select(u => u.ShortName == "Flash" ? "#198754" : u.ShortName == "Pro" ? "#ffc107" : "#6c757d")))'></canvas>
                             </div>
                         </div>
                     }
@@ -295,32 +300,29 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script>
         (function () {
-            var labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
-                            Model.RevenueChart.Select(r => r.Date.ToString("dd/MM"))));
-        var data = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
-                        Model.RevenueChart.Select(r => r.Amount)));
-
-        var ctx = document.getElementById('revenueChart');
-        if (!ctx) return;
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'EUR',
-                    data: data,
-                    backgroundColor: 'rgba(40, 167, 69, 0.6)',
-                    borderColor: 'rgba(40, 167, 69, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true } }
-            }
-        });
-    })();
+            var ctx = document.getElementById('revenueChart');
+            if (!ctx) return;
+            var labels = JSON.parse(ctx.dataset.labels || '[]');
+            var data = JSON.parse(ctx.dataset.values || '[]');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'EUR',
+                        data: data,
+                        backgroundColor: 'rgba(40, 167, 69, 0.6)',
+                        borderColor: 'rgba(40, 167, 69, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        })();
     </script>
 
     <!-- AI usage doughnut: Flash vs Pro split of successful interpretations -->
@@ -328,16 +330,9 @@
         (function () {
             var aiCtx = document.getElementById('aiUsageChart');
             if (!aiCtx) return;
-            var aiLabels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
-                Model.AiUsage30Days.Select(u => u.ShortName + " (" + u.ModelId + ")")));
-            var aiCounts = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
-                Model.AiUsage30Days.Select(u => u.Count)));
-            // Mirror the badge palette: Flash=green, Pro=amber, Other=grey.
-            var aiColors = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
-                Model.AiUsage30Days.Select(u =>
-                    u.ShortName == "Flash" ? "#198754" :
-                    u.ShortName == "Pro"   ? "#ffc107" :
-                                             "#6c757d")));
+            var aiLabels = JSON.parse(aiCtx.dataset.labels || '[]');
+            var aiCounts = JSON.parse(aiCtx.dataset.counts || '[]');
+            var aiColors = JSON.parse(aiCtx.dataset.colors || '[]');
             new Chart(aiCtx, {
                 type: 'doughnut',
                 data: {
