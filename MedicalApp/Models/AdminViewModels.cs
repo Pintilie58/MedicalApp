@@ -159,4 +159,30 @@ namespace MedicalApp.Models
         /// </summary>
         public int ProfilesCount { get; set; }
     }
+
+    /// <summary>
+    /// Page model for Admin → UserProfiles — a single page that shows either
+    /// family Profiles (Individual) or ClinicPatients (Clinic) for one user.
+    /// </summary>
+    public class AdminUserProfilesViewModel
+    {
+        public User User { get; set; } = null!;
+        public string? ClinicName { get; set; }
+        public int? ClinicId { get; set; }
+        public List<AdminProfileRow> Rows { get; set; } = new();
+    }
+
+    /// <summary>Unified row shape used by AdminUserProfilesViewModel.</summary>
+    public class AdminProfileRow
+    {
+        public string Name { get; set; } = string.Empty;
+
+        /// <summary>For Individuals: relationship/gender. For Clinics: patient email.</summary>
+        public string? Subtitle { get; set; }
+
+        public DateTime CreatedAt { get; set; }
+
+        /// <summary>True only for the auto-generated "Eu" profile (Individual).</summary>
+        public bool IsDefault { get; set; }
+    }
 }

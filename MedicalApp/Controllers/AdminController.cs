@@ -274,16 +274,29 @@ namespace MedicalApp.Controllers
         //  Users list + search
         // =====================================================================
         [HttpGet]
-        public async Task<IActionResult> Users(string? q = null, int page = 1)
+        public async Task<IActionResult> Users(string? q = null, string? type = null, int page = 1)
         {
             const int pageSize = 25;
             page = Math.Max(1, page);
+
+            // Normalize the type filter so the view can reuse it for the
+            // active-button highlight without re-parsing.
+            var typeFilter = (type ?? "all").Trim().ToLowerInvariant();
+            if (typeFilter != "individual" && typeFilter != "clinic") typeFilter = "all";
 
             IQueryable<User> query = _db.Users.OrderByDescending(u => u.DataC);
             if (!string.IsNullOrWhiteSpace(q))
             {
                 var needle = q.Trim().ToLower();
                 query = query.Where(u => u.Email.ToLower().Contains(needle));
+            }
+            if (typeFilter == "individual")
+            {
+                query = query.Where(u => u.UserType == "Individual" || u.UserType == null);
+            }
+            else if (typeFilter == "clinic")
+            {
+                query = query.Where(u => u.UserType == "Clinic");
             }
 
             var total = await query.CountAsync();
@@ -341,12 +354,81 @@ namespace MedicalApp.Controllers
             }).ToList();
 
             ViewBag.Query = q;
+            ViewBag.Type = typeFilter;
             ViewBag.Page = page;
             ViewBag.PageSize = pageSize;
             ViewBag.Total = total;
             ViewBag.TotalPages = (int)Math.Ceiling((double)total / pageSize);
 
             return View(list);
+        }
+
+        // =====================================================================
+        //  Admin → Users → "view this user's profiles / patients"
+        //
+        //  Single endpoint that renders:
+        //    * family Profiles  — for Individual users
+        //    * ClinicPatients   — for Clinic users
+        //  The view uses a unified row shape (AdminProfileRow) so the same
+        //  table layout works for both flavours.
+        // =====================================================================
+        [HttpGet]
+        public async Task<IActionResult> UserProfiles(string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+                return RedirectToAction(nameof(Users));
+
+            var e = email.Trim().ToLowerInvariant();
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == e);
+            if (user == null)
+            {
+                TempData["ErrorMessage"] = "User not found.";
+                return RedirectToAction(nameof(Users));
+            }
+
+            var vm = new AdminUserProfilesViewModel { User = user };
+            var isClinic = string.Equals(user.UserType, "Clinic", StringComparison.OrdinalIgnoreCase);
+
+            if (isClinic)
+            {
+                var clinic = await _db.Clinics.FirstOrDefaultAsync(c => c.UserEmail == e);
+                vm.ClinicName = clinic?.Name;
+                vm.ClinicId = clinic?.Id;
+
+                if (clinic != null)
+                {
+                    var patients = await _db.ClinicPatients
+                        .Where(p => p.ClinicId == clinic.Id)
+                        .OrderByDescending(p => p.CreatedAt)
+                        .ToListAsync();
+
+                    vm.Rows = patients.Select(p => new AdminProfileRow
+                    {
+                        Name = p.Name,
+                        Subtitle = p.Email,
+                        CreatedAt = p.CreatedAt,
+                        IsDefault = false
+                    }).ToList();
+                }
+            }
+            else
+            {
+                var profiles = await _db.Profiles
+                    .Where(p => p.UserEmail == e)
+                    .OrderByDescending(p => p.IsDefault)
+                    .ThenBy(p => p.CreatedAt)
+                    .ToListAsync();
+
+                vm.Rows = profiles.Select(p => new AdminProfileRow
+                {
+                    Name = p.Name,
+                    Subtitle = string.IsNullOrWhiteSpace(p.Relationship) ? p.Gender : p.Relationship,
+                    CreatedAt = p.CreatedAt,
+                    IsDefault = p.IsDefault
+                }).ToList();
+            }
+
+            return View(vm);
         }
 
         // =====================================================================

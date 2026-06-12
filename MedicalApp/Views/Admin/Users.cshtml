@@ -2,6 +2,7 @@
 @{
     ViewData["Title"] = "Admin - Users";
     var query = ViewBag.Query as string ?? "";
+    var typeFilter = ViewBag.Type as string ?? "all";
     var page = (int)ViewBag.Page;
     var total = (int)ViewBag.Total;
     var totalPages = (int)ViewBag.TotalPages;
@@ -27,13 +28,36 @@
     }
 
     <form method="get" class="mb-3">
-        <div class="input-group" style="max-width:500px;">
-            <input type="text" name="q" value="@query" class="form-control" placeholder="Search by email..." />
-            <button class="btn btn-primary">Search</button>
-            @if (!string.IsNullOrEmpty(query))
-            {
-                <a asp-action="Users" class="btn btn-outline-secondary">Clear</a>
-            }
+        <div class="d-flex flex-wrap gap-3 align-items-end">
+            <div class="input-group" style="max-width:500px;">
+                <input type="text" name="q" value="@query" class="form-control"
+                       placeholder="Search by email..." data-testid="users-search-input" />
+                <input type="hidden" name="type" value="@typeFilter" />
+                <button class="btn btn-primary" data-testid="users-search-submit">Search</button>
+                @if (!string.IsNullOrEmpty(query))
+                {
+                    <a asp-action="Users" asp-route-type="@typeFilter" class="btn btn-outline-secondary"
+                       data-testid="users-search-clear">Clear</a>
+                }
+            </div>
+
+            <div class="btn-group" role="group" aria-label="Filter by user type" data-testid="users-type-filter">
+                <a asp-action="Users" asp-route-q="@query" asp-route-type="all"
+                   class="btn btn-sm @(typeFilter == "all" ? "btn-primary" : "btn-outline-primary")"
+                   data-testid="users-filter-all">
+                    <i class="bi bi-people"></i> All
+                </a>
+                <a asp-action="Users" asp-route-q="@query" asp-route-type="individual"
+                   class="btn btn-sm @(typeFilter == "individual" ? "btn-info text-dark" : "btn-outline-info")"
+                   data-testid="users-filter-individual">
+                    <i class="bi bi-person"></i> Individuals
+                </a>
+                <a asp-action="Users" asp-route-q="@query" asp-route-type="clinic"
+                   class="btn btn-sm @(typeFilter == "clinic" ? "btn-warning text-dark" : "btn-outline-warning")"
+                   data-testid="users-filter-clinic">
+                    <i class="bi bi-hospital"></i> Clinics
+                </a>
+            </div>
         </div>
     </form>
 
@@ -42,7 +66,8 @@
             <table class="table table-sm table-hover mb-0 align-middle">
                 <thead class="table-light">
                     <tr>
-                        <th>Email / Type</th>
+                        <th>Email</th>
+                        <th>Type</th>
                         <th class="text-end">Profiles</th>
                         <th>Registered</th>
                         <th>Last login</th>
@@ -58,44 +83,44 @@
                 <tbody>
                     @if (!Model.Any())
                     {
-                        <tr><td colspan="11" class="text-muted text-center py-4">No users found.</td></tr>
+                        <tr><td colspan="12" class="text-muted text-center py-4">No users found.</td></tr>
                     }
                     @foreach (var item in Model)
                     {
                         var u = item.User;
                         var isClinic = string.Equals(u.UserType, "Clinic", StringComparison.OrdinalIgnoreCase);
                         <tr class="@(u.IsBlocked ? "table-danger" : "")" data-testid="admin-users-row">
+                            <td class="fw-semibold">@u.Email</td>
                             <td>
-                                <div class="fw-semibold">@u.Email</div>
-                                <div class="mt-1 d-flex align-items-center flex-wrap gap-1">
-                                    @if (isClinic)
+                                @if (isClinic)
+                                {
+                                    <span class="badge bg-warning text-dark" data-testid="user-type-badge"
+                                          title="B2B account (Clinic / Lab)">
+                                        <i class="bi bi-hospital"></i> Clinic
+                                    </span>
+                                    @if (!string.IsNullOrWhiteSpace(item.ClinicName))
                                     {
-                                        <span class="badge bg-warning text-dark" data-testid="user-type-badge"
-                                              title="B2B account (Clinic / Lab)">
-                                            <i class="bi bi-hospital"></i> Clinic
-                                        </span>
-                                        @if (!string.IsNullOrWhiteSpace(item.ClinicName))
-                                        {
-                                            <span class="small text-muted" data-testid="user-clinic-name">
-                                                @item.ClinicName
-                                            </span>
-                                        }
+                                        <div class="small text-muted mt-1" data-testid="user-clinic-name">
+                                            @item.ClinicName
+                                        </div>
                                     }
-                                    else
-                                    {
-                                        <span class="badge bg-info text-dark" data-testid="user-type-badge"
-                                              title="B2C account (Individual)">
-                                            <i class="bi bi-person"></i> Individual
-                                        </span>
-                                    }
-                                </div>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-info text-dark" data-testid="user-type-badge"
+                                          title="B2C account (Individual)">
+                                        <i class="bi bi-person"></i> Individual
+                                    </span>
+                                }
                             </td>
                             <td class="text-end">
-                                <span class="badge bg-light text-dark border" data-testid="user-profiles-count"
-                                      title="@(isClinic ? "Patients managed by this clinic" : "Family profiles owned by this user")">
+                                <a asp-action="UserProfiles" asp-route-email="@u.Email"
+                                   class="badge bg-light text-dark border text-decoration-none"
+                                   data-testid="user-profiles-count"
+                                   title="@(isClinic ? "View patients managed by this clinic" : "View family profiles owned by this user")">
                                     <i class="bi @(isClinic ? "bi-people-fill" : "bi-person-lines-fill")"></i>
                                     @item.ProfilesCount
-                                </span>
+                                </a>
                             </td>
                             <td class="text-nowrap small">@u.DataC.ToString("dd/MM/yyyy HH:mm")</td>
                             <td class="text-nowrap small">@(u.LastLoginAt?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
@@ -132,7 +157,8 @@
                 @for (int i = 1; i <= totalPages; i++)
                 {
                     <li class="page-item @(i == page ? "active" : "")">
-                        <a class="page-link" asp-action="Users" asp-route-q="@query" asp-route-page="@i">@i</a>
+                        <a class="page-link" asp-action="Users"
+                           asp-route-q="@query" asp-route-type="@typeFilter" asp-route-page="@i">@i</a>
                     </li>
                 }
             </ul>

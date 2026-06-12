@@ -1,0 +1,111 @@
+@model MedicalApp.Models.AdminUserProfilesViewModel
+@{
+    var u = Model.User;
+    var isClinic = string.Equals(u.UserType, "Clinic", System.StringComparison.OrdinalIgnoreCase);
+    ViewData["Title"] = isClinic ? "Admin - Clinic patients" : "Admin - Family profiles";
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex align-items-center mb-3">
+        <h2 class="text-primary fw-bold mb-0">
+            @if (isClinic)
+            {
+                <i class="bi bi-people-fill"></i> <text>Clinic patients</text>
+            }
+            else
+            {
+                <i class="bi bi-person-lines-fill"></i> <text>Family profiles</text>
+            }
+            <span class="badge bg-secondary ms-2" data-testid="user-profiles-count">@Model.Rows.Count</span>
+        </h2>
+        <div class="ms-auto d-flex gap-2">
+            <a asp-action="UserDetail" asp-route-email="@u.Email" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-person-badge"></i> User detail
+            </a>
+            <a asp-action="Users" class="btn btn-outline-secondary btn-sm">
+                &larr; Back to users
+            </a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body py-3">
+            <div class="d-flex align-items-center flex-wrap gap-3">
+                <div>
+                    <div class="text-muted small text-uppercase">Email</div>
+                    <div class="fw-semibold">@u.Email</div>
+                </div>
+                <div>
+                    <div class="text-muted small text-uppercase">Type</div>
+                    <div>
+                        @if (isClinic)
+                        {
+                            <span class="badge bg-warning text-dark">
+                                <i class="bi bi-hospital"></i> Clinic
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-info text-dark">
+                                <i class="bi bi-person"></i> Individual
+                            </span>
+                        }
+                    </div>
+                </div>
+                @if (isClinic && !string.IsNullOrWhiteSpace(Model.ClinicName))
+                {
+                    <div>
+                        <div class="text-muted small text-uppercase">Clinic</div>
+                        <div class="fw-semibold">@Model.ClinicName</div>
+                    </div>
+                }
+                <div>
+                    <div class="text-muted small text-uppercase">Registered</div>
+                    <div class="small">@u.DataC.ToString("dd/MM/yyyy HH:mm")</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:60px;">#</th>
+                        <th>Name</th>
+                        <th>@(isClinic ? "Email" : "Relationship / Gender")</th>
+                        <th class="text-nowrap">Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Rows.Any())
+                    {
+                        <tr>
+                            <td colspan="4" class="text-muted text-center py-4">
+                                @(isClinic ? "No patients registered for this clinic yet." : "No family profiles yet.")
+                            </td>
+                        </tr>
+                    }
+                    @{ var idx = 0; }
+                    @foreach (var row in Model.Rows)
+                    {
+                        idx++;
+                        <tr data-testid="profile-row">
+                            <td class="text-muted">@idx</td>
+                            <td>
+                                <span class="fw-semibold">@row.Name</span>
+                                @if (row.IsDefault)
+                                {
+                                    <span class="badge bg-success ms-1" title="Auto-generated default profile">default</span>
+                                }
+                            </td>
+                            <td class="small text-muted">@(string.IsNullOrWhiteSpace(row.Subtitle) ? "-" : row.Subtitle)</td>
+                            <td class="text-nowrap small">@row.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
