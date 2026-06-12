@@ -169,7 +169,7 @@
                     <table class="table table-sm mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>Email</th>
+                                <th>Email / Type</th>
                                 <th class="text-end">Paid (€)</th>
                                 <th class="text-end">Credits bought</th>
                                 <th class="text-end">Consumed</th>
@@ -182,11 +182,34 @@
                             }
                             @foreach (var s in Model.TopSpenders)
                             {
-                                <tr>
+                                var isClinic = string.Equals(s.UserType, "Clinic", StringComparison.OrdinalIgnoreCase);
+                                <tr data-testid="top-spender-row">
                                     <td>
                                         <a asp-action="UserDetail" asp-route-email="@s.Email" class="text-decoration-none">
                                             @s.Email
                                         </a>
+                                        <div class="mt-1 d-flex align-items-center flex-wrap gap-1">
+                                            @if (isClinic)
+                                            {
+                                                <span class="badge bg-warning text-dark" data-testid="spender-type-badge"
+                                                      title="B2B account (Clinic / Lab)">
+                                                    <i class="bi bi-hospital"></i> Clinic
+                                                </span>
+                                                @if (!string.IsNullOrWhiteSpace(s.ClinicName))
+                                                {
+                                                    <span class="small text-muted" data-testid="spender-clinic-name">
+                                                        @s.ClinicName
+                                                    </span>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-info text-dark" data-testid="spender-type-badge"
+                                                      title="B2C account (Individual)">
+                                                    <i class="bi bi-person"></i> Individual
+                                                </span>
+                                            }
+                                        </div>
                                     </td>
                                     <td class="text-end fw-semibold">@s.TotalPaid.ToString("F2")</td>
                                     <td class="text-end">@s.Credite</td>

@@ -153,17 +153,25 @@ namespace MedicalApp.Controllers
             var activePromos = await _db.PromoCodes.CountAsync(p =>
                 p.IsActive && p.ValidFrom <= now && p.ValidUntil >= now);
 
-            var topSpenders = await _db.Users
-                .Where(u => u.TotalPaid > 0)
-                .OrderByDescending(u => u.TotalPaid)
-                .Take(10)
-                .Select(u => new TopSpender
+            // Top 10 spenders — left-join with Clinics so the admin sees the
+            // clinic name (and the user type badge) directly in the dashboard.
+            // For Individuals, ClinicName stays null.
+            var topSpenders = await (
+                from u in _db.Users
+                where u.TotalPaid > 0
+                orderby u.TotalPaid descending
+                join c in _db.Clinics on u.Email equals c.UserEmail into cj
+                from c in cj.DefaultIfEmpty()
+                select new TopSpender
                 {
                     Email = u.Email,
                     TotalPaid = u.TotalPaid,
                     Credite = u.Credite,
-                    CreditConsum = u.CreditConsum
+                    CreditConsum = u.CreditConsum,
+                    UserType = u.UserType,
+                    ClinicName = c != null ? c.Name : null
                 })
+                .Take(10)
                 .ToListAsync();
 
             var dailyRaw = await _db.Purchases

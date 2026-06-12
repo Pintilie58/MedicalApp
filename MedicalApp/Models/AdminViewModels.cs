@@ -125,6 +125,12 @@ namespace MedicalApp.Models
         public decimal TotalPaid { get; set; }
         public int Credite { get; set; }
         public int CreditConsum { get; set; }
+
+        /// <summary>"Individual" or "Clinic" — drives the type badge in the Admin dashboard.</summary>
+        public string UserType { get; set; } = "Individual";
+
+        /// <summary>Clinic name resolved from dbo.Clinics by UserEmail. Null for Individuals.</summary>
+        public string? ClinicName { get; set; }
     }
 
     public class DailyRevenue
