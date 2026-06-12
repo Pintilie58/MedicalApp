@@ -27,11 +27,22 @@
     </div>
 
     <div class="row g-4 justify-content-center">
+        @{
+            // 3 boxes for CAM (Clinic audience) → col-lg-4 fills the row.
+            // 4 boxes for B2C (Individual)     → col-lg-3 fills the row.
+            // 1-2 boxes fall back to a tighter layout, still centered.
+            var colCls = Model.Count switch
+            {
+                <= 2 => "col-md-6 col-lg-5",
+                3    => "col-md-6 col-lg-4",
+                _    => "col-md-6 col-lg-3"
+            };
+        }
         @foreach (var pkg in Model)
         {
-            var isPopular = pkg.Key == "super";
+            var isPopular = pkg.Key == "super" || pkg.Key == "cam_business";
             var cardClass = isPopular ? "border-primary shadow-lg" : "shadow-sm";
-            <div class="col-md-6 col-lg-3">
+            <div class="@colCls">
                 <div class="card h-100 border-0 @cardClass position-relative">
                     @if (isPopular)
                     {

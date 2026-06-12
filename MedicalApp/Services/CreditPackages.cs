@@ -30,12 +30,15 @@ namespace MedicalApp.Services
             new("premium",  "PackagePremium",  100m, 700),
 
             // ----- B2B (Clinici de Analize Medicale) -----
-            // Pachet test: 50 credite la 30 EUR (0.60/credit), pentru ca o clinica
-            // sa poata valida fluxul fara cost mare. Apoi trece la pachetul mare.
-            new("cam_test", "PackageCamTest", 30m,   50,   "Clinic"),
-            // Pachet principal CAM: 1000 credite / 500 EUR (0.50/credit, ~17% discount fata
-            // de pachetul Premium B2C). Stabilit cu utilizatorul Feb 2026.
-            new("cam_pro",  "PackageCamPro",  500m,  1000, "Clinic")
+            // Stabilit cu utilizatorul Feb 2026. Discount progresiv:
+            //   50 EUR  →  17 credite (~2.94 EUR/credit) — pachet "Starter" pentru pilot
+            //   500 EUR → 167 credite (~2.99 EUR/credit) — pachet "Business" zilnic
+            //  1000 EUR → 350 credite (~2.86 EUR/credit) — pachet "Enterprise" volum mare
+            // Cheile vechi (cam_test / cam_pro) au fost retrase; istoricul Purchases
+            // care le conține se afișează corect pe baza credit/eur snapshot-uite.
+            new("cam_starter",    "PackageCamStarter",    50m,   17,  "Clinic"),
+            new("cam_business",   "PackageCamBusiness",   500m,  167, "Clinic"),
+            new("cam_enterprise", "PackageCamEnterprise", 1000m, 350, "Clinic")
         };
 
         public static CreditPackage? GetByKey(string key) =>

@@ -459,8 +459,33 @@ namespace MedicalApp.Controllers
                 .Take(50)
                 .ToListAsync();
 
+            // For Clinic accounts, the real "history" lives in the CAM tables:
+            // ClinicBatchRun (one row per "Lansează Lot" run) and ClinicPatients
+            // (cumulative patient roster). Fetch them so the admin sees a
+            // complete picture instead of an empty "Interpretation history" box.
+            List<ClinicBatchRun> batchRuns = new();
+            int clinicPatientsCount = 0;
+            string? clinicName = null;
+            if (string.Equals(user.UserType, "Clinic", StringComparison.OrdinalIgnoreCase))
+            {
+                var clinic = await _db.Clinics.FirstOrDefaultAsync(c => c.UserEmail == e);
+                if (clinic != null)
+                {
+                    clinicName = clinic.Name;
+                    clinicPatientsCount = await _db.ClinicPatients.CountAsync(p => p.ClinicId == clinic.Id);
+                    batchRuns = await _db.ClinicBatchRuns
+                        .Where(b => b.ClinicId == clinic.Id)
+                        .OrderByDescending(b => b.StartedAt)
+                        .Take(50)
+                        .ToListAsync();
+                }
+            }
+
             ViewBag.Purchases = purchases;
             ViewBag.History = history;
+            ViewBag.BatchRuns = batchRuns;
+            ViewBag.ClinicPatientsCount = clinicPatientsCount;
+            ViewBag.ClinicName = clinicName;
             return View(user);
         }
 
@@ -565,15 +590,36 @@ namespace MedicalApp.Controllers
                 return RedirectToAction(nameof(UserDetail), new { email = e });
             }
 
-            // Cascade-delete related rows
-            var purchases = _db.Purchases.Where(p => p.UserEmail == e);
-            var history = _db.InterpretationHistories.Where(h => h.UserEmail == e);
-            _db.Purchases.RemoveRange(purchases);
-            _db.InterpretationHistories.RemoveRange(history);
+            // ---- Cascade-delete ALL related rows so no orphan footprint
+            //      remains in the database after the user is gone.
+            //
+            // Common to both audiences:
+            _db.Purchases.RemoveRange(_db.Purchases.Where(p => p.UserEmail == e));
+            _db.InterpretationHistories.RemoveRange(_db.InterpretationHistories.Where(h => h.UserEmail == e));
+
+            // Individual: family profiles in dbo.Profiles
+            _db.Profiles.RemoveRange(_db.Profiles.Where(p => p.UserEmail == e));
+
+            // Clinic: the clinic row + every CAM artefact attached to its ClinicId.
+            // We resolve ClinicId once and then remove from every CAM table.
+            var clinic = await _db.Clinics.FirstOrDefaultAsync(c => c.UserEmail == e);
+            if (clinic != null)
+            {
+                var cid = clinic.Id;
+                _db.ClinicBatchErrors.RemoveRange(
+                    _db.ClinicBatchErrors.Where(x => _db.ClinicBatchRuns
+                        .Where(r => r.ClinicId == cid).Select(r => r.Id).Contains(x.BatchRunId)));
+                _db.ClinicBatchRuns.RemoveRange(_db.ClinicBatchRuns.Where(b => b.ClinicId == cid));
+                _db.ClinicAnalyses.RemoveRange(_db.ClinicAnalyses.Where(a => a.ClinicId == cid));
+                _db.ClinicPatients.RemoveRange(_db.ClinicPatients.Where(p => p.ClinicId == cid));
+                _db.ClinicPdfOverrides.RemoveRange(_db.ClinicPdfOverrides.Where(o => o.ClinicId == cid));
+                _db.Clinics.Remove(clinic);
+            }
+
             _db.Users.Remove(user);
             await _db.SaveChangesAsync();
 
-            _logger.LogWarning("Admin deleted user {Email} (and all related purchases/history).", e);
+            _logger.LogWarning("Admin deleted user {Email} (and all related purchases/history/profiles/CAM data).", e);
             TempData["SuccessMessage"] = $"User {e} and all related data were deleted.";
             return RedirectToAction(nameof(Users));
         }

@@ -3,6 +3,10 @@
     ViewData["Title"] = "Admin - User detail";
     var purchases = ViewBag.Purchases as List<MedicalApp.Models.Purchase> ?? new();
     var history = ViewBag.History as List<MedicalApp.Models.InterpretationHistory> ?? new();
+    var batchRuns = ViewBag.BatchRuns as List<MedicalApp.Models.ClinicBatchRun> ?? new();
+    var clinicName = ViewBag.ClinicName as string;
+    var clinicPatients = (int)(ViewBag.ClinicPatientsCount ?? 0);
+    var isClinic = string.Equals(Model.UserType, "Clinic", System.StringComparison.OrdinalIgnoreCase);
 }
 
 <div class="container-fluid py-4">
@@ -182,7 +186,14 @@
 
             <div class="card shadow-sm">
                 <div class="card-header bg-info text-white fw-semibold">
-                    Interpretation history (@history.Count, last 50)
+                    @if (isClinic)
+                    {
+                        <text>Interpretation history (B2C only — empty for Clinic accounts)</text>
+                    }
+                    else
+                    {
+                        <text>Interpretation history (@history.Count, last 50)</text>
+                    }
                 </div>
                 <div class="table-responsive">
                     <table class="table table-sm mb-0">
@@ -198,7 +209,11 @@
                         <tbody>
                             @if (!history.Any())
                             {
-                                <tr><td colspan="5" class="text-muted text-center py-4">No interpretations yet.</td></tr>
+                                <tr><td colspan="5" class="text-muted text-center py-4">
+                                    @(isClinic
+                                        ? "Clinic accounts process files via CAM batch runs (see below)."
+                                        : "No interpretations yet.")
+                                </td></tr>
                             }
                             @foreach (var h in history)
                             {
@@ -225,6 +240,76 @@
                     </table>
                 </div>
             </div>
+
+            @if (isClinic)
+            {
+                <div class="card shadow-sm mt-4" data-testid="admin-cam-batch-history-card">
+                    <div class="card-header bg-warning text-dark fw-semibold d-flex align-items-center">
+                        <i class="bi bi-hospital me-2"></i>
+                        CAM batch history (@batchRuns.Count, last 50)
+                        @if (!string.IsNullOrWhiteSpace(clinicName))
+                        {
+                            <span class="ms-2 small text-muted">@clinicName</span>
+                        }
+                        <span class="ms-auto badge bg-light text-dark border" data-testid="admin-clinic-patients-count">
+                            <i class="bi bi-people-fill"></i> @clinicPatients patients
+                        </span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-end">#</th>
+                                    <th>Started</th>
+                                    <th>Finished</th>
+                                    <th>Status</th>
+                                    <th class="text-end">Total</th>
+                                    <th class="text-end">Interpreted</th>
+                                    <th class="text-end">Sent</th>
+                                    <th class="text-end">Compared</th>
+                                    <th class="text-end">NotSends</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (!batchRuns.Any())
+                                {
+                                    <tr>
+                                        <td colspan="9" class="text-muted text-center py-4">
+                                            No batch runs yet for this clinic.
+                                        </td>
+                                    </tr>
+                                }
+                                @foreach (var b in batchRuns)
+                                {
+                                    var sCls = b.Status switch
+                                    {
+                                        "Completed" => "bg-success",
+                                        "Running"   => "bg-info text-dark",
+                                        "Cancelled" => "bg-secondary",
+                                        "Failed"    => "bg-danger",
+                                        _ => "bg-secondary"
+                                    };
+                                    <tr data-testid="admin-cam-batch-row">
+                                        <td class="text-end small">#@b.Id</td>
+                                        <td class="text-nowrap small">@b.StartedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                        <td class="text-nowrap small">
+                                            @(b.FinishedAt?.ToString("dd/MM/yyyy HH:mm") ?? "-")
+                                        </td>
+                                        <td><span class="badge @sCls">@b.Status</span></td>
+                                        <td class="text-end">@b.TotalFiles</td>
+                                        <td class="text-end">@b.FilesInterpreted</td>
+                                        <td class="text-end fw-semibold">@b.FilesSent</td>
+                                        <td class="text-end">@b.FilesCompared</td>
+                                        <td class="text-end @(b.NotSends > 0 ? "text-danger fw-semibold" : "")">
+                                            @b.NotSends
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
         </div>
     </div>
 </div>
