@@ -159,9 +159,11 @@ body.landing-body a:hover { color: var(--land-coral); }
 .land-hero {
     padding: 4.5rem 0 6rem 0;
     background:
-        radial-gradient(ellipse 70% 55% at 85% 10%, rgba(224, 122, 95, 0.12), transparent 60%),
-        radial-gradient(ellipse 55% 50% at 8% 88%, rgba(122, 145, 128, 0.14), transparent 60%),
-        var(--land-bg);
+        radial-gradient(ellipse 70% 55% at 85% 10%, rgba(224, 122, 95, 0.18), transparent 60%),
+        radial-gradient(ellipse 55% 50% at 8% 88%, rgba(122, 145, 128, 0.22), transparent 60%),
+        #EFE9DC;
+    border-bottom: 2px solid var(--land-sage-dark);
+    box-shadow: 0 8px 18px -12px rgba(74, 92, 80, 0.25);
 }
 .land-hero-grid {
     display: grid;
@@ -998,4 +1000,139 @@ body.landing-body a:hover { color: var(--land-coral); }
     .land-reveal.in {
         opacity: 1; transform: translateY(0);
     }
+}
+
+
+/* ============== Custom CSS tooltip (pillar CTAs) ============== */
+.land-tooltip-wrap {
+    position: relative;
+    display: inline-block;
+}
+.land-tooltip-wrap::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 50%;
+    top: -0.55rem;
+    transform: translate(-50%, -100%);
+    background: var(--land-ink);
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.35;
+    padding: 0.55rem 0.85rem;
+    border-radius: var(--land-radius-sm);
+    white-space: nowrap;
+    box-shadow: var(--land-shadow-md);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s ease, transform .18s ease;
+    z-index: 30;
+}
+.land-tooltip-wrap::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: -0.55rem;
+    transform: translate(-50%, -2px);
+    border: 6px solid transparent;
+    border-top-color: var(--land-ink);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s ease, transform .18s ease;
+    z-index: 30;
+}
+.land-tooltip-wrap:hover::after,
+.land-tooltip-wrap:focus-within::after {
+    opacity: 1;
+    transform: translate(-50%, calc(-100% - 4px));
+}
+.land-tooltip-wrap:hover::before,
+.land-tooltip-wrap:focus-within::before {
+    opacity: 1;
+    transform: translate(-50%, -6px);
+}
+
+/* ============== Trust / compliance strip ============== */
+.land-trust {
+    padding: 4rem 0 4.5rem 0;
+    background: var(--land-surface);
+    border-top: 1px solid var(--land-border);
+    border-bottom: 1px solid var(--land-border);
+}
+.land-trust-head {
+    text-align: center;
+    margin-bottom: 2.25rem;
+}
+.land-trust-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--land-ink);
+    margin: 0;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.3;
+}
+.land-trust-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem 1.25rem;
+}
+@media (max-width: 980px) {
+    .land-trust-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 520px) {
+    .land-trust-grid { grid-template-columns: 1fr; }
+}
+.land-trust-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 1rem 1.15rem;
+    background: var(--land-bg);
+    border: 1px solid var(--land-border);
+    border-radius: var(--land-radius);
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.land-trust-badge:hover {
+    transform: translateY(-2px);
+    border-color: var(--land-sage);
+    box-shadow: var(--land-shadow-md);
+}
+.land-trust-ico {
+    flex: 0 0 auto;
+    width: 2.4rem;
+    height: 2.4rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    border-radius: 50%;
+    background: #fff;
+    border: 1px solid var(--land-border);
+}
+.land-trust-ico-blue      { color: #1976D2; }
+.land-trust-ico-coral     { color: var(--land-coral); }
+.land-trust-ico-sage      { color: var(--land-sage-dark); }
+.land-trust-ico-azure     { color: #0078D4; }
+.land-trust-ico-microsoft { color: #2B302D; }
+.land-trust-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+    min-width: 0;
+}
+.land-trust-text strong {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.02rem;
+    font-weight: 700;
+    color: var(--land-ink);
+    letter-spacing: -0.01em;
+}
+.land-trust-text span {
+    font-size: 0.78rem;
+    color: var(--land-mute);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 0.15rem;
 }

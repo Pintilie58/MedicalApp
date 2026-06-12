@@ -277,10 +277,13 @@
                     <li>@Loc.T("PillarLabPt1")</li>
                     <li>@Loc.T("PillarLabPt2")</li>
                     <li>@Loc.T("PillarLabPt3")</li>
+                    <li>@Loc.T("PillarLabPt4")</li>
                 </ul>
-                <a href="#clinics" class="land-btn land-btn-ghost mt-3" data-testid="pillar-lab-cta">
-                    @Loc.T("PillarLabCta") &rarr;
-                </a>
+                <span class="land-tooltip-wrap" data-tooltip="@Loc.T("PillarTooltipRegister")">
+                    <a href="@AuthUrl("register")" class="land-btn land-btn-ghost mt-3" data-testid="pillar-lab-cta">
+                        @Loc.T("PillarLabCta") &rarr;
+                    </a>
+                </span>
             </div>
             <div class="land-pillar" data-testid="pillar-clinics">
                 <div class="land-pillar-head">
@@ -299,10 +302,13 @@
                     <li>@Loc.T("PillarClnPt1")</li>
                     <li>@Loc.T("PillarClnPt2")</li>
                     <li>@Loc.T("PillarClnPt3")</li>
+                    <li>@Loc.T("PillarClnPt4")</li>
                 </ul>
-                <a href="#clinics" class="land-btn land-btn-ghost mt-3" data-testid="pillar-cln-cta">
-                    @Loc.T("PillarClnCta") &rarr;
-                </a>
+                <span class="land-tooltip-wrap" data-tooltip="@Loc.T("PillarTooltipRegister")">
+                    <a href="@AuthUrl("register")" class="land-btn land-btn-ghost mt-3" data-testid="pillar-cln-cta">
+                        @Loc.T("PillarClnCta") &rarr;
+                    </a>
+                </span>
             </div>
         </div>
     </div>
@@ -511,6 +517,74 @@
                     <div class="land-testi-avatar">D</div>
                     <div><div class="land-testi-name">@Loc.T("Testi3Name")</div>
                          <div class="land-testi-role">@Loc.T("Testi3Role")</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@* =========================== TRUST / COMPLIANCE STRIP =========================== *@
+<section class="land-trust" data-testid="land-trust">
+    <div class="land-container">
+        <div class="land-trust-head">
+            <span class="land-eyebrow">@Loc.T("TrustEyebrow")</span>
+            <h2 class="land-trust-title">@Loc.T("TrustTitle")</h2>
+        </div>
+        <div class="land-trust-grid" data-testid="land-trust-grid">
+            <div class="land-trust-badge" data-testid="trust-hipaa">
+                <i class="fa-solid fa-shield-halved land-trust-ico land-trust-ico-blue" aria-hidden="true"></i>
+                <div class="land-trust-text">
+                    <strong>@Loc.T("TrustHipaaTitle")</strong>
+                    <span>@Loc.T("TrustHipaaSub")</span>
+                </div>
+            </div>
+            <div class="land-trust-badge" data-testid="trust-fhir">
+                <i class="fa-solid fa-fire-flame-curved land-trust-ico land-trust-ico-coral" aria-hidden="true"></i>
+                <div class="land-trust-text">
+                    <strong>@Loc.T("TrustFhirTitle")</strong>
+                    <span>@Loc.T("TrustFhirSub")</span>
+                </div>
+            </div>
+            <div class="land-trust-badge" data-testid="trust-gdpr">
+                <i class="fa-solid fa-circle-check land-trust-ico land-trust-ico-sage" aria-hidden="true"></i>
+                <div class="land-trust-text">
+                    <strong>@Loc.T("TrustGdprTitle")</strong>
+                    <span>@Loc.T("TrustGdprSub")</span>
+                </div>
+            </div>
+            <div class="land-trust-badge" data-testid="trust-azure">
+                <i class="fa-solid fa-cloud land-trust-ico land-trust-ico-azure" aria-hidden="true"></i>
+                <div class="land-trust-text">
+                    <strong>@Loc.T("TrustAzureTitle")</strong>
+                    <span>@Loc.T("TrustAzureSub")</span>
+                </div>
+            </div>
+            <div class="land-trust-badge" data-testid="trust-microsoft">
+                <i class="fa-brands fa-microsoft land-trust-ico land-trust-ico-microsoft" aria-hidden="true"></i>
+                <div class="land-trust-text">
+                    <strong>@Loc.T("TrustMicrosoftTitle")</strong>
+                    <span>@Loc.T("TrustMicrosoftSub")</span>
+                </div>
+            </div>
+            <div class="land-trust-badge" data-testid="trust-loinc">
+                <i class="fa-solid fa-vial land-trust-ico land-trust-ico-blue" aria-hidden="true"></i>
+                <div class="land-trust-text">
+                    <strong>@Loc.T("TrustLoincTitle")</strong>
+                    <span>@Loc.T("TrustLoincSub")</span>
+                </div>
+            </div>
+            <div class="land-trust-badge" data-testid="trust-snomed">
+                <i class="fa-solid fa-book-medical land-trust-ico land-trust-ico-sage" aria-hidden="true"></i>
+                <div class="land-trust-text">
+                    <strong>@Loc.T("TrustSnomedTitle")</strong>
+                    <span>@Loc.T("TrustSnomedSub")</span>
+                </div>
+            </div>
+            <div class="land-trust-badge" data-testid="trust-ucum">
+                <i class="fa-solid fa-ruler-combined land-trust-ico land-trust-ico-coral" aria-hidden="true"></i>
+                <div class="land-trust-text">
+                    <strong>@Loc.T("TrustUcumTitle")</strong>
+                    <span>@Loc.T("TrustUcumSub")</span>
                 </div>
             </div>
         </div>
