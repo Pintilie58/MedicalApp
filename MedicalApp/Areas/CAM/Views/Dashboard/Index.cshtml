@@ -15,7 +15,7 @@
 
 <div class="container py-5">
     <div class="row mb-4 align-items-center">
-        <div class="col-auto">
+        <div class="col-auto" style="margin-top: -1.75rem;" data-testid="cam-mascot-col">
             @{
                 var camDashMascotVd = new ViewDataDictionary(ViewData)
                 {
@@ -36,10 +36,16 @@
                 @Model.ClinicCity &middot; @Model.ClinicAddress
             </div>
         </div>
-        <div class="col-auto align-self-center">
-            <span class="badge bg-success fs-6 px-3 py-2" data-testid="cam-credits-badge">
+        <div class="col-auto align-self-center text-end">
+            <span class="badge bg-success fs-6 px-3 py-2 d-block mb-2" data-testid="cam-credits-badge">
                 @Model.CreditsAvailable credite disponibile
             </span>
+            <a asp-controller="Credits" asp-action="Buy" asp-area=""
+               class="btn btn-sm btn-outline-success fw-semibold"
+               data-testid="cam-header-buy-credits"
+               title="Cumpără un pachet de credite CAM (Starter / Business / Enterprise)">
+                <i class="bi bi-cart-plus"></i> Cumpără credite
+            </a>
         </div>
     </div>
 
