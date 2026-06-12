@@ -107,8 +107,15 @@ namespace MedicalApp.Controllers
 
             var email = model.Email.Trim().ToLowerInvariant();
 
-            var exists = await _db.Users.AnyAsync(u => u.Email == email);
-            if (exists)
+            // Defensive: an email is considered "taken" if it exists in EITHER
+            // the Users table OR in the Clinics table (orphan Clinic row left
+            // over from a previously-deleted User would otherwise crash later
+            // in VerifyEmail with a SQL 2601 unique-index violation on
+            // IX_Clinics_UserEmail). Both tables are checked here so the user
+            // gets the friendly "email already exists" message early.
+            var userExists   = await _db.Users.AnyAsync(u => u.Email == email);
+            var clinicExists = await _db.Clinics.AnyAsync(c => c.UserEmail == email);
+            if (userExists || clinicExists)
             {
                 ModelState.AddModelError(string.Empty, Loc.T("EmailAlreadyExists"));
                 ViewData["LoginModel"] = new LoginViewModel();
@@ -275,19 +282,40 @@ namespace MedicalApp.Controllers
             // CAM: dacă userul s-a înregistrat ca Clinică, creăm imediat și rândul
             // Clinic asociat (1:1 cu User.Email). Folderele pe disk NU se creează
             // acum — abia după PRIMA cumpărare de credite (vezi CreditsController).
+            //
+            // Idempotent upsert: dacă există deja un rând orfan în Clinics cu
+            // acest UserEmail (de la o încercare anterioară de înregistrare ștearsă
+            // doar parțial din DB), îl refolosim — nu mai crapă cu SQL 2601 pe
+            // IX_Clinics_UserEmail. Folosim Trim/Lower pe email pentru a alinia
+            // cheia cu validarea de la Register.
             if (user.UserType == "Clinic" &&
                 !string.IsNullOrWhiteSpace(pending.ClinicName) &&
                 !string.IsNullOrWhiteSpace(pending.ClinicCity) &&
                 !string.IsNullOrWhiteSpace(pending.ClinicAddress))
             {
-                _db.Clinics.Add(new Clinic
+                var existingClinic = await _db.Clinics
+                    .FirstOrDefaultAsync(c => c.UserEmail == pending.Email);
+
+                if (existingClinic == null)
                 {
-                    UserEmail = pending.Email,
-                    Name = pending.ClinicName!.Trim(),
-                    City = pending.ClinicCity!.Trim(),
-                    Address = pending.ClinicAddress!.Trim(),
-                    CreatedAt = DateTime.UtcNow
-                });
+                    _db.Clinics.Add(new Clinic
+                    {
+                        UserEmail = pending.Email,
+                        Name = pending.ClinicName!.Trim(),
+                        City = pending.ClinicCity!.Trim(),
+                        Address = pending.ClinicAddress!.Trim(),
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+                else
+                {
+                    // Orphan Clinic row leftover — refresh its data with the
+                    // values the user just typed during this new registration.
+                    // CreatedAt is preserved so we don't rewrite history.
+                    existingClinic.Name    = pending.ClinicName!.Trim();
+                    existingClinic.City    = pending.ClinicCity!.Trim();
+                    existingClinic.Address = pending.ClinicAddress!.Trim();
+                }
             }
 
             await _db.SaveChangesAsync();
