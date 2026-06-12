@@ -139,4 +139,24 @@ namespace MedicalApp.Models
         public decimal Amount { get; set; }
         public int Count { get; set; }
     }
+
+    /// <summary>
+    /// Row model for the Admin → Users list. Wraps a User and adds the
+    /// per-row context the admin needs at a glance: clinic name (B2B only)
+    /// and the count of "profiles" — which is family Profiles for
+    /// Individual accounts and ClinicPatients for Clinic accounts.
+    /// </summary>
+    public class UserListItem
+    {
+        public User User { get; set; } = null!;
+
+        /// <summary>Clinic display name. Null for Individual users or orphans.</summary>
+        public string? ClinicName { get; set; }
+
+        /// <summary>
+        /// For Individuals: number of rows in dbo.Profiles for this UserEmail.
+        /// For Clinics:    number of rows in dbo.ClinicPatients for this ClinicId.
+        /// </summary>
+        public int ProfilesCount { get; set; }
+    }
 }

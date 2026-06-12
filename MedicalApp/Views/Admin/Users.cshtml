@@ -1,4 +1,4 @@
-@model List<MedicalApp.Models.User>
+@model List<MedicalApp.Models.UserListItem>
 @{
     ViewData["Title"] = "Admin - Users";
     var query = ViewBag.Query as string ?? "";
@@ -42,7 +42,8 @@
             <table class="table table-sm table-hover mb-0 align-middle">
                 <thead class="table-light">
                     <tr>
-                        <th>Email</th>
+                        <th>Email / Type</th>
+                        <th class="text-end">Profiles</th>
                         <th>Registered</th>
                         <th>Last login</th>
                         <th class="text-end">Paid bought</th>
@@ -57,12 +58,45 @@
                 <tbody>
                     @if (!Model.Any())
                     {
-                        <tr><td colspan="10" class="text-muted text-center py-4">No users found.</td></tr>
+                        <tr><td colspan="11" class="text-muted text-center py-4">No users found.</td></tr>
                     }
-                    @foreach (var u in Model)
+                    @foreach (var item in Model)
                     {
-                        <tr class="@(u.IsBlocked ? "table-danger" : "")">
-                            <td class="fw-semibold">@u.Email</td>
+                        var u = item.User;
+                        var isClinic = string.Equals(u.UserType, "Clinic", StringComparison.OrdinalIgnoreCase);
+                        <tr class="@(u.IsBlocked ? "table-danger" : "")" data-testid="admin-users-row">
+                            <td>
+                                <div class="fw-semibold">@u.Email</div>
+                                <div class="mt-1 d-flex align-items-center flex-wrap gap-1">
+                                    @if (isClinic)
+                                    {
+                                        <span class="badge bg-warning text-dark" data-testid="user-type-badge"
+                                              title="B2B account (Clinic / Lab)">
+                                            <i class="bi bi-hospital"></i> Clinic
+                                        </span>
+                                        @if (!string.IsNullOrWhiteSpace(item.ClinicName))
+                                        {
+                                            <span class="small text-muted" data-testid="user-clinic-name">
+                                                @item.ClinicName
+                                            </span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-info text-dark" data-testid="user-type-badge"
+                                              title="B2C account (Individual)">
+                                            <i class="bi bi-person"></i> Individual
+                                        </span>
+                                    }
+                                </div>
+                            </td>
+                            <td class="text-end">
+                                <span class="badge bg-light text-dark border" data-testid="user-profiles-count"
+                                      title="@(isClinic ? "Patients managed by this clinic" : "Family profiles owned by this user")">
+                                    <i class="bi @(isClinic ? "bi-people-fill" : "bi-person-lines-fill")"></i>
+                                    @item.ProfilesCount
+                                </span>
+                            </td>
                             <td class="text-nowrap small">@u.DataC.ToString("dd/MM/yyyy HH:mm")</td>
                             <td class="text-nowrap small">@(u.LastLoginAt?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
                             <td class="text-end">@u.Credite</td>

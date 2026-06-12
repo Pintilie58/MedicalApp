@@ -287,10 +287,58 @@ namespace MedicalApp.Controllers
             }
 
             var total = await query.CountAsync();
-            var list = await query
+            var users = await query
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
+
+            // Enrich the paginated page with clinic name + profile counts.
+            // We use batched lookups (3 small queries) to avoid N+1 on the
+            // 25-row page — the admin list is bounded so this stays cheap.
+            var emails = users.Select(u => u.Email).ToList();
+
+            // Clinics indexed by UserEmail (lowercase) — UserEmail has a
+            // unique index, so at most one row per user.
+            var clinicsByEmail = await _db.Clinics
+                .Where(c => emails.Contains(c.UserEmail))
+                .Select(c => new { c.UserEmail, c.Id, c.Name })
+                .ToDictionaryAsync(c => c.UserEmail, c => new { c.Id, c.Name });
+
+            // Family profiles per email (for Individual users).
+            var profileCountsByEmail = await _db.Profiles
+                .Where(p => emails.Contains(p.UserEmail))
+                .GroupBy(p => p.UserEmail)
+                .Select(g => new { Email = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(g => g.Email, g => g.Count);
+
+            // Clinic patients per ClinicId (for Clinic users).
+            var clinicIds = clinicsByEmail.Values.Select(c => c.Id).ToList();
+            var patientCountsByClinicId = await _db.ClinicPatients
+                .Where(p => clinicIds.Contains(p.ClinicId))
+                .GroupBy(p => p.ClinicId)
+                .Select(g => new { ClinicId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(g => g.ClinicId, g => g.Count);
+
+            var list = users.Select(u =>
+            {
+                clinicsByEmail.TryGetValue(u.Email, out var clinic);
+                int profilesCount;
+                if (string.Equals(u.UserType, "Clinic", StringComparison.OrdinalIgnoreCase) && clinic != null)
+                {
+                    patientCountsByClinicId.TryGetValue(clinic.Id, out profilesCount);
+                }
+                else
+                {
+                    profileCountsByEmail.TryGetValue(u.Email, out profilesCount);
+                }
+
+                return new UserListItem
+                {
+                    User = u,
+                    ClinicName = clinic?.Name,
+                    ProfilesCount = profilesCount
+                };
+            }).ToList();
 
             ViewBag.Query = q;
             ViewBag.Page = page;
