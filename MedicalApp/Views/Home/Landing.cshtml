@@ -279,7 +279,7 @@
                     <li>@Loc.T("PillarLabPt3")</li>
                     <li>@Loc.T("PillarLabPt4")</li>
                 </ul>
-                <span class="land-tooltip-wrap" data-tooltip="@Loc.T("PillarTooltipRegister")">
+                <span class="land-tooltip-wrap" data-tooltip="@Loc.T("PillarTooltipRegisterLab")">
                     <a href="@AuthUrl("register")" class="land-btn land-btn-ghost mt-3" data-testid="pillar-lab-cta">
                         @Loc.T("PillarLabCta") &rarr;
                     </a>
@@ -479,10 +479,12 @@
                 <h2>@Loc.T("B2bTitle")</h2>
                 <p>@Loc.T("B2bBody")</p>
             </div>
-            <a href="mailto:contact@medicalapp.ro?subject=CAM%20Demo%20Request"
-               class="land-btn land-btn-accent land-btn-lg" data-testid="b2b-cta">
-                @Loc.T("B2bCtaButton") &rarr;
-            </a>
+            <span class="land-tooltip-wrap" data-tooltip="@Loc.T("PillarTooltipRegister")">
+                <a href="@AuthUrl("register")"
+                   class="land-btn land-btn-accent land-btn-lg" data-testid="b2b-cta">
+                    @Loc.T("B2bCtaButton") &rarr;
+                </a>
+            </span>
         </div>
     </div>
 </section>

@@ -151,6 +151,7 @@ namespace MedicalApp.Services
                 ["PillarClnCounterLabel"] = "new clinics this month",
 
                 ["PillarTooltipRegister"] = "Register and you'll be impressed!!",
+                ["PillarTooltipRegisterLab"] = "Sign up as an individual and open separate portfolios for your patients!    Good luck!!",
 
                 // ===== Trust / compliance strip =====
                 ["TrustEyebrow"] = "Built on international standards",
@@ -226,7 +227,7 @@ namespace MedicalApp.Services
 
                 ["B2bTitle"] = "Running a clinic or lab?",
                 ["B2bBody"] = "Process 100s of reports per day, automate email delivery, track patient history in a dedicated CAM dashboard. See it in a 20-minute demo.",
-                ["B2bCtaButton"] = "Request a demo",
+                ["B2bCtaButton"] = "Sign up",
 
                 ["TestiEyebrow"] = "Loved by patients and doctors",
                 ["TestiTitle"] = "What our users say.",
@@ -634,6 +635,7 @@ namespace MedicalApp.Services
                 ["PillarClnCounterLabel"] = "clinici noi luna aceasta",
 
                 ["PillarTooltipRegister"] = "Înregistrază-te și vei fi impresionat!!",
+                ["PillarTooltipRegisterLab"] = "Înregistrază-te ca persoană fizică și deschide portofolii separate pentru pacienții tăi!    Succes!!",
 
                 // ===== Trust / compliance strip =====
                 ["TrustEyebrow"] = "Construit pe standarde internaționale",
@@ -709,7 +711,7 @@ namespace MedicalApp.Services
 
                 ["B2bTitle"] = "Ai o clinică sau un laborator?",
                 ["B2bBody"] = "Procesează sute de buletine pe zi, automatizează trimiterea pe email, urmărește istoricul pacienților într-un panou CAM dedicat. Vezi totul într-un demo de 20 de minute.",
-                ["B2bCtaButton"] = "Solicită un demo",
+                ["B2bCtaButton"] = "Înregistrare",
 
                 ["TestiEyebrow"] = "Apreciat de pacienți și medici",
                 ["TestiTitle"] = "Ce spun utilizatorii noștri.",
