@@ -56,12 +56,17 @@
                         }
 
                         @* CAM toggle: only for Clinic users — lets them jump between
-                           personal (B2C) and clinic (CAM) modes from one place. *@
+                           personal (B2C) and clinic (CAM) modes from one place.
+                           NOTE: /Credits/... is also treated as "still in B2B mode"
+                           for Clinic users so a top-up purchase doesn't make the
+                           navbar look like it switched to personal mode. *@
                         if (_layoutUser != null &&
                             string.Equals(_layoutUser.UserType, "Clinic", StringComparison.OrdinalIgnoreCase))
                         {
-                            var _isOnCamArea = (Context.Request.Path.Value ?? "")
-                                .StartsWith("/CAM", StringComparison.OrdinalIgnoreCase);
+                            var _path = Context.Request.Path.Value ?? "";
+                            var _isOnCamArea =
+                                _path.StartsWith("/CAM", StringComparison.OrdinalIgnoreCase) ||
+                                _path.StartsWith("/Credits", StringComparison.OrdinalIgnoreCase);
                             if (_isOnCamArea)
                             {
                                 <a asp-controller="Account" asp-action="Dashboard" asp-area=""

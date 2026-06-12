@@ -161,6 +161,13 @@ namespace MedicalApp.Controllers
 
             TempData["SuccessMessage"] = string.Format(
                 Loc.T("PaymentSuccessMessage"), selected.Credits);
+
+            // Clinic users land back on the CAM dashboard after a successful
+            // top-up so the navbar mode doesn't flip to "personal" — Individual
+            // users keep the original B2C dashboard destination.
+            if (string.Equals(user.UserType, "Clinic", StringComparison.OrdinalIgnoreCase))
+                return RedirectToAction("Index", "Dashboard", new { area = "CAM" });
+
             return RedirectToAction("Dashboard", "Account");
         }
 
