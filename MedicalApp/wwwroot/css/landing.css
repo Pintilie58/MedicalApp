@@ -1146,8 +1146,9 @@ body.landing-body a:hover { color: var(--land-coral); }
 .land-deck-walker {
     position: relative;
     width: 100%;
-    height: 90px;
+    height: 130px;
     margin-bottom: 0.5rem;
+    margin-top: -2.5rem; /* lift the strip ~10mm above its natural slot */
     pointer-events: none;
     user-select: none;
 }
@@ -1170,15 +1171,15 @@ body.landing-body a:hover { color: var(--land-coral); }
     position: absolute;
     bottom: 0;
     left: 0;
-    width: 70px;
-    height: 88px;
+    width: 140px;
+    height: 130px;
     animation: land-deck-walk 14s ease-in-out infinite;
     transform-origin: bottom center;
 }
 .land-deck-walker-runner .doc-mascot {
-    /* Shrink the mascot to fit the strip without disrupting the rest of
-       the page. The partial keeps its own SVG ratio. */
-    transform: scale(0.55);
+    /* Doubled size relative to the previous 0.55 (now 1.1) so the mascot
+       reads clearly above the deck without dominating the layout. */
+    transform: scale(1.1);
     transform-origin: bottom left;
     margin: 0;
     padding: 0;

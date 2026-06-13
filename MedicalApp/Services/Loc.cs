@@ -226,7 +226,7 @@ namespace MedicalApp.Services
                 ["PriceCtaButton"] = "Get my free interpretation",
 
                 ["B2bTitle"] = "Running a clinic or lab?",
-                ["B2bBody"] = "Process 100s of reports per day, automate email delivery, track patient history in a dedicated CAM dashboard. See it in a 20-minute demo.",
+                ["B2bBody"] = "Process 100s of reports per day, automate email delivery, track patient history in a dedicated CAM dashboard. Grow your business with a powerful tool!",
                 ["B2bCtaButton"] = "Sign up",
 
                 ["TestiEyebrow"] = "Loved by patients and doctors",
@@ -713,7 +713,7 @@ namespace MedicalApp.Services
                 ["PriceCtaButton"] = "Vreau interpretarea gratuită",
 
                 ["B2bTitle"] = "Ai o clinică sau un laborator?",
-                ["B2bBody"] = "Procesează sute de buletine pe zi, automatizează trimiterea pe email, urmărește istoricul pacienților într-un panou CAM dedicat. Vezi totul într-un demo de 20 de minute.",
+                ["B2bBody"] = "Procesează sute de buletine pe zi, automatizează trimiterea pe email, urmărește istoricul pacienților într-un panou CAM dedicat. Dezvoltă-ți afacerea cu un instrument puternic!",
                 ["B2bCtaButton"] = "Înregistrare",
 
                 ["TestiEyebrow"] = "Apreciat de pacienți și medici",
