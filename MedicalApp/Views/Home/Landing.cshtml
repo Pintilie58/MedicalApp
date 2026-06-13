@@ -138,11 +138,17 @@
                                 ["StageId"] = "landingHeroWalker",
                                 ["TestId"] = "landing-hero-walker-mascot",
                                 ["ShowSoundToggle"] = false,
-                                ["ShowCheckpoints"] = false,
-                                ["BubbleText"] = Loc.T("WalkerGreeting")
+                                ["ShowCheckpoints"] = false
                             };
                         }
                         <partial name="_DoctorMascot" view-data="heroWalkerVd" />
+                        @* Custom bubble — outside the partial so its position is
+                           anchored to the runner box (the partial's own .doc-bubble
+                           sits inside the scaled .doc-mascot and drifts when scaled).
+                           Shown only during the first 4s of every 14s loop. *@
+                        <div class="land-walker-bubble" data-testid="land-walker-bubble">
+                            @Loc.T("WalkerGreeting")
+                        </div>
                     </div>
                 </div>
 
