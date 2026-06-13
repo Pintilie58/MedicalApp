@@ -73,8 +73,26 @@
     </div>
 
     <div class="text-center mt-5">
-        <a asp-controller="Account" asp-action="Dashboard" class="text-decoration-none small text-muted">
-            &larr; @Loc.T("BackToDashboard")
-        </a>
+        @{
+            // Clinic users go back to the CAM dashboard so the navbar mode
+            // stays B2B; Individual users keep the B2C destination.
+            var _audienceForBack = ViewBag.Audience as string;
+        }
+        @if (string.Equals(_audienceForBack, "Clinic", StringComparison.OrdinalIgnoreCase))
+        {
+            <a asp-controller="Dashboard" asp-action="Index" asp-area="CAM"
+               class="text-decoration-none small text-muted"
+               data-testid="credits-back-to-cam">
+                &larr; @Loc.T("BackToDashboard")
+            </a>
+        }
+        else
+        {
+            <a asp-controller="Account" asp-action="Dashboard" asp-area=""
+               class="text-decoration-none small text-muted"
+               data-testid="credits-back-to-b2c">
+                &larr; @Loc.T("BackToDashboard")
+            </a>
+        }
     </div>
 </div>
