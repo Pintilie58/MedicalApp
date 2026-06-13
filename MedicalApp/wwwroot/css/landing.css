@@ -1187,11 +1187,25 @@ body.landing-body a:hover { color: var(--land-coral); }
 .land-deck-walker-runner .doc-mascot .doc-track,
 .land-deck-walker-runner .doc-mascot .doc-confetti { display: none; }
 
-/* Greeting phase (0-4s of every 14s loop): bubble shown + right arm waving.
-   After 4s the bubble fades out and the arm resumes the calm walking pose.
-   Synchronised with the parent `land-deck-walk` keyframe so the salute
-   happens exactly when the doctor enters the strip from the left. */
+/* Pin the doctor body to the centre of the mascot stage — the parent
+   .land-deck-walker-runner is what slides left/right; we don't want
+   the partial's own walker-traverse animation to also drift inside
+   the stage (it would double-move and shift the bubble anchor). */
+.land-deck-walker-runner .doc-walker[data-state="walking"] {
+    animation: none !important;
+    left: 50% !important;
+    transform: translateX(-50%);
+}
+
+/* Bubble override:
+   The partial anchors the bubble at top:6px of the mascot stage which,
+   after our scale(1.1) with bottom-left origin, lands above the runner
+   (and visually feels stuck at the doctor's feet because the relative
+   geometry inverts). Re-anchor it to head/hand height. */
 .land-deck-walker-runner .doc-bubble {
+    top: 22px !important;
+    left: 60% !important;
+    bottom: auto !important;
     animation: land-deck-walker-bubble 14s ease-in-out infinite !important;
     /* Bubble background overrides so it reads on the warm cream hero. */
     background: #6D28D9;
