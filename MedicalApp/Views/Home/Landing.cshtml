@@ -126,11 +126,30 @@
             </div>
 
             <div class="land-hero-visual-wrap" data-testid="land-hero-visual">
+                @* ===== Walking doctor — strolls left↔right along the sage line above the deck ===== *@
+                <div class="land-deck-walker" data-testid="land-deck-walker" aria-hidden="true">
+                    <div class="land-deck-walker-line"></div>
+                    <div class="land-deck-walker-runner">
+                        @{
+                            var heroWalkerVd = new ViewDataDictionary(ViewData)
+                            {
+                                ["Mode"] = "waiting",
+                                ["Size"] = "small",
+                                ["StageId"] = "landingHeroWalker",
+                                ["TestId"] = "landing-hero-walker-mascot",
+                                ["ShowSoundToggle"] = false,
+                                ["ShowCheckpoints"] = false
+                            };
+                        }
+                        <partial name="_DoctorMascot" view-data="heroWalkerVd" />
+                    </div>
+                </div>
+
                 @* ===== Deck of 4 sample reports — click to bring forward, click front to zoom ===== *@
                 <div class="land-deck" data-testid="land-deck">
                     @* Order in DOM = render order; data-pos is the initial logical position
                        (0 = front, 3 = bottom). Front card has zoom button. JS swaps positions on click. *@
-                    <div class="land-deck-card" data-pos="0" data-testid="deck-card-cam-clinic"
+                    <div class="land-deck-card" data-pos="3" data-testid="deck-card-cam-clinic"
                          data-caption="@Loc.T("DeckCaptionCamClinic")"
                          aria-label="@Loc.T("DeckCaptionCamClinic")">
                         <img src="~/images/landing-deck/cam-compare-clinic.png"
@@ -166,7 +185,7 @@
                         </button>
                         <span class="land-deck-tag">@Loc.T("DeckCaptionCam")</span>
                     </div>
-                    <div class="land-deck-card" data-pos="3" data-testid="deck-card-graph"
+                    <div class="land-deck-card" data-pos="0" data-testid="deck-card-graph"
                          data-caption="@Loc.T("DeckCaptionGraph")"
                          aria-label="@Loc.T("DeckCaptionGraph")">
                         <img src="~/images/landing-deck/graph-b2c.jpg"

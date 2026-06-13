@@ -1138,3 +1138,71 @@ body.landing-body a:hover { color: var(--land-coral); }
     letter-spacing: 0.04em;
     margin-top: 0.15rem;
 }
+
+/* ============== Walking doctor above the hero deck ============== */
+/* A small strip that sits above the .land-deck. A subtle sage line
+   marks the ground; the mascot strolls back and forth on it.
+   Decorative only — aria-hidden, no interaction.                    */
+.land-deck-walker {
+    position: relative;
+    width: 100%;
+    height: 90px;
+    margin-bottom: 0.5rem;
+    pointer-events: none;
+    user-select: none;
+}
+.land-deck-walker-line {
+    position: absolute;
+    left: 4%;
+    right: 4%;
+    bottom: 6px;
+    height: 2px;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        var(--land-sage) 14%,
+        var(--land-sage-dark) 50%,
+        var(--land-sage) 86%,
+        transparent 100%);
+    border-radius: 2px;
+    opacity: 0.55;
+}
+.land-deck-walker-runner {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 70px;
+    height: 88px;
+    animation: land-deck-walk 14s ease-in-out infinite;
+    transform-origin: bottom center;
+}
+.land-deck-walker-runner .doc-mascot {
+    /* Shrink the mascot to fit the strip without disrupting the rest of
+       the page. The partial keeps its own SVG ratio. */
+    transform: scale(0.55);
+    transform-origin: bottom left;
+    margin: 0;
+    padding: 0;
+}
+.land-deck-walker-runner .doc-mascot .doc-track,
+.land-deck-walker-runner .doc-mascot .doc-confetti { display: none; }
+
+/* Left→right (0-50%), turn, right→left (50-100%). The scaleX flip at
+   the midpoint makes the doctor face the direction he's walking in. */
+@keyframes land-deck-walk {
+    0%   { left: 2%;  transform: scaleX(1); }
+    48%  { left: 88%; transform: scaleX(1); }
+    50%  { left: 88%; transform: scaleX(-1); }
+    98%  { left: 2%;  transform: scaleX(-1); }
+    100% { left: 2%;  transform: scaleX(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .land-deck-walker-runner { animation: none; left: 50%; transform: translateX(-50%); }
+}
+
+/* On small screens hide the strip so the deck can sit higher and not
+   feel cramped. */
+@media (max-width: 700px) {
+    .land-deck-walker { display: none; }
+}
+

@@ -24,10 +24,15 @@ namespace MedicalApp.Services
         public static readonly IReadOnlyList<CreditPackage> All = new List<CreditPackage>
         {
             // ----- B2C (Persoană fizică) -----
-            new("normal",   "PackageNormal",   5m,   25),
-            new("standard", "PackageStandard", 10m,  60),
-            new("super",    "PackageSuper",    50m,  330),
-            new("premium",  "PackagePremium",  100m, 700),
+            // Stabilit cu utilizatorul Feb 2026 — paliere accesibile + discount progresiv:
+            //    6 EUR  →   2 credite  (~3.00 EUR/credit) — pachet "Normal" pentru încercare
+            //   11 EUR  →   4 credite  (~2.75 EUR/credit) — pachet "Standard" uzual
+            //   50 EUR  →  18 credite  (~2.78 EUR/credit) — pachet "Super" pentru familie
+            //  100 EUR  →  38 credite  (~2.63 EUR/credit) — pachet "Premium" volum
+            new("normal",   "PackageNormal",   6m,   2),
+            new("standard", "PackageStandard", 11m,  4),
+            new("super",    "PackageSuper",    50m,  18),
+            new("premium",  "PackagePremium",  100m, 38),
 
             // ----- B2B (Clinici de Analize Medicale) -----
             // Stabilit cu utilizatorul Feb 2026. Discount progresiv:
