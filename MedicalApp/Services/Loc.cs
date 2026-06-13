@@ -173,6 +173,8 @@ namespace MedicalApp.Services
                 ["TrustUcumTitle"] = "UCUM",
                 ["TrustUcumSub"] = "Units of measure",
 
+                ["WalkerGreeting"] = "Glad to see you!",
+
                 ["HowEyebrow"] = "How it works",
                 ["HowTitle"] = "From PDF to clarity in three steps.",
                 ["HowStep1Title"] = "Upload your lab PDF",
@@ -660,6 +662,8 @@ namespace MedicalApp.Services
                 ["TrustUcumTitle"] = "UCUM",
                 ["TrustUcumSub"] = "Unități de măsură",
 
+                ["WalkerGreeting"] = "Mă bucur să te văd!",
+
                 ["HowEyebrow"] = "Cum funcționează",
                 ["HowTitle"] = "Din PDF în claritate, în trei pași.",
                 ["HowStep1Title"] = "Încarcă PDF-ul analizelor",
@@ -987,6 +991,7 @@ namespace MedicalApp.Services
             },
             ["fr"] = new()
             {
+                ["WalkerGreeting"] = "Heureux de vous voir !",
                 ["AppTitle"] = "MedicalApp",
                 ["WelcomeMessage"] = "Bienvenue dans ce monde",
                 ["SelectLanguage"] = "Choisir la langue",
@@ -1188,6 +1193,7 @@ namespace MedicalApp.Services
             },
             ["es"] = new()
             {
+                ["WalkerGreeting"] = "¡Me alegro de verte!",
                 ["AppTitle"] = "MedicalApp",
                 ["WelcomeMessage"] = "Bienvenido a este mundo",
                 ["SelectLanguage"] = "Seleccionar idioma",
@@ -1389,6 +1395,7 @@ namespace MedicalApp.Services
             },
             ["de"] = new()
             {
+                ["WalkerGreeting"] = "Schön, dich zu sehen!",
                 ["AppTitle"] = "MedicalApp",
                 ["WelcomeMessage"] = "Willkommen in dieser Welt",
                 ["SelectLanguage"] = "Sprache auswählen",
