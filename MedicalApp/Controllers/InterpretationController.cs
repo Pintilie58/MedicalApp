@@ -361,9 +361,13 @@ namespace MedicalApp.Controllers
                 {
                     transientAttempts++;
 
-                    // Decide whether to switch to the fallback model from this attempt
-                    // onwards. We do it once, at the threshold, and stay on the fallback
-                    // for any further retries (no flapping).
+                    // Tiered fallback (mirrors CamBatchService, "plasă de siguranță"):
+                    //   tier 1 (null override)              = Primary (e.g. Flash)
+                    //   tier 2 (override == FallbackModel)  = Fallback (e.g. Pro 2.5)
+                    //   tier 3 (override == SecondaryFallback) = Next-gen (e.g. Gemini 3 Pro)
+                    // We promote tier 1→2 at transientFallbackThreshold and 2→3
+                    // when Pro itself keeps hitting transient errors, so the
+                    // user gets a result instead of a final retry exhaustion.
                     if (currentModelOverride == null
                         && transientAttempts >= transientFallbackThreshold
                         && !string.IsNullOrWhiteSpace(_geminiSettings.FallbackModel)
@@ -375,6 +379,22 @@ namespace MedicalApp.Controllers
                             "Gemini primary model {Primary} hit {Count} consecutive transient {Status} errors. " +
                             "Switching to FALLBACK model {Fallback} for the remaining retries.",
                             _geminiSettings.Model, transientAttempts, ex.HttpStatusCode, currentModelOverride);
+                    }
+                    else if (string.Equals(currentModelOverride, _geminiSettings.FallbackModel,
+                                           StringComparison.OrdinalIgnoreCase)
+                             && !string.IsNullOrWhiteSpace(_geminiSettings.SecondaryFallbackModel)
+                             && !string.Equals(_geminiSettings.SecondaryFallbackModel,
+                                               _geminiSettings.FallbackModel,
+                                               StringComparison.OrdinalIgnoreCase)
+                             && !string.Equals(_geminiSettings.SecondaryFallbackModel,
+                                               _geminiSettings.Model,
+                                               StringComparison.OrdinalIgnoreCase))
+                    {
+                        currentModelOverride = _geminiSettings.SecondaryFallbackModel;
+                        _logger.LogWarning(
+                            "Gemini FALLBACK model also hit transient {Status}. " +
+                            "Switching to SECONDARY FALLBACK {Sec} for the remaining retries.",
+                            ex.HttpStatusCode, currentModelOverride);
                     }
 
                     // Progressive backoff for upstream overload: 5s, 15s, 30s, 60s
@@ -389,23 +409,28 @@ namespace MedicalApp.Controllers
                 }
                 catch (GeminiModelRetiredException ex)
                 {
-                    // Google retired the model id we're calling. Retrying the SAME model
-                    // is futile. If we haven't already promoted to the FallbackModel
-                    // (Pro) AND it's a different id, promote immediately and re-try
-                    // without consuming a retry budget. Otherwise (we're already on
-                    // the fallback, or it's the same id, or it's also retired), fail
-                    // cleanly so the user sees ONE warning instead of a long retry log.
-                    var fallback = _geminiSettings.FallbackModel;
-                    if (currentModelOverride == null
-                        && !string.IsNullOrWhiteSpace(fallback)
-                        && !string.Equals(fallback, ex.RetiredModelId, StringComparison.OrdinalIgnoreCase)
-                        && !string.Equals(fallback, _geminiSettings.Model, StringComparison.OrdinalIgnoreCase))
+                    // Google retired the model id we're calling. Tiered promotion:
+                    //   * if we're still on Primary → try FallbackModel
+                    //   * if we're on FallbackModel → try SecondaryFallbackModel
+                    //   * otherwise (already on last tier or all the same id) → fail clean.
+                    string? nextModel = null;
+                    if (currentModelOverride == null)
+                        nextModel = _geminiSettings.FallbackModel;
+                    else if (string.Equals(currentModelOverride, _geminiSettings.FallbackModel,
+                                           StringComparison.OrdinalIgnoreCase))
+                        nextModel = _geminiSettings.SecondaryFallbackModel;
+
+                    if (!string.IsNullOrWhiteSpace(nextModel)
+                        && !string.Equals(nextModel, ex.RetiredModelId, StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(nextModel, _geminiSettings.Model, StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(nextModel, currentModelOverride, StringComparison.OrdinalIgnoreCase))
                     {
-                        currentModelOverride = fallback;
+                        var prev = currentModelOverride ?? _geminiSettings.Model;
+                        currentModelOverride = nextModel;
                         _logger.LogWarning(
                             "Gemini model '{Retired}' has been retired by Google. " +
-                            "Promoting to FALLBACK model {Fallback} and retrying immediately.",
-                            ex.RetiredModelId, currentModelOverride);
+                            "Promoting from {Prev} to {Next} and retrying immediately.",
+                            ex.RetiredModelId, prev, currentModelOverride);
                         lastException = ex;
                         continue; // do NOT consume an attempt slot
                     }
@@ -437,26 +462,36 @@ namespace MedicalApp.Controllers
                 }
                 catch (InvalidOperationException ex) when (
                     ex.Message.Contains("MaxOutputTokens", StringComparison.OrdinalIgnoreCase)
-                    && currentModelOverride == null)
+                    && !string.Equals(currentModelOverride, _geminiSettings.SecondaryFallbackModel,
+                                      StringComparison.OrdinalIgnoreCase))
                 {
-                    // Flash a truncated răspunsul la MaxOutputTokens. PDF-uri cu mulți
+                    // Flash returned a truncated response at MaxOutputTokens. PDFs cu mulți
                     // parametri (Examen sumar urină + sediment) sau cu sumar AI prolix
-                    // depășesc limita. Pro suportă output mai mare și e mai disciplinat,
-                    // deci comut imediat pe el FĂRĂ să consum din retry budget (5+3).
+                    // depășesc limita. Pro suportă output mai mare; SecondaryFallback (Gemini 3)
+                    // și mai mult. Comut imediat la următorul tier FĂRĂ să consum din retry budget.
                     // Aceeași strategie ca pe CAM batch — simetrie B2C ↔ B2B.
-                    var fallback = _geminiSettings.FallbackModel;
-                    if (!string.IsNullOrWhiteSpace(fallback)
-                        && !string.Equals(fallback, _geminiSettings.Model, StringComparison.OrdinalIgnoreCase))
+                    string? nextModel = null;
+                    if (currentModelOverride == null)
+                        nextModel = _geminiSettings.FallbackModel;
+                    else if (string.Equals(currentModelOverride, _geminiSettings.FallbackModel,
+                                           StringComparison.OrdinalIgnoreCase))
+                        nextModel = _geminiSettings.SecondaryFallbackModel;
+
+                    if (!string.IsNullOrWhiteSpace(nextModel)
+                        && !string.Equals(nextModel, currentModelOverride, StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(nextModel, _geminiSettings.Model, StringComparison.OrdinalIgnoreCase))
                     {
-                        currentModelOverride = fallback;
+                        var prev = currentModelOverride ?? _geminiSettings.Model;
+                        currentModelOverride = nextModel;
                         _logger.LogWarning(
-                            "Gemini hit MaxOutputTokens on Flash; switching to {Pro} for this request (no retry budget consumed). Detail: {Detail}",
-                            fallback, ex.Message);
+                            "Gemini hit MaxOutputTokens on {Prev}; switching to {Next} for this request " +
+                            "(no retry budget consumed). Detail: {Detail}",
+                            prev, nextModel, ex.Message);
                         lastException = ex;
-                        // NU incrementăm modelAttempts — comutarea pe Pro NU consumă budget.
+                        // NU incrementăm modelAttempts — comutarea pe tier-ul următor NU consumă budget.
                         continue;
                     }
-                    // Fallback model not configured — fall through to the generic
+                    // No next tier available — fall through to the generic
                     // InvalidOperationException catch below for normal retry.
                     throw;
                 }
@@ -624,16 +659,11 @@ namespace MedicalApp.Controllers
                     (reportPdfBytes,
                         $"MedicalApp_Interpretation_{timestamp}.pdf",
                         "application/pdf"),
-
-                    // DEBUG #1 – exactly what we extracted from the user's PDF BEFORE sending to GPT.
-                    (System.Text.Encoding.UTF8.GetBytes(extractedText ?? string.Empty),
-                        $"DEBUG_01_extracted_text_{timestamp}.txt",
-                        "text/plain"),
-
-                    // DEBUG #2 – raw JSON returned by the AI provider, exactly as received (before deserialization).
-                    (System.Text.Encoding.UTF8.GetBytes(rawGptResponse ?? string.Empty),
-                        $"DEBUG_02_{providerName}_raw_response_{timestamp}.json",
-                        "application/json"),
+                    // NOTE: DEBUG_01 (extracted text) and DEBUG_02 (raw AI JSON)
+                    // were previously attached for QA but are now dropped from
+                    // user-facing emails per product decision. The same data is
+                    // still kept in DB (InterpretationHistories.RawJsonResult)
+                    // for admin / support investigations.
                 };
 
                 await _emailService.SendEmailWithAttachmentsAsync(

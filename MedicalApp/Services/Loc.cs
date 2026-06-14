@@ -175,6 +175,25 @@ namespace MedicalApp.Services
 
                 ["WalkerGreeting"] = "Glad to see you!",
 
+                // ===== Evolution PDF (Profiles → "Evoluție în timp") =====
+                ["EvolutionPdfTitle"]      = "Time evolution",
+                ["EvolutionPdfBrand"]      = "MedicalApp — Time evolution",
+                ["EvolutionPdfSlogan"]     = "www.MedicalApp.com — Be smart, take care of your health!",
+                ["EvolutionPdfSummary"]    = "{0} analyses · {1} measurements",
+                ["EvolutionPdfChartTitle"] = "Combined chart",
+                ["EvolutionPdfChartCaption"] = "Points are coloured by status (green = normal, red = high, blue = low, yellow = borderline). Dotted lines mark the reference interval of the first analysis.",
+                ["EvolutionPdfChartMissing"] = "The chart could not be included in the PDF.",
+                ["EvolutionPdfHdrPatient"] = "Patient",
+                ["EvolutionPdfHdrLab"]     = "Clinic / Laboratory",
+                ["EvolutionPdfHdrDate"]    = "Date",
+                ["EvolutionPdfHdrValue"]   = "Value",
+                ["EvolutionPdfHdrStatus"]  = "Status",
+                ["EvolutionPdfHdrUnit"]    = "Unit",
+                ["EvolutionPdfHdrRef"]     = "Range",
+                ["EvolutionPdfCodesMissing"] = "⚠ LOINC codes not found in this profile's interpretations: ",
+                ["EvolutionPdfGenerated"]  = "generated on",
+                ["EvolutionPdfPage"]       = "page",
+
                 ["HowEyebrow"] = "How it works",
                 ["HowTitle"] = "From PDF to clarity in three steps.",
                 ["HowStep1Title"] = "Upload your lab PDF",
@@ -663,6 +682,25 @@ namespace MedicalApp.Services
                 ["TrustUcumSub"] = "Unități de măsură",
 
                 ["WalkerGreeting"] = "Mă bucur să te văd!",
+
+                // ===== Evolution PDF (Profiluri → "Evoluție în timp") =====
+                ["EvolutionPdfTitle"]      = "Evoluție în timp",
+                ["EvolutionPdfBrand"]      = "MedicalApp — Evoluție în timp",
+                ["EvolutionPdfSlogan"]     = "www.MedicalApp.com — Fii inteligent(ă), ai grijă de sănătatea ta!",
+                ["EvolutionPdfSummary"]    = "{0} analize · {1} măsurători",
+                ["EvolutionPdfChartTitle"] = "Grafic combinat",
+                ["EvolutionPdfChartCaption"] = "Punctele sunt colorate după status (verde = normal, roșu = ridicat, albastru = scăzut, galben = la limită). Liniile punctate marchează intervalul de referință al primei analize.",
+                ["EvolutionPdfChartMissing"] = "Graficul nu a putut fi inclus în PDF.",
+                ["EvolutionPdfHdrPatient"] = "Pacient",
+                ["EvolutionPdfHdrLab"]     = "Clinică / Laborator",
+                ["EvolutionPdfHdrDate"]    = "Data",
+                ["EvolutionPdfHdrValue"]   = "Valoare",
+                ["EvolutionPdfHdrStatus"]  = "Status",
+                ["EvolutionPdfHdrUnit"]    = "Unit.",
+                ["EvolutionPdfHdrRef"]     = "Interval",
+                ["EvolutionPdfCodesMissing"] = "⚠ Coduri LOINC negăsite în interpretările profilului: ",
+                ["EvolutionPdfGenerated"]  = "generat la",
+                ["EvolutionPdfPage"]       = "pagina",
 
                 ["HowEyebrow"] = "Cum funcționează",
                 ["HowTitle"] = "Din PDF în claritate, în trei pași.",

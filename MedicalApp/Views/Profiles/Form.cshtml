@@ -8,7 +8,7 @@
     <div class="row justify-content-center">
         <div class="col-md-8 col-lg-6">
             <h3 class="text-primary fw-bold mb-4">
-                @(isEdit ? "&#9998; Editează profil" : "&#43; Adaugă profil nou")
+                @(isEdit ? "Editează profil" : "&#43; Adaugă profil nou")
             </h3>
 
             <form asp-action="@(isEdit ? "Edit" : "Create")" method="post" autocomplete="off">

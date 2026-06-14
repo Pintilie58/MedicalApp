@@ -45,14 +45,29 @@ namespace MedicalApp.Services
 
                     page.Header().Element(h => ComposeHeader(h, vm));
                     page.Content().Element(c => ComposeContent(c, vm, chartPngBytes));
-                    page.Footer().AlignCenter().Text(t =>
+                    page.Footer().Column(footerCol =>
                     {
-                        t.Span("MedicalApp — Evoluție în timp · ");
-                        t.Span($"generat la {DateTime.Now:yyyy-MM-dd HH:mm}").FontColor(Colors.Grey.Medium);
-                        t.Span("  ·  pagina ");
-                        t.CurrentPageNumber();
-                        t.Span(" / ");
-                        t.TotalPages();
+                        // Slogan strip — same line user requested for the
+                        // "antet și la sfârșit" (header AND footer). Centered
+                        // sage so it doesn't compete with the report content.
+                        footerCol.Item().AlignCenter().Text(t =>
+                        {
+                            t.Span(Loc.T("EvolutionPdfSlogan"))
+                                .FontSize(9).SemiBold().FontColor(Colors.Green.Darken2);
+                        });
+                        footerCol.Item().AlignCenter().Text(t =>
+                        {
+                            t.Span(Loc.T("EvolutionPdfBrand"))
+                                .FontColor(Colors.Grey.Darken1);
+                            t.Span("  ·  ");
+                            t.Span(Loc.T("EvolutionPdfGenerated") + " ").FontColor(Colors.Grey.Medium);
+                            t.Span($"{DateTime.Now:yyyy-MM-dd HH:mm}").FontColor(Colors.Grey.Medium);
+                            t.Span("  ·  ").FontColor(Colors.Grey.Medium);
+                            t.Span(Loc.T("EvolutionPdfPage") + " ").FontColor(Colors.Grey.Medium);
+                            t.CurrentPageNumber();
+                            t.Span(" / ").FontColor(Colors.Grey.Medium);
+                            t.TotalPages();
+                        });
                     });
                 });
             });
@@ -64,13 +79,24 @@ namespace MedicalApp.Services
         {
             container.Column(col =>
             {
-                col.Item().Text(t =>
+                // Top slogan strip — same line as the footer, so the brand
+                // promise is visible whether the reader scrolls to the top or
+                // the bottom of the page.
+                col.Item().AlignCenter().Text(t =>
                 {
-                    t.Span("Evoluție în timp — ").FontSize(16).Bold().FontColor(Colors.Blue.Darken2);
+                    t.Span(Loc.T("EvolutionPdfSlogan"))
+                        .FontSize(9).SemiBold().FontColor(Colors.Green.Darken2);
+                });
+                col.Item().PaddingTop(4).Text(t =>
+                {
+                    t.Span(Loc.T("EvolutionPdfTitle") + " — ")
+                        .FontSize(16).Bold().FontColor(Colors.Blue.Darken2);
                     t.Span(vm.ProfileName).FontSize(16).Bold();
                 });
-                col.Item().Text($"{vm.Series.Count} analize · " +
-                                $"{vm.Series.Sum(s => s.Points.Count)} măsurători")
+                col.Item().Text(string.Format(
+                        Loc.T("EvolutionPdfSummary"),
+                        vm.Series.Count,
+                        vm.Series.Sum(s => s.Points.Count)))
                     .FontSize(10).FontColor(Colors.Grey.Darken1);
                 col.Item().PaddingTop(4).LineHorizontal(0.5f).LineColor(Colors.Grey.Lighten1);
             });
@@ -85,17 +111,15 @@ namespace MedicalApp.Services
                 // ---- 1) Chart image (if provided) ----
                 if (chartPng != null && chartPng.Length > 0)
                 {
-                    col.Item().Text("Grafic combinat")
+                    col.Item().Text(Loc.T("EvolutionPdfChartTitle"))
                         .FontSize(12).SemiBold().FontColor(Colors.Grey.Darken2);
                     col.Item().Image(chartPng).FitWidth();
-                    col.Item().Text("Punctele sunt colorate după status (verde=normal, " +
-                                    "roșu=ridicat, albastru=scăzut, galben=la limită). " +
-                                    "Liniile punctate marchează intervalul de referință al primei analize.")
+                    col.Item().Text(Loc.T("EvolutionPdfChartCaption"))
                         .FontSize(8).Italic().FontColor(Colors.Grey.Medium);
                 }
                 else
                 {
-                    col.Item().Text("Graficul nu a putut fi inclus în PDF.")
+                    col.Item().Text(Loc.T("EvolutionPdfChartMissing"))
                         .FontSize(9).Italic().FontColor(Colors.Grey.Medium);
                 }
 
@@ -153,13 +177,13 @@ namespace MedicalApp.Services
                                     .DefaultTextStyle(x => x.SemiBold().FontSize(9))
                                     .Background(Colors.Grey.Lighten3)
                                     .PaddingVertical(4).PaddingHorizontal(3);
-                                h.Cell().Element(Hdr).Text("Pacient");
-                                h.Cell().Element(Hdr).Text("Clinică / Laborator");
-                                h.Cell().Element(Hdr).Text("Data");
-                                h.Cell().Element(Hdr).AlignRight().Text("Valoare");
-                                h.Cell().Element(Hdr).AlignCenter().Text("Status");
-                                h.Cell().Element(Hdr).Text("Unit.");
-                                h.Cell().Element(Hdr).Text("Interval");
+                                h.Cell().Element(Hdr).Text(Loc.T("EvolutionPdfHdrPatient"));
+                                h.Cell().Element(Hdr).Text(Loc.T("EvolutionPdfHdrLab"));
+                                h.Cell().Element(Hdr).Text(Loc.T("EvolutionPdfHdrDate"));
+                                h.Cell().Element(Hdr).AlignRight().Text(Loc.T("EvolutionPdfHdrValue"));
+                                h.Cell().Element(Hdr).AlignCenter().Text(Loc.T("EvolutionPdfHdrStatus"));
+                                h.Cell().Element(Hdr).Text(Loc.T("EvolutionPdfHdrUnit"));
+                                h.Cell().Element(Hdr).Text(Loc.T("EvolutionPdfHdrRef"));
                             });
 
                             foreach (var p in s.Points)
@@ -200,7 +224,7 @@ namespace MedicalApp.Services
                     col.Item().PaddingTop(8).Background(Colors.Yellow.Lighten4)
                         .Padding(6).Text(t =>
                         {
-                            t.Span("⚠ Coduri LOINC negăsite în interpretările profilului: ")
+                            t.Span(Loc.T("EvolutionPdfCodesMissing"))
                                 .FontSize(8).SemiBold();
                             t.Span(string.Join(", ", vm.CodesNotFound)).FontSize(8);
                         });
