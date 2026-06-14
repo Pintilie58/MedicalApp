@@ -1,6 +1,6 @@
 @model MedicalApp.Models.EvolutionViewModel
 @{
-    ViewData["Title"] = $"Evoluție - {Model.ProfileName}";
+    ViewData["Title"] = $"{Loc.T("EvolutionPageHeading")} - {Model.ProfileName}";
 
     // Status badge — identical visual language as in Compare.cshtml so the
     // user immediately recognizes the convention.
@@ -15,15 +15,23 @@
 }
 
 <div class="container-fluid py-5">
+    @* Brand slogan strip — shown both at the very top and at the bottom of
+       the page (per user request, "în antet și sfârșit"). *@
+    <div class="text-center mb-3" data-testid="evolution-slogan-top">
+        <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle px-3 py-2 fw-semibold">
+            @Loc.T("EvolutionPdfSlogan")
+        </span>
+    </div>
+
     <div class="row justify-content-center">
         <div class="col-12 col-xxl-11">
 
             <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
                 <h2 class="text-primary fw-bold mb-0" data-testid="evolution-heading">
-                    &#128200; Evoluție în timp — @Model.ProfileName
+                    &#128200; @Loc.T("EvolutionPageHeading") — @Model.ProfileName
                 </h2>
                 <span class="badge bg-secondary align-self-center" data-testid="evolution-series-count">
-                    @Model.Series.Count analize
+                    @string.Format(Loc.T("EvolutionPageAnalyses"), Model.Series.Count)
                 </span>
                 <div class="ms-auto d-flex gap-2 flex-wrap">
                     @if (Model.Series.Any())
@@ -31,17 +39,18 @@
                         <button type="button" id="btnExportDownload"
                                 class="btn btn-outline-primary"
                                 data-testid="btn-export-download">
-                            &#128229; Descarcă PDF
+                            &#128229; @Loc.T("EvolutionPageBtnDownload")
                         </button>
                         <button type="button" id="btnExportEmail"
                                 class="btn btn-outline-success"
-                                data-testid="btn-export-email">
-                            &#9993; Trimite pe email
+                                data-testid="btn-export-email"
+                                data-label-sending="@Loc.T("EvolutionPageBtnEmailSending")">
+                            &#9993; @Loc.T("EvolutionPageBtnEmail")
                         </button>
                     }
                     <a asp-action="History" asp-route-id="@Model.ProfileId"
                        class="btn btn-outline-secondary" data-testid="btn-back-history">
-                        &larr; Arhivă
+                        &larr; @Loc.T("EvolutionPageBtnBackArchive")
                     </a>
                 </div>
             </div>
@@ -62,18 +71,16 @@
             @if (Model.CodesNotFound.Any())
             {
                 <div class="alert alert-warning small" data-testid="evolution-codes-not-found">
-                    &#9888; Următoarele coduri LOINC nu apar în nicio interpretare a acestui profil:
-                    <strong>@string.Join(", ", Model.CodesNotFound)</strong>. Verifică dacă ai
-                    selectat profilul corect sau dacă acele analize au fost interpretate cu codare LOINC.
+                    &#9888; @Loc.T("EvolutionPageCodesNotFound")
+                    <strong>@string.Join(", ", Model.CodesNotFound)</strong>.
+                    @Loc.T("EvolutionPageCodesNotFoundHint")
                 </div>
             }
 
             @if (!Model.Series.Any())
             {
                 <div class="alert alert-info" data-testid="evolution-empty">
-                    Nu am găsit nicio valoare pentru codurile cerute. Re-interpretează interpretările
-                    vechi (înainte de modulul LOINC) pentru a obține coduri standardizate, apoi
-                    revino aici.
+                    @Loc.T("EvolutionPageEmpty")
                 </div>
             }
             else
@@ -81,12 +88,8 @@
                 @* ---------- 1) Combined chart ---------- *@
                 <div class="card border-0 shadow-sm mb-4" data-testid="evolution-chart-card">
                     <div class="card-body">
-                        <h5 class="fw-bold text-secondary mb-3">Grafic combinat</h5>
-                        <p class="small text-muted mb-3">
-                            Axa X = data recoltării &nbsp;|&nbsp; Axa Y = valoarea
-                            &nbsp;|&nbsp; Liniile întrerupte = limite de referință (când sunt
-                            disponibile, doar pentru prima analiză selectată).
-                        </p>
+                        <h5 class="fw-bold text-secondary mb-3">@Loc.T("EvolutionPageChartTitle")</h5>
+                        <p class="small text-muted mb-3">@Loc.T("EvolutionPageChartLegend")</p>
                         <div style="position:relative; height:420px;">
                             <canvas id="evolutionChart" data-testid="evolution-canvas"></canvas>
                         </div>
@@ -123,13 +126,13 @@
                                 <table class="table table-sm table-hover align-middle mb-0">
                                     <thead class="table-light">
                                         <tr>
-                                            <th>Pacient</th>
-                                            <th>Clinică / Laborator</th>
-                                            <th>Data recoltării</th>
-                                            <th class="text-end">Valoare</th>
-                                            <th class="text-center">Status</th>
-                                            <th>Unitate</th>
-                                            <th>Interval ref.</th>
+                                            <th>@Loc.T("EvolutionPdfHdrPatient")</th>
+                                            <th>@Loc.T("EvolutionPdfHdrLab")</th>
+                                            <th>@Loc.T("EvolutionPageHdrSampleDate")</th>
+                                            <th class="text-end">@Loc.T("EvolutionPdfHdrValue")</th>
+                                            <th class="text-center">@Loc.T("EvolutionPdfHdrStatus")</th>
+                                            <th>@Loc.T("EvolutionPageHdrUnit")</th>
+                                            <th>@Loc.T("EvolutionPageHdrRefRange")</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -154,13 +157,11 @@
             }
 
             <p class="small text-muted mt-3">
-                Acest grafic agregă valorile parametrilor selectați din TOATE interpretările acestui
-                profil care conțin codul LOINC respectiv. Punctele sunt colorate după status:
-                <span class="badge bg-success">normal</span>
-                <span class="badge bg-danger">crescut</span>
-                <span class="badge bg-primary">scăzut</span>
-                <span class="badge bg-warning text-dark">la limită</span>.
-                Această acțiune NU consumă credite.
+                @Loc.T("EvolutionPageFootnote")
+                <span class="badge bg-success ms-1">@Loc.T("EvolutionPageStatusNormal")</span>
+                <span class="badge bg-danger">@Loc.T("EvolutionPageStatusHigh")</span>
+                <span class="badge bg-primary">@Loc.T("EvolutionPageStatusLow")</span>
+                <span class="badge bg-warning text-dark">@Loc.T("EvolutionPageStatusBorderline")</span>
                 <br />
                 <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background:#198754;vertical-align:middle;"></span>
                 @Loc.T("LoincSourceLegendVerified")
@@ -168,6 +169,13 @@
                 <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background:#0d6efd;vertical-align:middle;"></span>
                 @Loc.T("LoincSourceLegendAuto")
             </p>
+
+            @* Bottom slogan strip — matches the top banner. *@
+            <div class="text-center mt-4" data-testid="evolution-slogan-bottom">
+                <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle px-3 py-2 fw-semibold">
+                    @Loc.T("EvolutionPdfSlogan")
+                </span>
+            </div>
         </div>
     </div>
 </div>
@@ -208,11 +216,27 @@
         ))
     </script>
 
+    @* Localised labels for Chart.js — passed as a JSON island so the JS
+       below stays language-agnostic. *@
+    <script id="evolutionI18n" type="application/json">
+        @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new {
+            refLow   = Loc.T("EvolutionPageRefLowLabel"),
+            refHigh  = Loc.T("EvolutionPageRefHighLabel"),
+            tipValue = Loc.T("EvolutionPageTipValue"),
+            tipStatus= Loc.T("EvolutionPageTipStatus"),
+            tipPatient = Loc.T("EvolutionPageTipPatient"),
+            tipLab   = Loc.T("EvolutionPageTipLab"),
+            axisX    = Loc.T("EvolutionPageAxisX"),
+            axisY    = Loc.T("EvolutionPageAxisY")
+        }))
+    </script>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script>
         (function () {
             // ---- Parse the server-side payload ----
             const payload = JSON.parse(document.getElementById('evolutionData').textContent);
+            const i18n = JSON.parse(document.getElementById('evolutionI18n').textContent);
             if (!payload || !payload.length) return;
 
             // ---- Status -> point color (overrides series color per point) ----
@@ -254,7 +278,7 @@
                     const xs = numericPoints.map(p => p.x);
                     if (series.refLow !== null && series.refLow !== undefined) {
                         datasets.push({
-                            label: 'Limită inferioară (' + series.code + ')',
+                            label: i18n.refLow + ' (' + series.code + ')',
                             data: xs.map(x => ({ x: x, y: series.refLow })),
                             borderColor: series.color,
                             borderDash: [6, 4],
@@ -266,7 +290,7 @@
                     }
                     if (series.refHigh !== null && series.refHigh !== undefined) {
                         datasets.push({
-                            label: 'Limită superioară (' + series.code + ')',
+                            label: i18n.refHigh + ' (' + series.code + ')',
                             data: xs.map(x => ({ x: x, y: series.refHigh })),
                             borderColor: series.color,
                             borderDash: [6, 4],
@@ -321,11 +345,11 @@
                     scales: {
                         x: {
                             type: 'category',
-                            title: { display: true, text: 'Data recoltării' },
+                            title: { display: true, text: i18n.axisX },
                             ticks: { autoSkip: true, maxTicksLimit: 12 },
                         },
                         y: {
-                            title: { display: true, text: 'Valoare' },
+                            title: { display: true, text: i18n.axisY },
                             beginAtZero: false,
                         }
                     },
@@ -340,11 +364,11 @@
                                     }
                                     const lines = [
                                         item.dataset.label,
-                                        'Valoare: ' + (meta.value || item.formattedValue),
-                                        'Status: ' + (meta.status || '-'),
+                                        i18n.tipValue  + ': ' + (meta.value || item.formattedValue),
+                                        i18n.tipStatus + ': ' + (meta.status || '-'),
                                     ];
-                                    if (meta.patient) lines.push('Pacient: ' + meta.patient);
-                                    if (meta.lab)     lines.push('Laborator: ' + meta.lab);
+                                    if (meta.patient) lines.push(i18n.tipPatient + ': ' + meta.patient);
+                                    if (meta.lab)     lines.push(i18n.tipLab     + ': ' + meta.lab);
                                     return lines;
                                 }
                             }
@@ -382,7 +406,8 @@
             if (btnDl)   btnDl.addEventListener('click', () => submitExport('download'));
             if (btnMail) btnMail.addEventListener('click', () => {
                 btnMail.disabled = true;
-                btnMail.innerHTML = '⏳ Se trimite...';
+                var sendingLabel = btnMail.getAttribute('data-label-sending') || 'Sending...';
+                btnMail.innerHTML = '⏳ ' + sendingLabel;
                 submitExport('email');
             });
         })();
