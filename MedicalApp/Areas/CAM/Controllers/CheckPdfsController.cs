@@ -192,6 +192,9 @@ namespace MedicalApp.Areas.CAM.Controllers
             }
             await _db.SaveChangesAsync();
             TempData["SuccessMessage"] = $"Override salvat pentru {fileName}.";
+            // Stay on the edited row instead of jumping back to the top of
+            // the list — picked up by the view's scroll-to-row script.
+            TempData["ScrollToFile"] = fileName;
             return RedirectToAction(nameof(Index));
         }
 
@@ -214,6 +217,8 @@ namespace MedicalApp.Areas.CAM.Controllers
                 await _db.SaveChangesAsync();
             }
             TempData["SuccessMessage"] = "Override șters. PDF-ul va fi re-analizat automat.";
+            // Keep the operator on the same row after the override is cleared.
+            TempData["ScrollToFile"] = fileName;
             return RedirectToAction(nameof(Index));
         }
 
@@ -320,6 +325,7 @@ namespace MedicalApp.Areas.CAM.Controllers
             }
 
             int copied = 0, skipped = 0, rejected = 0;
+            string? firstUploadedName = null;
             foreach (var f in files)
             {
                 if (f == null || f.Length == 0) { skipped++; continue; }
@@ -333,7 +339,8 @@ namespace MedicalApp.Areas.CAM.Controllers
                     // Disambiguate to avoid silently overwriting an existing file.
                     var stem = Path.GetFileNameWithoutExtension(baseName);
                     var ext = Path.GetExtension(baseName);
-                    dest = Path.Combine(originalFolder, $"{stem}_{DateTime.Now:yyyyMMdd_HHmmss}{ext}");
+                    baseName = $"{stem}_{DateTime.Now:yyyyMMdd_HHmmss}{ext}";
+                    dest = Path.Combine(originalFolder, baseName);
                 }
 
                 try
@@ -341,6 +348,10 @@ namespace MedicalApp.Areas.CAM.Controllers
                     using var stream = new FileStream(dest, FileMode.CreateNew, FileAccess.Write);
                     await f.CopyToAsync(stream);
                     copied++;
+                    // Remember the FIRST file successfully copied — the view
+                    // will scroll the operator directly to its row so they
+                    // don't have to manually find it in long batches.
+                    if (firstUploadedName == null) firstUploadedName = baseName;
                 }
                 catch (Exception ex)
                 {
@@ -353,6 +364,7 @@ namespace MedicalApp.Areas.CAM.Controllers
                 $"Upload finalizat: {copied} copiate" +
                 (rejected > 0 ? $", {rejected} respinse (nu sunt PDF)" : "") +
                 (skipped > 0 ? $", {skipped} sărite (erori I/O)" : "") + ".";
+            if (firstUploadedName != null) TempData["ScrollToFile"] = firstUploadedName;
             return RedirectToAction(nameof(Index));
         }
     }

@@ -8,6 +8,13 @@
 }
 
 <div class="container py-5">
+    @* Hidden marker — picked up by the page-load script to scroll to the
+       row that was just uploaded / edited / cleared. Filled by the
+       controller via TempData["ScrollToFile"]. *@
+    <div id="cam-checkpdfs-scroll-marker"
+         data-scroll-to="@(TempData["ScrollToFile"] as string ?? "")"
+         style="display:none;"></div>
+
     <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
         <h2 class="text-primary fw-bold mb-0" data-testid="cam-checkpdfs-heading">
             &#128270; Verificare PDF-uri în folderul Original
@@ -43,7 +50,7 @@
             <p class="small text-muted mb-2">
                 Selectează unul sau mai multe fișiere PDF de pe disc.
                 Fișierele sunt <strong>copiate</strong> (nu mutate) în folderul <code>Original</code>
-                al clinicii tale.
+                al clinicii tale, <strong>pentru a fi interpretat</strong>.
             </p>
             <form asp-action="UploadFiles" method="post" enctype="multipart/form-data"
                   class="d-flex flex-wrap gap-2" data-testid="cam-checkpdfs-upload-form">
@@ -117,12 +124,18 @@ Email: ion.popescu@example.com</pre>
                 <span class="badge bg-danger fs-6 px-3 py-2">&#10007; Blocate: @blockedCount</span>
             }
             <span class="badge bg-secondary fs-6 px-3 py-2">Total: @Model.Items.Count</span>
-            <div class="ms-auto">
+            <div class="ms-auto d-flex gap-2">
                 <form method="get" class="d-inline">
                     <button class="btn btn-outline-primary btn-sm" type="submit" data-testid="cam-checkpdfs-refresh">
                         &#10227; Re-scanează
                     </button>
                 </form>
+                <a asp-controller="Batch" asp-action="Start" asp-area="CAM"
+                   class="btn btn-success btn-sm fw-bold"
+                   data-testid="cam-checkpdfs-launch-batch"
+                   title="Lansează un lot nou — interpretează toate PDF-urile din folderul Original">
+                    &#9658; Lansează lot
+                </a>
             </div>
         </div>
 
@@ -159,7 +172,7 @@ Email: ion.popescu@example.com</pre>
                             else if (r.IsValid) rowClass = "";
                             else rowClass = "table-danger";
 
-                            <tr class="@rowClass" data-testid="cam-checkpdfs-row">
+                            <tr class="@rowClass" data-testid="cam-checkpdfs-row" data-filename="@r.FileName">
                                 <td class="text-center">
                                     @if (r.IsValid)
                                     {
@@ -297,6 +310,32 @@ Email: ion.popescu@example.com</pre>
 @section Scripts {
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        // ---- Scroll-to-row support ----
+        // After UploadFiles / SaveOverride / ClearOverride the controller stores
+        // the file name to focus in TempData["ScrollToFile"]. We pick it up via
+        // a hidden marker, find the matching <tr data-filename="..."> and
+        // smooth-scroll to it so the operator doesn't have to re-locate the row.
+        var scrollMarker = document.getElementById('cam-checkpdfs-scroll-marker');
+        if (scrollMarker) {
+            var targetName = scrollMarker.getAttribute('data-scroll-to') || '';
+            if (targetName) {
+                var rows = document.querySelectorAll('tr[data-filename]');
+                for (var i = 0; i < rows.length; i++) {
+                    if (rows[i].getAttribute('data-filename') === targetName) {
+                        var row = rows[i];
+                        // Wait one tick so the alert toasts above the table have
+                        // already taken their height into account before scrolling.
+                        setTimeout(function () {
+                            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            row.classList.add('cam-row-flash');
+                            setTimeout(function () { row.classList.remove('cam-row-flash'); }, 1600);
+                        }, 50);
+                        break;
+                    }
+                }
+            }
+        }
+
         var editModal = document.getElementById('editModal');
         if (!editModal) return;
         editModal.addEventListener('show.bs.modal', function (event) {
@@ -315,4 +354,13 @@ Email: ion.popescu@example.com</pre>
         });
     });
 </script>
+<style>
+    /* Brief sage flash on the row we just scrolled to so the operator
+       immediately sees where the cursor landed. */
+    .cam-row-flash { animation: cam-row-flash 1.6s ease-out; }
+    @@keyframes cam-row-flash {
+        0%   { box-shadow: inset 0 0 0 3px rgba(40, 167, 69, 0.7); }
+        100% { box-shadow: inset 0 0 0 3px rgba(40, 167, 69, 0);   }
+    }
+</style>
 }
