@@ -126,6 +126,14 @@
             </div>
 
             <div class="land-hero-visual-wrap" data-testid="land-hero-visual">
+                @* ===== Multilingual interpretation banner — red pulsing lightbulb
+                       to draw the eye, intense green bold text. Positioned ABOVE
+                       the walking-doctor strip (where the photo's red line is). *@
+                <div class="land-lang-banner" data-testid="land-lang-banner">
+                    <i class="fa-solid fa-lightbulb land-lang-banner-bulb" aria-hidden="true"></i>
+                    <span class="land-lang-banner-text">@Loc.T("HeroLangBanner")</span>
+                </div>
+
                 @* ===== Walking doctor — strolls left↔right along the sage line above the deck ===== *@
                 <div class="land-deck-walker" data-testid="land-deck-walker" aria-hidden="true">
                     <div class="land-deck-walker-line"></div>

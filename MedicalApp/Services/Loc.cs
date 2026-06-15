@@ -69,6 +69,7 @@ namespace MedicalApp.Services
                 ["HeroStatusHigh"] = "High",
                 ["HeroStatusLow"] = "Low",
                 ["HeroStatusBorder"] = "Border",
+                ["HeroLangBanner"] = "Analyses interpreted in your own language, no matter what language the original lab report was issued in.",
 
                 // ===== Comparison table (Tu singur / Cabinet doctor / MedicalApp+) =====
                 ["CompareEyebrow"] = "Side by side",
@@ -609,6 +610,7 @@ namespace MedicalApp.Services
                 ["HeroStatusHigh"] = "Crescut",
                 ["HeroStatusLow"] = "Scăzut",
                 ["HeroStatusBorder"] = "Limită",
+                ["HeroLangBanner"] = "Interpretarea analizelor pe limba ta, indiferent de limba în care este emis buletinul de analize original.",
 
                 // ===== Tabel comparativ (Tu singur / Cabinet doctor / MedicalApp+) =====
                 ["CompareEyebrow"] = "Comparație directă",
@@ -1122,6 +1124,7 @@ namespace MedicalApp.Services
                 ["HeroStatusHigh"] = "Élevé",
                 ["HeroStatusLow"] = "Bas",
                 ["HeroStatusBorder"] = "Limite",
+                ["HeroLangBanner"] = "Interprétation de tes analyses dans ta langue, quelle que soit la langue du bulletin d'analyses original.",
                 // ----- Deck of cards -----
                 ["DeckCaptionCam"] = "Comparaison côté clinique",
                 ["DeckCaptionCamClinic"] = "Tableau de bord CAM — comparaison clinique",
@@ -1475,6 +1478,7 @@ namespace MedicalApp.Services
                 ["HeroStatusHigh"] = "Alto",
                 ["HeroStatusLow"] = "Bajo",
                 ["HeroStatusBorder"] = "Límite",
+                ["HeroLangBanner"] = "Interpretación de tus análisis en tu idioma, sin importar en qué idioma se haya emitido el informe original.",
                 // ----- Deck of cards -----
                 ["DeckCaptionCam"] = "Comparativa lado clínica",
                 ["DeckCaptionCamClinic"] = "Panel CAM — comparativa clínica",
@@ -1828,6 +1832,7 @@ namespace MedicalApp.Services
                 ["HeroStatusHigh"] = "Hoch",
                 ["HeroStatusLow"] = "Niedrig",
                 ["HeroStatusBorder"] = "Grenzwert",
+                ["HeroLangBanner"] = "Interpretation deiner Analysen in deiner Sprache, egal in welcher Sprache der Originalbefund ausgestellt wurde.",
                 // ----- Deck of cards -----
                 ["DeckCaptionCam"] = "Klinik-Vergleich",
                 ["DeckCaptionCamClinic"] = "CAM-Dashboard — klinischer Vergleich",
