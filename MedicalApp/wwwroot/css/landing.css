@@ -1146,38 +1146,40 @@ body.landing-body a:hover { color: var(--land-coral); }
 
 /* ============== Multilingual interpretation banner ==============
    Sits above the walking-doctor strip in the hero visual column.
-   Red pulsing lightbulb + intense-green bold text — eye-catching
+   Rotating blue Earth globe + vivid-green bold text — eye-catching
    without competing with the H1.                                  */
 .land-lang-banner {
     display: flex;
     align-items: flex-start;
     gap: 0.8rem;
     padding: 0.9rem 1.1rem;
+    margin-top: -5rem;        /* lift the whole strip ~2 cm higher */
     margin-bottom: 0.4rem;
-    background: rgba(34, 139, 34, 0.05);
-    border-left: 4px solid #0F8B3E;
+    background: rgba(34, 197, 94, 0.06);
+    border-left: 4px solid #16A34A;
     border-radius: 10px;
-    box-shadow: 0 4px 12px -8px rgba(15, 139, 62, 0.35);
+    box-shadow: 0 4px 12px -8px rgba(22, 163, 74, 0.35);
     animation: land-lang-banner-in 0.6s ease-out both;
 }
 .land-lang-banner-bulb {
     flex-shrink: 0;
-    font-size: 1.4rem;
-    color: #DC3545;
+    font-size: 1.5rem;
+    color: #1976D2;          /* Earth blue */
     margin-top: 0.1rem;
-    animation: land-lang-bulb-pulse 1.6s ease-in-out infinite;
-    filter: drop-shadow(0 0 4px rgba(220, 53, 69, 0.5));
+    animation: land-lang-globe-spin 6s linear infinite;
+    filter: drop-shadow(0 0 4px rgba(25, 118, 210, 0.45));
+    transform-origin: center;
 }
 .land-lang-banner-text {
-    color: #0F8B3E;          /* intense forest green */
+    color: #22C55E;          /* vivid bright green */
     font-weight: 800;         /* aldin / bold extra */
     font-size: 1rem;
     line-height: 1.4;
     letter-spacing: -0.005em;
 }
-@keyframes land-lang-bulb-pulse {
-    0%, 100% { transform: scale(1);    filter: drop-shadow(0 0 4px rgba(220, 53, 69, 0.5)); }
-    50%      { transform: scale(1.18); filter: drop-shadow(0 0 10px rgba(220, 53, 69, 0.95)); }
+@keyframes land-lang-globe-spin {
+    from { transform: rotate(0deg);   }
+    to   { transform: rotate(360deg); }
 }
 @keyframes land-lang-banner-in {
     from { opacity: 0; transform: translateY(-6px); }
