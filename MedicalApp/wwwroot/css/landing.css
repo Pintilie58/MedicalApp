@@ -1146,48 +1146,54 @@ body.landing-body a:hover { color: var(--land-coral); }
 
 /* ============== Multilingual interpretation banner ==============
    Sits above the walking-doctor strip in the hero visual column.
-   Rotating blue Earth globe + vivid-green bold text — eye-catching
-   without competing with the H1.                                  */
-.land-lang-banner {
+   Rotating blue Earth globe + vivid-green bold text.
+   `!important` is used on color/animation rules so FontAwesome's own
+   `.fa-solid.fa-earth-europe` (specificity 0,2,0) cannot override
+   our single-class selector.                                       */
+.land-hero-visual-wrap .land-lang-banner {
     display: flex;
     align-items: flex-start;
     gap: 0.8rem;
     padding: 0.9rem 1.1rem;
-    margin-top: -5rem;        /* lift the whole strip ~2 cm higher */
+    margin-top: -7.5rem !important;  /* lift ~2 cm above previous spot */
     margin-bottom: 0.4rem;
-    background: rgba(34, 197, 94, 0.06);
-    border-left: 4px solid #16A34A;
+    background: rgba(0, 200, 83, 0.07);
+    border-left: 4px solid #00B050;
     border-radius: 10px;
-    box-shadow: 0 4px 12px -8px rgba(22, 163, 74, 0.35);
+    box-shadow: 0 4px 12px -8px rgba(0, 200, 83, 0.40);
+    position: relative;
+    z-index: 4;                       /* sit above the walking strip */
     animation: land-lang-banner-in 0.6s ease-out both;
 }
-.land-lang-banner-bulb {
+.land-hero-visual-wrap .land-lang-banner-bulb {
     flex-shrink: 0;
-    font-size: 1.5rem;
-    color: #1976D2;          /* Earth blue */
+    font-size: 1.6rem !important;
+    color: #1976D2 !important;        /* Earth blue — beat FA defaults */
     margin-top: 0.1rem;
-    animation: land-lang-globe-spin 6s linear infinite;
-    filter: drop-shadow(0 0 4px rgba(25, 118, 210, 0.45));
-    transform-origin: center;
+    animation: land-lang-globe-spin 5s linear infinite !important;
+    transform-origin: center center !important;
+    filter: drop-shadow(0 0 5px rgba(25, 118, 210, 0.55));
+    display: inline-block;            /* required for transform to apply */
+    will-change: transform;
 }
-.land-lang-banner-text {
-    color: #22C55E;          /* vivid bright green */
-    font-weight: 800;         /* aldin / bold extra */
-    font-size: 1rem;
+.land-hero-visual-wrap .land-lang-banner-text {
+    color: #00C853 !important;        /* vivid green — Material A700 */
+    font-weight: 800 !important;       /* aldin / bold extra */
+    font-size: 1rem !important;
     line-height: 1.4;
     letter-spacing: -0.005em;
 }
 @keyframes land-lang-globe-spin {
-    from { transform: rotate(0deg);   }
-    to   { transform: rotate(360deg); }
+    0%   { transform: rotate(0deg);   }
+    100% { transform: rotate(360deg); }
 }
 @keyframes land-lang-banner-in {
     from { opacity: 0; transform: translateY(-6px); }
     to   { opacity: 1; transform: translateY(0);    }
 }
 @media (prefers-reduced-motion: reduce) {
-    .land-lang-banner-bulb { animation: none; }
-    .land-lang-banner      { animation: none; }
+    .land-lang-banner-bulb { animation: none !important; }
+    .land-lang-banner      { animation: none !important; }
 }
 
     color: var(--land-ink);
