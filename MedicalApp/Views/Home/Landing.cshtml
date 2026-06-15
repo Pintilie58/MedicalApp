@@ -126,13 +126,28 @@
             </div>
 
             <div class="land-hero-visual-wrap" data-testid="land-hero-visual">
-                @* ===== Multilingual interpretation banner — red pulsing lightbulb
-                       to draw the eye, intense green bold text. Positioned ABOVE
-                       the walking-doctor strip (where the photo's red line is). *@
-                <div class="land-lang-banner" data-testid="land-lang-banner">
-                    <i class="fa-solid fa-earth-europe land-lang-banner-bulb" aria-hidden="true"></i>
-                    <span class="land-lang-banner-text">@Loc.T("HeroLangBanner")</span>
+                @* ===== Multilingual interpretation banner — inline styles
+                       used here on purpose so they cannot be overridden by
+                       any cached CSS, FontAwesome defaults, or Bootstrap
+                       resets. specificity 1,0,0,0 beats everything else. *@
+                <div class="land-lang-banner" data-testid="land-lang-banner"
+                     style="display:flex;align-items:flex-start;gap:.8rem;padding:.9rem 1.1rem;margin-top:-7.5rem;margin-bottom:.4rem;background:rgba(0,200,83,.07);border-left:4px solid #00B050;border-radius:10px;box-shadow:0 4px 12px -8px rgba(0,200,83,.4);position:relative;z-index:4;">
+                    <i class="fa-solid fa-earth-europe land-lang-banner-bulb"
+                       aria-hidden="true"
+                       style="flex-shrink:0;font-size:1.6rem;color:#1976D2;margin-top:.1rem;display:inline-block;transform-origin:center center;animation:land-lang-globe-spin 5s linear infinite;filter:drop-shadow(0 0 5px rgba(25,118,210,.55));will-change:transform;"></i>
+                    <span class="land-lang-banner-text"
+                          style="color:#00C853;font-weight:800;font-size:1rem;line-height:1.4;letter-spacing:-.005em;">
+                        @Loc.T("HeroLangBanner")
+                    </span>
                 </div>
+                <style>
+                    /* Defined inline next to the element so it ships with
+                       every render even if landing.css is cached stale. */
+                    @@keyframes land-lang-globe-spin {
+                        0%   { transform: rotate(0deg);   }
+                        100% { transform: rotate(360deg); }
+                    }
+                </style>
 
                 @* ===== Walking doctor — strolls left↔right along the sage line above the deck ===== *@
                 <div class="land-deck-walker" data-testid="land-deck-walker" aria-hidden="true">
