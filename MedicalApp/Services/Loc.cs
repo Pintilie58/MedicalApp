@@ -303,7 +303,10 @@ namespace MedicalApp.Services
 
                 // ===== Existing keys (preserved as-is) =====
                 ["AppTitle"] = "MedicalApp",
-                ["WelcomeMessage"] = "Welcome in this world",
+                ["WelcomeMessage"] = "Welcome!",
+                ["WelcomeTagline1"] = "Take care of your health!",
+                ["WelcomeTagline2"] = "Be proactive!",
+                ["WelcomeTagline3"] = "Get informed for your next visit to the doctor!",
                 ["SelectLanguage"] = "Select language",
                 ["Login"] = "Login",
                 ["Register"] = "Register",
@@ -848,7 +851,10 @@ namespace MedicalApp.Services
 
                 // ===== Existing RO keys =====
                 ["AppTitle"] = "MedicalApp",
-                ["WelcomeMessage"] = "Bine ai venit în această lume",
+                ["WelcomeMessage"] = "Bine ai venit!",
+                ["WelcomeTagline1"] = "Ai grijă de sănătatea ta!",
+                ["WelcomeTagline2"] = "Fii preventiv!",
+                ["WelcomeTagline3"] = "Informează-te, pentru următoarea ta vizită la doctor!",
                 ["SelectLanguage"] = "Selectează limba",
                 ["Login"] = "Autentificare",
                 ["Register"] = "Înregistrare",
@@ -1089,7 +1095,10 @@ namespace MedicalApp.Services
             {
                 ["WalkerGreeting"] = "Heureux de vous voir !",
                 ["AppTitle"] = "MedicalApp",
-                ["WelcomeMessage"] = "Bienvenue dans ce monde",
+                ["WelcomeMessage"] = "Bienvenue !",
+                ["WelcomeTagline1"] = "Prends soin de ta santé !",
+                ["WelcomeTagline2"] = "Sois préventif !",
+                ["WelcomeTagline3"] = "Informe-toi pour ta prochaine visite chez le médecin !",
                 ["SelectLanguage"] = "Choisir la langue",
                 ["Login"] = "Connexion",
                 ["Register"] = "S'inscrire",
@@ -1291,7 +1300,10 @@ namespace MedicalApp.Services
             {
                 ["WalkerGreeting"] = "¡Me alegro de verte!",
                 ["AppTitle"] = "MedicalApp",
-                ["WelcomeMessage"] = "Bienvenido a este mundo",
+                ["WelcomeMessage"] = "¡Bienvenido!",
+                ["WelcomeTagline1"] = "¡Cuida tu salud!",
+                ["WelcomeTagline2"] = "¡Sé preventivo!",
+                ["WelcomeTagline3"] = "¡Infórmate para tu próxima visita al médico!",
                 ["SelectLanguage"] = "Seleccionar idioma",
                 ["Login"] = "Iniciar sesión",
                 ["Register"] = "Registrarse",
@@ -1493,7 +1505,10 @@ namespace MedicalApp.Services
             {
                 ["WalkerGreeting"] = "Schön, dich zu sehen!",
                 ["AppTitle"] = "MedicalApp",
-                ["WelcomeMessage"] = "Willkommen in dieser Welt",
+                ["WelcomeMessage"] = "Willkommen!",
+                ["WelcomeTagline1"] = "Achte auf deine Gesundheit!",
+                ["WelcomeTagline2"] = "Sei vorbeugend!",
+                ["WelcomeTagline3"] = "Informiere dich für deinen nächsten Arztbesuch!",
                 ["SelectLanguage"] = "Sprache auswählen",
                 ["Login"] = "Anmelden",
                 ["Register"] = "Registrieren",

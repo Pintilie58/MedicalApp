@@ -33,7 +33,18 @@
                 <img src="~/images/welcome.jpg" class="card-img-top" alt="Welcome"
                      onerror="this.onerror=null;this.src='https://via.placeholder.com/800x500/0d6efd/ffffff?text=MedicalApp';" />
                 <div class="card-body text-center">
-                    <h2 class="card-title fw-bold text-primary">@Loc.T("WelcomeMessage")</h2>
+                    <h2 class="card-title fw-bold text-primary mb-3" data-testid="welcome-heading">
+                        @Loc.T("WelcomeMessage")
+                    </h2>
+                    <p class="fs-5 fw-semibold text-success mb-1" data-testid="welcome-tagline-1">
+                        @Loc.T("WelcomeTagline1")
+                    </p>
+                    <p class="fs-5 fw-semibold text-success mb-1" data-testid="welcome-tagline-2">
+                        @Loc.T("WelcomeTagline2")
+                    </p>
+                    <p class="fs-6 text-secondary mb-0" data-testid="welcome-tagline-3">
+                        @Loc.T("WelcomeTagline3")
+                    </p>
                 </div>
             </div>
         </div>
