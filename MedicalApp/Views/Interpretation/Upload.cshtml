@@ -47,30 +47,29 @@
                         <!-- Step 1: Profile selection -->
                         <div class="mb-4">
                             <label asp-for="ProfileId" class="form-label fw-semibold">
-                                &#128106; Pentru cine este analiza?
+                                &#128106; @Loc.T("InterpretWhoForLabel")
                             </label>
                             <div class="input-group profile-select-group">
                                 <select asp-for="ProfileId" class="form-select form-select-lg profile-select-input"
                                         data-testid="interpret-profile-select" required>
-                                    <option value="">-- Selectează profilul --</option>
+                                    <option value="">@Loc.T("InterpretSelectProfilePlaceholder")</option>
                                     @foreach (var p in Model.AvailableProfiles)
                                     {
                                         <option value="@p.Id">
-                                            @p.Name@(p.IsDefault ? " (implicit)" : "")
+                                            @p.Name@(p.IsDefault ? Loc.T("ProfileDefaultSuffix") : "")
                                         </option>
                                     }
                                 </select>
                                 <a asp-controller="Profiles" asp-action="Create"
                                    class="btn btn-outline-primary"
-                                   title="Creează profil nou (ex: Mama, Tata)"
+                                   title="@Loc.T("InterpretAddProfileBtnTooltip")"
                                    data-testid="interpret-add-profile-btn">
-                                    &#43; Profil nou
+                                    &#43; @Loc.T("InterpretAddProfileBtn")
                                 </a>
                             </div>
                             <span asp-validation-for="ProfileId" class="text-danger small"></span>
                             <div class="form-text">
-                                Analiza va fi salvată în istoricul profilului selectat. Poți
-                                urmări apoi evoluția parametrilor (ex: VSH-ul Mamei în ultimele 6 luni).
+                                @Loc.T("InterpretProfileHelp")
                             </div>
                         </div>
 

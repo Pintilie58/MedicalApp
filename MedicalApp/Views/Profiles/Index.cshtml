@@ -4,7 +4,7 @@
     Each card shows quick stats and links to the archive (History) for that profile.
 *@
 @{
-    ViewData["Title"] = "Profile";
+    ViewData["Title"] = Loc.T("ProfilesPageTitle");
     var successMessage = TempData["SuccessMessage"] as string;
     var errorMessage = TempData["ErrorMessage"] as string;
 }
@@ -13,25 +13,23 @@
     <div class="row justify-content-center">
         <div class="col-lg-10">
             <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
-                <h2 class="text-primary fw-bold mb-0">&#128106; Profilele mele</h2>
+                <h2 class="text-primary fw-bold mb-0">&#128106; @Loc.T("ProfilesHeading")</h2>
                 <span class="badge bg-secondary align-self-center" data-testid="profiles-total-count">
-                    @Model.Profiles.Count total
+                    @Model.Profiles.Count @Loc.T("ProfilesTotalSuffix")
                 </span>
                 <div class="ms-auto d-flex gap-2">
                     <a asp-controller="Account" asp-action="Dashboard"
                        class="btn btn-outline-secondary" data-testid="btn-back-dashboard">
-                        &larr; Dashboard
+                        &larr; @Loc.T("BackToDashboard")
                     </a>
                     <a asp-action="Create" class="btn btn-primary" data-testid="btn-create-profile">
-                        &#43; Adaugă profil nou
+                        &#43; @Loc.T("ProfileFormHeadingNew")
                     </a>
                 </div>
             </div>
 
             <p class="text-muted mb-4">
-                Profilele îți permit să interpretezi analize pentru tine și pentru cei apropiați
-                (mama, tata, copii, prieteni) folosind aceleași credite. Fiecare profil are
-                istoric separat și permite urmărirea evoluției în timp.
+                @Loc.T("ProfilesIntro")
             </p>
 
             @if (!string.IsNullOrEmpty(successMessage))
@@ -51,10 +49,10 @@
                     <div class="input-group">
                         <span class="input-group-text bg-white">&#128269;</span>
                         <input type="search" id="profileSearch" class="form-control"
-                               placeholder="Caută după nume, relație sau note..."
+                               placeholder="@Loc.T("ProfilesSearchPlaceholder")"
                                autocomplete="off" data-testid="profile-search-input" />
                         <button type="button" class="btn btn-outline-secondary" id="profileSearchClear"
-                                title="Șterge filtrul" data-testid="profile-search-clear">
+                                title="@Loc.T("ProfilesSearchClearTooltip")" data-testid="profile-search-clear">
                             &times;
                         </button>
                     </div>
@@ -66,8 +64,7 @@
             @if (!Model.Profiles.Any())
             {
                 <div class="alert alert-info">
-                    Nu ai niciun profil. Cum fiecare cont are automat un profil &quot;Eu&quot; la creare, 
-                    dacă vezi acest mesaj te rugăm să raportezi la admin.
+                    @Loc.T("ProfilesEmptyMsg")
                 </div>
             }
             else
@@ -76,7 +73,7 @@
                     @foreach (var p in Model.Profiles)
                     {
                         var badgeClass = p.IsDefault ? "bg-primary" : "bg-secondary";
-                        var badgeLabel = p.IsDefault ? "Implicit" : (p.Relationship ?? "Profil");
+                        var badgeLabel = p.IsDefault ? Loc.T("ProfilesBadgeDefault") : (p.Relationship ?? Loc.T("ProfilesBadgeProfile"));
 
                         <div class="col-md-6 col-lg-4 profile-card-wrapper"
                              data-name="@p.Name.ToLower()"
@@ -94,13 +91,13 @@
                                     <dl class="row small text-muted mb-3 mt-3">
                                         @if (!string.IsNullOrWhiteSpace(p.Gender))
                                         {
-                                            <dt class="col-6">Sex</dt><dd class="col-6">@p.Gender</dd>
+                                            <dt class="col-6">@Loc.T("ProfileLabelGender")</dt><dd class="col-6">@p.Gender</dd>
                                         }
                                         @if (p.BirthYear.HasValue)
                                         {
-                                            <dt class="col-6">An naștere</dt><dd class="col-6">@p.BirthYear</dd>
+                                            <dt class="col-6">@Loc.T("ProfileLabelBirthYear")</dt><dd class="col-6">@p.BirthYear</dd>
                                         }
-                                        <dt class="col-6 text-nowrap">Interpretări</dt>
+                                        <dt class="col-6 text-nowrap">@Loc.T("ProfilesStatInterpretations")</dt>
                                         <dd class="col-6 fw-bold text-dark">@p.InterpretationsCount</dd>
                                     </dl>
 
@@ -116,13 +113,13 @@
                                         <a asp-action="History" asp-route-id="@p.Id"
                                            class="btn btn-sm btn-outline-info flex-grow-1"
                                            data-testid="btn-history-profile-@p.Id"
-                                           title="Vezi arhiva interpretărilor pentru acest profil">
-                                            &#128218; Arhivă (@p.InterpretationsCount)
+                                           title="@Loc.T("ProfilesArchiveTooltip")">
+                                            &#128218; @Loc.T("ProfilesBtnArchive") (@p.InterpretationsCount)
                                         </a>
                                         <a asp-action="Edit" asp-route-id="@p.Id"
                                            class="btn btn-sm btn-outline-primary"
                                            data-testid="btn-edit-profile-@p.Id">
-                                            Editează
+                                            @Loc.T("ProfilesBtnEdit")
                                         </a>
                                         @if (!p.IsDefault)
                                         {
@@ -134,7 +131,7 @@
                                                 <button type="submit"
                                                         class="btn btn-sm btn-outline-danger"
                                                         data-testid="btn-delete-profile-@p.Id">
-                                                    &#128465; Șterge
+                                                    &#128465; @Loc.T("ProfilesBtnDelete")
                                                 </button>
                                             </form>
                                         }
@@ -159,27 +156,26 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title text-danger">
-                    &#9888;&#65039; Confirmă ștergerea
+                    &#9888;&#65039; @Loc.T("ProfilesDeleteConfirmTitle")
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <p class="mb-2">
-                    Ești sigur că vrei să ștergi profilul <strong id="deleteProfileName">-</strong>?
+                    @Html.Raw(string.Format(Loc.T("ProfilesDeleteConfirmBodyFmt"), "<strong id=\"deleteProfileName\">-</strong>"))
                 </p>
                 <p class="small text-muted mb-0">
-                    Toate interpretările asociate acestui profil rămân în baza de date,
-                    dar profilul în sine va dispărea. Această acțiune nu poate fi anulată.
+                    @Loc.T("ProfilesDeleteConfirmNote")
                 </p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
                         data-testid="btn-cancel-delete-profile">
-                    Anulează
+                    @Loc.T("ProfilesDeleteConfirmCancel")
                 </button>
                 <button type="button" class="btn btn-danger" id="confirmDeleteProfileBtn"
                         data-testid="btn-confirm-delete-profile">
-                    &#128465; Da, șterge
+                    &#128465; @Loc.T("ProfilesDeleteConfirmYes")
                 </button>
             </div>
         </div>
@@ -217,9 +213,15 @@
                     if (show) visible++;
                 });
                 if (info) {
-                    info.textContent = q === ''
-                        ? ''
-                        : (visible + ' din ' + total + ' profile se potrivesc cu „' + input.value + '”');
+                    if (q === '') {
+                        info.textContent = '';
+                    } else {
+                        var fmt = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("ProfilesSearchMatchFmt")));
+                        info.textContent = fmt
+                            .replace('{0}', visible)
+                            .replace('{1}', total)
+                            .replace('{2}', input.value);
+                    }
                 }
             }
 
