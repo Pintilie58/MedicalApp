@@ -36,14 +36,13 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - **LoincDictionary** *(new — LOINC step 1)*: LoincCode (PK string), LongCommonName (indexed), OrderObs, AliasesJson, TranslationsJson, ImportedAt
 
 ## Implemented (changelog)
-- ✅ **2026-02 — Phase 3 traduceri: Interpretare + Profile (Index/Form)**:
-  - **`Loc.cs`**: +59 chei × 5 limbi (EN/RO/FR/ES/DE) = +295 traduceri pentru:
-    - `Views/Interpretation/Upload.cshtml` — toate stringurile inline RO ("Pentru cine este analiza?", "Profil nou", "(implicit)", help text, tooltip).
-    - `Views/Profiles/Form.cshtml` — toate label-urile, opțiunile select (Relație, Sex, Risc cardiovascular), butoanele (Salvează / Creează / Renunță), help-uri.
-    - `Views/Profiles/Index.cshtml` — heading, badges (Implicit/Profil), buton Arhivă/Editează/Șterge, modalul de confirmare ștergere + filtrul JS de căutare ("X din Y profile se potrivesc cu ...").
-  - **Total final `Loc.cs`**: 553 chei × 5 limbi = 2765 traduceri, brackets balansate, fără duplicate, toate string literal-urile închise corect.
+- ✅ **2026-02 — Phase 4: Custom file input localizat ("Choose File" / "No file chosen")**:
+  - `Views/Interpretation/Upload.cshtml`: native `<input type="file">` ascuns vizual (păstrat în DOM pentru validare `required` și submit). UI nou: buton stilizat „📎 Alege fișier…" + span cu numele fișierului selectat (sau text default „Niciun fișier ales"), totul tradus în EN/RO/FR/ES/DE.
+  - JS minim care actualizează numele fișierului la `change` și schimbă culoarea când e selectat un fișier.
+  - **`Loc.cs`**: +2 chei × 5 limbi = +10 traduceri (`UploadFileChooseBtn`, `UploadFileNoFileChosen`). Total: **555 chei × 5 limbi = 2775 traduceri**.
+- ✅ **2026-02 — Phase 3 traduceri: Interpretare + Profile (Index/Form)** (+59 chei × 5 limbi).
 - ✅ **2026-02 — Fix build Loc.cs (Phase 2a) + Phase 2b completă** (landing page).
-- 🔄 **2026-02 — Revert `MedicalApp.Tests`**: xUnit test project a fost eliminat complet (folder șters + curățat `MedicalApp.sln`) după ce a îngheţat VS2026 la Rebuild. Soluția conține din nou doar `MedicalApp`. Testarea automată C# este pe pauză; user-ul testează manual local.
+- 🔄 **2026-02 — Revert `MedicalApp.Tests`**: xUnit test project a fost eliminat complet după ce a îngheţat VS2026 la Rebuild. Testarea automată C# este pe pauză; user-ul testează manual local.
 
 - ✅ Project scaffolding (.NET 9 MVC) + SQL Server via EF Core
 - ✅ 5-language localization via `Loc.cs`

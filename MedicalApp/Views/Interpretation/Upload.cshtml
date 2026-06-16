@@ -73,11 +73,24 @@
                             </div>
                         </div>
 
-                        <!-- Step 2: PDF upload -->
+                        <!-- Step 2: PDF upload (custom localized file input — the native
+                             "Choose File / No file chosen" text comes from the browser and
+                             cannot be translated, so we hide it and show our own UI). -->
                         <div class="mb-3">
                             <label asp-for="PdfFile" class="form-label fw-semibold">@Loc.T("SelectPdfFile")</label>
-                            <input asp-for="PdfFile" type="file" accept="application/pdf,.pdf"
-                                   class="form-control form-control-lg" required />
+                            <div class="custom-file-input-wrap">
+                                <input asp-for="PdfFile" type="file" accept="application/pdf,.pdf"
+                                       class="custom-file-input-native" id="pdfFileInput" required />
+                                <label for="pdfFileInput" class="btn btn-outline-primary custom-file-input-btn"
+                                       data-testid="upload-file-choose-btn">
+                                    &#128206; @Loc.T("UploadFileChooseBtn")
+                                </label>
+                                <span class="custom-file-input-name text-muted" id="pdfFileName"
+                                      data-empty-text="@Loc.T("UploadFileNoFileChosen")"
+                                      data-testid="upload-file-name">
+                                    @Loc.T("UploadFileNoFileChosen")
+                                </span>
+                            </div>
                             <div class="form-text">@Loc.T("MaxSizeHint")</div>
                             <span asp-validation-for="PdfFile" class="text-danger small"></span>
                         </div>
@@ -141,6 +154,56 @@
         box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
     }
 
+    /* === Custom localized file input (hides native "Choose File / No file chosen") === */
+    .custom-file-input-wrap {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 8px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 8px;
+        background-color: #fff;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .custom-file-input-wrap:hover {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.18rem rgba(13, 110, 253, 0.10);
+    }
+    .custom-file-input-wrap:focus-within {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    /* Hide the native input but keep it accessible & required-validatable. */
+    .custom-file-input-native {
+        position: absolute !important;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+        opacity: 0;
+    }
+    .custom-file-input-btn {
+        margin-bottom: 0;
+        cursor: pointer;
+        white-space: nowrap;
+        font-weight: 600;
+    }
+    .custom-file-input-name {
+        flex: 1;
+        min-width: 0;
+        word-break: break-all;
+        font-size: 0.95rem;
+    }
+    .custom-file-input-name.has-file {
+        color: #0d47a1;
+        font-weight: 500;
+    }
+
     .processing-overlay {
         display: none;
         position: fixed;
@@ -194,6 +257,25 @@
 </style>
 
 @section Scripts {
+    <script>
+        // === Custom file input — update visible filename on selection ===
+        (function () {
+            var input = document.getElementById('pdfFileInput');
+            var nameEl = document.getElementById('pdfFileName');
+            if (!input || !nameEl) return;
+            var emptyText = nameEl.getAttribute('data-empty-text') || '';
+            input.addEventListener('change', function () {
+                if (input.files && input.files.length > 0) {
+                    nameEl.textContent = input.files[0].name;
+                    nameEl.classList.add('has-file');
+                } else {
+                    nameEl.textContent = emptyText;
+                    nameEl.classList.remove('has-file');
+                }
+            });
+        })();
+    </script>
+
     <script>
         (function () {
             var form = document.getElementById('uploadForm');

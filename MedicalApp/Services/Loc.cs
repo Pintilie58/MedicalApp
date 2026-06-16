@@ -609,7 +609,11 @@ namespace MedicalApp.Services
                 ["ProfilesDeleteConfirmNote"] = "All interpretations associated with this profile remain in the database, but the profile itself will disappear. This action cannot be undone.",
                 ["ProfilesDeleteConfirmCancel"] = "Cancel",
                 ["ProfilesDeleteConfirmYes"] = "Yes, delete",
-                ["ProfilesSearchMatchFmt"] = "{0} of {1} profiles match \"{2}\""
+                ["ProfilesSearchMatchFmt"] = "{0} of {1} profiles match \"{2}\"",
+                // ===== Phase 4: Custom file input (Choose file / No file chosen) =====
+                ["UploadFileChooseBtn"] = "Choose file…",
+                ["UploadFileNoFileChosen"] = "No file chosen",
+                // ===== End Phase 4 =====
                 // ===== End Phase 3 =====
             },
             ["ro"] = new()
@@ -1213,6 +1217,10 @@ namespace MedicalApp.Services
                 ["ProfilesDeleteConfirmCancel"] = "Anulează",
                 ["ProfilesDeleteConfirmYes"] = "Da, șterge",
                 ["ProfilesSearchMatchFmt"] = "{0} din {1} profile se potrivesc cu „{2}\"",
+                // ===== Phase 4: Custom file input (Choose file / No file chosen) =====
+                ["UploadFileChooseBtn"] = "Alege fișier…",
+                ["UploadFileNoFileChosen"] = "Niciun fișier ales",
+                // ===== End Phase 4 =====
                 // ===== End Phase 3 =====
             },
             ["fr"] = new()
@@ -1592,6 +1600,10 @@ namespace MedicalApp.Services
                 ["ProfilesDeleteConfirmCancel"] = "Annuler",
                 ["ProfilesDeleteConfirmYes"] = "Oui, supprimer",
                 ["ProfilesSearchMatchFmt"] = "{0} sur {1} profils correspondent à « {2} »",
+                // ===== Phase 4: Custom file input (Choose file / No file chosen) =====
+                ["UploadFileChooseBtn"] = "Choisir un fichier…",
+                ["UploadFileNoFileChosen"] = "Aucun fichier sélectionné",
+                // ===== End Phase 4 =====
                 // ===== End Phase 3 =====
                 // ===== End Phase 1 =====
                 ["WalkerGreeting"] = "Heureux de vous voir !",
@@ -2174,6 +2186,10 @@ namespace MedicalApp.Services
                 ["ProfilesDeleteConfirmCancel"] = "Cancelar",
                 ["ProfilesDeleteConfirmYes"] = "Sí, eliminar",
                 ["ProfilesSearchMatchFmt"] = "{0} de {1} perfiles coinciden con «{2}»",
+                // ===== Phase 4: Custom file input (Choose file / No file chosen) =====
+                ["UploadFileChooseBtn"] = "Elegir archivo…",
+                ["UploadFileNoFileChosen"] = "Ningún archivo seleccionado",
+                // ===== End Phase 4 =====
                 // ===== End Phase 3 =====
                 // ===== End Phase 1 =====
                 ["WalkerGreeting"] = "¡Me alegro de verte!",
@@ -2756,6 +2772,10 @@ namespace MedicalApp.Services
                 ["ProfilesDeleteConfirmCancel"] = "Abbrechen",
                 ["ProfilesDeleteConfirmYes"] = "Ja, löschen",
                 ["ProfilesSearchMatchFmt"] = "{0} von {1} Profilen stimmen mit „{2}\" überein",
+                // ===== Phase 4: Custom file input (Choose file / No file chosen) =====
+                ["UploadFileChooseBtn"] = "Datei wählen…",
+                ["UploadFileNoFileChosen"] = "Keine Datei ausgewählt",
+                // ===== End Phase 4 =====
                 // ===== End Phase 3 =====
                 // ===== End Phase 1 =====
                 ["WalkerGreeting"] = "Schön, dich zu sehen!",
