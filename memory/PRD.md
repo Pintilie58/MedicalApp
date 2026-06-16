@@ -36,6 +36,10 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - **LoincDictionary** *(new — LOINC step 1)*: LoincCode (PK string), LongCommonName (indexed), OrderObs, AliasesJson, TranslationsJson, ImportedAt
 
 ## Implemented (changelog)
+- ✅ **2026-02 — Fix build Loc.cs (Phase 2a) + Phase 2b completă**: 
+  - **Fix P0**: Reparate 2 string-uri DE cu `"` ne-escapat (`CompareViewLegendColors`, `ProfileCompareLegendColors`) + curățate 3 string-uri FR/ES/DE cu escapare excesivă `\\\"` în `CompareViewDriftWarningTooltip`.
+  - **Phase 2b**: Adăugate 78 chei × 3 limbi (FR/ES/DE) pentru landing page complet (LiveTicker × 13, Audience × 3, Features × 12, Preview × 19, Pricing × 7, Testimonials × 9, Footer × 9, Freebie × 2). Total `Loc.cs`: 494 chei × 5 limbi = 2470 traduceri, brackets balansate, fără duplicate, toate string literal-urile închise corect (verificat via Python tokenizer).
+
 - 🔄 **2026-02 — Revert `MedicalApp.Tests`**: xUnit test project a fost eliminat complet (folder șters + curățat `MedicalApp.sln`) după ce a îngheţat VS2026 la Rebuild. Soluția conține din nou doar `MedicalApp`. Testarea automată C# este pe pauză; user-ul testează manual local.
 
 - ✅ Project scaffolding (.NET 9 MVC) + SQL Server via EF Core
