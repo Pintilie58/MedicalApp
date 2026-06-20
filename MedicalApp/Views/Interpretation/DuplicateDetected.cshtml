@@ -95,11 +95,22 @@
 </div>
 
 <!-- Same processing overlay as on the Upload page so the user sees feedback
-     when they click "Re-interpretează" (the call to Gemini takes 5-30 s). -->
+     when they click "Re-interpretează" (the call to Gemini takes 5-30 s).
+     Uses the doctor mascot partial — kept identical to Upload.cshtml so the
+     loading experience is consistent across both entry points. -->
 <div id="processingOverlay" class="processing-overlay" aria-hidden="true" role="status" aria-live="polite">
     <div class="processing-box">
-        <div class="processing-spinner" aria-hidden="true"></div>
         <h3 class="processing-title">@Loc.T("PleaseWaitFewSeconds")</h3>
+        @{
+            var dupMascotVd = new ViewDataDictionary(ViewData)
+            {
+                ["Mode"] = "waiting",
+                ["Size"] = "medium",
+                ["StageId"] = "duplicateWaitMascot",
+                ["TestId"] = "duplicate-wait-mascot"
+            };
+        }
+        <partial name="_DoctorMascot" view-data="dupMascotVd" />
         <p class="processing-subtitle">@Loc.T("PleaseWaitDoNotClose")</p>
     </div>
 </div>

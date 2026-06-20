@@ -10,6 +10,7 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace MedicalApp.Controllers
 {
@@ -293,16 +294,34 @@ namespace MedicalApp.Controllers
             //  * TEXT-MODE (preferred when text extraction succeeded): the layout-aware
             //    PdfPig extractor reads the PDF's text layer directly, so digits are
             //    literal — eliminates OCR hallucinations like 33.9->33.7 or 0-0.2->0-2.
-            //  * VISION-MODE (fallback): used only when PdfTextExtractor returned
-            //    nothing useful (image-only PDFs / scans). Gemini then renders pages
-            //    and reads pixels.
-            //
-            // The 200-char threshold rules out trivially-short extractions that would
-            // not represent a real lab report.
-            bool geminiUseTextMode = useGemini
-                && !string.IsNullOrWhiteSpace(extractedText)
+            //  * VISION-MODE (fallback): used when PdfTextExtractor returned
+            //    nothing useful (image-only PDFs / scans) OR when the extracted
+            //    text is just metadata/header without real lab measurements.
+            //    Common cause: user opens a PDF in Word, edits the first page
+            //    (adds [MedicalApp] markers, patient/email), exports back to
+            //    PDF — Word keeps page 1 as text but RASTERIZES pages 2-3 with
+            //    the actual lab table. PdfPig then only sees the administrative
+            //    header, Gemini correctly says "no medical data" and the user
+            //    gets a confusing rejection. We detect this by counting
+            //    "<number> <lab-unit>" matches in the extracted text and
+            //    fall through to the vision path when there are too few.
+            // The 200-char threshold rules out trivially-short extractions
+            // that would not represent a real lab report.
+            bool extractedTextLooksMedical =
+                !string.IsNullOrWhiteSpace(extractedText)
                 && extractedText.Length >= 200
-                && !extractedText.StartsWith("(text extraction failed");
+                && !extractedText.StartsWith("(text extraction failed")
+                && LooksLikeMedicalData(extractedText);
+
+            bool geminiUseTextMode = useGemini && extractedTextLooksMedical;
+
+            if (useGemini && !geminiUseTextMode)
+            {
+                _logger.LogInformation(
+                    "B2C interpretation: switching to VISION mode (extracted text has too few medical " +
+                    "value+unit patterns — likely rasterized pages or scan-only PDF). File: {File}",
+                    originalFileName);
+            }
 
             // Two distinct retry budgets:
             //  * maxAttemptsTransient: for upstream overload / rate-limit (HTTP 429/503).
@@ -773,6 +792,57 @@ namespace MedicalApp.Controllers
         {
             var hash = SHA256.HashData(bytes);
             return Convert.ToHexString(hash).ToLowerInvariant();
+        }
+
+        // ===================================================================
+        //  LooksLikeMedicalData
+        //  Quick heuristic: does the extracted text actually contain lab
+        //  measurements (a number followed by a typical lab unit), or only
+        //  administrative metadata?
+        //
+        //  Triggered when a PDF was edited in Word (e.g. user adds
+        //  [MedicalApp] / patient / email markers on page 1) and Word
+        //  rasterizes pages 2-3 with the actual lab table. PdfPig then
+        //  only sees the cover-page header — the resulting text is long
+        //  enough to clear the 200-char threshold but contains NO real
+        //  values+units. If we send it to Gemini's TEXT path we get the
+        //  "no medical data" rejection. Returning false here makes the
+        //  controller fall through to VISION mode (same path B2B uses),
+        //  which works because Gemini reads the rasterized pages visually.
+        //
+        //  Match pattern: a number (optionally with comma/dot decimal)
+        //  immediately followed (allowing whitespace) by a common lab unit —
+        //  g/dL, mg/dL, µg/L, ng/mL, mmol/L, mIU/mL, U/L, mm/h, 10^3/uL,
+        //  10^6/uL, or a bare "%".
+        //
+        //  The threshold of 5 distinct matches is intentionally low: a real
+        //  lab report has dozens; a metadata-only page has zero or maybe one
+        //  (e.g. age "64 ani"). Five is enough headroom for false negatives.
+        // ===================================================================
+        private static readonly Regex s_medicalValueUnit = new Regex(
+            @"\d+(?:[.,]\d+)?\s*(?:g\s*/\s*d[lL]"
+            + @"|mg\s*/\s*d[lL]"
+            + @"|µ?g\s*/\s*[lL]"
+            + @"|n?g\s*/\s*m[lL]"
+            + @"|mmol\s*/\s*[lL]"
+            + @"|mIU\s*/\s*m[lL]"
+            + @"|U\s*/\s*[lL]"
+            + @"|mm\s*/\s*h"
+            + @"|10\^?[36]\s*/\s*u?[lL]"
+            + @"|fl\b"
+            + @"|pg\b"
+            + @"|%)",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static bool LooksLikeMedicalData(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return false;
+            // Threshold of 3 distinct value+unit matches is intentionally low:
+            // a real lab report has 10-60+ measurements; a metadata-only
+            // (rasterized-body) PDF has zero. Anything in between is rare,
+            // so 3 cleanly separates the two cases with minimal false
+            // positives on tiny single-test reports.
+            return s_medicalValueUnit.Matches(text).Count >= 3;
         }
 
         /// <summary>

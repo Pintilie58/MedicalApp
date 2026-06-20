@@ -36,7 +36,15 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - **LoincDictionary** *(new — LOINC step 1)*: LoincCode (PK string), LongCommonName (indexed), OrderObs, AliasesJson, TranslationsJson, ImportedAt
 
 ## Implemented (changelog)
-- ✅ **2026-02 — AI Usage Tracking refactor (Admin Dashboard)**:
+- ✅ **2026-02 — B2C: fallback automat TEXT → VISION când extracția PdfPig nu vede analize medicale**:
+  - **Cauza** raportată de user: PDF original cu pagini 1-3, editat în Word (adăugat `[MedicalApp]` + pacient + email pe pagina 1), re-exportat ca PDF. Word a rasterizat paginile 2-3 (tabelul cu analize) → PdfPig vedea doar header-ul administrativ → Gemini respingea cu „Fișierul nu pare a fi o analiză medicală". B2B (CAM) NU avea problema fiindcă folosește `InterpretPdfAsync` (vision mode).
+  - **Fix**: `InterpretationController.cs` are acum `LooksLikeMedicalData(text)` (regex pe `<număr> <unitate de laborator>` cu prag ≥3 match-uri). Când textul extras nu trece, controller-ul comută automat la VISION mode (`InterpretPdfAsync`) — aceeași cale ca B2B, care lucrează corect pe pagini rasterizate.
+  - Verificat: PDF rasterizat → 0 match-uri (VISION). Lab PDF normal → 6+ match-uri (TEXT, păstrează anti-halucinație pe cifre).
+- ✅ **2026-02 — UI loading consistent: mascot peste tot (era cerc vechi pe DuplicateDetected)**:
+  - `Views/Interpretation/DuplicateDetected.cshtml` folosea `<div class="processing-spinner">` (cerc vechi).
+  - Acum folosește același partial `_DoctorMascot` ca `Upload.cshtml` → loading uniform 🥼.
+- ✅ **2026-02 — 2 doughnuts side-by-side (B2C vs CAM)** în Admin dashboard, size-uri compacte (~220px max).
+- ✅ **2026-02 — AI Usage Tracking refactor** (tabel `AiUsageLogs` + buton reset + acoperă B2C+CAM).
   - **Tabel nou `AiUsageLogs`** (Model `Models/AiUsageLog.cs` + DbSet + entity config în `Data/AppDbContext.cs`) cu indexuri pe `CreatedAt`, `Status`, `Source`. Câmpuri: Id, CreatedAt, Source ("B2C"/"CAM"), UserEmail, ClinicId, ModelUsed, InputTokens, OutputTokens, Status ("success"/"error"/"rejected"), ErrorMessage.
   - **`Services/AiUsageLogger.cs`** (`IAiUsageLogger` + `AiUsageLogger`): fail-safe, niciodată nu rupe flow-ul de interpretare. Înregistrat scoped în `Program.cs`.
   - **B2C (`InterpretationController.SaveHistory`)**: log apelare ÎN AiUsageLogs imediat după scrierea `InterpretationHistory`, condiționat de `geminiWasCalled` (skip dacă era reject pre-Gemini).
