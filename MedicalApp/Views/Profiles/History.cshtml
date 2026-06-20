@@ -75,6 +75,17 @@
                    <form> tags (which are invalid HTML). *@
                 <form id="compareForm" asp-action="Compare" method="get">
                     <input type="hidden" name="profileId" value="@Model.ProfileId" />
+                    @{
+                        // Evolution charts need at least 2 data points per parameter,
+                        // so the button stays disabled while the archive has only one
+                        // interpretation. Same applies to the Compare button below,
+                        // but Compare is already disabled by JS until 2..4 rows are
+                        // ticked — we just guarantee it can never become enabled here.
+                        var hasMultiple = Model.Items.Count >= 2;
+                        var lockReason = hasMultiple
+                            ? null
+                            : "Adaugă cel puțin 2 interpretări pentru a vedea evoluția în timp.";
+                    }
                     <div class="d-flex align-items-center mb-2 gap-2 flex-wrap">
                         <span class="small text-muted" data-testid="history-compare-hint">
                             Selectează între 2 și 4 interpretări apoi apasă „Compară".
@@ -83,11 +94,14 @@
                         </span>
                         <button type="button" class="btn btn-outline-primary btn-sm ms-auto"
                                 data-bs-toggle="modal" data-bs-target="#evolutionModal"
-                                data-testid="btn-open-evolution">
+                                data-testid="btn-open-evolution"
+                                disabled="@(!hasMultiple)"
+                                title="@lockReason">
                             &#128200; Evoluție grafică...
                         </button>
                         <button type="submit" id="btnCompare" class="btn btn-primary btn-sm"
-                                disabled data-testid="btn-compare-selected">
+                                disabled data-testid="btn-compare-selected"
+                                title="@lockReason">
                             &#128200; Compară selectate
                         </button>
                     </div>
