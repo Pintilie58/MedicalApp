@@ -243,7 +243,7 @@
     <div class="row mt-4">
         <div class="col-12">
             <div class="card shadow-sm" data-testid="admin-ai-usage-card">
-                <div class="card-header bg-info text-white fw-semibold d-flex align-items-center">
+                <div class="card-header bg-info text-white fw-semibold d-flex align-items-center flex-wrap gap-2">
                     <span>&#129302; AI usage (Gemini) &mdash; last 30 days</span>
                     <span class="ms-auto small">
                         Total est. cost:
@@ -251,12 +251,19 @@
                         &nbsp;&middot;&nbsp; Fallback to Pro:
                         <strong data-testid="admin-ai-fallback-pct">@Model.AiFallbackRatioPct.ToString("F1")%</strong>
                     </span>
+                    <button type="button" class="btn btn-sm btn-outline-light"
+                            data-bs-toggle="modal" data-bs-target="#resetAiUsageModal"
+                            data-testid="btn-open-reset-ai-usage"
+                            title="Reset all AI usage counters">
+                        &#x21BA; Reset
+                    </button>
                 </div>
                 <div class="card-body">
                     @if (!Model.AiUsage30Days.Any())
                     {
                         <p class="text-muted mb-0">
-                            No successful Gemini interpretations were recorded in the last 30 days.
+                            No Gemini calls were recorded in the last 30 days
+                            (or the counters were just reset).
                         </p>
                     }
                     else
@@ -314,6 +321,47 @@
                         </div>
                     }
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reset AI usage counters confirmation modal.
+     Submits to AdminController.ResetAiUsage which wipes the AiUsageLogs
+     table only (InterpretationHistories untouched, so user-facing history
+     is preserved). -->
+<div class="modal fade" id="resetAiUsageModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger">
+                    &#9888;&#65039; Reset AI usage counters
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">
+                    This will permanently delete <strong>all rows</strong> from
+                    <code>AiUsageLogs</code> (Gemini call counters, tokens,
+                    estimated costs for the last 30 days).
+                </p>
+                <p class="small text-muted mb-0">
+                    User-facing data (interpretation history, clinic batches,
+                    purchases) is <strong>NOT affected</strong>. After reset, the
+                    "AI usage" widget starts counting again from zero.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                        data-testid="btn-cancel-reset-ai-usage">
+                    Cancel
+                </button>
+                <form asp-controller="Admin" asp-action="ResetAiUsage" method="post" class="d-inline m-0">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-danger" data-testid="btn-confirm-reset-ai-usage">
+                        &#x21BA; Yes, reset counters
+                    </button>
+                </form>
             </div>
         </div>
     </div>

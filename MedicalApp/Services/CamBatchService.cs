@@ -273,7 +273,7 @@ namespace MedicalApp.Services
             }
 
             // 3. Call Gemini with retry + Flash→Pro fallback (mirrors InterpretationController logic).
-            InterpretationResult? result = await CallGeminiWithRetryAsync(gemini, bytes, fileName, progress, ct);
+            InterpretationResult? result = await CallGeminiWithRetryAsync(gemini, bytes, fileName, clinic, user, progress, ct);
             if (result == null)
             {
                 await RecordErrorAsync(db, batch, path, meta!.PatientName, "AI exhausted retries (incl. fallback model)");
@@ -585,6 +585,8 @@ namespace MedicalApp.Services
             IMedicalInterpretationProvider gemini,
             byte[] pdfBytes,
             string fileName,
+            Clinic clinic,
+            User? user,
             CamBatchProgress progress,
             CancellationToken ct)
         {
@@ -596,9 +598,21 @@ namespace MedicalApp.Services
             using var settingsScope = _scopeFactory.CreateScope();
             var settings = settingsScope.ServiceProvider
                 .GetRequiredService<IOptions<GeminiSettings>>().Value;
+            // Resolved here (in the SAME scope as `settings`) so we can record
+            // every real Gemini call into AiUsageLogs — both successes (with
+            // actual tokens + effective model) and final failures (model that
+            // was being attempted when we ran out of retries). Fail-safe by
+            // design: the logger swallows its own exceptions.
+            var aiUsage = settingsScope.ServiceProvider
+                .GetRequiredService<IAiUsageLogger>();
 
             string? modelOverride = null;     // null = use primary (Flash)
             int currentTier = 1;              // 1 = primary, 2 = first fallback, 3 = second fallback
+
+            // The model id that was actually attempted on the LAST iteration —
+            // used for accurate AI-usage logging (especially on terminal
+            // failures, where we still want to attribute the cost).
+            string EffectiveModelId() => modelOverride ?? settings.Model ?? "(unknown)";
 
             // Resolve display labels once (operator-facing, anonymized).
             string LabelFor(int tier) => tier switch
@@ -622,6 +636,17 @@ namespace MedicalApp.Services
                         patientContext: null,
                         ct: ct,
                         modelOverride: modelOverride);
+                    // Record the successful Gemini call (real tokens, effective model).
+                    await aiUsage.LogAsync(
+                        source: "CAM",
+                        userEmail: user?.Email,
+                        clinicId: clinic.Id,
+                        modelUsed: EffectiveModelId(),
+                        inputTokens: resp.InputTokens,
+                        outputTokens: resp.OutputTokens,
+                        status: "success",
+                        errorMessage: null,
+                        ct: ct);
                     return resp.Result;
                 }
                 // ---------- TRANSIENT: explicit upstream error (429/503/5xx) ----------
@@ -740,12 +765,38 @@ namespace MedicalApp.Services
                 catch (Exception ex)
                 {
                     progress.Log($"   ✘ {LabelFor(currentTier)} a eșuat (non-transient): {ex.Message}");
+                    // Final failure on this tier — record so the Admin dashboard
+                    // sees that a Gemini call was attempted (tokens unknown on
+                    // exception path, so we log 0/0 but with the effective model
+                    // and a truncated error message for diagnostics).
+                    await aiUsage.LogAsync(
+                        source: "CAM",
+                        userEmail: user?.Email,
+                        clinicId: clinic.Id,
+                        modelUsed: EffectiveModelId(),
+                        inputTokens: 0,
+                        outputTokens: 0,
+                        status: "error",
+                        errorMessage: ex.Message,
+                        ct: CancellationToken.None);
                     return null;
                 }
             }
 
             progress.Log($"   ✘ Toate încercările au eșuat (max {maxAttempts}, ultima cu {LabelFor(currentTier)}): " +
                          (lastEx?.Message ?? "?"));
+            // Retry budget exhausted across all tiers — also record as a final
+            // failed call so the dashboard can show "AI exhausted retries" rows.
+            await aiUsage.LogAsync(
+                source: "CAM",
+                userEmail: user?.Email,
+                clinicId: clinic.Id,
+                modelUsed: EffectiveModelId(),
+                inputTokens: 0,
+                outputTokens: 0,
+                status: "error",
+                errorMessage: lastEx?.Message ?? "Retries exhausted",
+                ct: CancellationToken.None);
             return null;
         }
 

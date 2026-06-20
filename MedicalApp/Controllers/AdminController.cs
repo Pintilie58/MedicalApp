@@ -122,6 +122,34 @@ namespace MedicalApp.Controllers
         }
 
         // =====================================================================
+        //  Reset AI usage counters
+        //  Wipes every row from AiUsageLogs (the dashboard "AI usage (Gemini)"
+        //  widget reads from this table). The user-facing InterpretationHistories
+        //  table is NOT touched, so no patient/clinic history is lost — only the
+        //  admin's internal cost-tracking counters are reset.
+        //
+        //  After this call the widget will start fresh and show only the
+        //  Gemini calls made AFTER the reset.
+        // =====================================================================
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ResetAiUsage()
+        {
+            try
+            {
+                int deleted = await _db.AiUsageLogs.ExecuteDeleteAsync();
+                _logger.LogInformation("Admin reset AI usage counters: {Count} rows deleted from AiUsageLogs.", deleted);
+                TempData["AdminFlash"] = $"AI usage counters reset — {deleted} rows cleared from AiUsageLogs.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Reset AI usage counters failed.");
+                TempData["AdminFlash"] = "Reset failed: " + ex.Message;
+            }
+            return RedirectToAction(nameof(Index));
+        }
+
+        // =====================================================================
         //  Dashboard  (stats overview)
         // =====================================================================
         public async Task<IActionResult> Index()
@@ -193,14 +221,15 @@ namespace MedicalApp.Controllers
                 .ToList();
 
             // -----------------------------------------------------------------
-            // AI USAGE WIDGET — last 30 days, only SUCCESSFUL interpretations.
-            // Groups by ModelUsed so we can show Flash-vs-Pro split and the
-            // estimated USD spend per model. Legacy rows without ModelUsed are
-            // bucketed under "Unknown" so they remain visible and accountable.
+            // AI USAGE WIDGET — last 30 days, reads from the dedicated
+            // AiUsageLogs table (populated from BOTH B2C and CAM paths).
+            // Includes ALL calls that actually hit Gemini (success/error/
+            // rejected), so token-consuming failures are visible too.
+            // Resettable via the "Reset AI counters" button on the dashboard.
             // -----------------------------------------------------------------
-            var aiRaw = await _db.InterpretationHistories
+            var aiRaw = await _db.AiUsageLogs
                 .AsNoTracking()
-                .Where(h => h.Status == "success" && h.CreatedAt >= cutoff30)
+                .Where(h => h.CreatedAt >= cutoff30)
                 .GroupBy(h => h.ModelUsed)
                 .Select(g => new
                 {

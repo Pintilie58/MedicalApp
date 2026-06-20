@@ -23,6 +23,7 @@ namespace MedicalApp.Controllers
         private readonly PdfReportGenerator _pdfGenerator;
         private readonly IMemoryCache _cache;
         private readonly LoincMatcherClient _loincMatcher;
+        private readonly IAiUsageLogger _aiUsage;
         private readonly ILogger<InterpretationController> _logger;
 
         private const long MaxFileSize = 10 * 1024 * 1024; // 10 MB
@@ -38,6 +39,7 @@ namespace MedicalApp.Controllers
             PdfReportGenerator pdfGenerator,
             IMemoryCache cache,
             LoincMatcherClient loincMatcher,
+            IAiUsageLogger aiUsage,
             ILogger<InterpretationController> logger)
         {
             _db = db;
@@ -48,6 +50,7 @@ namespace MedicalApp.Controllers
             _pdfGenerator = pdfGenerator;
             _cache = cache;
             _loincMatcher = loincMatcher;
+            _aiUsage = aiUsage;
             _logger = logger;
         }
 
@@ -743,6 +746,26 @@ namespace MedicalApp.Controllers
                 CreatedAt = DateTime.UtcNow
             });
             await _db.SaveChangesAsync();
+
+            // Also record into the dedicated AiUsageLogs table so the Admin
+            // dashboard widget counts every real Gemini call (success/error/
+            // rejected) and NOT just the user-facing successful interpretations.
+            // We skip rows where no Gemini call actually happened (e.g. "rejected"
+            // for empty PDF before any AI invocation), detected by inTok == null.
+            bool geminiWasCalled = inTok.HasValue || outTok.HasValue
+                                   || !string.IsNullOrWhiteSpace(modelUsed);
+            if (geminiWasCalled)
+            {
+                await _aiUsage.LogAsync(
+                    source: "B2C",
+                    userEmail: email,
+                    clinicId: null,
+                    modelUsed: modelUsed ?? _geminiSettings.Model ?? "(unknown)",
+                    inputTokens: inTok ?? 0,
+                    outputTokens: outTok ?? 0,
+                    status: status,
+                    errorMessage: errorMsg);
+            }
         }
 
         /// <summary>Returns the hex SHA-256 (64 lowercase chars) of the PDF bytes.</summary>

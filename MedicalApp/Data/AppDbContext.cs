@@ -13,6 +13,7 @@ namespace MedicalApp.Data
         public DbSet<PromoCode> PromoCodes { get; set; } = null!;
         public DbSet<Profile> Profiles { get; set; } = null!;
         public DbSet<LoincEntry> LoincDictionary { get; set; } = null!;
+        public DbSet<AiUsageLog> AiUsageLogs { get; set; } = null!;
 
         // ----- CAM module (Clinici de Analize Medicale) -----
         public DbSet<Clinic> Clinics { get; set; } = null!;
@@ -88,6 +89,19 @@ namespace MedicalApp.Data
                 entity.Property(e => e.ImportedAt).HasColumnType("datetime2");
                 // Speed up future "find by common-name substring" admin searches.
                 entity.HasIndex(e => e.LongCommonName);
+            });
+
+            // ===== AI usage log (separate from InterpretationHistories) =====
+            // Indexed on CreatedAt (admin dashboard queries always filter by it)
+            // and on Status (so we can split success vs error vs rejected fast).
+            modelBuilder.Entity<AiUsageLog>(entity =>
+            {
+                entity.ToTable("AiUsageLogs");
+                entity.HasKey(a => a.Id);
+                entity.Property(a => a.CreatedAt).HasColumnType("datetime2");
+                entity.HasIndex(a => a.CreatedAt);
+                entity.HasIndex(a => a.Status);
+                entity.HasIndex(a => a.Source);
             });
 
             // ===== CAM module entities =====

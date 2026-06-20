@@ -64,6 +64,10 @@ builder.Services.AddScoped<IMedicalInterpretationProvider>(sp =>
 builder.Services.AddSingleton<PdfReportGenerator>();
 builder.Services.AddSingleton<EvolutionPdfGenerator>();
 
+// AI usage logger (writes to AiUsageLogs table, used by Admin "AI usage" widget).
+// Fail-safe: never throws back to the interpretation flow.
+builder.Services.AddScoped<IAiUsageLogger, AiUsageLogger>();
+
 // In-memory cache (used to briefly hold uploaded PDF bytes while the user
 // decides what to do about a duplicate-interpretation detection).
 builder.Services.AddMemoryCache();

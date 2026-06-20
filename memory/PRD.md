@@ -36,10 +36,14 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - **LoincDictionary** *(new — LOINC step 1)*: LoincCode (PK string), LongCommonName (indexed), OrderObs, AliasesJson, TranslationsJson, ImportedAt
 
 ## Implemented (changelog)
-- ✅ **2026-02 — Phase 4: Custom file input localizat ("Choose File" / "No file chosen")**:
-  - `Views/Interpretation/Upload.cshtml`: native `<input type="file">` ascuns vizual (păstrat în DOM pentru validare `required` și submit). UI nou: buton stilizat „📎 Alege fișier…" + span cu numele fișierului selectat (sau text default „Niciun fișier ales"), totul tradus în EN/RO/FR/ES/DE.
-  - JS minim care actualizează numele fișierului la `change` și schimbă culoarea când e selectat un fișier.
-  - **`Loc.cs`**: +2 chei × 5 limbi = +10 traduceri (`UploadFileChooseBtn`, `UploadFileNoFileChosen`). Total: **555 chei × 5 limbi = 2775 traduceri**.
+- ✅ **2026-02 — AI Usage Tracking refactor (Admin Dashboard)**:
+  - **Tabel nou `AiUsageLogs`** (Model `Models/AiUsageLog.cs` + DbSet + entity config în `Data/AppDbContext.cs`) cu indexuri pe `CreatedAt`, `Status`, `Source`. Câmpuri: Id, CreatedAt, Source ("B2C"/"CAM"), UserEmail, ClinicId, ModelUsed, InputTokens, OutputTokens, Status ("success"/"error"/"rejected"), ErrorMessage.
+  - **`Services/AiUsageLogger.cs`** (`IAiUsageLogger` + `AiUsageLogger`): fail-safe, niciodată nu rupe flow-ul de interpretare. Înregistrat scoped în `Program.cs`.
+  - **B2C (`InterpretationController.SaveHistory`)**: log apelare ÎN AiUsageLogs imediat după scrierea `InterpretationHistory`, condiționat de `geminiWasCalled` (skip dacă era reject pre-Gemini).
+  - **B2B/CAM (`Services/CamBatchService.CallGeminiWithRetryAsync`)**: signatură extinsă cu `Clinic clinic, User? user`; loghează tokens reali + modelul efectiv folosit (după fallback Flash→Pro→Plus) pe success, plus log pe failure final cu `EffectiveModelId()`. Înainte modulul CAM nu apărea deloc pe dashboard.
+  - **Admin Dashboard (`AdminController.Index`)**: query schimbat din `InterpretationHistories WHERE Status='success'` în `AiUsageLogs` (toate apelurile, B2C+CAM, success/error/rejected) — vede ACUM tot ce consumă bani.
+  - **Buton „↺ Reset"** în header-ul widget-ului „AI usage (Gemini)" + modal confirmare → POST `Admin/ResetAiUsage` care face `ExecuteDeleteAsync()` pe `AiUsageLogs`. NU atinge `InterpretationHistories` (istoricul user-ilor rămâne intact).
+- ✅ **2026-02 — Phase 4: Custom file input localizat ("Choose File" / "No file chosen")**.
 - ✅ **2026-02 — Phase 3 traduceri: Interpretare + Profile (Index/Form)** (+59 chei × 5 limbi).
 - ✅ **2026-02 — Fix build Loc.cs (Phase 2a) + Phase 2b completă** (landing page).
 - 🔄 **2026-02 — Revert `MedicalApp.Tests`**: xUnit test project a fost eliminat complet după ce a îngheţat VS2026 la Rebuild. Testarea automată C# este pe pauză; user-ul testează manual local.
