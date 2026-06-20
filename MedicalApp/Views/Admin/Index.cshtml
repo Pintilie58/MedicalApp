@@ -338,13 +338,16 @@
                                                 }
                                             </div>
 
-                                            <!-- Doughnut chart (one per column). The data-* attrs are
-                                                 consumed by the script at the bottom of this view. -->
-                                            <canvas id="@col.CanvasId" height="180"
-                                                    data-testid="@(col.TestIdPrefix)-chart"
-                                                    data-labels='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(col.Data.Rows.Select(u => u.ShortName + " (" + u.ModelId + ")")))'
-                                                    data-counts='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(col.Data.Rows.Select(u => u.Count)))'
-                                                    data-colors='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(col.Data.Rows.Select(u => u.ShortName == "Flash" ? "#198754" : u.ShortName == "Pro" ? "#ffc107" : "#6c757d")))'></canvas>
+                                            <!-- Doughnut chart (one per column). Wrapper limits width so the
+                                                 chart stays compact (~50% of the previous size). The data-*
+                                                 attrs are consumed by the script at the bottom of this view. -->
+                                            <div class="mx-auto" style="max-width: 220px;">
+                                                <canvas id="@col.CanvasId" height="160"
+                                                        data-testid="@(col.TestIdPrefix)-chart"
+                                                        data-labels='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(col.Data.Rows.Select(u => u.ShortName + " (" + u.ModelId + ")")))'
+                                                        data-counts='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(col.Data.Rows.Select(u => u.Count)))'
+                                                        data-colors='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(col.Data.Rows.Select(u => u.ShortName == "Flash" ? "#198754" : u.ShortName == "Pro" ? "#ffc107" : "#6c757d")))'></canvas>
+                                            </div>
 
                                             <p class="small text-muted mb-0 mt-2">
                                                 Pro fallback share: <strong>@col.Data.FallbackRatioPct.ToString("F1")%</strong>
