@@ -92,18 +92,34 @@
                             <span id="compareSelCount" class="badge bg-secondary ms-2"
                                   data-testid="history-selected-count">0</span>
                         </span>
-                        <button type="button" class="btn btn-outline-primary btn-sm ms-auto"
-                                data-bs-toggle="modal" data-bs-target="#evolutionModal"
-                                data-testid="btn-open-evolution"
-                                disabled="@(!hasMultiple)"
-                                title="@lockReason">
-                            &#128200; Evoluție grafică...
-                        </button>
-                        <button type="submit" id="btnCompare" class="btn btn-primary btn-sm"
-                                disabled data-testid="btn-compare-selected"
-                                title="@lockReason">
-                            &#128200; Compară selectate
-                        </button>
+                        @* Disabled buttons swallow all mouse events, so the native `title`
+                           tooltip would never appear on hover. We wrap them in a span that
+                           is NOT disabled and carries the title itself — that span catches
+                           the hover and shows the explanatory tooltip while the button
+                           stays visually disabled. Standard Bootstrap-disabled-tooltip
+                           pattern, applied identically to both buttons for consistency. *@
+                        <span class="ms-auto d-inline-block"
+                              title="@lockReason"
+                              tabindex="0"
+                              data-testid="evolution-btn-wrap">
+                            <button type="button" class="btn btn-outline-primary btn-sm"
+                                    data-bs-toggle="modal" data-bs-target="#evolutionModal"
+                                    data-testid="btn-open-evolution"
+                                    disabled="@(!hasMultiple)"
+                                    style="@(hasMultiple ? "" : "pointer-events:none;")">
+                                &#128200; Evoluție grafică...
+                            </button>
+                        </span>
+                        <span class="d-inline-block"
+                              title="@lockReason"
+                              tabindex="0"
+                              data-testid="compare-btn-wrap">
+                            <button type="submit" id="btnCompare" class="btn btn-primary btn-sm"
+                                    disabled data-testid="btn-compare-selected"
+                                    style="@(hasMultiple ? "" : "pointer-events:none;")">
+                                &#128200; Compară selectate
+                            </button>
+                        </span>
                     </div>
                 </form>
 
