@@ -259,7 +259,11 @@
                     </button>
                 </div>
                 <div class="card-body">
-                    @if (!Model.AiUsage30Days.Any())
+                    @{
+                        var noB2c = !Model.AiUsageB2C.Rows.Any();
+                        var noCam = !Model.AiUsageCam.Rows.Any();
+                    }
+                    @if (noB2c && noCam)
                     {
                         <p class="text-muted mb-0">
                             No Gemini calls were recorded in the last 30 days
@@ -268,57 +272,94 @@
                     }
                     else
                     {
-                        <div class="row g-3">
-                            <!-- Numeric cards per model -->
-                            <div class="col-lg-7">
-                                <div class="row g-2">
-                                    @foreach (var u in Model.AiUsage30Days)
-                                    {
-                                        <div class="col-md-6">
-                                            <div class="border rounded p-3 h-100"
-                                                 data-testid="admin-ai-row-@u.ShortName">
-                                                <div class="d-flex align-items-center mb-2">
-                                                    <span class="badge @u.BadgeClass">@u.ShortName</span>
-                                                    <small class="text-muted ms-2">@u.ModelId</small>
-                                                </div>
-                                                <div class="d-flex flex-wrap gap-3">
-                                                    <div>
-                                                        <div class="small text-muted">Calls</div>
-                                                        <div class="fs-5 fw-bold">@u.Count</div>
-                                                    </div>
-                                                    <div>
-                                                        <div class="small text-muted">In tokens</div>
-                                                        <div class="fs-6">@u.InputTokens.ToString("N0")</div>
-                                                    </div>
-                                                    <div>
-                                                        <div class="small text-muted">Out tokens</div>
-                                                        <div class="fs-6">@u.OutputTokens.ToString("N0")</div>
-                                                    </div>
-                                                    <div>
-                                                        <div class="small text-muted">Est. cost</div>
-                                                        <div class="fs-6 fw-semibold">
-                                                            $@u.EstimatedCostUsd.ToString("F2")
+                        <div class="row g-4">
+                            @{
+                                // Local helper-style values reused for each column.
+                                // Defined as a tiny inline tuple list so the markup
+                                // stays DRY without spawning a partial view.
+                                var columns = new[] {
+                                    new { Title = "B2C — Individual users",
+                                          Icon  = "&#128104;",
+                                          CanvasId = "aiUsageChartB2C",
+                                          TestIdPrefix = "admin-ai-b2c",
+                                          Data = Model.AiUsageB2C },
+                                    new { Title = "CAM — Clinics (batch)",
+                                          Icon  = "&#127973;",
+                                          CanvasId = "aiUsageChartCAM",
+                                          TestIdPrefix = "admin-ai-cam",
+                                          Data = Model.AiUsageCam },
+                                };
+                            }
+
+                            @foreach (var col in columns)
+                            {
+                                <div class="col-lg-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="d-flex align-items-center mb-3 flex-wrap gap-2">
+                                            <h6 class="mb-0 fw-bold">@Html.Raw(col.Icon) @col.Title</h6>
+                                            <span class="ms-auto small text-muted">
+                                                <strong data-testid="@(col.TestIdPrefix)-total-calls">@col.Data.TotalCalls</strong> calls
+                                                &middot; cost
+                                                <strong data-testid="@(col.TestIdPrefix)-total-cost">$@col.Data.TotalCostUsd.ToString("F2")</strong>
+                                                <span class="badge bg-secondary ms-1"
+                                                      data-testid="@(col.TestIdPrefix)-share-pct">
+                                                    @col.Data.ShareOfCombinedPct.ToString("F0")% of total
+                                                </span>
+                                            </span>
+                                        </div>
+
+                                        @if (!col.Data.Rows.Any())
+                                        {
+                                            <p class="text-muted small mb-3" data-testid="@(col.TestIdPrefix)-empty">
+                                                No calls from this source in the last 30 days.
+                                            </p>
+                                        }
+                                        else
+                                        {
+                                            <!-- Compact per-model rows -->
+                                            <div class="row g-2 mb-3">
+                                                @foreach (var u in col.Data.Rows)
+                                                {
+                                                    <div class="col-12">
+                                                        <div class="border rounded p-2 bg-white"
+                                                             data-testid="@(col.TestIdPrefix)-row-@u.ShortName">
+                                                            <div class="d-flex align-items-center mb-1">
+                                                                <span class="badge @u.BadgeClass">@u.ShortName</span>
+                                                                <small class="text-muted ms-2">@u.ModelId</small>
+                                                                <span class="ms-auto small fw-semibold">$@u.EstimatedCostUsd.ToString("F2")</span>
+                                                            </div>
+                                                            <div class="d-flex flex-wrap gap-3 small text-muted">
+                                                                <span>Calls: <strong class="text-dark">@u.Count</strong></span>
+                                                                <span>In: @u.InputTokens.ToString("N0")</span>
+                                                                <span>Out: @u.OutputTokens.ToString("N0")</span>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
+                                                }
                                             </div>
-                                        </div>
-                                    }
+
+                                            <!-- Doughnut chart (one per column). The data-* attrs are
+                                                 consumed by the script at the bottom of this view. -->
+                                            <canvas id="@col.CanvasId" height="180"
+                                                    data-testid="@(col.TestIdPrefix)-chart"
+                                                    data-labels='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(col.Data.Rows.Select(u => u.ShortName + " (" + u.ModelId + ")")))'
+                                                    data-counts='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(col.Data.Rows.Select(u => u.Count)))'
+                                                    data-colors='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(col.Data.Rows.Select(u => u.ShortName == "Flash" ? "#198754" : u.ShortName == "Pro" ? "#ffc107" : "#6c757d")))'></canvas>
+
+                                            <p class="small text-muted mb-0 mt-2">
+                                                Pro fallback share: <strong>@col.Data.FallbackRatioPct.ToString("F1")%</strong>
+                                            </p>
+                                        }
+                                    </div>
                                 </div>
-                                <p class="small text-muted mt-3 mb-0">
-                                    The fallback ratio shows the percentage of successful interpretations
-                                    that ran on the Pro model after Flash returned repeated 503 errors.
-                                    Higher = Flash is congested or unstable (consider rate-limiting users).
-                                </p>
-                            </div>
-                            <!-- Doughnut chart -->
-                            <div class="col-lg-5">
-                                <canvas id="aiUsageChart" height="220"
-                                        data-labels='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AiUsage30Days.Select(u => u.ShortName + " (" + u.ModelId + ")")))'
-                                        data-counts='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AiUsage30Days.Select(u => u.Count)))'
-                                        data-colors='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AiUsage30Days.Select(u => u.ShortName == "Flash" ? "#198754" : u.ShortName == "Pro" ? "#ffc107" : "#6c757d")))'></canvas>
-                            </div>
+                            }
                         </div>
+
+                        <p class="small text-muted mt-3 mb-0">
+                            Both charts read from <code>AiUsageLogs</code>. Use the
+                            &#x21BA; <em>Reset</em> button in the header to clear all
+                            counters &mdash; user history is not affected.
+                        </p>
                     }
                 </div>
             </div>
@@ -396,39 +437,42 @@
         })();
     </script>
 
-    <!-- AI usage doughnut: Flash vs Pro split of successful interpretations -->
+    <!-- AI usage doughnuts: one per Source (B2C / CAM). Both canvases read
+         their data from data-* attrs, so this script is a tiny generic loop. -->
     <script>
         (function () {
-            var aiCtx = document.getElementById('aiUsageChart');
-            if (!aiCtx) return;
-            var aiLabels = JSON.parse(aiCtx.dataset.labels || '[]');
-            var aiCounts = JSON.parse(aiCtx.dataset.counts || '[]');
-            var aiColors = JSON.parse(aiCtx.dataset.colors || '[]');
-            new Chart(aiCtx, {
-                type: 'doughnut',
-                data: {
-                    labels: aiLabels,
-                    datasets: [{
-                        data: aiCounts,
-                        backgroundColor: aiColors,
-                        borderWidth: 1,
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: { position: 'bottom' },
-                        tooltip: {
-                            callbacks: {
-                                label: function (item) {
-                                    var total = item.dataset.data.reduce(function (a, b) { return a + b; }, 0);
-                                    var pct = total > 0 ? (100 * item.parsed / total).toFixed(1) : "0.0";
-                                    return item.label + ': ' + item.parsed + ' (' + pct + '%)';
+            var canvases = document.querySelectorAll('canvas#aiUsageChartB2C, canvas#aiUsageChartCAM');
+            canvases.forEach(function (aiCtx) {
+                var aiLabels = JSON.parse(aiCtx.dataset.labels || '[]');
+                var aiCounts = JSON.parse(aiCtx.dataset.counts || '[]');
+                var aiColors = JSON.parse(aiCtx.dataset.colors || '[]');
+                if (aiLabels.length === 0) return;
+                new Chart(aiCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: aiLabels,
+                        datasets: [{
+                            data: aiCounts,
+                            backgroundColor: aiColors,
+                            borderWidth: 1,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { position: 'bottom' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (item) {
+                                        var total = item.dataset.data.reduce(function (a, b) { return a + b; }, 0);
+                                        var pct = total > 0 ? (100 * item.parsed / total).toFixed(1) : "0.0";
+                                        return item.label + ': ' + item.parsed + ' (' + pct + '%)';
+                                    }
                                 }
                             }
                         }
                     }
-                }
+                });
             });
         })();
     </script>

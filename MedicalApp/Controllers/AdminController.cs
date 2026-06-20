@@ -225,37 +225,44 @@ namespace MedicalApp.Controllers
             // AiUsageLogs table (populated from BOTH B2C and CAM paths).
             // Includes ALL calls that actually hit Gemini (success/error/
             // rejected), so token-consuming failures are visible too.
+            // Grouped by (Source, ModelUsed) so we can render TWO side-by-side
+            // doughnuts (one for B2C, one for CAM) — the dashboard now shows
+            // exactly how much Gemini cost comes from individual users vs
+            // clinic batches, which informs B2B pricing decisions.
             // Resettable via the "Reset AI counters" button on the dashboard.
             // -----------------------------------------------------------------
             var aiRaw = await _db.AiUsageLogs
                 .AsNoTracking()
                 .Where(h => h.CreatedAt >= cutoff30)
-                .GroupBy(h => h.ModelUsed)
+                .GroupBy(h => new { h.Source, h.ModelUsed })
                 .Select(g => new
                 {
-                    ModelUsed = g.Key,
+                    g.Key.Source,
+                    g.Key.ModelUsed,
                     Count = g.Count(),
                     InputTokens = g.Sum(h => (long?)h.InputTokens) ?? 0L,
                     OutputTokens = g.Sum(h => (long?)h.OutputTokens) ?? 0L,
                 })
                 .ToListAsync();
 
-            var aiUsage = aiRaw
+            // Local helper: convert raw grouped rows into UI-ready ModelUsageRow
+            // entries (with pretty short names + bootstrap badge colors + cost
+            // resolved via GeminiPricing). Returns rows sorted by Count desc.
+            List<ModelUsageRow> BuildRows(IEnumerable<dynamic> raw) => raw
                 .Select(r =>
                 {
-                    var price = _pricing.Resolve(r.ModelUsed);
-                    var cost = price.ComputeCost((int)r.InputTokens, (int)r.OutputTokens);
-                    var isPro = (r.ModelUsed ?? string.Empty)
-                        .Contains("pro", StringComparison.OrdinalIgnoreCase);
-                    var isFlash = (r.ModelUsed ?? string.Empty)
-                        .Contains("flash", StringComparison.OrdinalIgnoreCase);
+                    string modelId = (string)(r.ModelUsed ?? "(unknown)");
+                    var price = _pricing.Resolve(modelId);
+                    var cost = price.ComputeCost((int)(long)r.InputTokens, (int)(long)r.OutputTokens);
+                    var isPro = modelId.Contains("pro", StringComparison.OrdinalIgnoreCase);
+                    var isFlash = modelId.Contains("flash", StringComparison.OrdinalIgnoreCase);
                     return new ModelUsageRow
                     {
-                        ModelId = r.ModelUsed ?? "(unknown)",
-                        ShortName = isPro ? "Pro" : isFlash ? "Flash" : (r.ModelUsed ?? "Unknown"),
-                        Count = r.Count,
-                        InputTokens = r.InputTokens,
-                        OutputTokens = r.OutputTokens,
+                        ModelId = modelId,
+                        ShortName = isPro ? "Pro" : isFlash ? "Flash" : modelId,
+                        Count = (int)r.Count,
+                        InputTokens = (long)r.InputTokens,
+                        OutputTokens = (long)r.OutputTokens,
                         EstimatedCostUsd = cost,
                         BadgeClass = isPro ? "bg-warning text-dark"
                                     : isFlash ? "bg-success"
@@ -265,12 +272,45 @@ namespace MedicalApp.Controllers
                 .OrderByDescending(r => r.Count)
                 .ToList();
 
-            var totalCost = aiUsage.Sum(r => r.EstimatedCostUsd);
-            var totalCalls = aiUsage.Sum(r => r.Count);
-            var proCalls = aiUsage
-                .Where(r => r.ShortName == "Pro")
-                .Sum(r => r.Count);
+            // Split the raw rows by Source and build per-Source breakdowns.
+            var b2cRaw = aiRaw.Where(r => string.Equals(r.Source, "B2C", StringComparison.OrdinalIgnoreCase));
+            var camRaw = aiRaw.Where(r => string.Equals(r.Source, "CAM", StringComparison.OrdinalIgnoreCase));
+
+            var b2cRows = BuildRows(b2cRaw);
+            var camRows = BuildRows(camRaw);
+
+            var b2c = new AiUsageBreakdown
+            {
+                Rows = b2cRows,
+                TotalCalls = b2cRows.Sum(r => r.Count),
+                TotalCostUsd = b2cRows.Sum(r => r.EstimatedCostUsd),
+            };
+            var cam = new AiUsageBreakdown
+            {
+                Rows = camRows,
+                TotalCalls = camRows.Sum(r => r.Count),
+                TotalCostUsd = camRows.Sum(r => r.EstimatedCostUsd),
+            };
+
+            // Per-breakdown fallback (Pro share within that Source) — useful
+            // to detect whether Flash congestion hits one path more than the
+            // other (e.g. clinics tend to hammer it harder than individuals).
+            b2c.FallbackRatioPct = b2c.TotalCalls > 0
+                ? 100.0 * b2cRows.Where(r => r.ShortName == "Pro").Sum(r => r.Count) / b2c.TotalCalls
+                : 0.0;
+            cam.FallbackRatioPct = cam.TotalCalls > 0
+                ? 100.0 * camRows.Where(r => r.ShortName == "Pro").Sum(r => r.Count) / cam.TotalCalls
+                : 0.0;
+
+            // Combined header totals (used in the card-header summary line).
+            var totalCost = b2c.TotalCostUsd + cam.TotalCostUsd;
+            var totalCalls = b2c.TotalCalls + cam.TotalCalls;
+            var proCalls = b2cRows.Where(r => r.ShortName == "Pro").Sum(r => r.Count)
+                         + camRows.Where(r => r.ShortName == "Pro").Sum(r => r.Count);
             var fallbackPct = totalCalls > 0 ? (100.0 * proCalls / totalCalls) : 0.0;
+
+            b2c.ShareOfCombinedPct = totalCost > 0 ? (double)(b2c.TotalCostUsd / totalCost) * 100.0 : 0.0;
+            cam.ShareOfCombinedPct = totalCost > 0 ? (double)(cam.TotalCostUsd / totalCost) * 100.0 : 0.0;
 
             var vm = new AdminDashboardViewModel
             {
@@ -291,7 +331,8 @@ namespace MedicalApp.Controllers
                 ActivePromoCodes = activePromos,
                 TopSpenders = topSpenders,
                 RevenueChart = daily,
-                AiUsage30Days = aiUsage,
+                AiUsageB2C = b2c,
+                AiUsageCam = cam,
                 AiCost30DaysUsd = totalCost,
                 AiFallbackRatioPct = fallbackPct,
             };

@@ -88,21 +88,38 @@ namespace MedicalApp.Models
         /// <summary>Last 30 days: (date, amount) for simple chart.</summary>
         public List<DailyRevenue> RevenueChart { get; set; } = new();
 
-        // ----- AI usage widget (Flash vs Pro, last 30 days) -----
-        // Populated by AdminController.Index. Only counts SUCCESSFUL
-        // interpretations because rejected / errored runs may have no token
-        // accounting. ModelUsage entries are sorted by Count DESC.
-        public List<ModelUsageRow> AiUsage30Days { get; set; } = new();
+        // ----- AI usage widget (B2C vs CAM, last 30 days) -----
+        // Populated by AdminController.Index from the dedicated AiUsageLogs
+        // table. Counts EVERY real Gemini call (success/error/rejected) so
+        // token-consuming failures are visible too. Split per Source so the
+        // admin can see how much cost comes from individual users vs clinics.
+        public AiUsageBreakdown AiUsageB2C { get; set; } = new();
+        public AiUsageBreakdown AiUsageCam { get; set; } = new();
 
-        /// <summary>Total estimated cost (USD) across all models in the last 30 days.</summary>
+        /// <summary>Combined total estimated cost (USD) across BOTH sources, last 30 days.</summary>
         public decimal AiCost30DaysUsd { get; set; }
 
         /// <summary>
-        /// Percentage of successful Gemini interpretations in the last 30 days
-        /// that ran on the Pro fallback model (proxy for "how often is Flash
-        /// being congested?"). 0..100. Zero when there were no Gemini calls.
+        /// Combined percentage of Gemini calls (B2C + CAM) in the last 30 days
+        /// that ran on the Pro fallback model. 0..100. Zero when no calls.
         /// </summary>
         public double AiFallbackRatioPct { get; set; }
+    }
+
+    /// <summary>
+    /// Per-Source breakdown of AI usage rendered inside the dashboard
+    /// (one instance for B2C, one for CAM). Each holds its own list of
+    /// model rows so we can render side-by-side doughnut charts.
+    /// </summary>
+    public class AiUsageBreakdown
+    {
+        public List<ModelUsageRow> Rows { get; set; } = new();
+        public int TotalCalls { get; set; }
+        public decimal TotalCostUsd { get; set; }
+        /// <summary>Share of "Pro" model calls in this breakdown (0..100).</summary>
+        public double FallbackRatioPct { get; set; }
+        /// <summary>This breakdown's share of the combined total cost (0..100).</summary>
+        public double ShareOfCombinedPct { get; set; }
     }
 
     public class ModelUsageRow
