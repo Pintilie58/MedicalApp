@@ -122,6 +122,71 @@ namespace MedicalApp.Controllers
         }
 
         // =====================================================================
+        //  Translation coverage dashboard
+        //  EN is treated as the master/source of truth. For every other
+        //  language we compute: how many keys it has, which keys it MISSES
+        //  (so they'd fall back to EN at runtime), and any "extra" keys
+        //  (drift — a key in e.g. RO that doesn't exist in EN — usually a typo).
+        //  Also surfaces the top-10 longest translations across all
+        //  languages so the admin can stress-test layouts.
+        // =====================================================================
+        [HttpGet]
+        public IActionResult TranslationCoverage()
+        {
+            var all = Loc.AllTranslations;
+            // Master key set: EN.
+            if (!all.TryGetValue("en", out var enDict))
+            {
+                // Safety: if EN is somehow missing, return an empty model
+                // rather than throwing — the page will simply show 0 keys.
+                return View(new TranslationCoverageViewModel());
+            }
+            var enKeys = new HashSet<string>(enDict.Keys);
+
+            var vm = new TranslationCoverageViewModel
+            {
+                TotalEnKeys = enKeys.Count,
+            };
+
+            foreach (var lang in Loc.SupportedLanguages)
+            {
+                if (string.Equals(lang, "en", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                var dict = all[lang];
+                var present = new HashSet<string>(dict.Keys);
+                var missing = enKeys.Except(present).OrderBy(k => k).ToList();
+                var extra = present.Except(enKeys).OrderBy(k => k).ToList();
+                vm.Languages.Add(new TranslationCoverageViewModel.LanguageCoverage
+                {
+                    Lang = lang,
+                    TotalKeys = present.Count,
+                    MissingKeys = missing,
+                    ExtraKeys = extra,
+                    CoveragePct = enKeys.Count == 0
+                        ? 100.0
+                        : 100.0 * (enKeys.Count - missing.Count) / enKeys.Count,
+                });
+            }
+
+            // Top-10 longest translations across all (lang, key) pairs.
+            vm.Longest = all
+                .SelectMany(kv => kv.Value.Select(e => new TranslationCoverageViewModel.LongestTranslation
+                {
+                    Lang = kv.Key,
+                    Key = e.Key,
+                    Length = e.Value?.Length ?? 0,
+                    Preview = (e.Value ?? "").Length > 120
+                        ? (e.Value ?? "").Substring(0, 120) + "…"
+                        : (e.Value ?? ""),
+                }))
+                .OrderByDescending(x => x.Length)
+                .Take(10)
+                .ToList();
+
+            return View(vm);
+        }
+
+        // =====================================================================
         //  Reset AI usage counters
         //  Wipes every row from AiUsageLogs (the dashboard "AI usage (Gemini)"
         //  widget reads from this table). The user-facing InterpretationHistories

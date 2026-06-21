@@ -1,0 +1,177 @@
+@model MedicalApp.Models.TranslationCoverageViewModel
+@{
+    ViewData["Title"] = "Translation coverage";
+}
+
+<div class="container py-4">
+    <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
+        <h2 class="mb-0 text-primary fw-bold">
+            &#127757; Translation coverage
+        </h2>
+        <span class="badge bg-secondary fs-6 align-self-center"
+              data-testid="tc-en-total">
+            EN master: @Model.TotalEnKeys keys
+        </span>
+        <a asp-action="Index" class="btn btn-outline-secondary ms-auto"
+           data-testid="tc-back-admin">&larr; Back to dashboard</a>
+    </div>
+
+    <p class="text-muted mb-4">
+        EN is treated as the source of truth. Each row below shows how many of the
+        @Model.TotalEnKeys master keys are translated in the corresponding language.
+        Missing keys fall back to EN at runtime, so the app keeps working — but
+        users see English text instead of their own language.
+    </p>
+
+    @if (!Model.Languages.Any())
+    {
+        <div class="alert alert-warning" data-testid="tc-empty">
+            No non-EN languages registered.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive mb-4">
+            <table class="table align-middle" data-testid="tc-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Language</th>
+                        <th class="text-end" style="width:120px;">Keys</th>
+                        <th class="text-end" style="width:140px;">Coverage</th>
+                        <th class="text-end" style="width:120px;">Missing</th>
+                        <th class="text-end" style="width:120px;">Extra (drift)</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var lang in Model.Languages.OrderByDescending(l => l.CoveragePct))
+                    {
+                        var rowClass = lang.CoveragePct >= 100 ? "table-success"
+                                     : lang.CoveragePct >= 90  ? ""
+                                     : "table-warning";
+                        <tr class="@rowClass" data-testid="tc-row-@lang.Lang">
+                            <td class="fw-bold">
+                                <span class="badge bg-primary me-2">@lang.Lang.ToUpper()</span>
+                            </td>
+                            <td class="text-end">@lang.TotalKeys</td>
+                            <td class="text-end">
+                                <strong data-testid="tc-cov-@lang.Lang">@lang.CoveragePct.ToString("F1")%</strong>
+                            </td>
+                            <td class="text-end">
+                                @if (lang.MissingKeys.Any())
+                                {
+                                    <span class="badge bg-danger" data-testid="tc-missing-count-@lang.Lang">@lang.MissingKeys.Count</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-success">0</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                @if (lang.ExtraKeys.Any())
+                                {
+                                    <span class="badge bg-warning text-dark" data-testid="tc-extra-count-@lang.Lang">@lang.ExtraKeys.Count</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">0</span>
+                                }
+                            </td>
+                            <td>
+                                @if (lang.MissingKeys.Any() || lang.ExtraKeys.Any())
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#tcDetails-@lang.Lang"
+                                            aria-expanded="false"
+                                            data-testid="tc-details-toggle-@lang.Lang">
+                                        Show keys
+                                    </button>
+                                }
+                                else
+                                {
+                                    <span class="text-success small">&#10003; Fully covered</span>
+                                }
+                            </td>
+                        </tr>
+                        @if (lang.MissingKeys.Any() || lang.ExtraKeys.Any())
+                        {
+                            <tr class="collapse" id="tcDetails-@lang.Lang">
+                                <td colspan="6" class="bg-light">
+                                    <div class="row g-3 p-2">
+                                        @if (lang.MissingKeys.Any())
+                                        {
+                                            <div class="col-md-6">
+                                                <h6 class="text-danger fw-bold">
+                                                    Missing keys (@lang.MissingKeys.Count)
+                                                </h6>
+                                                <p class="small text-muted mb-1">
+                                                    These keys exist in EN but NOT in @lang.Lang.ToUpper().
+                                                    Users in this language see the English fallback for them.
+                                                </p>
+                                                <pre class="small bg-white border rounded p-2"
+                                                     style="max-height: 240px; overflow:auto;"
+                                                     data-testid="tc-missing-list-@lang.Lang"
+>@string.Join("\n", lang.MissingKeys)</pre>
+                                            </div>
+                                        }
+                                        @if (lang.ExtraKeys.Any())
+                                        {
+                                            <div class="col-md-6">
+                                                <h6 class="text-warning fw-bold">
+                                                    Extra keys (@lang.ExtraKeys.Count)
+                                                </h6>
+                                                <p class="small text-muted mb-1">
+                                                    These keys exist in @lang.Lang.ToUpper() but NOT in EN
+                                                    — likely a typo in the key name or a key that was
+                                                    removed from EN but left in this dictionary. Safe to
+                                                    delete or fix.
+                                                </p>
+                                                <pre class="small bg-white border rounded p-2"
+                                                     style="max-height: 240px; overflow:auto;"
+                                                     data-testid="tc-extra-list-@lang.Lang"
+>@string.Join("\n", lang.ExtraKeys)</pre>
+                                            </div>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <h4 class="text-primary fw-bold mt-5 mb-3">
+        &#128209; Top 10 longest translations
+    </h4>
+    <p class="text-muted small">
+        Useful for layout stress-testing — wide German compounds and long French
+        sentences often break narrow UI columns. Check that these strings render
+        correctly on a mobile-width viewport.
+    </p>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle" data-testid="tc-longest-table">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:70px;">Lang</th>
+                    <th>Key</th>
+                    <th class="text-end" style="width:80px;">Chars</th>
+                    <th>Preview</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model.Longest)
+                {
+                    <tr data-testid="tc-longest-row-@item.Lang-@item.Key">
+                        <td><span class="badge bg-primary">@item.Lang.ToUpper()</span></td>
+                        <td><code>@item.Key</code></td>
+                        <td class="text-end fw-bold">@item.Length</td>
+                        <td class="small text-muted">@item.Preview</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

@@ -12,6 +12,11 @@
             <a asp-action="Users" class="btn btn-outline-primary btn-sm">Users</a>
             <a asp-action="SendEmail" class="btn btn-outline-primary btn-sm">Bulk email</a>
             <a asp-action="PromoCodes" class="btn btn-outline-primary btn-sm">Promo codes</a>
+            <a asp-action="TranslationCoverage" class="btn btn-outline-info btn-sm"
+               data-testid="btn-translation-coverage"
+               title="See translation completeness per language">
+                &#127757; Translations
+            </a>
             <form asp-action="SendDailySummaryNow" method="post" class="d-inline">
                 @Html.AntiForgeryToken()
                 <button type="submit" class="btn btn-outline-success btn-sm"

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq;
 
 namespace MedicalApp.Services
 {
@@ -3262,6 +3263,22 @@ namespace MedicalApp.Services
                 ["ProcessingModeVision"] = "Im Bildmodus verarbeitet (Bild-OCR)"
             }
         };
+
+        /// <summary>
+        /// Read-only snapshot of all loaded translation dictionaries, exposed
+        /// for the Admin "Translation coverage" dashboard. Returns the
+        /// internal store directly (Dictionary implements IReadOnlyDictionary)
+        /// because callers only read keys/values — no mutation possible
+        /// through this interface.
+        /// </summary>
+        public static IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> AllTranslations
+            => _translations.ToDictionary(
+                kv => kv.Key,
+                kv => (IReadOnlyDictionary<string, string>)kv.Value);
+
+        /// <summary>Two-letter codes of all languages currently bundled in <c>Loc.cs</c>.</summary>
+        public static IReadOnlyCollection<string> SupportedLanguages
+            => _translations.Keys.ToList();
 
         /// <summary>
         /// Returns a localized string in the language of the current HTTP
