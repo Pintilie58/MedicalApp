@@ -36,7 +36,14 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - **LoincDictionary** *(new — LOINC step 1)*: LoincCode (PK string), LongCommonName (indexed), OrderObs, AliasesJson, TranslationsJson, ImportedAt
 
 ## Implemented (changelog)
-- ✅ **2026-02 — FIX bug critic: email body în limba greșită ("German PDF + Romanian email")**:
+- ✅ **2026-02 — Phase 6 traduceri: History (arhivă profil)**:
+  - **`Views/Profiles/History.cshtml`**: rescrisă complet cu `Loc.T(...)`. Inclus: titlu, heading, badge-uri singular/plural, banner-ul premium (gratuit / plătit cu format dynamic placeholders), tabel (Data / Fișier original / Data recoltării / Parametri / Anormalități / Acțiuni), modalul de evoluție (intro lung cu LOINC, label, placeholder, help, buton Generează grafic), modal ștergere (date/fișier/notă + butoane), tooltip-uri pentru disabled/delete/unavailable, link „Înapoi la profile", link „Încarcă prima analiză".
+  - **`Loc.cs`**: +36 chei × 5 limbi = **+180 traduceri noi**. Total: **607 chei × 5 limbi = 3035 traduceri**.
+  - Banner-ul premium folosește `Html.Raw + string.Format` cu `HtmlEncode` pe șablon (anti-XSS) și `<strong>{0}</strong>` injectat pentru data / count.
+- ✅ **2026-02 — FIX bug critic: email body în limba greșită** (Loc.T overload cu languageCode explicit).
+- ✅ **2026-02 — Phase 5 traduceri: DuplicateDetected + email "for profile"**.
+- ✅ **2026-02 — Buton „Evoluție grafică" + „Compară selectate" disabled cu tooltip**.
+- ✅ **2026-02 — B2C: fallback automat TEXT → VISION** când extracția PdfPig nu vede analize.
   - **Cauză**: `Loc.T(key)` citea `CultureInfo.CurrentUICulture`, care era setat corect la începutul request-ului dar putea fi resetat dacă Gemini/email service offload-uia munca pe thread pool — PDF se generase deja cu cultura corectă, dar email body se evalua cu cultura resetată.
   - **Fix**:
     - `Services/Loc.cs`: nouă suprasarcină `Loc.T(string key, string? languageCode)` care decuplează rezoluția traducerii de `CurrentUICulture` (primește limba explicit).

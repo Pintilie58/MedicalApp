@@ -1,6 +1,6 @@
 @model MedicalApp.Models.ProfileHistoryViewModel
 @{
-    ViewData["Title"] = $"Arhivă - {Model.ProfileName}";
+    ViewData["Title"] = string.Format(Loc.T("HistoryPageTitleFmt"), Model.ProfileName);
     var successMessage = TempData["SuccessMessage"] as string;
     var errorMessage = TempData["ErrorMessage"] as string;
 }
@@ -10,42 +10,52 @@
         <div class="col-lg-10">
             <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
                 <h2 class="text-primary fw-bold mb-0" data-testid="history-heading">
-                    &#128218; Arhivă: @Model.ProfileName
+                    &#128218; @string.Format(Loc.T("HistoryHeadingFmt"), Model.ProfileName)
                 </h2>
                 @if (!string.IsNullOrWhiteSpace(Model.Relationship))
                 {
                     <span class="badge bg-secondary align-self-center">@Model.Relationship</span>
                 }
                 <span class="badge bg-info text-dark align-self-center" data-testid="history-total-count">
-                    @Model.Items.Count @(Model.Items.Count == 1 ? "interpretare" : "interpretări")
+                    @Model.Items.Count @(Model.Items.Count == 1
+                        ? Loc.T("HistoryInterpretationSingular")
+                        : Loc.T("HistoryInterpretationPlural"))
                 </span>
                 <div class="ms-auto">
                     <a asp-action="Index" class="btn btn-outline-secondary" data-testid="btn-back-profiles">
-                        &larr; Înapoi la profile
+                        &larr; @Loc.T("HistoryBackToProfiles")
                     </a>
                 </div>
             </div>
 
             <p class="text-muted mb-3">
-                Toate interpretările de succes pentru acest profil. Descarcă oricând raportul PDF
-                &mdash; îl regenerăm pe loc din datele salvate, fără a consuma credite.
+                @Loc.T("HistoryIntro")
             </p>
 
-            @* Premium info banner *@
+            @* Premium info banner — the "until {date}" / "{count}" placeholders are
+               wrapped in <strong> at render time via Html.Raw + string.Format, so the
+               translation string only carries the {0} marker (no HTML in Loc.cs). *@
             @if (Model.IsInFreePeriod)
             {
                 <div class="alert alert-success py-2 small" data-testid="premium-free-period-banner">
-                    &#127873; Funcțiile avansate (comparație, grafice) sunt
-                    <strong>gratuite până pe @Model.FreeUntil.ToLocalTime().ToString("dd MMM yyyy")</strong>
-                    (1 an de la înregistrare).
+                    &#127873;
+                    @Html.Raw(string.Format(
+                        System.Net.WebUtility.HtmlEncode(Loc.T("HistoryPremiumFreeFmt")),
+                        $"<strong>{System.Net.WebUtility.HtmlEncode(Model.FreeUntil.ToLocalTime().ToString("dd MMM yyyy"))}</strong>"))
                 </div>
             }
             else
             {
                 <div class="alert alert-info py-2 small" data-testid="premium-paid-period-banner">
-                    &#128176; Funcțiile avansate consumă 1 credit la fiecare 3 utilizări.
-                    Mai ai <strong>@Model.FreeUsesLeftInBundle</strong>
-                    @(Model.FreeUsesLeftInBundle == 1 ? "utilizare gratuită" : "utilizări gratuite") în pachetul curent.
+                    &#128176;
+                    @{
+                        var paidFmtKey = Model.FreeUsesLeftInBundle == 1
+                            ? "HistoryPremiumPaidFmtSingular"
+                            : "HistoryPremiumPaidFmtPlural";
+                    }
+                    @Html.Raw(string.Format(
+                        System.Net.WebUtility.HtmlEncode(Loc.T(paidFmtKey)),
+                        $"<strong>{Model.FreeUsesLeftInBundle}</strong>"))
                 </div>
             }
 
@@ -61,9 +71,9 @@
             @if (!Model.Items.Any())
             {
                 <div class="alert alert-info" data-testid="history-empty-state">
-                    Nu există încă nicio interpretare pentru acest profil.
+                    @Loc.T("HistoryEmptyMsg")
                     <a asp-controller="Interpretation" asp-action="Upload" class="alert-link">
-                        Încarcă prima analiză
+                        @Loc.T("HistoryEmptyLink")
                     </a>.
                 </div>
             }
@@ -82,13 +92,11 @@
                         // but Compare is already disabled by JS until 2..4 rows are
                         // ticked — we just guarantee it can never become enabled here.
                         var hasMultiple = Model.Items.Count >= 2;
-                        var lockReason = hasMultiple
-                            ? null
-                            : "Adaugă cel puțin 2 interpretări pentru a vedea evoluția în timp.";
+                        var lockReason = hasMultiple ? null : Loc.T("HistoryEvolutionDisabled");
                     }
                     <div class="d-flex align-items-center mb-2 gap-2 flex-wrap">
                         <span class="small text-muted" data-testid="history-compare-hint">
-                            Selectează între 2 și 4 interpretări apoi apasă „Compară".
+                            @Loc.T("HistoryCompareHint")
                             <span id="compareSelCount" class="badge bg-secondary ms-2"
                                   data-testid="history-selected-count">0</span>
                         </span>
@@ -96,8 +104,7 @@
                            tooltip would never appear on hover. We wrap them in a span that
                            is NOT disabled and carries the title itself — that span catches
                            the hover and shows the explanatory tooltip while the button
-                           stays visually disabled. Standard Bootstrap-disabled-tooltip
-                           pattern, applied identically to both buttons for consistency. *@
+                           stays visually disabled. *@
                         <span class="ms-auto d-inline-block"
                               title="@lockReason"
                               tabindex="0"
@@ -107,7 +114,7 @@
                                     data-testid="btn-open-evolution"
                                     disabled="@(!hasMultiple)"
                                     style="@(hasMultiple ? "" : "pointer-events:none;")">
-                                &#128200; Evoluție grafică...
+                                &#128200; @Loc.T("HistoryBtnEvolution")
                             </button>
                         </span>
                         <span class="d-inline-block"
@@ -117,7 +124,7 @@
                             <button type="submit" id="btnCompare" class="btn btn-primary btn-sm"
                                     disabled data-testid="btn-compare-selected"
                                     style="@(hasMultiple ? "" : "pointer-events:none;")">
-                                &#128200; Compară selectate
+                                &#128200; @Loc.T("HistoryBtnCompare")
                             </button>
                         </span>
                     </div>
@@ -135,39 +142,34 @@
                                 <input type="hidden" name="profileId" value="@Model.ProfileId" />
                                 <div class="modal-header">
                                     <h5 class="modal-title" id="evolutionModalLabel">
-                                        &#128200; Evoluție în timp pentru un parametru
+                                        &#128200; @Loc.T("HistoryEvolutionModalTitle")
                                     </h5>
                                     <button type="button" class="btn-close"
-                                            data-bs-dismiss="modal" aria-label="Închide"></button>
+                                            data-bs-dismiss="modal" aria-label="@Loc.T("CloseAria")"></button>
                                 </div>
                                 <div class="modal-body">
                                     <p class="small text-muted">
-                                        Introdu între <strong>1 și 5 coduri LOINC</strong> (separate prin
-                                        virgulă, spațiu sau enter). Codul LOINC al unei analize se
-                                        găsește în <strong>orice listă de interpretare</strong> sau
-                                        în tabelul „Comparați", în badge-ul gri de lângă numele
-                                        parametrului (ex. <code>LOINC 2324-2</code> pentru Gamma GT).
+                                        @Loc.T("HistoryEvolutionModalIntro")
                                     </p>
                                     <div class="mb-3">
                                         <label for="evolutionCodes" class="form-label fw-semibold">
-                                            Coduri LOINC
+                                            @Loc.T("HistoryEvolutionLabel")
                                         </label>
                                         <textarea id="evolutionCodes" name="codes" rows="3"
                                                   class="form-control" required
-                                                  placeholder="ex. 2324-2, 4548-4, 718-7"
+                                                  placeholder="@Loc.T("HistoryEvolutionPlaceholder")"
                                                   data-testid="evolution-codes-input"></textarea>
                                         <div class="form-text">
-                                            Toate interpretările acestui profil vor fi consultate
-                                            automat. Acțiunea nu consumă credite.
+                                            @Loc.T("HistoryEvolutionHelp")
                                         </div>
                                     </div>
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-outline-secondary"
-                                            data-bs-dismiss="modal">Anulează</button>
+                                            data-bs-dismiss="modal">@Loc.T("ProfilesDeleteConfirmCancel")</button>
                                     <button type="submit" class="btn btn-primary"
                                             data-testid="btn-submit-evolution">
-                                        Generează grafic
+                                        @Loc.T("HistoryBtnGenerateChart")
                                     </button>
                                 </div>
                             </form>
@@ -180,93 +182,93 @@
                         <thead class="table-light">
                             <tr>
                                 <th style="width:40px;"></th>
-                                <th>Data</th>
-                                    <th>Fișier original</th>
-                                    <th>Data recoltării</th>
-                                    <th class="text-center">Parametri</th>
-                                    <th class="text-center">Anormalități</th>
-                                    <th class="text-end">Acțiuni</th>
+                                <th>@Loc.T("HistoryThDate")</th>
+                                <th>@Loc.T("HistoryThFile")</th>
+                                <th>@Loc.T("HistoryThSampleDate")</th>
+                                <th class="text-center">@Loc.T("HistoryThParams")</th>
+                                <th class="text-center">@Loc.T("HistoryThAbnormal")</th>
+                                <th class="text-end">@Loc.T("HistoryThActions")</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var h in Model.Items)
+                            {
+                                <tr data-testid="history-row-@h.Id">
+                                    <td>
+                                        @if (h.HasRawJson)
+                                        {
+                                            <input type="checkbox" class="form-check-input compare-check"
+                                               form="compareForm"
+                                               name="ids" value="@h.Id"
+                                               data-testid="history-check-@h.Id" />
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="fw-semibold">@h.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</div>
+                                        <div class="small text-muted">@h.CreatedAt.ToLocalTime().ToString("HH:mm")</div>
+                                    </td>
+                                    <td>
+                                        <span class="text-break">@(h.OriginalFileName ?? "-")</span>
+                                        @if (!string.IsNullOrWhiteSpace(h.Language))
+                                        {
+                                            <span class="badge bg-light text-muted ms-1">@h.Language</span>
+                                        }
+                                    </td>
+                                    <td class="text-muted">@(h.DateTaken ?? "-")</td>
+                                    <td class="text-center">
+                                        @if (h.KeyResultsCount.HasValue)
+                                        {
+                                            <span class="badge bg-primary">@h.KeyResultsCount</span>
+                                        }
+                                        else { <span class="text-muted">-</span> }
+                                    </td>
+                                    <td class="text-center">
+                                        @if (h.AbnormalFindingsCount.HasValue && h.AbnormalFindingsCount.Value > 0)
+                                        {
+                                            <span class="badge bg-danger">@h.AbnormalFindingsCount</span>
+                                        }
+                                        else if (h.AbnormalFindingsCount.HasValue)
+                                        {
+                                            <span class="badge bg-success">0</span>
+                                        }
+                                        else { <span class="text-muted">-</span> }
+                                    </td>
+                                    <td class="text-end">
+                                        @if (h.HasRawJson)
+                                        {
+                                            <a asp-action="DownloadReport" asp-route-id="@h.Id"
+                                               class="btn btn-sm btn-primary"
+                                               data-testid="btn-download-report-@h.Id">
+                                                &#11015; @Loc.T("HistoryBtnDownloadPdf")
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <span class="small text-muted"
+                                                  title="@Loc.T("HistoryUnavailableTooltip")">
+                                                @Loc.T("HistoryUnavailable")
+                                            </span>
+                                        }
+                                        <form asp-action="DeleteHistory" method="post"
+                                              class="d-inline ms-1 js-delete-history-form"
+                                              data-history-date="@h.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")"
+                                              data-history-file="@(h.OriginalFileName ?? "")">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@h.Id" />
+                                            <input type="hidden" name="profileId" value="@Model.ProfileId" />
+                                            <button type="submit"
+                                                    class="btn btn-sm btn-outline-danger"
+                                                    title="@Loc.T("HistoryDeleteTooltip")"
+                                                    data-testid="btn-delete-history-@h.Id">
+                                                &#128465;
+                                            </button>
+                                        </form>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var h in Model.Items)
-                                {
-                                    <tr data-testid="history-row-@h.Id">
-                                        <td>
-                                            @if (h.HasRawJson)
-                                            {
-                                                <input type="checkbox" class="form-check-input compare-check"
-                                                   form="compareForm"
-                                                   name="ids" value="@h.Id"
-                                                   data-testid="history-check-@h.Id" />
-                                            }
-                                        </td>
-                                        <td>
-                                            <div class="fw-semibold">@h.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</div>
-                                            <div class="small text-muted">@h.CreatedAt.ToLocalTime().ToString("HH:mm")</div>
-                                        </td>
-                                        <td>
-                                            <span class="text-break">@(h.OriginalFileName ?? "-")</span>
-                                            @if (!string.IsNullOrWhiteSpace(h.Language))
-                                            {
-                                                <span class="badge bg-light text-muted ms-1">@h.Language</span>
-                                            }
-                                        </td>
-                                        <td class="text-muted">@(h.DateTaken ?? "-")</td>
-                                        <td class="text-center">
-                                            @if (h.KeyResultsCount.HasValue)
-                                            {
-                                                <span class="badge bg-primary">@h.KeyResultsCount</span>
-                                            }
-                                            else { <span class="text-muted">-</span> }
-                                        </td>
-                                        <td class="text-center">
-                                            @if (h.AbnormalFindingsCount.HasValue && h.AbnormalFindingsCount.Value > 0)
-                                            {
-                                                <span class="badge bg-danger">@h.AbnormalFindingsCount</span>
-                                            }
-                                            else if (h.AbnormalFindingsCount.HasValue)
-                                            {
-                                                <span class="badge bg-success">0</span>
-                                            }
-                                            else { <span class="text-muted">-</span> }
-                                        </td>
-                                        <td class="text-end">
-                                            @if (h.HasRawJson)
-                                            {
-                                                <a asp-action="DownloadReport" asp-route-id="@h.Id"
-                                                   class="btn btn-sm btn-primary"
-                                                   data-testid="btn-download-report-@h.Id">
-                                                    &#11015; Descarcă PDF
-                                                </a>
-                                            }
-                                            else
-                                            {
-                                                <span class="small text-muted"
-                                                      title="Această interpretare este anterioară funcției de salvare JSON - nu poate fi regenerată.">
-                                                    indisponibil
-                                                </span>
-                                            }
-                                            <form asp-action="DeleteHistory" method="post"
-                                                  class="d-inline ms-1 js-delete-history-form"
-                                                  data-history-date="@h.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")"
-                                                  data-history-file="@(h.OriginalFileName ?? "")">
-                                                @Html.AntiForgeryToken()
-                                                <input type="hidden" name="id" value="@h.Id" />
-                                                <input type="hidden" name="profileId" value="@Model.ProfileId" />
-                                                <button type="submit"
-                                                        class="btn btn-sm btn-outline-danger"
-                                                        title="Șterge această interpretare"
-                                                        data-testid="btn-delete-history-@h.Id">
-                                                    &#128465;
-                                                </button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
+                            }
+                        </tbody>
+                    </table>
+                </div>
             }
         </div>
     </div>
@@ -278,28 +280,28 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title text-danger">
-                    &#9888;&#65039; Confirmă ștergerea
+                    &#9888;&#65039; @Loc.T("ProfilesDeleteConfirmTitle")
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@Loc.T("CloseAria")"></button>
             </div>
             <div class="modal-body">
                 <p class="mb-2">
-                    Vrei să ștergi această interpretare din arhivă?
+                    @Loc.T("HistoryDeleteConfirmMsg")
                 </p>
                 <ul class="small text-muted mb-2">
-                    <li>Data: <strong id="deleteHistoryDate">-</strong></li>
-                    <li>Fișier: <strong id="deleteHistoryFile">-</strong></li>
+                    <li>@Loc.T("HistoryDeleteFieldDate") <strong id="deleteHistoryDate">-</strong></li>
+                    <li>@Loc.T("HistoryDeleteFieldFile") <strong id="deleteHistoryFile">-</strong></li>
                 </ul>
                 <p class="small text-muted mb-0">
-                    Această acțiune nu poate fi anulată. Raportul PDF nu va mai putea fi regenerat.
+                    @Loc.T("HistoryDeleteConfirmNote")
                 </p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
-                        data-testid="btn-cancel-delete-history">Anulează</button>
+                        data-testid="btn-cancel-delete-history">@Loc.T("ProfilesDeleteConfirmCancel")</button>
                 <button type="button" class="btn btn-danger" id="confirmDeleteHistoryBtn"
                         data-testid="btn-confirm-delete-history">
-                    &#128465; Da, șterge
+                    &#128465; @Loc.T("ProfilesDeleteConfirmYes")
                 </button>
             </div>
         </div>
