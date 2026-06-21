@@ -36,7 +36,17 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - **LoincDictionary** *(new — LOINC step 1)*: LoincCode (PK string), LongCommonName (indexed), OrderObs, AliasesJson, TranslationsJson, ImportedAt
 
 ## Implemented (changelog)
-- ✅ **2026-02 — Phase 5 traduceri: DuplicateDetected + email "for profile"**:
+- ✅ **2026-02 — FIX bug critic: email body în limba greșită ("German PDF + Romanian email")**:
+  - **Cauză**: `Loc.T(key)` citea `CultureInfo.CurrentUICulture`, care era setat corect la începutul request-ului dar putea fi resetat dacă Gemini/email service offload-uia munca pe thread pool — PDF se generase deja cu cultura corectă, dar email body se evalua cu cultura resetată.
+  - **Fix**:
+    - `Services/Loc.cs`: nouă suprasarcină `Loc.T(string key, string? languageCode)` care decuplează rezoluția traducerii de `CurrentUICulture` (primește limba explicit).
+    - `Controllers/InterpretationController.cs`: `BuildEmailBody` are acum parametru `string? languageCode` propagat la TOATE cheile (`EmailGreeting`, `ResultEmailIntro`, `ResultEmailAttachedNote`, `Tagline`, `EmailRegards`, `EmailInterpretForProfileFmt`) + subject-ul. Acum email + PDF folosesc EXACT același languageCode (variabilă locală, nu state global).
+- ✅ **2026-02 — Phase 5 traduceri: DuplicateDetected + email "for profile"** (+17 chei × 5 limbi).
+- ✅ **2026-02 — Buton „Evoluție grafică" + „Compară selectate" disabled cu tooltip explicativ**.
+- ✅ **2026-02 — B2C: fallback automat TEXT → VISION când extracția PdfPig nu vede analize medicale**.
+- ✅ **2026-02 — UI loading consistent: mascot peste tot (era cerc vechi pe DuplicateDetected)**.
+- ✅ **2026-02 — 2 doughnuts side-by-side (B2C vs CAM)** în Admin dashboard.
+- ✅ **2026-02 — AI Usage Tracking refactor**.
   - **`Views/Interpretation/DuplicateDetected.cshtml`**: toate stringurile RO hardcodate (titlu, heading, alerta cu fișier potrivit, „Ce dorești să faci?", cardurile „Deschide raportul existent" / „Re-interpretează", butoanele și link-ul de cancel) folosesc acum `Loc.T(...)`. JS folosește template Razor pentru a restaura corect label-ul localizat la bfcache pageshow.
   - **`Controllers/InterpretationController.cs` → `BuildEmailBody`**: linia "Interpretare pentru profilul: ..." era hardcodată RO. Acum folosește noua cheie `EmailInterpretForProfileFmt` care se rezolvă în limba user-ului (același mecanism `Loc.T` ca restul emailului — `EmailGreeting`, `ResultEmailIntro`, etc., care deja erau localizate complet).
   - **`Loc.cs`**: +17 chei × 5 limbi = **+85 traduceri**. Total final: **571 chei × 5 limbi = 2855 traduceri**.

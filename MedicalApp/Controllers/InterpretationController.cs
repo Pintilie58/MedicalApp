@@ -671,9 +671,12 @@ namespace MedicalApp.Controllers
             // 5) Send email with attachment (+ debug attachments: extracted text and raw GPT JSON)
             try
             {
-                // Prefix subject with the profile name so inbox is easier to scan when user has many profiles.
-                var subject = $"[{profile.Name}] " + Loc.T("ResultEmailSubject");
-                var htmlBody = BuildEmailBody(originalFileName, profile.Name);
+                // Subject + body must follow the LANGUAGE OF THE REPORT (languageCode),
+                // not the UI culture, so the user sees an email consistent with the
+                // attached PDF — even when they have the UI in one language but
+                // requested the interpretation in another (e.g. UI=RO, report=DE).
+                var subject = $"[{profile.Name}] " + Loc.T("ResultEmailSubject", languageCode);
+                var htmlBody = BuildEmailBody(originalFileName, profile.Name, languageCode);
                 var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
 
                 var attachments = new List<(byte[] Bytes, string FileName, string MimeType)>
@@ -870,16 +873,25 @@ namespace MedicalApp.Controllers
                 .ToListAsync();
         }
 
-        private static string BuildEmailBody(string? originalFileName, string? profileName = null)
+        // ===================================================================
+        //  BuildEmailBody
+        //  IMPORTANT: pass the language that was used to GENERATE the
+        //  interpretation (form's languageCode), NOT the UI culture. The
+        //  user can have their UI in one language while requesting the
+        //  report in another (e.g. UI=RO, interpretation=DE). Both the
+        //  subject and the body must match the report's language so the
+        //  email feels consistent with the attached PDF.
+        // ===================================================================
+        private static string BuildEmailBody(string? originalFileName, string? profileName, string? languageCode)
         {
-            var greeting = Loc.T("EmailGreeting");
-            var intro = Loc.T("ResultEmailIntro");
-            var attached = Loc.T("ResultEmailAttachedNote");
-            var tagline = Loc.T("Tagline");
-            var regards = Loc.T("EmailRegards");
+            var greeting = Loc.T("EmailGreeting", languageCode);
+            var intro = Loc.T("ResultEmailIntro", languageCode);
+            var attached = Loc.T("ResultEmailAttachedNote", languageCode);
+            var tagline = Loc.T("Tagline", languageCode);
+            var regards = Loc.T("EmailRegards", languageCode);
             var profileLine = string.IsNullOrWhiteSpace(profileName)
                 ? string.Empty
-                : $"<p style='background:#eef5ff;border-left:4px solid #0d47a1;padding:10px 14px;border-radius:6px;margin:16px 0;'>{string.Format(Loc.T("EmailInterpretForProfileFmt"), $"<strong>{System.Net.WebUtility.HtmlEncode(profileName)}</strong>")}</p>";
+                : $"<p style='background:#eef5ff;border-left:4px solid #0d47a1;padding:10px 14px;border-radius:6px;margin:16px 0;'>{string.Format(Loc.T("EmailInterpretForProfileFmt", languageCode), $"<strong>{System.Net.WebUtility.HtmlEncode(profileName)}</strong>")}</p>";
             return $@"
 <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
     <h2 style='color: #0d47a1;'>MedicalApp</h2>

@@ -3073,10 +3073,40 @@ namespace MedicalApp.Services
             }
         };
 
+        /// <summary>
+        /// Returns a localized string in the language of the current HTTP
+        /// request (driven by the .AspNetCore.Culture cookie set when the
+        /// user picks a UI language).
+        /// </summary>
         public static string T(string key)
         {
             var culture = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
-            if (_translations.TryGetValue(culture, out var dict) && dict.TryGetValue(key, out var val))
+            return Resolve(key, culture);
+        }
+
+        /// <summary>
+        /// Returns a localized string in the explicitly-given language code,
+        /// IGNORING the current UI culture. Use this when the language for a
+        /// piece of content is decoupled from the UI language — for example
+        /// the user has the UI in Romanian but requests the interpretation
+        /// (and its email/PDF) in German via the form.
+        /// Falls back to English when <paramref name="languageCode"/> is null
+        /// or unknown, then to the raw key as last resort.
+        /// </summary>
+        public static string T(string key, string? languageCode)
+        {
+            if (string.IsNullOrWhiteSpace(languageCode))
+                return T(key);
+            // Accept full culture names too ("de-DE" -> "de").
+            var lang = languageCode.Length > 2
+                ? languageCode.Substring(0, 2).ToLowerInvariant()
+                : languageCode.ToLowerInvariant();
+            return Resolve(key, lang);
+        }
+
+        private static string Resolve(string key, string lang)
+        {
+            if (_translations.TryGetValue(lang, out var dict) && dict.TryGetValue(key, out var val))
                 return val;
             if (_translations["en"].TryGetValue(key, out var fallback))
                 return fallback;
