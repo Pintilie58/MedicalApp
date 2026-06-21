@@ -671,6 +671,17 @@ namespace MedicalApp.Services
                 ["HistoryDeleteConfirmNote"] = "This action cannot be undone. The PDF report will no longer be regenerable.",
                 ["CloseAria"] = "Close",
                 // ===== End Phase 6 =====
+                // ===== Phase 7: Register-clinic GDPR + share emails (Compare / Evolution) =====
+                ["RegisterClinicGdprNote"] = "The clinic assumes the GDPR obligation: the patient signs at the clinic the data-processing declaration before the PDF is uploaded into the application.",
+                ["RegisterClinicWindowsOnlyHtmlFmt"] = "<strong>Important:</strong> The Clinic / Medical lab module is compatible <strong>only with Windows</strong>.",
+                ["EmailCompareSubjectFmt"] = "Analysis comparison — {0}",
+                ["EmailCompareBodyFmt"] = "You requested the comparison report for profile <strong>{0}</strong>. You'll find it attached to this email ({1} interpretations, {2} parameters).",
+                ["EmailGoodDay"] = "Have a great day!",
+                ["EmailSendFailedTryDownload"] = "Email send failed. Try \"Download PDF\" instead.",
+                ["EmailEvolutionSubjectFmt"] = "Analysis evolution — {0}",
+                ["EmailEvolutionBodyFmt"] = "You requested the time-evolution report for profile <strong>{0}</strong>. You'll find it attached to this email ({1} analyses, {2} measurements).",
+                ["EmailEvolutionCodesFmt"] = "Included LOINC codes: {0}",
+                // ===== End Phase 7 =====
                 // ===== End Phase 3 =====
             },
             ["ro"] = new()
@@ -1334,6 +1345,17 @@ namespace MedicalApp.Services
                 ["HistoryDeleteConfirmNote"] = "Această acțiune nu poate fi anulată. Raportul PDF nu va mai putea fi regenerat.",
                 ["CloseAria"] = "Închide",
                 // ===== End Phase 6 =====
+                // ===== Phase 7: Register-clinic GDPR + share emails (Compare / Evolution) =====
+                ["RegisterClinicGdprNote"] = "Clinica își asumă obligația GDPR: pacientul semnează la clinică declarația de prelucrare a datelor înainte ca PDF-ul să fie încărcat în aplicație.",
+                ["RegisterClinicWindowsOnlyHtmlFmt"] = "<strong>Important:</strong> Modulul Clinică / Laborator medical este compatibil <strong>numai cu Windows</strong>.",
+                ["EmailCompareSubjectFmt"] = "Comparație analize — {0}",
+                ["EmailCompareBodyFmt"] = "Ai cerut raportul de comparație pentru profilul <strong>{0}</strong>. Îl găsești atașat acestui email ({1} interpretări, {2} parametri).",
+                ["EmailGoodDay"] = "O zi bună!",
+                ["EmailSendFailedTryDownload"] = "Trimiterea emailului a eșuat. Încearcă „Descarcă PDF\" în schimb.",
+                ["EmailEvolutionSubjectFmt"] = "Evoluție analize — {0}",
+                ["EmailEvolutionBodyFmt"] = "Ai cerut raportul de evoluție în timp pentru profilul <strong>{0}</strong>. Îl găsești atașat acestui email ({1} analize, {2} măsurători).",
+                ["EmailEvolutionCodesFmt"] = "Coduri LOINC incluse: {0}",
+                // ===== End Phase 7 =====
                 // ===== End Phase 3 =====
             },
             ["fr"] = new()
@@ -1773,6 +1795,17 @@ namespace MedicalApp.Services
                 ["HistoryDeleteConfirmNote"] = "Cette action ne peut pas être annulée. Le rapport PDF ne pourra plus être régénéré.",
                 ["CloseAria"] = "Fermer",
                 // ===== End Phase 6 =====
+                // ===== Phase 7: Register-clinic GDPR + share emails (Compare / Evolution) =====
+                ["RegisterClinicGdprNote"] = "La clinique assume l'obligation RGPD : le patient signe à la clinique la déclaration de traitement des données avant que le PDF ne soit téléversé dans l'application.",
+                ["RegisterClinicWindowsOnlyHtmlFmt"] = "<strong>Important :</strong> Le module Clinique / Laboratoire médical est compatible <strong>uniquement avec Windows</strong>.",
+                ["EmailCompareSubjectFmt"] = "Comparaison d'analyses — {0}",
+                ["EmailCompareBodyFmt"] = "Vous avez demandé le rapport de comparaison pour le profil <strong>{0}</strong>. Vous le trouverez en pièce jointe de cet e-mail ({1} interprétations, {2} paramètres).",
+                ["EmailGoodDay"] = "Bonne journée !",
+                ["EmailSendFailedTryDownload"] = "L'envoi de l'e-mail a échoué. Essayez « Télécharger le PDF » à la place.",
+                ["EmailEvolutionSubjectFmt"] = "Évolution d'analyses — {0}",
+                ["EmailEvolutionBodyFmt"] = "Vous avez demandé le rapport d'évolution dans le temps pour le profil <strong>{0}</strong>. Vous le trouverez en pièce jointe de cet e-mail ({1} analyses, {2} mesures).",
+                ["EmailEvolutionCodesFmt"] = "Codes LOINC inclus : {0}",
+                // ===== End Phase 7 =====
                 // ===== End Phase 3 =====
                 // ===== End Phase 1 =====
                 ["WalkerGreeting"] = "Heureux de vous voir !",
@@ -2415,6 +2448,17 @@ namespace MedicalApp.Services
                 ["HistoryDeleteConfirmNote"] = "Esta acción no se puede deshacer. El informe PDF ya no podrá regenerarse.",
                 ["CloseAria"] = "Cerrar",
                 // ===== End Phase 6 =====
+                // ===== Phase 7: Register-clinic GDPR + share emails (Compare / Evolution) =====
+                ["RegisterClinicGdprNote"] = "La clínica asume la obligación RGPD: el paciente firma en la clínica la declaración de tratamiento de datos antes de que el PDF se suba a la aplicación.",
+                ["RegisterClinicWindowsOnlyHtmlFmt"] = "<strong>Importante:</strong> El módulo Clínica / Laboratorio médico es compatible <strong>solo con Windows</strong>.",
+                ["EmailCompareSubjectFmt"] = "Comparación de análisis — {0}",
+                ["EmailCompareBodyFmt"] = "Has solicitado el informe de comparación para el perfil <strong>{0}</strong>. Lo encontrarás adjunto a este correo ({1} interpretaciones, {2} parámetros).",
+                ["EmailGoodDay"] = "¡Que tengas un buen día!",
+                ["EmailSendFailedTryDownload"] = "El envío del correo ha fallado. Prueba «Descargar PDF» en su lugar.",
+                ["EmailEvolutionSubjectFmt"] = "Evolución de análisis — {0}",
+                ["EmailEvolutionBodyFmt"] = "Has solicitado el informe de evolución en el tiempo para el perfil <strong>{0}</strong>. Lo encontrarás adjunto a este correo ({1} análisis, {2} mediciones).",
+                ["EmailEvolutionCodesFmt"] = "Códigos LOINC incluidos: {0}",
+                // ===== End Phase 7 =====
                 // ===== End Phase 3 =====
                 // ===== End Phase 1 =====
                 ["WalkerGreeting"] = "¡Me alegro de verte!",
@@ -3057,6 +3101,17 @@ namespace MedicalApp.Services
                 ["HistoryDeleteConfirmNote"] = "Diese Aktion kann nicht rückgängig gemacht werden. Der PDF-Bericht kann nicht mehr neu generiert werden.",
                 ["CloseAria"] = "Schließen",
                 // ===== End Phase 6 =====
+                // ===== Phase 7: Register-clinic GDPR + share emails (Compare / Evolution) =====
+                ["RegisterClinicGdprNote"] = "Die Klinik übernimmt die DSGVO-Pflicht: Der Patient unterzeichnet in der Klinik die Datenverarbeitungserklärung, bevor das PDF in die Anwendung hochgeladen wird.",
+                ["RegisterClinicWindowsOnlyHtmlFmt"] = "<strong>Wichtig:</strong> Das Modul Klinik / Medizinisches Labor ist <strong>nur mit Windows</strong> kompatibel.",
+                ["EmailCompareSubjectFmt"] = "Analysenvergleich — {0}",
+                ["EmailCompareBodyFmt"] = "Sie haben den Vergleichsbericht für das Profil <strong>{0}</strong> angefordert. Er ist dieser E-Mail beigefügt ({1} Interpretationen, {2} Parameter).",
+                ["EmailGoodDay"] = "Einen schönen Tag!",
+                ["EmailSendFailedTryDownload"] = "Senden der E-Mail fehlgeschlagen. Versuchen Sie stattdessen „PDF herunterladen\".",
+                ["EmailEvolutionSubjectFmt"] = "Analyseverlauf — {0}",
+                ["EmailEvolutionBodyFmt"] = "Sie haben den zeitlichen Verlaufsbericht für das Profil <strong>{0}</strong> angefordert. Er ist dieser E-Mail beigefügt ({1} Analysen, {2} Messungen).",
+                ["EmailEvolutionCodesFmt"] = "Enthaltene LOINC-Codes: {0}",
+                // ===== End Phase 7 =====
                 // ===== End Phase 3 =====
                 // ===== End Phase 1 =====
                 ["WalkerGreeting"] = "Schön, dich zu sehen!",

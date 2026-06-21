@@ -134,13 +134,11 @@
                                 @* CAM: câmpurile suplimentare pentru clinică — vizibile doar când UserType=Clinic *@
                                 <div id="clinicFields" style="display:@(string.Equals(registerModel.UserType, "Clinic", StringComparison.OrdinalIgnoreCase) ? "block" : "none");">
                                     <div class="alert alert-info py-2 small mb-3" data-testid="register-clinic-gdpr-note">
-                                        &#9888; Clinica își asumă obligația GDPR: pacientul semnează la clinică
-                                        declarația de prelucrare a datelor înainte ca PDF-ul să fie încărcat în aplicație.
+                                        &#9888; @Loc.T("RegisterClinicGdprNote")
                                         <div class="mt-2 d-flex align-items-start gap-2" data-testid="register-clinic-windows-note">
                                             <i class="bi bi-windows" style="color:#0078D4; font-size:1.1rem;" aria-hidden="true"></i>
                                             <span>
-                                                <strong>Important:</strong> Modulul Clinică / Laborator medical este compatibil
-                                                <strong>numai cu Windows</strong>.
+                                                @Html.Raw(Loc.T("RegisterClinicWindowsOnlyHtmlFmt"))
                                             </span>
                                         </div>
                                     </div>

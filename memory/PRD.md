@@ -36,7 +36,16 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - **LoincDictionary** *(new — LOINC step 1)*: LoincCode (PK string), LongCommonName (indexed), OrderObs, AliasesJson, TranslationsJson, ImportedAt
 
 ## Implemented (changelog)
-- ✅ **2026-02 — Phase 6 traduceri: History (arhivă profil)**:
+- ✅ **2026-02 — Phase 7 traduceri: GDPR clinică + emailuri share Compare/Evolution**:
+  - **`Views/Home/Index.cshtml`** (card register-clinic): notele GDPR + Windows-only acum folosesc `Loc.T`. Pentru fraza cu emfaze („**Important:** ... **numai cu Windows**.") am folosit o cheie unică cu markup HTML inline (`Html.Raw`) — soluție pragmatică, fiecare limbă alege ce să bold-uiască.
+  - **`Controllers/ProfilesController.cs`** (2 emailuri):
+    - Email Compare (linia 470): subject + body cu greeting/intro/cod-uri/goodbye + mesaj de eroare. Toate folosesc `Loc.T(key, lang)` cu lang capturat la entry-ul acțiunii (same pattern ca InterpretationController, anti-thread-pool drift).
+    - Email Evolution (linia 970): idem + key dedicată pentru lista de coduri LOINC.
+  - **`Loc.cs`**: +9 chei × 5 limbi = **+45 traduceri**. Total: **616 chei × 5 limbi = 3080 traduceri**.
+- ✅ **2026-02 — Translation Coverage Dashboard** (`/Admin/TranslationCoverage`) — vede în timp real ce limbă are missing keys / extra keys / top 10 cele mai lungi traduceri.
+- ✅ **2026-02 — Phase 6 traduceri: History (arhivă profil)** (+36 chei × 5 limbi).
+- ✅ **2026-02 — FIX bug critic: email body în limba greșită** (Loc.T overload cu languageCode explicit).
+- ✅ **2026-02 — Phase 5 traduceri: DuplicateDetected + email "for profile"**.
   - **`Views/Profiles/History.cshtml`**: rescrisă complet cu `Loc.T(...)`. Inclus: titlu, heading, badge-uri singular/plural, banner-ul premium (gratuit / plătit cu format dynamic placeholders), tabel (Data / Fișier original / Data recoltării / Parametri / Anormalități / Acțiuni), modalul de evoluție (intro lung cu LOINC, label, placeholder, help, buton Generează grafic), modal ștergere (date/fișier/notă + butoane), tooltip-uri pentru disabled/delete/unavailable, link „Înapoi la profile", link „Încarcă prima analiză".
   - **`Loc.cs`**: +36 chei × 5 limbi = **+180 traduceri noi**. Total: **607 chei × 5 limbi = 3035 traduceri**.
   - Banner-ul premium folosește `Html.Raw + string.Format` cu `HtmlEncode` pe șablon (anti-XSS) și `<strong>{0}</strong>` injectat pentru data / count.

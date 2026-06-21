@@ -467,18 +467,20 @@ namespace MedicalApp.Controllers
 
             if (string.Equals(req.Mode, "email", StringComparison.OrdinalIgnoreCase))
             {
+                // Capture culture at request entry so the email body can't drift
+                // to a different language if any awaited call below offloads
+                // work to the thread pool (same pattern as InterpretationController.SaveHistory).
+                var lang = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+                var safeName = System.Net.WebUtility.HtmlEncode(profile.Name);
                 var html =
-                    $"<p>Bună,</p>" +
-                    $"<p>Ai cerut raportul de comparație pentru profilul " +
-                    $"<strong>{System.Net.WebUtility.HtmlEncode(profile.Name)}</strong>. " +
-                    $"Îl găsești atașat acestui email ({vm.Columns.Count} interpretări, " +
-                    $"{vm.Rows.Count} parametri).</p>" +
-                    $"<p>O zi bună!<br/>— MedicalApp</p>";
+                    $"<p>{Loc.T("EmailGreeting", lang)}</p>" +
+                    $"<p>{string.Format(Loc.T("EmailCompareBodyFmt", lang), safeName, vm.Columns.Count, vm.Rows.Count)}</p>" +
+                    $"<p>{Loc.T("EmailGoodDay", lang)}<br/>— MedicalApp</p>";
                 try
                 {
                     await _emailService.SendEmailWithAttachmentAsync(
                         CurrentEmail,
-                        $"Comparație analize — {profile.Name}",
+                        string.Format(Loc.T("EmailCompareSubjectFmt", lang), profile.Name),
                         html,
                         pdfBytes,
                         fileName);
@@ -486,7 +488,7 @@ namespace MedicalApp.Controllers
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "CompareExport: email send failed to {Email}.", CurrentEmail);
-                    TempData["ErrorMessage"] = "Trimiterea emailului a eșuat. Încearcă \u201EDescarcă PDF\u201D în schimb.";
+                    TempData["ErrorMessage"] = Loc.T("EmailSendFailedTryDownload", lang);
                     return RedirectToAction(nameof(Compare),
                         new { profileId = req.ProfileId, ids = distinctIds });
                 }
@@ -965,19 +967,20 @@ namespace MedicalApp.Controllers
 
             if (string.Equals(req.Mode, "email", StringComparison.OrdinalIgnoreCase))
             {
+                var lang = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+                var safeName = System.Net.WebUtility.HtmlEncode(profile.Name);
+                var codesJoined = System.Net.WebUtility.HtmlEncode(string.Join(", ", codeList));
+                var measurementsTotal = vm.Series.Sum(s => s.Points.Count);
                 var html =
-                    $"<p>Bună,</p>" +
-                    $"<p>Ai cerut raportul de evoluție în timp pentru profilul " +
-                    $"<strong>{System.Net.WebUtility.HtmlEncode(profile.Name)}</strong>. " +
-                    $"Îl găsești atașat acestui email ({vm.Series.Count} analize, " +
-                    $"{vm.Series.Sum(s => s.Points.Count)} măsurători).</p>" +
-                    $"<p>Coduri LOINC incluse: <code>{System.Net.WebUtility.HtmlEncode(string.Join(", ", codeList))}</code></p>" +
-                    $"<p>O zi bună!<br/>— MedicalApp</p>";
+                    $"<p>{Loc.T("EmailGreeting", lang)}</p>" +
+                    $"<p>{string.Format(Loc.T("EmailEvolutionBodyFmt", lang), safeName, vm.Series.Count, measurementsTotal)}</p>" +
+                    $"<p>{string.Format(Loc.T("EmailEvolutionCodesFmt", lang), $"<code>{codesJoined}</code>")}</p>" +
+                    $"<p>{Loc.T("EmailGoodDay", lang)}<br/>— MedicalApp</p>";
                 try
                 {
                     await _emailService.SendEmailWithAttachmentAsync(
                         CurrentEmail,
-                        $"Evoluție analize — {profile.Name}",
+                        string.Format(Loc.T("EmailEvolutionSubjectFmt", lang), profile.Name),
                         html,
                         pdfBytes,
                         fileName);
@@ -985,7 +988,7 @@ namespace MedicalApp.Controllers
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "EvolutionExport: email send failed to {Email}.", CurrentEmail);
-                    TempData["ErrorMessage"] = "Trimiterea emailului a eșuat. Încearcă \u201EDescarcă PDF\u201D în schimb.";
+                    TempData["ErrorMessage"] = Loc.T("EmailSendFailedTryDownload", lang);
                     return RedirectToAction(nameof(Evolution),
                         new { profileId = req.ProfileId, codes = string.Join(",", codeList) });
                 }
