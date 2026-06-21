@@ -879,7 +879,7 @@ namespace MedicalApp.Controllers
             var regards = Loc.T("EmailRegards");
             var profileLine = string.IsNullOrWhiteSpace(profileName)
                 ? string.Empty
-                : $"<p style='background:#eef5ff;border-left:4px solid #0d47a1;padding:10px 14px;border-radius:6px;margin:16px 0;'>Interpretare pentru profilul: <strong>{System.Net.WebUtility.HtmlEncode(profileName)}</strong></p>";
+                : $"<p style='background:#eef5ff;border-left:4px solid #0d47a1;padding:10px 14px;border-radius:6px;margin:16px 0;'>{string.Format(Loc.T("EmailInterpretForProfileFmt"), $"<strong>{System.Net.WebUtility.HtmlEncode(profileName)}</strong>")}</p>";
             return $@"
 <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
     <h2 style='color: #0d47a1;'>MedicalApp</h2>

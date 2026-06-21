@@ -614,6 +614,24 @@ namespace MedicalApp.Services
                 ["UploadFileChooseBtn"] = "Choose file…",
                 ["UploadFileNoFileChosen"] = "No file chosen",
                 // ===== End Phase 4 =====
+                // ===== Phase 5: DuplicateDetected page + email "for profile" line =====
+                ["DupPageTitle"] = "Duplicate analysis",
+                ["DupHeading"] = "Analysis already interpreted",
+                ["DupFileMatchedFmt"] = "The file {0} appears to be identical to an existing interpretation for profile {1}.",
+                ["DupExistingLabel"] = "Existing interpretation:",
+                ["DupOriginalFileLabel"] = "original file:",
+                ["DupWhatToDo"] = "What would you like to do?",
+                ["DupOpenExistingTitle"] = "Open existing report",
+                ["DupOpenExistingDesc"] = "Download the PDF generated from the previous interpretation.",
+                ["DupBadgeFree"] = "Free",
+                ["DupNoCreditNote"] = "— no credit used.",
+                ["DupReinterpretTitle"] = "Re-interpret",
+                ["DupReinterpretDesc"] = "Generate a new interpretation (e.g. for a second opinion or another language).",
+                ["DupOneCreditWarning"] = "Uses 1 credit.",
+                ["DupBtnReinterpretFmt"] = "Re-interpret (1 credit)",
+                ["DupCancelLink"] = "Cancel and pick another file",
+                ["EmailInterpretForProfileFmt"] = "Interpretation for profile: {0}",
+                // ===== End Phase 5 =====
                 // ===== End Phase 3 =====
             },
             ["ro"] = new()
@@ -1221,6 +1239,24 @@ namespace MedicalApp.Services
                 ["UploadFileChooseBtn"] = "Alege fișier…",
                 ["UploadFileNoFileChosen"] = "Niciun fișier ales",
                 // ===== End Phase 4 =====
+                // ===== Phase 5: DuplicateDetected page + email "for profile" line =====
+                ["DupPageTitle"] = "Analiză duplicată",
+                ["DupHeading"] = "Analiză deja interpretată",
+                ["DupFileMatchedFmt"] = "Fișierul {0} pare să fie identic cu o interpretare existentă pentru profilul {1}.",
+                ["DupExistingLabel"] = "Interpretare existentă:",
+                ["DupOriginalFileLabel"] = "fișier original:",
+                ["DupWhatToDo"] = "Ce dorești să faci?",
+                ["DupOpenExistingTitle"] = "Deschide raportul existent",
+                ["DupOpenExistingDesc"] = "Descarcă PDF-ul generat la interpretarea anterioară.",
+                ["DupBadgeFree"] = "Gratuit",
+                ["DupNoCreditNote"] = "— nu consumă credit.",
+                ["DupReinterpretTitle"] = "Re-interpretează",
+                ["DupReinterpretDesc"] = "Generează o interpretare nouă (de ex. dacă vrei o a doua părere sau altă limbă).",
+                ["DupOneCreditWarning"] = "Consumă 1 credit.",
+                ["DupBtnReinterpretFmt"] = "Re-interpretează (1 credit)",
+                ["DupCancelLink"] = "Anulează și alege alt fișier",
+                ["EmailInterpretForProfileFmt"] = "Interpretare pentru profilul: {0}",
+                // ===== End Phase 5 =====
                 // ===== End Phase 3 =====
             },
             ["fr"] = new()
@@ -1604,6 +1640,24 @@ namespace MedicalApp.Services
                 ["UploadFileChooseBtn"] = "Choisir un fichier…",
                 ["UploadFileNoFileChosen"] = "Aucun fichier sélectionné",
                 // ===== End Phase 4 =====
+                // ===== Phase 5: DuplicateDetected page + email "for profile" line =====
+                ["DupPageTitle"] = "Analyse en doublon",
+                ["DupHeading"] = "Analyse déjà interprétée",
+                ["DupFileMatchedFmt"] = "Le fichier {0} semble être identique à une interprétation existante pour le profil {1}.",
+                ["DupExistingLabel"] = "Interprétation existante :",
+                ["DupOriginalFileLabel"] = "fichier d'origine :",
+                ["DupWhatToDo"] = "Que souhaitez-vous faire ?",
+                ["DupOpenExistingTitle"] = "Ouvrir le rapport existant",
+                ["DupOpenExistingDesc"] = "Téléchargez le PDF généré lors de l'interprétation précédente.",
+                ["DupBadgeFree"] = "Gratuit",
+                ["DupNoCreditNote"] = "— sans consommer de crédit.",
+                ["DupReinterpretTitle"] = "Ré-interpréter",
+                ["DupReinterpretDesc"] = "Générez une nouvelle interprétation (par ex. pour un second avis ou une autre langue).",
+                ["DupOneCreditWarning"] = "Consomme 1 crédit.",
+                ["DupBtnReinterpretFmt"] = "Ré-interpréter (1 crédit)",
+                ["DupCancelLink"] = "Annuler et choisir un autre fichier",
+                ["EmailInterpretForProfileFmt"] = "Interprétation pour le profil : {0}",
+                // ===== End Phase 5 =====
                 // ===== End Phase 3 =====
                 // ===== End Phase 1 =====
                 ["WalkerGreeting"] = "Heureux de vous voir !",
@@ -2190,6 +2244,24 @@ namespace MedicalApp.Services
                 ["UploadFileChooseBtn"] = "Elegir archivo…",
                 ["UploadFileNoFileChosen"] = "Ningún archivo seleccionado",
                 // ===== End Phase 4 =====
+                // ===== Phase 5: DuplicateDetected page + email "for profile" line =====
+                ["DupPageTitle"] = "Análisis duplicado",
+                ["DupHeading"] = "Análisis ya interpretado",
+                ["DupFileMatchedFmt"] = "El archivo {0} parece ser idéntico a una interpretación existente para el perfil {1}.",
+                ["DupExistingLabel"] = "Interpretación existente:",
+                ["DupOriginalFileLabel"] = "archivo original:",
+                ["DupWhatToDo"] = "¿Qué quieres hacer?",
+                ["DupOpenExistingTitle"] = "Abrir el informe existente",
+                ["DupOpenExistingDesc"] = "Descarga el PDF generado en la interpretación anterior.",
+                ["DupBadgeFree"] = "Gratis",
+                ["DupNoCreditNote"] = "— sin consumir crédito.",
+                ["DupReinterpretTitle"] = "Re-interpretar",
+                ["DupReinterpretDesc"] = "Genera una nueva interpretación (por ej. para una segunda opinión u otro idioma).",
+                ["DupOneCreditWarning"] = "Consume 1 crédito.",
+                ["DupBtnReinterpretFmt"] = "Re-interpretar (1 crédito)",
+                ["DupCancelLink"] = "Cancelar y elegir otro archivo",
+                ["EmailInterpretForProfileFmt"] = "Interpretación para el perfil: {0}",
+                // ===== End Phase 5 =====
                 // ===== End Phase 3 =====
                 // ===== End Phase 1 =====
                 ["WalkerGreeting"] = "¡Me alegro de verte!",
@@ -2776,6 +2848,24 @@ namespace MedicalApp.Services
                 ["UploadFileChooseBtn"] = "Datei wählen…",
                 ["UploadFileNoFileChosen"] = "Keine Datei ausgewählt",
                 // ===== End Phase 4 =====
+                // ===== Phase 5: DuplicateDetected page + email "for profile" line =====
+                ["DupPageTitle"] = "Duplikatsanalyse",
+                ["DupHeading"] = "Analyse bereits interpretiert",
+                ["DupFileMatchedFmt"] = "Die Datei {0} scheint mit einer bestehenden Interpretation für das Profil {1} identisch zu sein.",
+                ["DupExistingLabel"] = "Bestehende Interpretation:",
+                ["DupOriginalFileLabel"] = "Originaldatei:",
+                ["DupWhatToDo"] = "Was möchten Sie tun?",
+                ["DupOpenExistingTitle"] = "Bestehenden Bericht öffnen",
+                ["DupOpenExistingDesc"] = "Laden Sie das PDF herunter, das bei der vorherigen Interpretation erstellt wurde.",
+                ["DupBadgeFree"] = "Kostenlos",
+                ["DupNoCreditNote"] = "— kein Credit verbraucht.",
+                ["DupReinterpretTitle"] = "Erneut interpretieren",
+                ["DupReinterpretDesc"] = "Erstellen Sie eine neue Interpretation (z. B. für eine zweite Meinung oder eine andere Sprache).",
+                ["DupOneCreditWarning"] = "Verbraucht 1 Credit.",
+                ["DupBtnReinterpretFmt"] = "Erneut interpretieren (1 Credit)",
+                ["DupCancelLink"] = "Abbrechen und andere Datei wählen",
+                ["EmailInterpretForProfileFmt"] = "Interpretation für das Profil: {0}",
+                // ===== End Phase 5 =====
                 // ===== End Phase 3 =====
                 // ===== End Phase 1 =====
                 ["WalkerGreeting"] = "Schön, dich zu sehen!",
