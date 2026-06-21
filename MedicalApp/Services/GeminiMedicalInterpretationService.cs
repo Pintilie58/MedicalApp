@@ -773,6 +773,25 @@ In BOTH modes apply the following parsing rules:
 - For age-dependent reference ranges (e.g. PSA, where the reference depends on patient age and is shown as a separate small lookup table), pick the row that matches the patient's age and use that range.
 - For parameters reported in two different units on adjacent lines (e.g. Iron in µg/dL and µmol/L), emit ONE entry only - using the unit that matches the patient's locale - with its correctly paired reference range. Do NOT emit two separate entries.
 - If a value and a reference range have CLEARLY mismatched units or magnitudes (e.g. value=46.1% paired with (0.05-0.60) absolute), you have associated the wrong reference. Re-read the page and pick the correct one. If you really cannot pair them, omit the parameter rather than display a wrong pairing.
+- **REFERENCE-RANGE LOCALIZATION** - the `reference` field in your output JSON
+  must be in **{LANGUAGE_NAME}**, the same language as the report itself:
+    * Numbers, decimal separators and math operators (`<`, `>`, `≤`, `≥`, `=`,
+      `-`, `±`, `÷`, `/`, `×`) are universal — KEEP THEM VERBATIM.
+    * Units of measurement (`mg/dL`, `g/L`, `mmol/L`, `IU/mL`, `mIU/mL`, `µg/L`,
+      `pg/mL`, `mm/h`, `10^3/uL`, `%`, `fL`, `pg`, `U/L`, etc.) — KEEP VERBATIM.
+    * International medical-standard acronyms — KEEP VERBATIM (`NCEP ATP III`,
+      `WHO`, `ESC`, `KDIGO`, `ADA`, `EASD`, `NICE`, `CDC`, `EMA`, `FDA`).
+    * Descriptive words around the numbers (the lab's category labels:
+      `scazut`, `crescut`, `optim`, `borderline crescut`, `factor protector`,
+      `Conform`, `valori dezirabile`, `bărbați`, `femei`, `copii`, `adulți`,
+      `normal`, `pozitiv`, `negativ`, `slab reactiv`, etc.) MUST be translated
+      to **{LANGUAGE_NAME}**. So `Conform NCEP ATP III: - scazut: ≤ 40 - factor protector: >= 60`
+      becomes in French `Conforme NCEP ATP III : - bas : ≤ 40 - facteur protecteur : >= 60`,
+      in German `Konform NCEP ATP III: - niedrig: ≤ 40 - schützender Faktor: >= 60`, etc.
+    * If the source lab printed the entire reference in only one language and
+      that language IS already the target language, leave the field as-is
+      (do NOT re-paraphrase) — only translate when the source contains words
+      from a different language.
 
 ==========================================================
 EXTRACTION COMPLETENESS - MOST IMPORTANT RULE
