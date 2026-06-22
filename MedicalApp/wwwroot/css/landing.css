@@ -959,7 +959,7 @@ body.landing-body a:hover { color: var(--land-coral); }
 }
 .land-compare-us h3 { color: var(--land-sage-dark); }
 .land-compare-best {
-    position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
     display: inline-flex; align-items: center; gap: 0.35rem;
     background: var(--land-coral); color: #fff;
     padding: 0.32rem 0.85rem;
@@ -968,7 +968,11 @@ body.landing-body a:hover { color: var(--land-coral); }
     text-transform: uppercase; letter-spacing: 0.04em;
     box-shadow: 0 6px 14px rgba(224, 122, 95, 0.35);
     white-space: nowrap;
+    z-index: 3;
 }
+/* When the badge is present, give the column extra top padding so the
+   icon/title don't overlap the badge ribbon. */
+.land-compare-us.land-compare-provider { padding-top: 3.25rem; }
 
 /* Body rows */
 .land-compare-rows { background: var(--land-surface); }

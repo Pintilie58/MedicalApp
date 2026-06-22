@@ -26,7 +26,7 @@
         </span>
     </div>
 
-    <div class="row g-4 justify-content-center">
+    <div class="row g-4 justify-content-center mt-2">
         @{
             // 3 boxes for CAM (Clinic audience) → col-lg-4 fills the row.
             // 4 boxes for B2C (Individual)     → col-lg-3 fills the row.
@@ -41,12 +41,12 @@
         @foreach (var pkg in Model)
         {
             var isPopular = pkg.Key == "super" || pkg.Key == "cam_business";
-            var cardClass = isPopular ? "border-primary shadow-lg" : "shadow-sm";
+            var cardClass = isPopular ? "border-primary shadow-lg pkg-popular" : "shadow-sm";
             <div class="@colCls">
                 <div class="card h-100 border-0 @cardClass position-relative">
                     @if (isPopular)
                     {
-                        <span class="badge bg-primary position-absolute top-0 start-50 translate-middle px-3 py-2">
+                        <span class="badge bg-primary position-absolute start-50 px-3 py-2 pkg-popular-badge">
                             @Loc.T("MostPopular")
                         </span>
                     }
@@ -96,3 +96,16 @@
         }
     </div>
 </div>
+
+<style>
+    /* Make the "Most popular" ribbon sit fully inside the card, anchored
+       at the top edge, so it isn't half-clipped above the card body. */
+    .pkg-popular { padding-top: 18px; }
+    .pkg-popular-badge {
+        top: 12px;
+        transform: translateX(-50%);
+        z-index: 5;
+        box-shadow: 0 4px 10px rgba(13, 110, 253, 0.30);
+        letter-spacing: 0.02em;
+    }
+</style>
