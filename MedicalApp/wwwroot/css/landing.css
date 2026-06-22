@@ -698,7 +698,7 @@ body.landing-body a:hover { color: var(--land-coral); }
 
 /* ============== Features ============== */
 .land-features {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;
 }
 @media (max-width: 900px) {
     .land-features { grid-template-columns: repeat(2, 1fr); }
@@ -707,22 +707,77 @@ body.landing-body a:hover { color: var(--land-coral); }
     .land-features { grid-template-columns: 1fr; }
 }
 .land-feature {
-    background: var(--land-surface);
+    position: relative;
+    background:
+        linear-gradient(180deg, #ffffff 0%, var(--land-surface) 100%);
     border: 1px solid var(--land-border);
     border-radius: var(--land-radius);
-    padding: 1.5rem;
+    padding: 1.5rem 1.4rem 1.4rem;
     text-align: left;
-    transition: transform .15s ease, box-shadow .15s ease;
+    overflow: hidden;
+    box-shadow:
+        0 1px 0 rgba(255,255,255,0.9) inset,
+        0 1px 2px rgba(15, 23, 42, 0.04),
+        0 8px 20px -12px rgba(15, 23, 42, 0.12);
+    transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
 }
-.land-feature:hover { transform: translateY(-2px); box-shadow: var(--land-shadow-md); }
-.land-feature h4 { font-size: 1rem; font-weight: 600; margin: 0.75rem 0 0.35rem 0; }
-.land-feature p { margin: 0; font-size: 0.9rem; }
+.land-feature::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--land-sage-dark), var(--land-coral, #e97c5a));
+    opacity: 0.55;
+    border-top-left-radius: var(--land-radius);
+    border-top-right-radius: var(--land-radius);
+}
+.land-feature::after {
+    content: "";
+    position: absolute;
+    right: -40px; top: -40px;
+    width: 120px; height: 120px;
+    background: radial-gradient(closest-side, var(--land-sage-light), transparent 70%);
+    opacity: 0.5;
+    pointer-events: none;
+}
+.land-feature:hover {
+    transform: translateY(-4px);
+    border-color: var(--land-sage-dark);
+    box-shadow:
+        0 1px 0 rgba(255,255,255,0.9) inset,
+        0 4px 10px rgba(15, 23, 42, 0.06),
+        0 24px 36px -18px rgba(15, 23, 42, 0.22);
+}
+.land-feature h4 { font-size: 1rem; font-weight: 600; margin: 0.85rem 0 0.4rem 0; }
+.land-feature p { margin: 0; font-size: 0.9rem; line-height: 1.55; }
 .land-feature-icon {
-    width: 36px; height: 36px;
+    position: relative;
+    z-index: 1;
+    width: 44px; height: 44px;
     display: inline-flex; align-items: center; justify-content: center;
-    background: var(--land-sage-light); color: var(--land-sage-dark);
-    border-radius: var(--land-radius-sm);
-    font-size: 1.1rem;
+    background: linear-gradient(135deg, #ffffff, var(--land-sage-light));
+    color: var(--land-sage-dark);
+    border: 1px solid var(--land-border);
+    border-radius: 12px;
+    font-size: 1.25rem;
+    box-shadow:
+        0 1px 0 rgba(255,255,255,0.9) inset,
+        0 6px 12px -6px rgba(15, 23, 42, 0.18);
+}
+
+/* Accent variant for highlighted cards (Correlations / Recommendations / Questions) */
+.land-feature.land-feature-accent::before {
+    background: linear-gradient(90deg, var(--land-coral, #e97c5a), var(--land-sage-dark));
+    opacity: 0.85;
+    height: 4px;
+}
+.land-feature.land-feature-accent::after {
+    background: radial-gradient(closest-side, rgba(233, 124, 90, 0.18), transparent 70%);
+    opacity: 0.7;
+}
+.land-feature.land-feature-accent .land-feature-icon {
+    background: linear-gradient(135deg, #fff, #fdece4);
+    color: var(--land-coral, #c0563a);
 }
 
 /* ============== How it works (3-step) ============== */
