@@ -136,7 +136,13 @@ namespace MedicalApp.Services
                 : _settings.Model;
 
             // 2) Build the request body
-            var systemPrompt = BuildSystemPrompt();
+            // We replace the `{LANGUAGE_NAME}` placeholder in the system prompt with the
+            // actual target language name (e.g. "Romanian"). Flash usually figures out
+            // the placeholder from context, but Gemini 2.5 Pro and Gemini 3 are more
+            // pedantic — they sometimes treat literal `{LANGUAGE_NAME}` as an opaque
+            // token and ignore the localization directive. Interpolating the real
+            // language name removes that ambiguity for all models.
+            var systemPrompt = BuildSystemPrompt().Replace("{LANGUAGE_NAME}", languageName);
             var userPrompt = BuildUserPrompt(languageName, languageCode, fileName, patientContext,
                                              hasInlinePdf: pdfBase64 != null,
                                              extractedText: extractedText);
@@ -774,7 +780,10 @@ In BOTH modes apply the following parsing rules:
 - For parameters reported in two different units on adjacent lines (e.g. Iron in µg/dL and µmol/L), emit ONE entry only - using the unit that matches the patient's locale - with its correctly paired reference range. Do NOT emit two separate entries.
 - If a value and a reference range have CLEARLY mismatched units or magnitudes (e.g. value=46.1% paired with (0.05-0.60) absolute), you have associated the wrong reference. Re-read the page and pick the correct one. If you really cannot pair them, omit the parameter rather than display a wrong pairing.
 - **REFERENCE-RANGE LOCALIZATION** - the `reference` field in your output JSON
-  must be in **{LANGUAGE_NAME}**, the same language as the report itself:
+  must be in **{LANGUAGE_NAME}**, the same language as the report itself.
+  ⚠️ THIS RULE OVERRIDES the generic ""preserve exactly as it appears"" instruction
+  for the reference column. The reference column is NOT a verbatim copy — the
+  numeric/unit parts are verbatim, but descriptive words MUST be translated.
     * Numbers, decimal separators and math operators (`<`, `>`, `≤`, `≥`, `=`,
       `-`, `±`, `÷`, `/`, `×`) are universal — KEEP THEM VERBATIM.
     * Units of measurement (`mg/dL`, `g/L`, `mmol/L`, `IU/mL`, `mIU/mL`, `µg/L`,
@@ -784,14 +793,24 @@ In BOTH modes apply the following parsing rules:
     * Descriptive words around the numbers (the lab's category labels:
       `scazut`, `crescut`, `optim`, `borderline crescut`, `factor protector`,
       `Conform`, `valori dezirabile`, `bărbați`, `femei`, `copii`, `adulți`,
-      `normal`, `pozitiv`, `negativ`, `slab reactiv`, etc.) MUST be translated
-      to **{LANGUAGE_NAME}**. So `Conform NCEP ATP III: - scazut: ≤ 40 - factor protector: >= 60`
-      becomes in French `Conforme NCEP ATP III : - bas : ≤ 40 - facteur protecteur : >= 60`,
-      in German `Konform NCEP ATP III: - niedrig: ≤ 40 - schützender Faktor: >= 60`, etc.
+      `normal`, `pozitiv`, `negativ`, `slab reactiv`, `valori normale`,
+      `valori de referință`, `recomandat`, `risc cardiovascular`, `țintă`,
+      `interval`, `dezirabil`, `cresc`, `cu risc`, etc.) MUST be translated
+      to **{LANGUAGE_NAME}**.
+    * Concrete examples — input then output of the `reference` field:
+        - source RO: `Conform NCEP ATP III: - scazut: ≤ 40 - factor protector: >= 60`
+        - if target=French:  `Conforme NCEP ATP III : - bas : ≤ 40 - facteur protecteur : >= 60`
+        - if target=Spanish: `Conforme NCEP ATP III: - bajo: ≤ 40 - factor protector: >= 60`
+        - if target=German:  `Konform NCEP ATP III: - niedrig: ≤ 40 - schützender Faktor: >= 60`
+        - if target=English: `Per NCEP ATP III: - low: ≤ 40 - protective factor: >= 60`
+        - if target=Romanian: leave as-is (source language already matches).
     * If the source lab printed the entire reference in only one language and
       that language IS already the target language, leave the field as-is
       (do NOT re-paraphrase) — only translate when the source contains words
-      from a different language.
+      from a different language than {LANGUAGE_NAME}.
+    * SELF-CHECK before emitting each `reference` value: if it contains a
+      Romanian word AND the target language is NOT Romanian, you have NOT
+      translated it yet — fix it before responding.
 
 ==========================================================
 EXTRACTION COMPLETENESS - MOST IMPORTANT RULE
@@ -801,6 +820,9 @@ IT MEANS ""THE COMPLETE LIST OF EVERY SINGLE LAB RESULT FOUND IN THE PDF"".
 - Include EVERY measured parameter that appears in the PDF, WITHOUT EXCEPTION.
 - NEVER skip a parameter because it is normal or because it seems ""less important"".
 - Preserve the EXACT parameter name, value, unit and reference range as they appear.
+  ⚠️ EXCEPTION: The descriptive words inside the `reference` field are subject to
+  the REFERENCE-RANGE LOCALIZATION rule above — translate them to {LANGUAGE_NAME}.
+  Numbers, units and acronyms inside the reference stay verbatim.
 - Pay SPECIAL ATTENTION to: Imunochimie / hormones (TSH, FT3, FT4), tumor markers (PSA, CEA, AFP, CA125, CA15-3, CA19-9), vitamins (D, B12, folate, ferritin), iron panel (Fer, Transferrine, CTFF, CST). These are often in separate sub-sections and frequently forgotten.
 
 ==========================================================

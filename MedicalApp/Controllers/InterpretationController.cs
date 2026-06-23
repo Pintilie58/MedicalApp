@@ -367,9 +367,14 @@ namespace MedicalApp.Controllers
                         else
                         {
                             // VISION-mode fallback (scanned PDFs / extraction failed).
+                            // Pass currentModelOverride so the tiered fallback chain
+                            // (Flash → Pro 2.5 → Gemini 3.1) is actually honoured here
+                            // — without it, this path silently stayed on the primary
+                            // model even after the controller had decided to escalate.
                             using var pdfMs = new MemoryStream(pdfBytes);
                             (result, inputTokens, outputTokens, rawGptResponse) =
-                                await _ai.InterpretPdfAsync(pdfMs, originalFileName, languageCode, patientCtx);
+                                await _ai.InterpretPdfAsync(pdfMs, originalFileName, languageCode, patientCtx,
+                                    HttpContext.RequestAborted, currentModelOverride);
                         }
                     }
                     else
