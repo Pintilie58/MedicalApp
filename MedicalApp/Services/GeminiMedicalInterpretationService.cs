@@ -960,6 +960,47 @@ If the language is Romanian, write in Romanian; if English, write in English;
 if German, German; etc. Match the same language used for ""summary"".
 
 ==========================================================
+DOCTOR QUESTIONS (OPTIONAL BUT STRONGLY RECOMMENDED)
+==========================================================
+You MAY emit a field ""doctor_questions"" — an array of EXACTLY 5 questions
+(or 0 if no medically meaningful question can be generated) in the SAME
+language as the rest of the interpretation. These are questions the patient
+should ask their doctor at the NEXT clinical visit.
+
+RULES (strict):
+1. Each question MUST reference at least ONE specific parameter, panel or
+   pattern present in THIS report. NO generic medicine questions.
+     ✓ Good: ""LDL-ul meu este 180 mg/dL — ar trebui să încep tratament cu
+              statine acum sau pot să încerc întâi modificări de dietă timp
+              de 3 luni?""
+     ✗ Bad: ""Trebuie să mă îngrijorez de sănătatea mea?""
+2. Each question must be OPEN-ENDED (not yes/no). Phrasing should invite
+   the doctor to explain context, options, or next steps.
+3. Questions must be RESPECTFUL and INFORMED — written as a curious,
+   educated patient, NOT as a paranoid one. AVOID alarmist language.
+4. Questions must be CONSTRUCTIVE — orient toward: clarification, lifestyle
+   changes, additional tests, monitoring intervals, lifestyle/dietary
+   adaptations, when to recheck, which specialty to involve.
+5. NEVER pose a question that claims a diagnosis (""am cancer?"", ""am
+   diabet?""). Instead, ask about the relevance of values, possible
+   investigations, or significance.
+6. NEVER mention specific drug names, doses or brand-name treatments.
+7. Cover DIVERSE topics across the 5 questions: at least 1 about an
+   abnormal/borderline value if any exist, 1 about lifestyle, 1 about
+   monitoring/follow-up, 1 about specialist consultation when relevant.
+   The 5th can revisit an interesting pattern or correlation.
+8. KEEP each question concise: 12–28 words. One sentence each.
+9. Language matches ""summary"". Romanian → Romanian, French → French, etc.
+10. If the lab report is so normal and uneventful that NO meaningful
+    question can be derived, emit an EMPTY ARRAY [] — do NOT fabricate.
+
+FORMAT for each entry (no numbering inside the string — the PDF renderer
+adds numbering):
+  ""Având colesterolul total 240 mg/dL și HDL scăzut, ce schimbări de stil
+   de viață mi-ai recomanda pentru următoarele 3 luni înainte de o
+   reevaluare?""
+
+==========================================================
 PARAMETER NORMALIZATION (per parameter) — MANDATORY FIELD
 ==========================================================
 For EVERY entry in ""key_results"" you MUST emit ONE additional field:
@@ -1170,8 +1211,8 @@ Rules:
 OUTPUT FORMAT (CRITICAL):
 - Respond ONLY with a JSON OBJECT (no markdown, no code fences, no commentary).
 - The JSON MUST conform exactly to this schema. All keys are required, EXCEPT
-  ""risk_factors"" and ""_extraction_audit"" which are optional (emit them ONLY
-  when relevant; do not emit any other extra keys):
+  ""risk_factors"", ""doctor_questions"" and ""_extraction_audit"" which are optional
+  (emit them ONLY when relevant; do not emit any other extra keys):
 {
   ""is_medical_analysis"": boolean,
   ""rejection_reason"": string|null,
@@ -1183,6 +1224,7 @@ OUTPUT FORMAT (CRITICAL):
   ""recommendations"": string,
   ""disclaimer"": string,
   ""risk_factors"": [string, ...],
+  ""doctor_questions"": [string, string, string, string, string],
   ""_extraction_audit"": { ""expected_count"": integer, ""parameter_names"": [string, ...] }
 }";
 

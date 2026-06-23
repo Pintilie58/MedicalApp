@@ -197,6 +197,35 @@ namespace MedicalApp.Services
                         col.Item().Text(r.Recommendations!).FontSize(10);
                 }
 
+                // Doctor Questions — numbered list 1..N, intercalated blur in freemium.
+                // Mirrors the Risk Factors pattern: graceful if null/empty (older
+                // interpretations in the DB simply don't render this section).
+                if (r.DoctorQuestions != null && r.DoctorQuestions.Count > 0)
+                {
+                    col.Item().Element(e => Section(e, labels.DoctorQuestions));
+                    var visibleQuestions = r.DoctorQuestions
+                        .Where(x => !string.IsNullOrWhiteSpace(x))
+                        .ToList();
+                    for (int i = 0; i < visibleQuestions.Count; i++)
+                    {
+                        var q = visibleQuestions[i];
+                        bool blur = isFreemium && BlurAt(i);
+                        col.Item().PaddingBottom(3).Row(row =>
+                        {
+                            row.AutoItem().PaddingRight(6).Text($"{i + 1}.")
+                                .FontColor(blur ? BlurBlockColor : AccentYellow).Bold().FontSize(11);
+                            if (blur)
+                                row.RelativeItem().Element(e => BlurifyTextBlock(e, q, labels));
+                            else
+                                row.RelativeItem().Text(q).FontSize(10);
+                        });
+                    }
+                    // Mandatory short MedicalApp disclaimer right below the list.
+                    col.Item().PaddingTop(2).Background("#FFF7E6")
+                        .Padding(8).Text(labels.DoctorQuestionsDisclaimer)
+                        .FontSize(8).Italic().FontColor(MutedText);
+                }
+
                 // LOINC source legend
                 if (r.KeyResults != null && r.KeyResults.Count > 0)
                 {
@@ -549,6 +578,8 @@ namespace MedicalApp.Services
         public string AbnormalFindings { get; set; } = "";
         public string Correlations { get; set; } = "";
         public string Recommendations { get; set; } = "";
+        public string DoctorQuestions { get; set; } = "";
+        public string DoctorQuestionsDisclaimer { get; set; } = "";
         public string Disclaimer { get; set; } = "";
         public string GeneratedOn { get; set; } = "";
         public string Page { get; set; } = "";
@@ -587,6 +618,8 @@ namespace MedicalApp.Services
             AbnormalFindings = Loc.T("AbnormalFindingsSection"),
             Correlations = Loc.T("CorrelationsSection"),
             Recommendations = Loc.T("RecommendationsSection"),
+            DoctorQuestions = Loc.T("DoctorQuestionsSection"),
+            DoctorQuestionsDisclaimer = Loc.T("DoctorQuestionsDisclaimer"),
             Disclaimer = Loc.T("DisclaimerSection"),
             GeneratedOn = Loc.T("GeneratedOn"),
             Page = Loc.T("Page"),
