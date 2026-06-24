@@ -20,17 +20,20 @@ namespace MedicalApp.Areas.CAM.Controllers
         private readonly AppDbContext _db;
         private readonly ICamFileStore _files;
         private readonly CamPdfMetadataExtractor _extractor;
+        private readonly EmailDeliverabilityChecker _emailChecker;
         private readonly ILogger<CheckPdfsController> _logger;
 
         public CheckPdfsController(
             AppDbContext db,
             ICamFileStore files,
             CamPdfMetadataExtractor extractor,
+            EmailDeliverabilityChecker emailChecker,
             ILogger<CheckPdfsController> logger)
         {
             _db = db;
             _files = files;
             _extractor = extractor;
+            _emailChecker = emailChecker;
             _logger = logger;
         }
 
@@ -142,6 +145,46 @@ namespace MedicalApp.Areas.CAM.Controllers
                 vm.Items.Add(row);
             }
 
+            // ----------------------------------------------------------------
+            // A2 — Email deliverability check.
+            // For every row that already passed identity validation (gold path
+            // [MedicalApp] block OR manual override), classify the email syntax
+            // + DNS resolvability. Results are cached per-domain, so when many
+            // PDFs go to the same gmail.com address only one DNS hop happens.
+            // Parallelized with a small fan-out to keep the page snappy.
+            // ----------------------------------------------------------------
+            using (var ctsAll = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted))
+            {
+                ctsAll.CancelAfter(TimeSpan.FromSeconds(6));
+                var deliverabilityTasks = vm.Items
+                    .Where(r => r.IsValid && !string.IsNullOrWhiteSpace(r.PatientEmail))
+                    .Select(async r =>
+                    {
+                        try
+                        {
+                            var res = await _emailChecker.ValidateAsync(r.PatientEmail, ctsAll.Token);
+                            r.EmailValidity = res.Validity;
+                            r.EmailValidityMessage = res.FriendlyMessage;
+                            r.EmailDomainSuggestion = res.DomainSuggestion;
+                        }
+                        catch (Exception ex)
+                        {
+                            // Never let a deliverability check break the page render.
+                            _logger.LogDebug(ex, "EmailDeliverabilityChecker failed for {Email}", r.PatientEmail);
+                            r.EmailValidity = EmailValidity.DnsUnknown;
+                            r.EmailValidityMessage = "Validare DNS indisponibilă temporar.";
+                        }
+                    })
+                    .ToList();
+                try { await Task.WhenAll(deliverabilityTasks); }
+                catch (OperationCanceledException)
+                {
+                    // 6-second global cap reached — rows that didn't finish stay
+                    // at their default (Empty / DnsUnknown). Better to show the
+                    // page than block for slow DNS.
+                }
+            }
+
             return View(vm);
         }
 
@@ -164,10 +207,15 @@ namespace MedicalApp.Areas.CAM.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
-            // Trivial sanity check — extractor will validate again at batch time.
-            if (!overrideEmail.Contains('@') || !overrideEmail.Contains('.'))
+            // RFC-syntactic check via System.Net.Mail.MailAddress. We don't run
+            // the DNS check here because the view's Index() does it on render —
+            // doing it again here would just add latency without giving the
+            // operator any new information. If the domain is broken the row
+            // will be flagged red on next page load and Run-batch stays disabled.
+            try { _ = new System.Net.Mail.MailAddress(overrideEmail.Trim()); }
+            catch
             {
-                TempData["ErrorMessage"] = "Adresa de email pare invalidă.";
+                TempData["ErrorMessage"] = "Adresa de email pare invalidă (ex: nume@domeniu.ro).";
                 return RedirectToAction(nameof(Index));
             }
 

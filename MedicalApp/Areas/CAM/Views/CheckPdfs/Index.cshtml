@@ -130,14 +130,44 @@ Email: ion.popescu@example.com</pre>
                         &#10227; Re-scanează
                     </button>
                 </form>
-                <a asp-controller="Batch" asp-action="Start" asp-area="CAM"
-                   class="btn btn-success btn-sm fw-bold"
-                   data-testid="cam-checkpdfs-launch-batch"
-                   title="Lansează un lot nou — interpretează toate PDF-urile din folderul Original">
-                    &#9658; Lansează lot
-                </a>
+                @if (Model.HasBlockingEmailIssues)
+                {
+                    @* A1/A5 — Run-batch button is disabled when at least one row has a
+                       syntactically invalid or non-resolvable email. The clinic would
+                       just waste credits on a doomed send otherwise. *@
+                    <button type="button"
+                            class="btn btn-secondary btn-sm fw-bold"
+                            disabled
+                            data-testid="cam-checkpdfs-launch-batch-disabled"
+                            title="Există rânduri cu email invalid sau cu domeniu inexistent. Corectează-le din butonul Editează înainte de a lansa lotul.">
+                        &#9658; Lansează lot
+                    </button>
+                }
+                else
+                {
+                    <a asp-controller="Batch" asp-action="Start" asp-area="CAM"
+                       class="btn btn-success btn-sm fw-bold"
+                       data-testid="cam-checkpdfs-launch-batch"
+                       title="Lansează un lot nou — interpretează toate PDF-urile din folderul Original">
+                        &#9658; Lansează lot
+                    </a>
+                }
             </div>
         </div>
+
+        @if (Model.HasBlockingEmailIssues)
+        {
+            <div class="alert alert-warning d-flex align-items-center gap-2 mb-3"
+                 data-testid="cam-checkpdfs-email-warning">
+                <span class="fs-4">&#9888;</span>
+                <div class="small mb-0">
+                    <strong>Cel puțin un rând are email invalid sau cu domeniu inexistent.</strong>
+                    Lansarea lotului este blocată ca să nu pierzi credite pe trimiteri ratate.
+                    Apasă <em>&#9999; Editează</em> pe rândurile evidențiate roșu/galben și
+                    corectează adresele.
+                </div>
+            </div>
+        }
 
         @if (Model.Items.Count == 0)
         {
@@ -185,7 +215,40 @@ Email: ion.popescu@example.com</pre>
                                 </td>
                                 <td><code class="small">@r.FileName</code></td>
                                 <td>@(r.PatientName ?? "—")</td>
-                                <td>@(r.PatientEmail ?? "—")</td>
+                                <td>
+                                    @if (string.IsNullOrWhiteSpace(r.PatientEmail))
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span>@r.PatientEmail</span>
+                                            @switch (r.EmailValidity)
+                                            {
+                                                case MedicalApp.Services.EmailValidity.Valid:
+                                                    <span class="badge bg-success" data-testid="cam-email-validity-@r.FileName" title="@r.EmailValidityMessage">&#10003; OK</span>
+                                                    break;
+                                                case MedicalApp.Services.EmailValidity.InvalidSyntax:
+                                                    <span class="badge bg-danger" data-testid="cam-email-validity-@r.FileName" title="@r.EmailValidityMessage">&#10007; Invalid</span>
+                                                    break;
+                                                case MedicalApp.Services.EmailValidity.NoMxRecord:
+                                                    <span class="badge bg-danger" data-testid="cam-email-validity-@r.FileName" title="@r.EmailValidityMessage">&#9888; Fără MX</span>
+                                                    break;
+                                                case MedicalApp.Services.EmailValidity.DnsUnknown:
+                                                    <span class="badge bg-secondary" data-testid="cam-email-validity-@r.FileName" title="@r.EmailValidityMessage">&hellip;</span>
+                                                    break;
+                                            }
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(r.EmailDomainSuggestion) &&
+                                             r.EmailValidity == MedicalApp.Services.EmailValidity.NoMxRecord)
+                                        {
+                                            <div class="small text-warning mt-1" data-testid="cam-email-suggest-@r.FileName">
+                                                &#128172; Ai vrut să spui <code>@@@r.EmailDomainSuggestion</code>?
+                                            </div>
+                                        }
+                                    }
+                                </td>
                                 <td class="small">
                                     @if (r.MatchedExplicitBlock)
                                     {
@@ -283,6 +346,17 @@ Email: ion.popescu@example.com</pre>
                            class="form-control"
                            placeholder="ex: ion.popescu@example.com"
                            data-testid="cam-checkpdfs-edit-email" />
+                    @* A3 — inline "Did you mean ...?" hint, populated by the
+                       page-level script when the typed domain is one Levenshtein
+                       edit away from a known consumer email provider. *@
+                    <div id="editEmailHint" class="small mt-1 d-none" data-testid="cam-checkpdfs-edit-hint">
+                        <span class="text-warning">&#128172; Ai vrut să spui</span>
+                        <button type="button"
+                                id="editEmailHintApply"
+                                class="btn btn-link btn-sm p-0 align-baseline fw-semibold"
+                                data-testid="cam-checkpdfs-edit-hint-apply"></button>
+                        <span class="text-muted">? Apasă pentru a corecta automat.</span>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -350,6 +424,77 @@ Email: ion.popescu@example.com</pre>
                 delBtn.dataset.confirmBody =
                     'Vei ȘTERGE definitiv fișierul „' + fname + '" din folderul Original.\n\n' +
                     'Acțiunea este ireversibilă. Override-ul manual asociat (dacă există) va fi șters automat.';
+            }
+            // Trigger an initial typo-check so the operator sees the hint
+            // immediately for emails that were already typo'd on the row.
+            checkEmailTypo();
+        });
+
+        // ===========================================================
+        // A3 — "Did you mean ...?" client-side typo hint
+        // Suggests the closest consumer email provider (Levenshtein <= 2).
+        // Pure JS — no DNS call here. The server already does that on Index().
+        // ===========================================================
+        var KNOWN_DOMAINS = [
+            'gmail.com', 'yahoo.com', 'yahoo.co.uk', 'outlook.com', 'hotmail.com',
+            'icloud.com', 'live.com', 'msn.com', 'aol.com', 'protonmail.com',
+            'yandex.com', 'gmx.com', 'yahoo.ro', 'gmail.ro', 'outlook.ro'
+        ];
+        function levenshtein(a, b, maxAllowed) {
+            if (a === b) return 0;
+            if (!a.length) return b.length;
+            if (!b.length) return a.length;
+            if (Math.abs(a.length - b.length) > maxAllowed) return Infinity;
+            var prev = new Array(b.length + 1);
+            var curr = new Array(b.length + 1);
+            for (var j = 0; j <= b.length; j++) prev[j] = j;
+            for (var i = 1; i <= a.length; i++) {
+                curr[0] = i;
+                var rowMin = curr[0];
+                for (var j = 1; j <= b.length; j++) {
+                    var cost = a[i - 1] === b[j - 1] ? 0 : 1;
+                    curr[j] = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+                    if (curr[j] < rowMin) rowMin = curr[j];
+                }
+                if (rowMin > maxAllowed) return Infinity;
+                var tmp = prev; prev = curr; curr = tmp;
+            }
+            return prev[b.length];
+        }
+        function suggestDomain(domain) {
+            domain = (domain || '').toLowerCase();
+            if (!domain || KNOWN_DOMAINS.indexOf(domain) !== -1) return null;
+            var best = null, bestDist = Infinity;
+            for (var i = 0; i < KNOWN_DOMAINS.length; i++) {
+                var d = levenshtein(domain, KNOWN_DOMAINS[i], 2);
+                if (d < bestDist) { bestDist = d; best = KNOWN_DOMAINS[i]; }
+                if (bestDist === 1) break;
+            }
+            return bestDist <= 2 ? best : null;
+        }
+        var emailInput = document.getElementById('editEmail');
+        var hintBox    = document.getElementById('editEmailHint');
+        var hintApply  = document.getElementById('editEmailHintApply');
+        function checkEmailTypo() {
+            if (!emailInput || !hintBox || !hintApply) return;
+            var value = (emailInput.value || '').trim();
+            var at = value.lastIndexOf('@');
+            if (at < 1 || at === value.length - 1) { hintBox.classList.add('d-none'); return; }
+            var domain = value.substring(at + 1);
+            var suggestion = suggestDomain(domain);
+            if (suggestion) {
+                hintApply.textContent = value.substring(0, at + 1) + suggestion;
+                hintBox.classList.remove('d-none');
+            } else {
+                hintBox.classList.add('d-none');
+            }
+        }
+        if (emailInput) emailInput.addEventListener('input', checkEmailTypo);
+        if (hintApply) hintApply.addEventListener('click', function () {
+            if (emailInput) {
+                emailInput.value = hintApply.textContent;
+                hintBox.classList.add('d-none');
+                emailInput.focus();
             }
         });
     });

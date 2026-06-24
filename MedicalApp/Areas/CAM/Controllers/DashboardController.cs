@@ -247,6 +247,46 @@ namespace MedicalApp.Areas.CAM.Controllers
                     DurationDisplay = (b.FinishedAt - b.StartedAt)?.ToString(@"hh\:mm\:ss") ?? "-"
                 })
                 .ToList();
+
+            // A5 — populate the "recent email failures" banner. Only triggers
+            // when the LATEST finished batch shipped at least one NotSends; we
+            // don't want a stale "1 fișier eșuat" alert hanging around forever
+            // after the operator already fixed it and ran a clean batch.
+            var lastFinished = recent.FirstOrDefault(b => b.FinishedAt != null);
+            if (lastFinished is { NotSends: > 0 })
+            {
+                var sampleReasons = await _db.ClinicBatchErrors.AsNoTracking()
+                    .Where(e => e.BatchRunId == lastFinished.Id
+                             && e.Reason != null
+                             && e.Reason.StartsWith("Email failure"))
+                    .OrderByDescending(e => e.OccurredAt)
+                    .Take(3)
+                    .Select(e => e.Reason!)
+                    .ToListAsync();
+
+                if (sampleReasons.Count > 0)
+                {
+                    vm.RecentEmailIssues = new Models.CamDashboardViewModel.RecentBatchEmailIssues
+                    {
+                        BatchRunId = lastFinished.Id,
+                        FinishedAt = lastFinished.FinishedAt ?? DateTime.UtcNow,
+                        NotSends = lastFinished.NotSends,
+                        TotalFiles = lastFinished.TotalFiles,
+                        // Extract the human-friendly part we inserted between brackets
+                        // by CamBatchService.ClassifyEmailFailure(). Fallback: full reason.
+                        SampleReasons = sampleReasons
+                            .Select(r =>
+                            {
+                                int open = r.IndexOf('[');
+                                int close = r.IndexOf(']', open + 1);
+                                return open >= 0 && close > open
+                                    ? r.Substring(open + 1, close - open - 1)
+                                    : r;
+                            })
+                            .ToList()
+                    };
+                }
+            }
         }
 
         /// <summary>

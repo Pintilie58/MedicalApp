@@ -83,6 +83,25 @@ namespace MedicalApp.Areas.CAM.Models
         // ----------------- Faza 4 — Istoric ultimele 20 loturi -----------------
         public List<BatchHistoryRow> RecentBatches { get; set; } = new();
 
+        // ----------------- A5 — Alertă lot recent cu trimiteri eșuate -----------------
+        /// <summary>
+        /// Set when the clinic's MOST RECENT completed batch had at least one email
+        /// failure. Drives the warning banner at the top of /CAM/Dashboard so the
+        /// operator notices even if they were away from the screen when the batch
+        /// finished. Cleared automatically when the next batch finishes cleanly.
+        /// </summary>
+        public RecentBatchEmailIssues? RecentEmailIssues { get; set; }
+
+        public class RecentBatchEmailIssues
+        {
+            public int BatchRunId { get; set; }
+            public DateTime FinishedAt { get; set; }
+            public int NotSends { get; set; }
+            public int TotalFiles { get; set; }
+            /// <summary>Up to 3 specific reasons taken from ClinicBatchErrors (newest first).</summary>
+            public List<string> SampleReasons { get; set; } = new();
+        }
+
         public class BatchPeriodStats
         {
             public int Total { get; set; }

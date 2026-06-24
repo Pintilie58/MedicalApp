@@ -58,6 +58,53 @@
         <div class="alert alert-success" data-testid="cam-success">@TempData["SuccessMessage"]</div>
     }
 
+    @* ============================================================
+       A5 — Banner: ultimul lot a eșuat la trimiterea unor email-uri.
+       Apare DOAR cât timp ultimul lot finalizat are NotSends > 0.
+       Imediat ce operatorul rulează un lot curat, banner-ul dispare
+       automat (controllerul recalculează la fiecare GET).
+       ============================================================ *@
+    @if (Model.RecentEmailIssues != null)
+    {
+        <div class="alert alert-warning d-flex align-items-start gap-3"
+             data-testid="cam-recent-email-issues">
+            <div style="font-size: 1.8rem; line-height: 1;">&#9888;</div>
+            <div class="flex-grow-1">
+                <h5 class="fw-bold mb-1">
+                    @Model.RecentEmailIssues.NotSends din @Model.RecentEmailIssues.TotalFiles fișiere
+                    nu au fost trimise în ultimul lot
+                </h5>
+                <p class="mb-2 small">
+                    Lotul #@Model.RecentEmailIssues.BatchRunId finalizat la
+                    <strong>@Model.RecentEmailIssues.FinishedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong>
+                    are erori la trimiterea către pacient. Fișierele afectate au rămas în folderul
+                    <code>Original</code> &mdash; după ce corectezi email-ul, un nou lot le va trimite.
+                </p>
+                @if (Model.RecentEmailIssues.SampleReasons.Count > 0)
+                {
+                    <ul class="small mb-2" data-testid="cam-recent-email-issues-list">
+                        @foreach (var reason in Model.RecentEmailIssues.SampleReasons)
+                        {
+                            <li>@reason</li>
+                        }
+                    </ul>
+                }
+                <a asp-controller="CheckPdfs" asp-action="Index" asp-area="CAM"
+                   class="btn btn-warning btn-sm fw-bold"
+                   data-testid="cam-recent-email-issues-fix">
+                    &#9999; Verifică & corectează email-urile
+                </a>
+                <a asp-controller="Dashboard" asp-action="SumarPdf" asp-area="CAM"
+                   asp-route-id="@Model.RecentEmailIssues.BatchRunId"
+                   target="_blank"
+                   class="btn btn-outline-secondary btn-sm ms-1"
+                   data-testid="cam-recent-email-issues-details">
+                    &#128196; Descarcă Sumar PDF
+                </a>
+            </div>
+        </div>
+    }
+
     @if (!Model.FoldersCreated)
     {
         <div class="alert alert-warning d-flex align-items-start" data-testid="cam-folders-pending">

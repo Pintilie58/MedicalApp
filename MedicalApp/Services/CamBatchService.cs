@@ -425,8 +425,14 @@ namespace MedicalApp.Services
             }
             catch (Exception ex)
             {
-                progress.Log("   ✘ Email eșuat: " + ex.Message);
-                await RecordErrorAsync(db, batch, path, patient.Name, "Email failure: " + ex.Message);
+                // A4 — translate the raw SMTP exception into a clinician-friendly
+                // sentence so the operator immediately knows whether to retry, edit
+                // the address, or call the IT person. Original message stays in
+                // batch.Errors for traceability; only the progress log is humanized.
+                var friendly = ClassifyEmailFailure(ex, patient.Email);
+                progress.Log($"   ✘ {friendly}");
+                await RecordErrorAsync(db, batch, path, patient.Name,
+                    $"Email failure: [{friendly}] — Raw: {ex.Message}");
                 batch.NotSends++; progress.NotSends++;
                 return;
             }
@@ -491,6 +497,78 @@ namespace MedicalApp.Services
                 RetryCount = prior + 1
             });
             await db.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// Translates a raw SMTP / network exception into a single Romanian sentence the
+        /// clinic operator can act on immediately. The original <c>ex.Message</c> is still
+        /// recorded verbatim in <c>ClinicBatchError.Reason</c> for traceability — this is
+        /// only the human-friendly line that hits the live progress log.
+        /// </summary>
+        private static string ClassifyEmailFailure(Exception ex, string? patientEmail)
+        {
+            // Walk the inner-exception chain so we catch SmtpFailedRecipientException
+            // nested inside Exception or AggregateException wrappers.
+            var msgs = new List<string>();
+            for (var cur = ex; cur != null; cur = cur.InnerException)
+                msgs.Add(cur.Message ?? string.Empty);
+            var combined = string.Join(" || ", msgs).ToLowerInvariant();
+
+            string emailLabel = string.IsNullOrWhiteSpace(patientEmail) ? "(necunoscut)" : patientEmail!;
+
+            // ---- Mailbox doesn't exist on the destination server ----
+            if (combined.Contains("550")
+                || combined.Contains("mailbox unavailable")
+                || combined.Contains("user unknown")
+                || combined.Contains("recipient address rejected")
+                || combined.Contains("no such user")
+                || combined.Contains("does not exist"))
+                return $"Adresa {emailLabel} a fost respinsă de server (cutia poștală nu există). " +
+                       "Verifică ortografia din butonul Editează.";
+
+            // ---- Domain not found ----
+            if (combined.Contains("no such host")
+                || combined.Contains("hostnotfound")
+                || combined.Contains("name or service not known")
+                || combined.Contains("could not be resolved"))
+                return $"Domeniul adresei {emailLabel} nu există. Foarte probabil o greșeală " +
+                       "de ortografie (ex: gmial.com în loc de gmail.com). Folosește Editează.";
+
+            // ---- Greylisting / temporary rejection ----
+            if (combined.Contains("450")
+                || combined.Contains("451")
+                || combined.Contains("try again later")
+                || combined.Contains("temporarily")
+                || combined.Contains("temporary failure"))
+                return $"Server destinație ocupat temporar pentru {emailLabel}. " +
+                       "Vom încerca din nou la următorul lot.";
+
+            // ---- Anti-spam reject (DKIM / SPF / blacklist) ----
+            if (combined.Contains("spam")
+                || combined.Contains("dkim")
+                || combined.Contains("spf")
+                || combined.Contains("blacklist")
+                || combined.Contains("policy")
+                || combined.Contains("reputation"))
+                return $"Mesajul către {emailLabel} a fost respins ca posibil spam de către serverul destinație. " +
+                       "Probabil necesită configurare DKIM/SPF pe domeniul clinicii — contactează administratorul.";
+
+            // ---- Auth failure between us and Gmail/SMTP relay ----
+            if (combined.Contains("authentication") || combined.Contains("auth fail")
+                || combined.Contains("535") || combined.Contains("password"))
+                return "Autentificarea către serverul SMTP a eșuat (parola aplicației Gmail). " +
+                       "Contactează administratorul — această eroare nu este cauzată de adresa pacientului.";
+
+            // ---- Network timeout / TLS issue ----
+            if (combined.Contains("timeout") || combined.Contains("timed out")
+                || combined.Contains("connection") || combined.Contains("network is unreachable"))
+                return $"Conexiune întreruptă către serverul SMTP în timpul trimiterii către {emailLabel}. " +
+                       "Verifică internetul și încearcă din nou.";
+
+            // ---- Default: surface the first message verbatim, truncated ----
+            var first = msgs.FirstOrDefault() ?? "Eroare necunoscută";
+            if (first.Length > 220) first = first.Substring(0, 220) + "…";
+            return $"Email eșuat pentru {emailLabel}: {first}";
         }
 
         private async Task MoveToErrorsIfRetriesExhaustedAsync(AppDbContext db, ClinicBatchRun batch, string filePath, string errorsFolder)

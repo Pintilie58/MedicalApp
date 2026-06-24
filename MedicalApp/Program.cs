@@ -43,6 +43,12 @@ builder.Services.Configure<BudgetAlertSettings>(builder.Configuration.GetSection
 builder.Services.AddSingleton<BudgetAlertService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<BudgetAlertService>());
 
+// Email deliverability pre-check (syntactic + DNS A-record + typo suggestion).
+// Used by CAM CheckPdfs to highlight rows where the patient email is almost
+// certainly a typo before a batch consumes Gemini credits on a doomed send.
+// Singleton because IMemoryCache and ILogger are thread-safe.
+builder.Services.AddSingleton<EmailDeliverabilityChecker>();
+
 // HttpClient factory (used by Gemini service for direct REST calls)
 builder.Services.AddHttpClient();
 
