@@ -478,7 +478,9 @@ Email: ion.popescu@example.com</pre>
         function checkEmailTypo() {
             if (!emailInput || !hintBox || !hintApply) return;
             var value = (emailInput.value || '').trim();
-            var at = value.lastIndexOf('@');
+            // '@@' is Razor escape for a literal '@' — needed so Razor doesn't
+            // mistakenly parse '@')' as a code-block transition.
+            var at = value.lastIndexOf('@@');
             if (at < 1 || at === value.length - 1) { hintBox.classList.add('d-none'); return; }
             var domain = value.substring(at + 1);
             var suggestion = suggestDomain(domain);
