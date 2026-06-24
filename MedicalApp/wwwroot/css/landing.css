@@ -1254,10 +1254,6 @@ body.landing-body a:hover { color: var(--land-coral); }
     .land-lang-banner-bulb { animation: none !important; }
     .land-lang-banner      { animation: none !important; }
 }
-
-    color: var(--land-ink);
-    letter-spacing: -0.01em;
-}
 .land-trust-text span {
     font-size: 0.78rem;
     color: var(--land-mute);
