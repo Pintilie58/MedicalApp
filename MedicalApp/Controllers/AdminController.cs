@@ -298,7 +298,14 @@ namespace MedicalApp.Controllers
             // -----------------------------------------------------------------
             var aiRaw = await _db.AiUsageLogs
                 .AsNoTracking()
-                .Where(h => h.CreatedAt >= cutoff30)
+                .Where(h => h.CreatedAt >= cutoff30
+                         // Exclude bookkeeping rows written by retry catch blocks
+                         // (status="transient_error", 0 tokens). They have no cost
+                         // and would otherwise inflate the B2C vs CAM doughnut and
+                         // the per-model usage breakdown with non-billable rows.
+                         // The Reliability widget below has its OWN query that
+                         // explicitly INCLUDES them.
+                         && h.Status != "transient_error")
                 .GroupBy(h => new { h.Source, h.ModelUsed })
                 .Select(g => new
                 {
@@ -396,11 +403,16 @@ namespace MedicalApp.Controllers
                 .Select(g =>
                 {
                     string modelId = g.Key ?? "(unknown)";
-                    int success  = g.Where(x => x.Status == "success").Sum(x => x.Count);
-                    int errors   = g.Where(x => x.Status == "error").Sum(x => x.Count);
-                    int rejected = g.Where(x => x.Status == "rejected").Sum(x => x.Count);
-                    int total    = success + errors + rejected;
-                    double rate  = total > 0 ? 100.0 * errors / total : 0.0;
+                    int success   = g.Where(x => x.Status == "success").Sum(x => x.Count);
+                    int errors    = g.Where(x => x.Status == "error").Sum(x => x.Count);
+                    int transient = g.Where(x => x.Status == "transient_error").Sum(x => x.Count);
+                    int rejected  = g.Where(x => x.Status == "rejected").Sum(x => x.Count);
+                    int total     = success + errors + transient + rejected;
+                    // Both hard errors AND transient retries count toward the rate —
+                    // a model that needs 4 retries to succeed is "unreliable" even if
+                    // the user eventually got a result. Rejected rows are intentional
+                    // refusals (non-medical PDF) so we exclude them from the rate.
+                    double rate  = total > rejected ? 100.0 * (errors + transient) / total : 0.0;
                     string color = rate < 5  ? "success"
                                  : rate < 15 ? "warning"
                                  :             "danger";
@@ -413,6 +425,7 @@ namespace MedicalApp.Controllers
                         Total = total,
                         Success = success,
                         Errors = errors,
+                        Transient = transient,
                         Rejected = rejected,
                         ErrorRatePct = rate,
                         BadgeColor = color
@@ -422,10 +435,13 @@ namespace MedicalApp.Controllers
                 .ToList();
 
             // Last 5 distinct error messages — fast diagnosis without DB access.
+            // Includes both final errors and transient retry failures, because the
+            // transient ones are exactly what the admin needs to see when Flash
+            // starts hiccupping on 503s.
             var recentErrors = await _db.AiUsageLogs
                 .AsNoTracking()
                 .Where(h => h.CreatedAt >= cutoff30
-                         && h.Status != "success"
+                         && (h.Status == "error" || h.Status == "transient_error")
                          && h.ErrorMessage != null)
                 .OrderByDescending(h => h.CreatedAt)
                 .Take(5)

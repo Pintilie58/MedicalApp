@@ -125,7 +125,11 @@ namespace MedicalApp.Services
 
             var rows = await db.AiUsageLogs
                 .AsNoTracking()
-                .Where(h => h.CreatedAt >= monthStart)
+                .Where(h => h.CreatedAt >= monthStart
+                         // Skip transient retry rows — they have 0 tokens and aren't
+                         // billable; including them in the "calls" column of the
+                         // alert email would mislead the admin about traffic volume.
+                         && h.Status != "transient_error")
                 .GroupBy(h => h.ModelUsed)
                 .Select(g => new
                 {

@@ -407,7 +407,8 @@
                                     <th>Model</th>
                                     <th class="text-end">Total</th>
                                     <th class="text-end text-success">Success</th>
-                                    <th class="text-end text-danger">Errors</th>
+                                    <th class="text-end text-danger" title="Final errors after all retries exhausted">Errors</th>
+                                    <th class="text-end text-warning" title="Intermediate retry failures (503, timeout) — user may still have got a result">Transient</th>
                                     <th class="text-end text-muted">Rejected</th>
                                     <th class="text-end" style="min-width:180px;">Error rate</th>
                                 </tr>
@@ -423,6 +424,8 @@
                                         <td class="text-end"><strong>@r.Total</strong></td>
                                         <td class="text-end">@r.Success</td>
                                         <td class="text-end @(r.Errors > 0 ? "text-danger fw-bold" : "")">@r.Errors</td>
+                                        <td class="text-end @(r.Transient > 0 ? "text-warning fw-bold" : "text-muted")"
+                                            title="Retried automatically — user typically still got a result">@r.Transient</td>
                                         <td class="text-end text-muted">@r.Rejected</td>
                                         <td class="text-end" style="min-width:180px;">
                                             <div class="d-flex align-items-center gap-2 justify-content-end">
@@ -446,6 +449,12 @@
                     </div>
 
                     <p class="small text-muted mt-3 mb-2">
+                        <strong>Errors</strong> = final failures shown to the user.
+                        <strong>Transient</strong> = retry attempts that hit 503/timeout
+                        but Google recovered or we escalated to a fallback model
+                        (user usually still received a result).
+                        Error rate combines <em>both</em> — a model that needs frequent
+                        retries is unreliable even when it eventually succeeds.
                         Thresholds: <span class="badge bg-success">&lt; 5%</span> healthy,
                         <span class="badge bg-warning text-dark">5&ndash;15%</span> watch,
                         <span class="badge bg-danger">&gt; 15%</span> swap primary model.

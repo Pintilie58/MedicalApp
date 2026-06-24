@@ -159,8 +159,18 @@ namespace MedicalApp.Models
         public int Total { get; set; }
         public int Success { get; set; }
         public int Errors { get; set; }
+        /// <summary>
+        /// Intermediate failures that were retried (and possibly recovered) without
+        /// the user ever seeing a final error. Captured per-retry from the catch
+        /// blocks in InterpretationController / CamBatchService. Stored with
+        /// inputTokens=0 and outputTokens=0 so they contribute ZERO to the cost
+        /// panel — yet count fully here, which is the whole point of this widget.
+        /// </summary>
+        public int Transient { get; set; }
         public int Rejected { get; set; }
-        /// <summary>0..100. Errors are (Errors / Total). Rejected are NOT counted here — they were intentional refusals.</summary>
+        /// <summary>0..100. ((Errors + Transient) / Total) — i.e. how often the model
+        /// hiccupped, regardless of whether a retry recovered it. This is the signal
+        /// the admin actually wants when deciding to swap primary.</summary>
         public double ErrorRatePct { get; set; }
         /// <summary>"success" / "warning" / "danger" — drives the row's bootstrap color.</summary>
         public string BadgeColor { get; set; } = "success";

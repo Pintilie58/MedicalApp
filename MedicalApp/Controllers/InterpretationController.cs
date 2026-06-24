@@ -388,6 +388,21 @@ namespace MedicalApp.Controllers
                 {
                     transientAttempts++;
 
+                    // Log the failed transient call BEFORE we decide on tier promotion
+                    // so the Reliability widget sees the model that actually hiccupped
+                    // (not the model we are about to escalate to). inputTokens=0 and
+                    // outputTokens=0 so this row contributes ZERO to the cost panel —
+                    // a transient 503 means Google never billed us.
+                    await _aiUsage.LogAsync(
+                        source: "B2C",
+                        userEmail: user.Email,
+                        clinicId: null,
+                        modelUsed: currentModelOverride ?? _geminiSettings.Model ?? "(unknown)",
+                        inputTokens: 0,
+                        outputTokens: 0,
+                        status: "transient_error",
+                        errorMessage: $"HTTP {ex.HttpStatusCode}: {ex.Message}");
+
                     // Tiered fallback (mirrors CamBatchService, "plasă de siguranță"):
                     //   tier 1 (null override)              = Primary (e.g. Flash)
                     //   tier 2 (override == FallbackModel)  = Fallback (e.g. Pro 2.5)
@@ -475,6 +490,15 @@ namespace MedicalApp.Controllers
                     _logger.LogWarning(ex,
                         "{Provider} call timed out (transient try {N}/{Max}). Retrying...",
                         providerName, transientAttempts, maxAttemptsTransient);
+                    await _aiUsage.LogAsync(
+                        source: "B2C",
+                        userEmail: user.Email,
+                        clinicId: null,
+                        modelUsed: currentModelOverride ?? _geminiSettings.Model ?? "(unknown)",
+                        inputTokens: 0,
+                        outputTokens: 0,
+                        status: "transient_error",
+                        errorMessage: "Timeout: " + (ex.Message.Length > 200 ? ex.Message[..200] : ex.Message));
                     lastException = ex;
                     await Task.Delay(5_000 * transientAttempts); // 5s, 10s, 15s, 20s
                 }
@@ -484,6 +508,15 @@ namespace MedicalApp.Controllers
                     _logger.LogWarning(ex,
                         "{Provider} HTTP error (transient try {N}/{Max}). Retrying...",
                         providerName, transientAttempts, maxAttemptsTransient);
+                    await _aiUsage.LogAsync(
+                        source: "B2C",
+                        userEmail: user.Email,
+                        clinicId: null,
+                        modelUsed: currentModelOverride ?? _geminiSettings.Model ?? "(unknown)",
+                        inputTokens: 0,
+                        outputTokens: 0,
+                        status: "transient_error",
+                        errorMessage: "HttpRequestException: " + (ex.Message.Length > 200 ? ex.Message[..200] : ex.Message));
                     lastException = ex;
                     await Task.Delay(5_000 * transientAttempts);
                 }

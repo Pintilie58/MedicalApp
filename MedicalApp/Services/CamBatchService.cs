@@ -653,6 +653,20 @@ namespace MedicalApp.Services
                 catch (GeminiTransientException ex)
                 {
                     lastEx = ex;
+                    // Log the failed call to the AI usage table BEFORE TryPromoteTier
+                    // mutates modelOverride. Status "transient_error" keeps the row out
+                    // of the cost panel (input=0/output=0) but surfaces it in the
+                    // Reliability widget so the admin can see Flash/Pro hiccupping.
+                    await aiUsage.LogAsync(
+                        source: "CAM",
+                        userEmail: user?.Email,
+                        clinicId: clinic.Id,
+                        modelUsed: EffectiveModelId(),
+                        inputTokens: 0,
+                        outputTokens: 0,
+                        status: "transient_error",
+                        errorMessage: $"HTTP {ex.HttpStatusCode}: {(ex.Message.Length > 200 ? ex.Message[..200] : ex.Message)}",
+                        ct: ct);
                     if (TryPromoteTier(attempts, ref currentTier, ref modelOverride, settings, progress))
                         continue; // promoted — try again immediately without delay
                     if (attempts >= maxAttempts) break;
@@ -674,6 +688,16 @@ namespace MedicalApp.Services
                     lastEx = ex;
                     progress.Log($"   ⌛ {LabelFor(currentTier)} a depășit timpul de răspuns " +
                                  $"(try {attempts}/{maxAttempts}).");
+                    await aiUsage.LogAsync(
+                        source: "CAM",
+                        userEmail: user?.Email,
+                        clinicId: clinic.Id,
+                        modelUsed: EffectiveModelId(),
+                        inputTokens: 0,
+                        outputTokens: 0,
+                        status: "transient_error",
+                        errorMessage: "Timeout: " + (ex.Message.Length > 200 ? ex.Message[..200] : ex.Message),
+                        ct: CancellationToken.None);
                     if (TryPromoteTier(attempts, ref currentTier, ref modelOverride, settings, progress))
                         continue;
                     if (attempts >= maxAttempts) break;
@@ -691,6 +715,16 @@ namespace MedicalApp.Services
                     lastEx = ex;
                     progress.Log($"   ⌛ {LabelFor(currentTier)} răspuns întârziat de rețea " +
                                  $"(try {attempts}/{maxAttempts}).");
+                    await aiUsage.LogAsync(
+                        source: "CAM",
+                        userEmail: user?.Email,
+                        clinicId: clinic.Id,
+                        modelUsed: EffectiveModelId(),
+                        inputTokens: 0,
+                        outputTokens: 0,
+                        status: "transient_error",
+                        errorMessage: "Network: " + (ex.Message.Length > 200 ? ex.Message[..200] : ex.Message),
+                        ct: ct);
                     if (TryPromoteTier(attempts, ref currentTier, ref modelOverride, settings, progress))
                         continue;
                     if (attempts >= maxAttempts) break;
