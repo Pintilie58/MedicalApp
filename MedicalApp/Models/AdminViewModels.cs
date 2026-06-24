@@ -104,6 +104,15 @@ namespace MedicalApp.Models
         /// that ran on the Pro fallback model. 0..100. Zero when no calls.
         /// </summary>
         public double AiFallbackRatioPct { get; set; }
+
+        // ----- Reliability widget (last 30 days) -----
+        // Populated by AdminController.Index from AiUsageLogs. Shows per-model
+        // success vs error counts so the admin can see when a particular model
+        // (typically Flash during Google congestion) starts hiccuping and the
+        // fallback chain is taking the load. Independent from cost — captures
+        // ALL calls including ones that were rejected for safety reasons.
+        public List<ModelErrorRateRow> ErrorRates { get; set; } = new();
+        public List<RecentErrorRow> RecentErrors { get; set; } = new();
     }
 
     /// <summary>
@@ -134,6 +143,39 @@ namespace MedicalApp.Models
         public decimal EstimatedCostUsd { get; set; }
         /// <summary>Tailwind-like bootstrap color class, picked by the controller.</summary>
         public string BadgeClass { get; set; } = "bg-secondary";
+    }
+
+    /// <summary>
+    /// Per-model reliability row for the Admin Dashboard "Reliability" widget.
+    /// Counts EVERY call recorded in AiUsageLogs over the last 30 days and splits
+    /// them by Status so the admin can spot when a particular model (typically
+    /// Flash during congestion windows) starts misbehaving — high error rate is
+    /// a strong signal to flip Model/FallbackModel in appsettings.json.
+    /// </summary>
+    public class ModelErrorRateRow
+    {
+        public string ShortName { get; set; } = string.Empty;
+        public string ModelId { get; set; } = string.Empty;
+        public int Total { get; set; }
+        public int Success { get; set; }
+        public int Errors { get; set; }
+        public int Rejected { get; set; }
+        /// <summary>0..100. Errors are (Errors / Total). Rejected are NOT counted here — they were intentional refusals.</summary>
+        public double ErrorRatePct { get; set; }
+        /// <summary>"success" / "warning" / "danger" — drives the row's bootstrap color.</summary>
+        public string BadgeColor { get; set; } = "success";
+    }
+
+    /// <summary>
+    /// Last few error messages (truncated) shown in the Reliability widget so the
+    /// admin can diagnose recurring patterns without having to open the DB.
+    /// </summary>
+    public class RecentErrorRow
+    {
+        public DateTime CreatedAtUtc { get; set; }
+        public string Source { get; set; } = string.Empty;
+        public string ModelId { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
     }
 
     public class TopSpender

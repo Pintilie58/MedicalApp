@@ -377,6 +377,67 @@ namespace MedicalApp.Controllers
             b2c.ShareOfCombinedPct = totalCost > 0 ? (double)(b2c.TotalCostUsd / totalCost) * 100.0 : 0.0;
             cam.ShareOfCombinedPct = totalCost > 0 ? (double)(cam.TotalCostUsd / totalCost) * 100.0 : 0.0;
 
+            // -----------------------------------------------------------------
+            // RELIABILITY — per-model success/error breakdown over last 30 days.
+            // We query AiUsageLogs grouped by (ModelUsed, Status) so we can show
+            // the admin which model is degrading. High error rate on Flash is the
+            // typical signal that Google congestion is hitting us; the admin can
+            // then temporarily flip Model = "gemini-2.5-pro" in appsettings.json.
+            // -----------------------------------------------------------------
+            var reliabilityRaw = await _db.AiUsageLogs
+                .AsNoTracking()
+                .Where(h => h.CreatedAt >= cutoff30)
+                .GroupBy(h => new { h.ModelUsed, h.Status })
+                .Select(g => new { g.Key.ModelUsed, g.Key.Status, Count = g.Count() })
+                .ToListAsync();
+
+            var errorRates = reliabilityRaw
+                .GroupBy(r => r.ModelUsed)
+                .Select(g =>
+                {
+                    string modelId = g.Key ?? "(unknown)";
+                    int success  = g.Where(x => x.Status == "success").Sum(x => x.Count);
+                    int errors   = g.Where(x => x.Status == "error").Sum(x => x.Count);
+                    int rejected = g.Where(x => x.Status == "rejected").Sum(x => x.Count);
+                    int total    = success + errors + rejected;
+                    double rate  = total > 0 ? 100.0 * errors / total : 0.0;
+                    string color = rate < 5  ? "success"
+                                 : rate < 15 ? "warning"
+                                 :             "danger";
+                    var isPro   = modelId.Contains("pro",   StringComparison.OrdinalIgnoreCase);
+                    var isFlash = modelId.Contains("flash", StringComparison.OrdinalIgnoreCase);
+                    return new ModelErrorRateRow
+                    {
+                        ModelId = modelId,
+                        ShortName = isPro ? "Pro" : isFlash ? "Flash" : modelId,
+                        Total = total,
+                        Success = success,
+                        Errors = errors,
+                        Rejected = rejected,
+                        ErrorRatePct = rate,
+                        BadgeColor = color
+                    };
+                })
+                .OrderByDescending(r => r.Total)
+                .ToList();
+
+            // Last 5 distinct error messages — fast diagnosis without DB access.
+            var recentErrors = await _db.AiUsageLogs
+                .AsNoTracking()
+                .Where(h => h.CreatedAt >= cutoff30
+                         && h.Status != "success"
+                         && h.ErrorMessage != null)
+                .OrderByDescending(h => h.CreatedAt)
+                .Take(5)
+                .Select(h => new RecentErrorRow
+                {
+                    CreatedAtUtc = h.CreatedAt,
+                    Source = h.Source,
+                    ModelId = h.ModelUsed,
+                    Message = h.ErrorMessage!
+                })
+                .ToListAsync();
+
             var vm = new AdminDashboardViewModel
             {
                 TotalUsers = totalUsers,
@@ -400,6 +461,8 @@ namespace MedicalApp.Controllers
                 AiUsageCam = cam,
                 AiCost30DaysUsd = totalCost,
                 AiFallbackRatioPct = fallbackPct,
+                ErrorRates = errorRates,
+                RecentErrors = recentErrors,
             };
 
             return View(vm);

@@ -35,6 +35,14 @@ builder.Services.Configure<DailySummarySettings>(builder.Configuration.GetSectio
 builder.Services.AddSingleton<DailySummaryService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DailySummaryService>());
 
+// Monthly Gemini budget alert (background job, default check every 60 min).
+// Sends an email to AdminSettings.Emails when month-to-date cost crosses the
+// configured threshold. Same Singleton pattern as DailySummary so a future
+// Admin "test now" button can reuse it via DI without restarting the app.
+builder.Services.Configure<BudgetAlertSettings>(builder.Configuration.GetSection("BudgetAlert"));
+builder.Services.AddSingleton<BudgetAlertService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<BudgetAlertService>());
+
 // HttpClient factory (used by Gemini service for direct REST calls)
 builder.Services.AddHttpClient();
 

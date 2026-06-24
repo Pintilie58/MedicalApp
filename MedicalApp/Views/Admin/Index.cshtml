@@ -375,6 +375,111 @@
     </div>
 </div>
 
+@* ================================================================
+   RELIABILITY WIDGET — per-model error rate (last 30 days)
+   Shows the admin which Gemini model is hiccuping so they can swap
+   Model/FallbackModel in appsettings.json before users notice. Reads
+   the same AiUsageLogs table — independent of cost, captures ALL
+   token-consuming calls including errors and rejections.
+   ================================================================ *@
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card shadow-sm" data-testid="admin-ai-reliability-card">
+            <div class="card-header bg-secondary text-white fw-semibold d-flex align-items-center flex-wrap gap-2">
+                <span>&#128737; Reliability &mdash; Gemini error rates (last 30 days)</span>
+                <span class="ms-auto small text-white-50">
+                    Watch this when users report intermittent failures.
+                </span>
+            </div>
+            <div class="card-body">
+                @if (!Model.ErrorRates.Any())
+                {
+                    <p class="text-muted mb-0">
+                        No Gemini calls were recorded in the last 30 days.
+                    </p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0" data-testid="admin-ai-reliability-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Model</th>
+                                    <th class="text-end">Total</th>
+                                    <th class="text-end text-success">Success</th>
+                                    <th class="text-end text-danger">Errors</th>
+                                    <th class="text-end text-muted">Rejected</th>
+                                    <th class="text-end" style="min-width:180px;">Error rate</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var r in Model.ErrorRates)
+                                {
+                                    <tr data-testid="admin-ai-reliability-row-@r.ShortName">
+                                        <td>
+                                            <span class="badge bg-@(r.ShortName == "Flash" ? "success" : r.ShortName == "Pro" ? "warning text-dark" : "secondary")">@r.ShortName</span>
+                                            <small class="text-muted ms-2">@r.ModelId</small>
+                                        </td>
+                                        <td class="text-end"><strong>@r.Total</strong></td>
+                                        <td class="text-end">@r.Success</td>
+                                        <td class="text-end @(r.Errors > 0 ? "text-danger fw-bold" : "")">@r.Errors</td>
+                                        <td class="text-end text-muted">@r.Rejected</td>
+                                        <td class="text-end" style="min-width:180px;">
+                                            <div class="d-flex align-items-center gap-2 justify-content-end">
+                                                <div class="progress flex-grow-1" style="height: 8px; max-width: 110px;">
+                                                    <div class="progress-bar bg-@r.BadgeColor"
+                                                         role="progressbar"
+                                                         style="width: @(Math.Min(100, Math.Max(2, r.ErrorRatePct)))%;"
+                                                         aria-valuenow="@r.ErrorRatePct"
+                                                         aria-valuemin="0" aria-valuemax="100"></div>
+                                                </div>
+                                                <span class="badge bg-@r.BadgeColor"
+                                                      data-testid="admin-ai-reliability-pct-@r.ShortName">
+                                                    @r.ErrorRatePct.ToString("F1")%
+                                                </span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p class="small text-muted mt-3 mb-2">
+                        Thresholds: <span class="badge bg-success">&lt; 5%</span> healthy,
+                        <span class="badge bg-warning text-dark">5&ndash;15%</span> watch,
+                        <span class="badge bg-danger">&gt; 15%</span> swap primary model.
+                    </p>
+
+                    @if (Model.RecentErrors.Any())
+                    {
+                        <details class="mt-3" data-testid="admin-ai-recent-errors">
+                            <summary class="small fw-semibold text-muted" style="cursor:pointer;">
+                                &#128269; Show last 5 error messages
+                            </summary>
+                            <ul class="list-group list-group-flush mt-2 small">
+                                @foreach (var e in Model.RecentErrors)
+                                {
+                                    <li class="list-group-item px-0 py-2">
+                                        <div class="d-flex align-items-center gap-2 mb-1">
+                                            <span class="badge bg-light text-dark border">@e.Source</span>
+                                            <code class="small text-muted">@e.ModelId</code>
+                                            <span class="ms-auto text-muted">@e.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm") UTC</span>
+                                        </div>
+                                        <div class="text-danger" style="font-family: ui-monospace, monospace; word-break: break-word;">
+                                            @(e.Message.Length > 220 ? e.Message.Substring(0, 220) + "…" : e.Message)
+                                        </div>
+                                    </li>
+                                }
+                            </ul>
+                        </details>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Reset AI usage counters confirmation modal.
      Submits to AdminController.ResetAiUsage which wipes the AiUsageLogs
      table only (InterpretationHistories untouched, so user-facing history
