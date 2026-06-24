@@ -1202,6 +1202,7 @@ body.landing-body a:hover { color: var(--land-coral); }
     font-family: 'Outfit', sans-serif;
     font-size: 1.02rem;
     font-weight: 700;
+}
 
 /* ============== Multilingual interpretation banner ==============
    Sits above the walking-doctor strip in the hero visual column.

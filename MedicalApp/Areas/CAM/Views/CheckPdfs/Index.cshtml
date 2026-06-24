@@ -478,8 +478,9 @@ Email: ion.popescu@example.com</pre>
         function checkEmailTypo() {
             if (!emailInput || !hintBox || !hintApply) return;
             var value = (emailInput.value || '').trim();
-            // '@@' is Razor escape for a literal '@' — needed so Razor doesn't
-            // mistakenly parse '@')' as a code-block transition.
+            // Look for the email separator. Note: Razor would parse a literal
+            // "at-sign" inside JS source, so we use the double escape syntax
+            // here which is converted to a single literal at runtime.
             var at = value.lastIndexOf('@@');
             if (at < 1 || at === value.length - 1) { hintBox.classList.add('d-none'); return; }
             var domain = value.substring(at + 1);
