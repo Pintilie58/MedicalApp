@@ -1,6 +1,6 @@
 @model MedicalApp.Areas.CAM.Models.CamDashboardViewModel
 @{
-    ViewData["Title"] = "Dashboard CAM";
+    ViewData["Title"] = "Tablou principal CAM";
     Layout = "~/Views/Shared/_Layout.cshtml";
 
     string StatusBadge(string status) => status?.ToLowerInvariant() switch
@@ -10,6 +10,19 @@
         "cancelled" => "bg-warning text-dark",
         "failed"    => "bg-danger",
         _ => "bg-secondary"
+    };
+
+    // Display-only translation of the English DB status values. The underlying
+    // string in ClinicBatchRun.Status stays English ("Completed", "Failed",
+    // "Cancelled", "Running") so all backend logic and the StatusBadge() switch
+    // above keep working unchanged.
+    string StatusRo(string status) => status?.ToLowerInvariant() switch
+    {
+        "completed" => "Finalizat",
+        "running"   => "În execuție",
+        "cancelled" => "Anulat",
+        "failed"    => "Eșuat",
+        _ => status ?? "—"
     };
 }
 
@@ -165,7 +178,7 @@
                         <div class="display-6 fw-bold text-warning" data-testid="cam-kpi-notsends">
                             @Model.LifetimeNotSends
                         </div>
-                        <div class="small text-muted">NotSends (erori)</div>
+                        <div class="small text-muted">Neexpediate (erori)</div>
                     </div>
                 </div>
             </div>
@@ -220,15 +233,15 @@
                             </div>
                             <div>
                                 <div class="fs-3 fw-bold text-success" data-testid="cam-year-completed">@Model.YearStats.Completed</div>
-                                <div class="small text-muted">Completed</div>
+                                <div class="small text-muted">Finalizate</div>
                             </div>
                             <div>
                                 <div class="fs-3 fw-bold text-danger" data-testid="cam-year-failed">@Model.YearStats.Failed</div>
-                                <div class="small text-muted">Failed</div>
+                                <div class="small text-muted">Eșuate</div>
                             </div>
                             <div>
                                 <div class="fs-3 fw-bold text-warning" data-testid="cam-year-cancelled">@Model.YearStats.Cancelled</div>
-                                <div class="small text-muted">Cancelled</div>
+                                <div class="small text-muted">Anulate</div>
                             </div>
                             <div class="ms-auto">
                                 <div class="fs-3 fw-bold text-info" data-testid="cam-year-patients">@Model.YearStats.Patients</div>
@@ -286,15 +299,15 @@
                             </div>
                             <div>
                                 <div class="fs-3 fw-bold text-success" data-testid="cam-month-completed">@Model.MonthStats.Completed</div>
-                                <div class="small text-muted">Completed</div>
+                                <div class="small text-muted">Finalizate</div>
                             </div>
                             <div>
                                 <div class="fs-3 fw-bold text-danger" data-testid="cam-month-failed">@Model.MonthStats.Failed</div>
-                                <div class="small text-muted">Failed</div>
+                                <div class="small text-muted">Eșuate</div>
                             </div>
                             <div>
                                 <div class="fs-3 fw-bold text-warning" data-testid="cam-month-cancelled">@Model.MonthStats.Cancelled</div>
-                                <div class="small text-muted">Cancelled</div>
+                                <div class="small text-muted">Anulate</div>
                             </div>
                             <div class="ms-auto">
                                 <div class="fs-3 fw-bold text-info" data-testid="cam-month-patients">@Model.MonthStats.Patients</div>
@@ -422,11 +435,11 @@
                                     <th>#</th>
                                     <th>Pornit</th>
                                     <th>Durată</th>
-                                    <th class="text-center">Status</th>
+                                    <th class="text-center">Stare</th>
                                     <th class="text-end">Total</th>
                                     <th class="text-end">Trimise</th>
                                     <th class="text-end">Comparate</th>
-                                    <th class="text-end">NotSends</th>
+                                    <th class="text-end">Neexpediate</th>
                                     <th></th>
                                 </tr>
                             </thead>
@@ -439,7 +452,7 @@
                                         <td class="text-muted small">@b.DurationDisplay</td>
                                         <td class="text-center">
                                             <span class="badge @StatusBadge(b.Status)" data-testid="cam-batch-status-@b.BatchRunId">
-                                                @b.Status
+                                                @StatusRo(b.Status)
                                             </span>
                                         </td>
                                         <td class="text-end">@b.TotalFiles</td>

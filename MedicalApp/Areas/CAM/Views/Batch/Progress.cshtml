@@ -15,7 +15,7 @@
         <div class="ms-auto">
             <a asp-controller="Dashboard" asp-action="Index" asp-area="CAM"
                class="btn btn-outline-secondary btn-sm" data-testid="cam-back-dashboard">
-                &larr; Dashboard
+                &larr; Tablou principal
             </a>
         </div>
     </div>
@@ -80,14 +80,14 @@
         </div>
         <div class="col-md-3">
             <div class="card border-warning"><div class="card-body py-2 text-center">
-                <div class="small text-muted">NotSends</div>
+                <div class="small text-muted">Neexpediate</div>
                 <div class="fs-3 fw-bold text-warning" id="prgNotSends">0</div>
             </div></div>
         </div>
         <div class="col-md-3">
             <div class="card border-secondary"><div class="card-body py-2 text-center">
-                <div class="small text-muted">Status</div>
-                <div class="fs-5 fw-bold" id="prgStatus" data-testid="cam-progress-status">Running</div>
+                <div class="small text-muted">Stare</div>
+                <div class="fs-5 fw-bold" id="prgStatus" data-testid="cam-progress-status">În execuție</div>
             </div></div>
         </div>
     </div>
@@ -142,7 +142,18 @@
         document.getElementById('prgCurrent').textContent = data.currentFile || '—';
 
         var statusEl = document.getElementById('prgStatus');
-        statusEl.textContent = data.status;
+        // Map English DB statuses to Romanian for display only — the underlying
+        // comparison logic below stays English so the server contract is unchanged.
+        var statusLabel = (function (s) {
+            switch ((s || '').toLowerCase()) {
+                case 'running':   return 'În execuție';
+                case 'completed': return 'Finalizat';
+                case 'cancelled': return 'Anulat';
+                case 'failed':    return 'Eșuat';
+                default:          return s || '—';
+            }
+        })(data.status);
+        statusEl.textContent = statusLabel;
         statusEl.className = 'fs-5 fw-bold ' +
             (data.status === 'Running'   ? 'text-primary'
             : data.status === 'Completed' ? 'text-success'

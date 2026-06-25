@@ -22,7 +22,7 @@
         <div class="ms-auto">
             <a asp-controller="Dashboard" asp-action="Index" asp-area="CAM"
                class="btn btn-outline-secondary" data-testid="cam-back-dashboard">
-                &larr; Înapoi la dashboard
+                &larr; Înapoi la tablou principal
             </a>
         </div>
     </div>
@@ -53,16 +53,50 @@
                 al clinicii tale, <strong>pentru a fi interpretat</strong>.
             </p>
             <form asp-action="UploadFiles" method="post" enctype="multipart/form-data"
-                  class="d-flex flex-wrap gap-2" data-testid="cam-checkpdfs-upload-form">
+                  class="d-flex flex-wrap align-items-center gap-2" data-testid="cam-checkpdfs-upload-form">
                 @Html.AntiForgeryToken()
-                <input type="file" name="files" accept="application/pdf,.pdf" multiple required
-                       class="form-control" style="max-width:520px;"
+                @* Hidden native input + custom RO label so the operator never sees the
+                   browser's English "Choose files" / "No file chosen" wording. JS below
+                   keeps the label in sync with the actual file selection. The native
+                   element still posts the files exactly the same way. *@
+                <input type="file" name="files" id="camPdfFiles"
+                       accept="application/pdf,.pdf" multiple required
+                       class="d-none"
                        data-testid="cam-checkpdfs-upload-input" />
+                <label for="camPdfFiles"
+                       class="btn btn-outline-info fw-semibold mb-0"
+                       data-testid="cam-checkpdfs-upload-pick">
+                    &#128206; Alege fișiere
+                </label>
+                <span id="camPdfFilesLabel"
+                      class="text-muted small"
+                      data-testid="cam-checkpdfs-upload-label"
+                      style="max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    Niciun fișier ales
+                </span>
                 <button type="submit" class="btn btn-info fw-bold"
                         data-testid="cam-checkpdfs-upload-submit">
                     &#9658; Copiază în Original
                 </button>
             </form>
+            <script>
+                (function () {
+                    var inp = document.getElementById('camPdfFiles');
+                    var lbl = document.getElementById('camPdfFilesLabel');
+                    if (!inp || !lbl) return;
+                    inp.addEventListener('change', function () {
+                        if (!inp.files || inp.files.length === 0) {
+                            lbl.textContent = 'Niciun fișier ales';
+                            return;
+                        }
+                        if (inp.files.length === 1) {
+                            lbl.textContent = inp.files[0].name;
+                        } else {
+                            lbl.textContent = inp.files.length + ' fișiere selectate';
+                        }
+                    });
+                })();
+            </script>
         </div>
     </div>
 
@@ -187,7 +221,7 @@ Email: ion.popescu@example.com</pre>
                             <th>Nume preview</th>
                             <th>Email preview</th>
                             <th>Sursă</th>
-                            <th>Status</th>
+                            <th>Stare</th>
                             <th style="width:160px;">&nbsp;</th>
                         </tr>
                     </thead>
