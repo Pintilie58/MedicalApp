@@ -139,7 +139,7 @@ namespace MedicalApp.Services
                     {
                         await ProcessOneFileAsync(
                             db, files, extractor, gemini, pdfGen, compareGen, loincMatcher, email,
-                            clinic, user, batch, progress, path, sendsFolder, errorsFolder, ct);
+                            clinic, user, batch, progress, path, sendsFolder, errorsFolder, lang, ct);
                     }
                     catch (Exception ex)
                     {
@@ -208,6 +208,7 @@ namespace MedicalApp.Services
             string path,
             string sendsFolder,
             string errorsFolder,
+            string lang,
             CancellationToken ct)
         {
             var fileName = Path.GetFileName(path);
@@ -306,7 +307,7 @@ namespace MedicalApp.Services
                 var matchStats = await loincMatcher.MatchAllAsync(result, ct);
                 if (matchStats.Matched > 0)
                 {
-                    progress.Log($"   ⚙ LOINC matcher: {matchStats.Matched} parametri rezolvați din {matchStats.Total}.");
+                    progress.Log(string.Format(Loc.T("CamBatchLogLoincMatcher", lang), matchStats.Matched, matchStats.Total));
                 }
             }
             catch (Exception ex)
@@ -325,7 +326,7 @@ namespace MedicalApp.Services
             {
                 var v = StatusValidator.Validate(result, _logger);
                 if (v.Corrected > 0)
-                    progress.Log($"   🛠 Status validator: {v.Corrected} status(uri) corectate din {v.Total} parametri.");
+                    progress.Log(string.Format(Loc.T("CamBatchLogStatusValidator", lang), v.Corrected, v.Total));
             }
             catch (Exception ex)
             {
@@ -485,7 +486,11 @@ namespace MedicalApp.Services
             batch.FilesInterpreted++; progress.Sent = batch.FilesSent;
             await db.SaveChangesAsync();
 
-            progress.Log($"   ✓ Trimis la {patient.Email}{(comparePdf != null ? " (+ comparație)" : "")}");
+            progress.Log(string.Format(
+                comparePdf != null
+                    ? Loc.T("CamBatchLogSentWithCompare", lang)
+                    : Loc.T("CamBatchLogSent", lang),
+                patient.Email));
         }
 
         private async Task RecordErrorAsync(AppDbContext db, ClinicBatchRun batch, string filePath, string? patientName, string reason)
