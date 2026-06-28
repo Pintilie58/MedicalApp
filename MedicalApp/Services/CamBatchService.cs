@@ -58,6 +58,35 @@ namespace MedicalApp.Services
             var lang = string.IsNullOrWhiteSpace(languageCode)
                 ? "ro"
                 : languageCode.Split('-')[0].ToLowerInvariant();
+
+            // Propagate the operator's UI language into the background batch
+            // thread so every Loc.T(key) call without an explicit `lang` argument
+            // (notably LocalizedLabels.ForCurrentUi() used by PdfReportGenerator
+            // and CamComparePdfGenerator) resolves to the operator's language
+            // instead of the OS default. CurrentUICulture flows through awaits
+            // inside the same async state machine, so setting it once here
+            // covers the entire batch lifetime.
+            try
+            {
+                var cultureName = lang switch
+                {
+                    "ro" => "ro-RO",
+                    "fr" => "fr-FR",
+                    "es" => "es-ES",
+                    "de" => "de-DE",
+                    _    => "en-US"
+                };
+                var culture = new System.Globalization.CultureInfo(cultureName);
+                System.Globalization.CultureInfo.CurrentUICulture = culture;
+                System.Globalization.CultureInfo.CurrentCulture = culture;
+            }
+            catch (System.Globalization.CultureNotFoundException)
+            {
+                // Older Windows installations may not have every culture
+                // registered. The batch can still run — Loc.T then falls
+                // back to English via Resolve(), which is the documented
+                // safety net.
+            }
             CamBatchProgress? progress = null;
             try
             {
@@ -739,7 +768,7 @@ namespace MedicalApp.Services
                 {
                     using var ms = new MemoryStream(pdfBytes);
                     var resp = await gemini.InterpretPdfAsync(
-                        ms, fileName, "ro",
+                        ms, fileName, lang,
                         patientContext: null,
                         ct: ct,
                         modelOverride: modelOverride);

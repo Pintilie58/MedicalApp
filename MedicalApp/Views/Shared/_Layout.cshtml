@@ -71,16 +71,16 @@
                             {
                                 <a asp-controller="Account" asp-action="Dashboard" asp-area=""
                                    class="btn btn-sm btn-outline-light fw-bold" data-testid="nav-mode-personal"
-                                   title="Comută în modul personal">
-                                    &#128106; Mod personal
+                                   title="@Loc.T("NavModePersonalTooltip")">
+                                    &#128106; @Loc.T("NavModePersonal")
                                 </a>
                             }
                             else
                             {
                                 <a asp-controller="Dashboard" asp-action="Index" asp-area="CAM"
                                    class="btn btn-sm btn-info fw-bold text-dark" data-testid="nav-mode-cam"
-                                   title="Comută în modul clinică">
-                                    &#127973; Mod clinică
+                                   title="@Loc.T("NavModeClinicTooltip")">
+                                    &#127973; @Loc.T("NavModeClinic")
                                 </a>
                             }
                         }
