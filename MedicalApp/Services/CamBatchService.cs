@@ -255,7 +255,12 @@ namespace MedicalApp.Services
                 else if (!probe.IsMedicalLabReport)
                 {
                     // Pre-filter: refuse non-medical PDFs immediately (no AI cost).
-                    progress.Log($"   ✘ {probe.Reason}");
+                    // Live log gets the localized message; DB keeps the English
+                    // Reason for stable traceability across UI languages.
+                    var localizedReason = !string.IsNullOrEmpty(probe.ReasonKey)
+                        ? Loc.T(probe.ReasonKey, lang)
+                        : probe.Reason ?? "Not a medical lab PDF";
+                    progress.Log($"   ✘ {localizedReason}");
                     await RecordErrorAsync(db, batch, path, null, probe.Reason ?? "Not a medical lab PDF");
                     batch.NotSends++; progress.NotSends++;
                     await MoveToErrorsIfRetriesExhaustedAsync(db, batch, path, errorsFolder);
@@ -516,10 +521,11 @@ namespace MedicalApp.Services
         }
 
         /// <summary>
-        /// Translates a raw SMTP / network exception into a single Romanian sentence the
+        /// Translates a raw SMTP / network exception into a single English sentence the
         /// clinic operator can act on immediately. The original <c>ex.Message</c> is still
         /// recorded verbatim in <c>ClinicBatchError.Reason</c> for traceability — this is
         /// only the human-friendly line that hits the live progress log.
+        /// English-only by design: this is a technical/log message, not a UI string.
         /// </summary>
         private static string ClassifyEmailFailure(Exception ex, string? patientEmail)
         {
@@ -530,7 +536,7 @@ namespace MedicalApp.Services
                 msgs.Add(cur.Message ?? string.Empty);
             var combined = string.Join(" || ", msgs).ToLowerInvariant();
 
-            string emailLabel = string.IsNullOrWhiteSpace(patientEmail) ? "(necunoscut)" : patientEmail!;
+            string emailLabel = string.IsNullOrWhiteSpace(patientEmail) ? "(unknown)" : patientEmail!;
 
             // ---- Mailbox doesn't exist on the destination server ----
             if (combined.Contains("550")
@@ -539,16 +545,16 @@ namespace MedicalApp.Services
                 || combined.Contains("recipient address rejected")
                 || combined.Contains("no such user")
                 || combined.Contains("does not exist"))
-                return $"Adresa {emailLabel} a fost respinsă de server (cutia poștală nu există). " +
-                       "Verifică ortografia din butonul Editează.";
+                return $"Address {emailLabel} was rejected by the server (mailbox does not exist). " +
+                       "Check the spelling via the Edit button.";
 
             // ---- Domain not found ----
             if (combined.Contains("no such host")
                 || combined.Contains("hostnotfound")
                 || combined.Contains("name or service not known")
                 || combined.Contains("could not be resolved"))
-                return $"Domeniul adresei {emailLabel} nu există. Foarte probabil o greșeală " +
-                       "de ortografie (ex: gmial.com în loc de gmail.com). Folosește Editează.";
+                return $"The domain of {emailLabel} does not exist. Most likely a spelling mistake " +
+                       "(e.g. gmial.com instead of gmail.com). Use Edit to fix it.";
 
             // ---- Greylisting / temporary rejection ----
             if (combined.Contains("450")
@@ -556,8 +562,8 @@ namespace MedicalApp.Services
                 || combined.Contains("try again later")
                 || combined.Contains("temporarily")
                 || combined.Contains("temporary failure"))
-                return $"Server destinație ocupat temporar pentru {emailLabel}. " +
-                       "Vom încerca din nou la următorul lot.";
+                return $"Destination server temporarily busy for {emailLabel}. " +
+                       "We will retry on the next batch.";
 
             // ---- Anti-spam reject (DKIM / SPF / blacklist) ----
             if (combined.Contains("spam")
@@ -566,25 +572,25 @@ namespace MedicalApp.Services
                 || combined.Contains("blacklist")
                 || combined.Contains("policy")
                 || combined.Contains("reputation"))
-                return $"Mesajul către {emailLabel} a fost respins ca posibil spam de către serverul destinație. " +
-                       "Probabil necesită configurare DKIM/SPF pe domeniul clinicii — contactează administratorul.";
+                return $"Message to {emailLabel} was rejected as possible spam by the destination server. " +
+                       "Likely needs DKIM/SPF configuration on the clinic's domain — contact your administrator.";
 
             // ---- Auth failure between us and Gmail/SMTP relay ----
             if (combined.Contains("authentication") || combined.Contains("auth fail")
                 || combined.Contains("535") || combined.Contains("password"))
-                return "Autentificarea către serverul SMTP a eșuat (parola aplicației Gmail). " +
-                       "Contactează administratorul — această eroare nu este cauzată de adresa pacientului.";
+                return "Authentication to the SMTP server failed (Gmail app password). " +
+                       "Contact your administrator — this error is not caused by the patient's address.";
 
             // ---- Network timeout / TLS issue ----
             if (combined.Contains("timeout") || combined.Contains("timed out")
                 || combined.Contains("connection") || combined.Contains("network is unreachable"))
-                return $"Conexiune întreruptă către serverul SMTP în timpul trimiterii către {emailLabel}. " +
-                       "Verifică internetul și încearcă din nou.";
+                return $"Connection to the SMTP server was interrupted while sending to {emailLabel}. " +
+                       "Check the internet connection and try again.";
 
             // ---- Default: surface the first message verbatim, truncated ----
-            var first = msgs.FirstOrDefault() ?? "Eroare necunoscută";
+            var first = msgs.FirstOrDefault() ?? "Unknown error";
             if (first.Length > 220) first = first.Substring(0, 220) + "…";
-            return $"Email eșuat pentru {emailLabel}: {first}";
+            return $"Email failed for {emailLabel}: {first}";
         }
 
         private async Task MoveToErrorsIfRetriesExhaustedAsync(AppDbContext db, ClinicBatchRun batch, string filePath, string errorsFolder)

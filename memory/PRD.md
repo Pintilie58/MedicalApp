@@ -395,6 +395,38 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
   7) — user chose this consciously, since the Pro fallback adds an effective
   ""extra safety net"" that makes brute-force retry-extension unnecessary.
 
+## Recently completed (Feb 2026)
+
+- ✅ **[Feb 2026 — B2B/CAM Phase 2 Translations]** Final B2B/CAM module strings
+  translated into all 5 languages (RO/EN/FR/ES/DE) via the central `Loc.cs`
+  dictionary. Scope of this batch:
+    * `Areas/CAM/Views/Dashboard/Index.cshtml` — full rewrite using
+      `@Loc.T("CamDash...")` keys (KPI cards, batches stats per year/month,
+      quick actions, disk usage + cleanup confirm, batch history table, folders
+      panel). Month names follow `CultureInfo.CurrentUICulture` instead of
+      hard-coded `ro-RO`.
+    * `Areas/CAM/Views/CheckPdfs/Index.cshtml` — full rewrite using
+      `@Loc.T("CamCheck...")` keys (upload form, method 1/2 help, summary
+      badges, table columns + email validity badges, source badges, edit
+      modal, delete-confirm with localized JS template via
+      `System.Text.Json.JsonSerializer.Serialize`). `[MedicalApp]` example
+      block now sourced from `Loc.T("CamCheckBlockExample")` so the label
+      (`Patient:` / `Pacient:` / `Nom:` / `Nombre:` / `Name:`) matches the UI
+      language while staying compatible with the extractor regex.
+    * `Services/CamPdfMetadataExtractor.cs` — added `ReasonKey` property on
+      `CamPdfMetadata` populated alongside the English `Reason` (gold path
+      vs. unreadable / empty text / not-medical / blacklisted / no email /
+      no name). DB still stores the English text for stable traceability.
+    * `Services/CamBatchService.cs` — pre-filter non-medical PDFs now logs
+      the live message via `Loc.T(probe.ReasonKey, lang)` so the operator
+      sees the message in their selected UI language while `RecordErrorAsync`
+      keeps the English `Reason` in the DB.
+    * `ClassifyEmailFailure()` translated to **English-only** (per user's
+      explicit choice: "doar EN" — technical/log message, not UI).
+    * Total: ~128 new translation keys × 5 languages = 640 dictionary
+      entries inserted right after the existing `CamBatchLog*` block.
+
+
 ## Pending / Backlog
 
 ### P0 → DONE

@@ -1,6 +1,7 @@
 @model MedicalApp.Areas.CAM.Models.CamDashboardViewModel
+@using MedicalApp.Services
 @{
-    ViewData["Title"] = "Tablou principal CAM";
+    ViewData["Title"] = Loc.T("CamDashTitle");
     Layout = "~/Views/Shared/_Layout.cshtml";
 
     string StatusBadge(string status) => status?.ToLowerInvariant() switch
@@ -16,12 +17,12 @@
     // string in ClinicBatchRun.Status stays English ("Completed", "Failed",
     // "Cancelled", "Running") so all backend logic and the StatusBadge() switch
     // above keep working unchanged.
-    string StatusRo(string status) => status?.ToLowerInvariant() switch
+    string StatusLocalized(string status) => status?.ToLowerInvariant() switch
     {
-        "completed" => "Finalizat",
-        "running"   => "În execuție",
-        "cancelled" => "Anulat",
-        "failed"    => "Eșuat",
+        "completed" => Loc.T("CamDashStatusCompleted"),
+        "running"   => Loc.T("CamDashStatusRunning"),
+        "cancelled" => Loc.T("CamDashStatusCancelled"),
+        "failed"    => Loc.T("CamDashStatusFailed"),
         _ => status ?? "—"
     };
 }
@@ -36,7 +37,7 @@
                     ["Size"] = "small",
                     ["StageId"] = "camDashGreeting",
                     ["TestId"] = "cam-dashboard-mascot",
-                    ["BubbleText"] = "Bună, " + Model.ClinicName + "!"
+                    ["BubbleText"] = string.Format(Loc.T("CamDashGreeting"), Model.ClinicName)
                 };
             }
             <partial name="_DoctorMascot" view-data="camDashMascotVd" />
@@ -51,13 +52,13 @@
         </div>
         <div class="col-auto align-self-center text-end">
             <span class="badge bg-success fs-6 px-3 py-2 d-block mb-2" data-testid="cam-credits-badge">
-                @Model.CreditsAvailable credite disponibile
+                @string.Format(Loc.T("CamDashCreditsAvailableBadge"), Model.CreditsAvailable)
             </span>
             <a asp-controller="Credits" asp-action="Buy" asp-area=""
                class="btn btn-sm btn-outline-success fw-semibold"
                data-testid="cam-header-buy-credits"
-               title="Cumpără un pachet de credite CAM (Starter / Business / Enterprise)">
-                <i class="bi bi-cart-plus"></i> Cumpără credite
+               title="@Loc.T("CamDashBuyCreditsTooltip")">
+                <i class="bi bi-cart-plus"></i> @Loc.T("CamDashBuyCredits")
             </a>
         </div>
     </div>
@@ -72,10 +73,10 @@
     }
 
     @* ============================================================
-       A5 — Banner: ultimul lot a eșuat la trimiterea unor email-uri.
-       Apare DOAR cât timp ultimul lot finalizat are NotSends > 0.
-       Imediat ce operatorul rulează un lot curat, banner-ul dispare
-       automat (controllerul recalculează la fiecare GET).
+       A5 — Banner: last batch failed to send some emails.
+       Shown ONLY while the most recently finished batch has NotSends > 0.
+       As soon as the operator runs a clean batch, the banner disappears
+       automatically (controller recomputes on every GET).
        ============================================================ *@
     @if (Model.RecentEmailIssues != null)
     {
@@ -84,14 +85,17 @@
             <div style="font-size: 1.8rem; line-height: 1;">&#9888;</div>
             <div class="flex-grow-1">
                 <h5 class="fw-bold mb-1">
-                    @Model.RecentEmailIssues.NotSends din @Model.RecentEmailIssues.TotalFiles fișiere
-                    nu au fost trimise în ultimul lot
+                    @string.Format(Loc.T("CamDashEmailIssuesHeader"),
+                        Model.RecentEmailIssues.NotSends,
+                        Model.RecentEmailIssues.TotalFiles)
                 </h5>
                 <p class="mb-2 small">
-                    Lotul #@Model.RecentEmailIssues.BatchRunId finalizat la
-                    <strong>@Model.RecentEmailIssues.FinishedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong>
-                    are erori la trimiterea către pacient. Fișierele afectate au rămas în folderul
-                    <code>Original</code> &mdash; după ce corectezi email-ul, un nou lot le va trimite.
+                    @{
+                        var finishedAtStr = Model.RecentEmailIssues.FinishedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm");
+                    }
+                    @Html.Raw(string.Format(Loc.T("CamDashEmailIssuesBody"),
+                        Model.RecentEmailIssues.BatchRunId,
+                        "<strong>" + System.Net.WebUtility.HtmlEncode(finishedAtStr) + "</strong>"))
                 </p>
                 @if (Model.RecentEmailIssues.SampleReasons.Count > 0)
                 {
@@ -105,14 +109,14 @@
                 <a asp-controller="CheckPdfs" asp-action="Index" asp-area="CAM"
                    class="btn btn-warning btn-sm fw-bold"
                    data-testid="cam-recent-email-issues-fix">
-                    &#9999; Verifică & corectează email-urile
+                    &#9999; @Html.Raw(Loc.T("CamDashEmailIssuesFix"))
                 </a>
                 <a asp-controller="Dashboard" asp-action="SumarPdf" asp-area="CAM"
                    asp-route-id="@Model.RecentEmailIssues.BatchRunId"
                    target="_blank"
                    class="btn btn-outline-secondary btn-sm ms-1"
                    data-testid="cam-recent-email-issues-details">
-                    &#128196; Descarcă Sumar PDF
+                    &#128196; @Loc.T("CamDashDownloadSumar")
                 </a>
             </div>
         </div>
@@ -123,15 +127,13 @@
         <div class="alert alert-warning d-flex align-items-start" data-testid="cam-folders-pending">
             <div class="me-3" style="font-size: 1.6rem;">&#9888;</div>
             <div>
-                <h5 class="fw-bold mb-1">Folderele de lucru NU sunt încă create</h5>
+                <h5 class="fw-bold mb-1">@Loc.T("CamDashFoldersPending")</h5>
                 <p class="mb-2">
-                    Pentru a începe să procesezi fișiere, folderele
-                    <code>Original</code>, <code>Sends</code>, <code>Sumar</code>, <code>Errors</code>
-                    se creează AUTOMAT la prima cumpărare de credite CAM.
+                    @Html.Raw(Loc.T("CamDashFoldersPendingBody"))
                 </p>
                 <a asp-controller="Credits" asp-action="Buy" asp-area=""
                    class="btn btn-warning fw-bold" data-testid="cam-go-buy-credits">
-                    Cumpără primul pachet de credite &rarr;
+                    @Html.Raw(Loc.T("CamDashBuyFirstCredits"))
                 </a>
             </div>
         </div>
@@ -139,7 +141,7 @@
     else
     {
         @* ============================================================
-           KPI CARDS — Faza 4
+           KPI CARDS — Phase 4
            ============================================================ *@
         <div class="row g-3 mb-4" data-testid="cam-kpi-row">
             <div class="col-md-3 col-6">
@@ -148,7 +150,7 @@
                         <div class="display-6 fw-bold text-primary" data-testid="cam-kpi-interpreted">
                             @Model.LifetimeFilesInterpreted
                         </div>
-                        <div class="small text-muted">Fișiere procesate (lifetime)</div>
+                        <div class="small text-muted">@Loc.T("CamDashKpiInterpreted")</div>
                     </div>
                 </div>
             </div>
@@ -158,7 +160,7 @@
                         <div class="display-6 fw-bold text-success" data-testid="cam-kpi-sent">
                             @Model.LifetimeFilesSent
                         </div>
-                        <div class="small text-muted">Emailuri trimise</div>
+                        <div class="small text-muted">@Loc.T("CamDashKpiSent")</div>
                     </div>
                 </div>
             </div>
@@ -168,7 +170,7 @@
                         <div class="display-6 fw-bold text-info" data-testid="cam-kpi-compared">
                             @Model.LifetimeFilesCompared
                         </div>
-                        <div class="small text-muted">Comparații atașate</div>
+                        <div class="small text-muted">@Loc.T("CamDashKpiCompared")</div>
                     </div>
                 </div>
             </div>
@@ -178,7 +180,7 @@
                         <div class="display-6 fw-bold text-warning" data-testid="cam-kpi-notsends">
                             @Model.LifetimeNotSends
                         </div>
-                        <div class="small text-muted">Neexpediate (erori)</div>
+                        <div class="small text-muted">@Loc.T("CamDashKpiNotSends")</div>
                     </div>
                 </div>
             </div>
@@ -189,13 +191,13 @@
                 <div class="card h-100">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h6 class="fw-bold text-muted small mb-0">LOTURI</h6>
+                            <h6 class="fw-bold text-muted small mb-0">@Loc.T("CamDashBatchesHeader")</h6>
                         </div>
 
-                        @* Rândul 1 — anul selectat (dropdown stânga-sus a rândului) *@
+                        @* Row 1 — selected year (top-left dropdown) *@
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <div class="small text-muted" data-testid="cam-batches-year-label">
-                                Loturi/@Model.CurrentYear
+                                @string.Format(Loc.T("CamDashBatchesYearLabel"), Model.CurrentYear)
                             </div>
                             @{
                                 var localUrl = Url.Action("Index", new { area = "CAM" }) ?? "/CAM/Dashboard";
@@ -229,40 +231,41 @@
                         <div class="d-flex flex-wrap gap-3 mb-3" data-testid="cam-batches-year-row">
                             <div>
                                 <div class="fs-3 fw-bold" data-testid="cam-year-total">@Model.YearStats.Total</div>
-                                <div class="small text-muted">Total</div>
+                                <div class="small text-muted">@Loc.T("CamDashTotal")</div>
                             </div>
                             <div>
                                 <div class="fs-3 fw-bold text-success" data-testid="cam-year-completed">@Model.YearStats.Completed</div>
-                                <div class="small text-muted">Finalizate</div>
+                                <div class="small text-muted">@Loc.T("CamDashCompleted")</div>
                             </div>
                             <div>
                                 <div class="fs-3 fw-bold text-danger" data-testid="cam-year-failed">@Model.YearStats.Failed</div>
-                                <div class="small text-muted">Eșuate</div>
+                                <div class="small text-muted">@Loc.T("CamDashFailed")</div>
                             </div>
                             <div>
                                 <div class="fs-3 fw-bold text-warning" data-testid="cam-year-cancelled">@Model.YearStats.Cancelled</div>
-                                <div class="small text-muted">Anulate</div>
+                                <div class="small text-muted">@Loc.T("CamDashCancelled")</div>
                             </div>
                             <div class="ms-auto">
                                 <div class="fs-3 fw-bold text-info" data-testid="cam-year-patients">@Model.YearStats.Patients</div>
-                                <div class="small text-muted">Pacienți</div>
+                                <div class="small text-muted">@Loc.T("CamDashPatients")</div>
                             </div>
                         </div>
 
                         <hr class="my-2" />
 
-                        @* Rândul 2 — luna selectată din anul selectat *@
+                        @* Row 2 — selected month of the selected year *@
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <div class="small text-muted" data-testid="cam-batches-month-label">
-                                Loturi/@Model.CurrentMonthLabel
+                                @string.Format(Loc.T("CamDashBatchesMonthLabel"), Model.CurrentMonthLabel)
                             </div>
                             @{
-                                var ro = new System.Globalization.CultureInfo("ro-RO");
+                                // Use the current UI culture so month names follow the selected language.
+                                var monthCulture = System.Globalization.CultureInfo.CurrentUICulture;
                                 string MonthLabel(int m)
                                 {
-                                    var n = ro.DateTimeFormat.GetMonthName(m);
+                                    var n = monthCulture.DateTimeFormat.GetMonthName(m);
                                     if (n.Length == 0) return m.ToString();
-                                    return char.ToUpper(n[0], ro) + n.Substring(1);
+                                    return char.ToUpper(n[0], monthCulture) + n.Substring(1);
                                 }
                             }
                             <div class="dropdown">
@@ -295,23 +298,23 @@
                         <div class="d-flex flex-wrap gap-3" data-testid="cam-batches-month-row">
                             <div>
                                 <div class="fs-3 fw-bold" data-testid="cam-month-total">@Model.MonthStats.Total</div>
-                                <div class="small text-muted">Total</div>
+                                <div class="small text-muted">@Loc.T("CamDashTotal")</div>
                             </div>
                             <div>
                                 <div class="fs-3 fw-bold text-success" data-testid="cam-month-completed">@Model.MonthStats.Completed</div>
-                                <div class="small text-muted">Finalizate</div>
+                                <div class="small text-muted">@Loc.T("CamDashCompleted")</div>
                             </div>
                             <div>
                                 <div class="fs-3 fw-bold text-danger" data-testid="cam-month-failed">@Model.MonthStats.Failed</div>
-                                <div class="small text-muted">Eșuate</div>
+                                <div class="small text-muted">@Loc.T("CamDashFailed")</div>
                             </div>
                             <div>
                                 <div class="fs-3 fw-bold text-warning" data-testid="cam-month-cancelled">@Model.MonthStats.Cancelled</div>
-                                <div class="small text-muted">Anulate</div>
+                                <div class="small text-muted">@Loc.T("CamDashCancelled")</div>
                             </div>
                             <div class="ms-auto">
                                 <div class="fs-3 fw-bold text-info" data-testid="cam-month-patients">@Model.MonthStats.Patients</div>
-                                <div class="small text-muted">Pacienți</div>
+                                <div class="small text-muted">@Loc.T("CamDashPatients")</div>
                             </div>
                         </div>
                     </div>
@@ -320,19 +323,19 @@
             <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-body">
-                        <h6 class="fw-bold text-muted small mb-2">ACȚIUNI RAPIDE</h6>
+                        <h6 class="fw-bold text-muted small mb-2">@Loc.T("CamDashQuickActions")</h6>
                         <div class="d-flex flex-wrap gap-2 mb-3">
                             <a asp-controller="Batch" asp-action="Start" asp-area="CAM"
                                class="btn btn-primary fw-bold" data-testid="cam-go-batch">
-                                Lansează lot
+                                @Loc.T("CamDashLaunchBatch")
                             </a>
                             <a asp-controller="Patients" asp-action="Index" asp-area="CAM"
                                class="btn btn-outline-primary" data-testid="cam-go-patients">
-                                Pacienți
+                                @Loc.T("CamDashGotoPatients")
                             </a>
                             <a asp-controller="CheckPdfs" asp-action="Index" asp-area="CAM"
                                class="btn btn-outline-secondary" data-testid="cam-go-checkpdfs">
-                                Verifică PDF-uri
+                                @Loc.T("CamDashGotoCheckPdfs")
                             </a>
                         </div>
 
@@ -346,9 +349,9 @@
                                           : "text-muted";
                         }
                         <div class="d-flex justify-content-between align-items-center mb-1">
-                            <h6 class="fw-bold text-muted small mb-0">SPAȚIU FOLOSIT</h6>
+                            <h6 class="fw-bold text-muted small mb-0">@Loc.T("CamDashDiskUsage")</h6>
                             <span class="small @warnClass fw-bold" data-testid="cam-disk-summary">
-                                @Model.DiskHumanTotal · @Model.DiskFilesTotal fișiere
+                                @Model.DiskHumanTotal · @Model.DiskFilesTotal @Loc.T("CamDashFiles")
                             </span>
                         </div>
                         @{
@@ -362,7 +365,7 @@
                             }
                         }
                         <div class="small text-muted mb-2" data-testid="cam-disk-breakdown">
-                            <span title="Original NU este afectat de curățare">
+                            <span title="@Loc.T("CamDashOriginalNotAffected")">
                                 Original: <strong>@FormatBytes(Model.DiskBytesOriginal)</strong>
                             </span>
                             <span class="ms-2">·</span>
@@ -378,33 +381,33 @@
                                  data-testid="cam-disk-warning">
                                 @if (warn == 2)
                                 {
-                                    <span>Spațiul folosit e mare. Recomandăm curățarea fișierelor vechi.</span>
+                                    <span>@Loc.T("CamDashDiskWarnRed")</span>
                                 }
                                 else
                                 {
-                                    <span>Spațiul folosit crește. Verifică periodic.</span>
+                                    <span>@Loc.T("CamDashDiskWarnYellow")</span>
                                 }
                             </div>
                         }
                         <form asp-action="Cleanup" method="post" class="d-flex gap-2 align-items-center js-confirm-form"
-                              data-confirm-title="Curățare fișiere vechi"
-                              data-confirm-body="Vor fi șterse PDF-urile din Sends/Sumar/Errors mai vechi decât numărul de zile specificat. Folderul Original NU este afectat. Fișierele din ultimul lot complet sunt protejate. Continui?"
-                              data-confirm-ok-label="Da, curăță acum"
+                              data-confirm-title="@Loc.T("CamDashCleanupConfirmTitle")"
+                              data-confirm-body="@Loc.T("CamDashCleanupConfirmBody")"
+                              data-confirm-ok-label="@Loc.T("CamDashCleanupConfirmOk")"
                               data-confirm-ok-class="btn-danger">
                             @Html.AntiForgeryToken()
-                            <label for="cleanupDays" class="small text-muted mb-0">Mai vechi de</label>
+                            <label for="cleanupDays" class="small text-muted mb-0">@Loc.T("CamDashOlderThan")</label>
                             <input type="number" class="form-control form-control-sm" id="cleanupDays"
                                    name="days" value="@Model.RetentionDaysDefault" min="1" max="365"
                                    style="width: 80px;" data-testid="cam-cleanup-days" />
-                            <span class="small text-muted">zile</span>
+                            <span class="small text-muted">@Loc.T("CamDashDays")</span>
                             <button type="submit" class="btn btn-sm btn-outline-danger ms-auto"
                                     data-testid="cam-cleanup-btn">
-                                &#129529; Curăță acum
+                                &#129529; @Loc.T("CamDashCleanupNow")
                             </button>
                         </form>
                         <div class="small text-muted mt-2">
-                            Curățarea rulează și automat înainte de fiecare lot.
-                            <span class="text-secondary">Original nu este atins niciodată.</span>
+                            @Loc.T("CamDashCleanupHint")
+                            <span class="text-secondary">@Loc.T("CamDashOriginalNeverTouched")</span>
                         </div>
                     </div>
                 </div>
@@ -416,14 +419,14 @@
            ============================================================ *@
         <div class="card mb-4">
             <div class="card-header bg-white d-flex align-items-center">
-                <span class="fw-bold">Istoric loturi (ultimele 10)</span>
+                <span class="fw-bold">@Loc.T("CamDashHistoryTitle")</span>
                 <span class="badge bg-secondary ms-2">@Model.RecentBatches.Count</span>
             </div>
             <div class="card-body p-0">
                 @if (Model.RecentBatches.Count == 0)
                 {
                     <div class="text-muted small p-3" data-testid="cam-batches-empty">
-                        Niciun lot rulat încă. Apasă <strong>Lansează lot</strong> pentru a începe.
+                        @Html.Raw(Loc.T("CamDashHistoryEmpty"))
                     </div>
                 }
                 else
@@ -432,14 +435,14 @@
                         <table class="table table-hover mb-0 align-middle" data-testid="cam-batches-table">
                             <thead class="table-light">
                                 <tr>
-                                    <th>#</th>
-                                    <th>Pornit</th>
-                                    <th>Durată</th>
-                                    <th class="text-center">Stare</th>
-                                    <th class="text-end">Total</th>
-                                    <th class="text-end">Trimise</th>
-                                    <th class="text-end">Comparate</th>
-                                    <th class="text-end">Neexpediate</th>
+                                    <th>@Loc.T("CamDashColIndex")</th>
+                                    <th>@Loc.T("CamDashColStarted")</th>
+                                    <th>@Loc.T("CamDashColDuration")</th>
+                                    <th class="text-center">@Loc.T("CamDashColStatus")</th>
+                                    <th class="text-end">@Loc.T("CamDashColTotal")</th>
+                                    <th class="text-end">@Loc.T("CamDashColSent")</th>
+                                    <th class="text-end">@Loc.T("CamDashColCompared")</th>
+                                    <th class="text-end">@Loc.T("CamDashColNotSends")</th>
                                     <th></th>
                                 </tr>
                             </thead>
@@ -452,7 +455,7 @@
                                         <td class="text-muted small">@b.DurationDisplay</td>
                                         <td class="text-center">
                                             <span class="badge @StatusBadge(b.Status)" data-testid="cam-batch-status-@b.BatchRunId">
-                                                @StatusRo(b.Status)
+                                                @StatusLocalized(b.Status)
                                             </span>
                                         </td>
                                         <td class="text-end">@b.TotalFiles</td>
@@ -465,14 +468,14 @@
                                                    asp-route-id="@b.BatchRunId"
                                                    class="btn btn-outline-secondary"
                                                    data-testid="cam-batch-progress-link-@b.BatchRunId"
-                                                   title="Vezi pagina de progres / log">
-                                                    Progres
+                                                   title="@Loc.T("CamDashProgressTooltip")">
+                                                    @Loc.T("CamDashProgress")
                                                 </a>
                                                 <a asp-action="SumarPdf" asp-route-id="@b.BatchRunId"
                                                    class="btn btn-outline-primary"
                                                    data-testid="cam-batch-sumarpdf-link-@b.BatchRunId"
-                                                   title="Descarcă Sumar PDF al lotului">
-                                                    Sumar PDF
+                                                   title="@Loc.T("CamDashSumarPdfTooltip")">
+                                                    @Loc.T("CamDashSumarPdf")
                                                 </a>
                                             </div>
                                         </td>
@@ -494,9 +497,10 @@
                         type="button" data-bs-toggle="collapse"
                         data-bs-target="#foldersPanel" aria-expanded="false"
                         data-testid="cam-folders-toggle">
-                    Foldere de lucru pe disc
+                    @Loc.T("CamDashFoldersPanel")
                     <span class="text-muted small fw-normal">
-                        (create @Model.FoldersCreatedAt?.ToLocalTime().ToString("dd MMM yyyy HH:mm"))
+                        @string.Format(Loc.T("CamDashFoldersCreatedAt"),
+                            Model.FoldersCreatedAt?.ToLocalTime().ToString("dd MMM yyyy HH:mm"))
                     </span>
                 </button>
             </div>
@@ -518,7 +522,7 @@
     <div class="text-center mt-5">
         <p class="small text-muted">
             Powered by <a href="https://medicalapp.ro" target="_blank" class="text-decoration-none fw-bold">MedicalApp+</a>
-            &middot; <a asp-controller="Account" asp-action="Dashboard" asp-area="" class="text-decoration-none">Comută în modul personal</a>
+            &middot; <a asp-controller="Account" asp-action="Dashboard" asp-area="" class="text-decoration-none">@Loc.T("CamDashSwitchPersonal")</a>
         </p>
     </div>
 </div>
@@ -526,5 +530,5 @@
 <partial name="_ConfirmDialog" />
 
 @section Scripts {
-@* Dashboard nu mai folosește Chart.js — agregările pe an/lună sunt afișate direct ca numere. *@
+@* Dashboard no longer uses Chart.js — yearly/monthly aggregates are displayed directly as numbers. *@
 }

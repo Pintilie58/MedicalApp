@@ -1,6 +1,7 @@
 @model MedicalApp.Areas.CAM.Models.CamCheckPdfsViewModel
+@using MedicalApp.Services
 @{
-    ViewData["Title"] = "Verificare PDF-uri — " + Model.ClinicName;
+    ViewData["Title"] = string.Format(Loc.T("CamCheckTitle"), Model.ClinicName);
     int okCount = Model.Items.Count(r => r.IsValid);
     int notOkCount = Model.Items.Count - okCount;
     int goldCount = Model.Items.Count(r => r.MatchedExplicitBlock);
@@ -17,12 +18,12 @@
 
     <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
         <h2 class="text-primary fw-bold mb-0" data-testid="cam-checkpdfs-heading">
-            &#128270; Verificare PDF-uri în folderul Original
+            &#128270; @Loc.T("CamCheckHeading")
         </h2>
         <div class="ms-auto">
             <a asp-controller="Dashboard" asp-action="Index" asp-area="CAM"
                class="btn btn-outline-secondary" data-testid="cam-back-dashboard">
-                &larr; Înapoi la tablou principal
+                &larr; @Loc.T("CamBackDashboard")
             </a>
         </div>
     </div>
@@ -37,25 +38,23 @@
     }
 
     <div class="alert alert-light border" data-testid="cam-checkpdfs-folder">
-        <strong>Folder scanat:</strong>
+        <strong>@Loc.T("CamCheckFolderScanned")</strong>
         <code>@Model.OriginalFolder</code>
     </div>
 
-    @* ===== Upload manual fișiere PDF (sugestia 1) ===== *@
+    @* ===== Manual PDF upload ===== *@
     <div class="card mb-3 border-info">
         <div class="card-header bg-info-subtle fw-bold">
-            &#128229; Selectare fișiere PDF (copiere din alt loc)
+            &#128229; @Loc.T("CamCheckUploadHeader")
         </div>
         <div class="card-body">
             <p class="small text-muted mb-2">
-                Selectează unul sau mai multe fișiere PDF de pe disc.
-                Fișierele sunt <strong>copiate</strong> (nu mutate) în folderul <code>Original</code>
-                al clinicii tale, <strong>pentru a fi interpretat</strong>.
+                @Html.Raw(Loc.T("CamCheckUploadHelp"))
             </p>
             <form asp-action="UploadFiles" method="post" enctype="multipart/form-data"
                   class="d-flex flex-wrap align-items-center gap-2" data-testid="cam-checkpdfs-upload-form">
                 @Html.AntiForgeryToken()
-                @* Hidden native input + custom RO label so the operator never sees the
+                @* Hidden native input + custom label so the operator never sees the
                    browser's English "Choose files" / "No file chosen" wording. JS below
                    keeps the label in sync with the actual file selection. The native
                    element still posts the files exactly the same way. *@
@@ -66,17 +65,17 @@
                 <label for="camPdfFiles"
                        class="btn btn-outline-info fw-semibold mb-0"
                        data-testid="cam-checkpdfs-upload-pick">
-                    &#128206; Alege fișiere
+                    &#128206; @Loc.T("CamCheckUploadPick")
                 </label>
                 <span id="camPdfFilesLabel"
                       class="text-muted small"
                       data-testid="cam-checkpdfs-upload-label"
                       style="max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                    Niciun fișier ales
+                    @Loc.T("CamCheckNoFile")
                 </span>
                 <button type="submit" class="btn btn-info fw-bold"
                         data-testid="cam-checkpdfs-upload-submit">
-                    &#9658; Copiază în Original
+                    &#9658; @Loc.T("CamCheckUploadSubmit")
                 </button>
             </form>
             <script>
@@ -84,15 +83,18 @@
                     var inp = document.getElementById('camPdfFiles');
                     var lbl = document.getElementById('camPdfFilesLabel');
                     if (!inp || !lbl) return;
+                    var T_NONE  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamCheckNoFile")));
+                    var T_MULTI = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamCheckFilesSelected")));
                     inp.addEventListener('change', function () {
                         if (!inp.files || inp.files.length === 0) {
-                            lbl.textContent = 'Niciun fișier ales';
+                            lbl.textContent = T_NONE;
                             return;
                         }
                         if (inp.files.length === 1) {
                             lbl.textContent = inp.files[0].name;
                         } else {
-                            lbl.textContent = inp.files.length + ' fișiere selectate';
+                            // Replace {0} placeholder with the count.
+                            lbl.textContent = T_MULTI.replace('{0}', inp.files.length);
                         }
                     });
                 })();
@@ -100,68 +102,57 @@
         </div>
     </div>
 
-    @* ===== Help: cele 2 metode în ordinea recomandată ===== *@
+    @* ===== Help: the 2 methods in recommended order ===== *@
     <div class="card mb-3 border-warning">
         <div class="card-header bg-warning-subtle fw-bold">
-            &#9999; Metoda 1 — Editare manuală
+            &#9999; @Loc.T("CamCheckMethod1Title")
         </div>
         <div class="card-body small">
-            Apasă butonul <strong>&#9999; Editează</strong> de pe fiecare rând și introdu manual
-            numele și emailul pacientului. Datele sunt salvate ca <em>override</em> și folosite
-            direct la lansarea lotului (badge galben „Manual").
+            @Html.Raw(Loc.T("CamCheckMethod1Body"))
         </div>
     </div>
 
     <div class="card mb-3 border-success">
         <div class="card-header bg-success-subtle fw-bold">
-            &#11088; Metoda 2 — Bloc <code>[MedicalApp]</code> în PDF (recomandată pentru loturi mari)
+            &#11088; @Html.Raw(Loc.T("CamCheckMethod2Title"))
         </div>
         <div class="card-body small">
-            Adaugă pe ultima pagină a fiecărui PDF (sau în șablonul lab-ului) un bloc cu acest format <strong>exact</strong>:
+            @Html.Raw(Loc.T("CamCheckMethod2BodyPart1"))
             <pre class="bg-light p-2 mb-2 mt-2"
-                 style="font-size:12px;border-radius:6px;">[MedicalApp]
-Pacient: Ion Popescu
-Email: ion.popescu@example.com</pre>
-            Când blocul există, aplicația îl folosește direct (badge verde <strong>"[MedicalApp]"</strong>) și
-            ignoră restul textului. Pentru PDF-urile care nu au nici bloc, nici override manual,
-            rândul rămâne <strong>Blocat</strong> — folosește <em>Metoda 1</em> (Editează) pentru ele.
+                 style="font-size:12px;border-radius:6px;">@Loc.T("CamCheckBlockExample")</pre>
+            @Html.Raw(Loc.T("CamCheckMethod2BodyPart2"))
         </div>
     </div>
 
     @if (Model.FolderMissing)
     {
         <div class="alert alert-warning" data-testid="cam-checkpdfs-folder-missing">
-            &#9888; Folderul nu există încă. Cumpără primul pachet de credite ca
-            să fie creat automat.
+            &#9888; @Loc.T("CamCheckFolderMissing")
         </div>
     }
     else
     {
-        // Rândurile invalide nu mai au fallback AI — sunt pur și simplu blocate
-        // până când operatorul apasă „Editează".
+        // Invalid rows have no AI fallback anymore — they are simply blocked
+        // until the operator presses Edit.
         var blockedCount = notOkCount;
 
         <div class="alert alert-info small mb-3" data-testid="cam-checkpdfs-help">
-            &#128161; <strong>Cum decide aplicația cine e pacientul:</strong>
-            (1) dacă există un <strong>override manual</strong> &#9999; (prin „Editează") → folosește direct;
-            (2) dacă PDF-ul conține blocul <code>[MedicalApp]</code> &#11088; → folosește direct.
-            Rândurile fără niciuna din cele două rămân <strong>Blocate</strong> și nu sunt incluse în lot —
-            apasă <em>&#9999; Editează</em> pentru a introduce manual numele și emailul.
+            &#128161; @Html.Raw(Loc.T("CamCheckHelpInfo"))
         </div>
 
         <div class="d-flex gap-2 mb-3 flex-wrap" data-testid="cam-checkpdfs-summary">
-            <span class="badge bg-success fs-6 px-3 py-2">&#10003; Gata: @okCount</span>
-            <span class="badge bg-warning fs-6 px-3 py-2 text-dark">&#9999; Manual: @overrideCount</span>
-            <span class="badge bg-success-subtle fs-6 px-3 py-2 text-success border border-success">&#11088; [MedicalApp]: @goldCount</span>
+            <span class="badge bg-success fs-6 px-3 py-2">&#10003; @string.Format(Loc.T("CamCheckSummaryReady"), okCount)</span>
+            <span class="badge bg-warning fs-6 px-3 py-2 text-dark">&#9999; @string.Format(Loc.T("CamCheckSummaryManual"), overrideCount)</span>
+            <span class="badge bg-success-subtle fs-6 px-3 py-2 text-success border border-success">&#11088; @string.Format(Loc.T("CamCheckSummaryGold"), goldCount)</span>
             @if (blockedCount > 0)
             {
-                <span class="badge bg-danger fs-6 px-3 py-2">&#10007; Blocate: @blockedCount</span>
+                <span class="badge bg-danger fs-6 px-3 py-2">&#10007; @string.Format(Loc.T("CamCheckSummaryBlocked"), blockedCount)</span>
             }
-            <span class="badge bg-secondary fs-6 px-3 py-2">Total: @Model.Items.Count</span>
+            <span class="badge bg-secondary fs-6 px-3 py-2">@string.Format(Loc.T("CamCheckSummaryTotal"), Model.Items.Count)</span>
             <div class="ms-auto d-flex gap-2">
                 <form method="get" class="d-inline">
                     <button class="btn btn-outline-primary btn-sm" type="submit" data-testid="cam-checkpdfs-refresh">
-                        &#10227; Re-scanează
+                        &#10227; @Loc.T("CamCheckRescan")
                     </button>
                 </form>
                 @if (Model.HasBlockingEmailIssues)
@@ -173,8 +164,8 @@ Email: ion.popescu@example.com</pre>
                             class="btn btn-secondary btn-sm fw-bold"
                             disabled
                             data-testid="cam-checkpdfs-launch-batch-disabled"
-                            title="Există rânduri cu email invalid sau cu domeniu inexistent. Corectează-le din butonul Editează înainte de a lansa lotul.">
-                        &#9658; Lansează lot
+                            title="@Loc.T("CamCheckLaunchDisabledTitle")">
+                        &#9658; @Loc.T("CamCheckLaunchBatch")
                     </button>
                 }
                 else
@@ -182,8 +173,8 @@ Email: ion.popescu@example.com</pre>
                     <a asp-controller="Batch" asp-action="Start" asp-area="CAM"
                        class="btn btn-success btn-sm fw-bold"
                        data-testid="cam-checkpdfs-launch-batch"
-                       title="Lansează un lot nou — interpretează toate PDF-urile din folderul Original">
-                        &#9658; Lansează lot
+                       title="@Loc.T("CamCheckLaunchTooltip")">
+                        &#9658; @Loc.T("CamCheckLaunchBatch")
                     </a>
                 }
             </div>
@@ -195,10 +186,8 @@ Email: ion.popescu@example.com</pre>
                  data-testid="cam-checkpdfs-email-warning">
                 <span class="fs-4">&#9888;</span>
                 <div class="small mb-0">
-                    <strong>Cel puțin un rând are email invalid sau cu domeniu inexistent.</strong>
-                    Lansarea lotului este blocată ca să nu pierzi credite pe trimiteri ratate.
-                    Apasă <em>&#9999; Editează</em> pe rândurile evidențiate roșu/galben și
-                    corectează adresele.
+                    <strong>@Loc.T("CamCheckEmailWarningTitle")</strong>
+                    @Html.Raw(Loc.T("CamCheckEmailWarningBody"))
                 </div>
             </div>
         }
@@ -206,8 +195,7 @@ Email: ion.popescu@example.com</pre>
         @if (Model.Items.Count == 0)
         {
             <div class="alert alert-info" data-testid="cam-checkpdfs-empty">
-                Niciun PDF în folderul <code>Original</code>. Folosește butonul de mai sus pentru
-                a copia fișiere, sau pune-le manual în folder și apasă „Re-scanează".
+                @Html.Raw(Loc.T("CamCheckEmpty"))
             </div>
         }
         else
@@ -217,11 +205,11 @@ Email: ion.popescu@example.com</pre>
                     <thead class="table-light">
                         <tr>
                             <th style="width:36px;">&nbsp;</th>
-                            <th>Fișier</th>
-                            <th>Nume preview</th>
-                            <th>Email preview</th>
-                            <th>Sursă</th>
-                            <th>Stare</th>
+                            <th>@Loc.T("CamCheckColFile")</th>
+                            <th>@Loc.T("CamCheckColName")</th>
+                            <th>@Loc.T("CamCheckColEmail")</th>
+                            <th>@Loc.T("CamCheckColSource")</th>
+                            <th>@Loc.T("CamCheckColStatus")</th>
                             <th style="width:160px;">&nbsp;</th>
                         </tr>
                     </thead>
@@ -229,7 +217,7 @@ Email: ion.popescu@example.com</pre>
                         @foreach (var r in Model.Items)
                         {
                             // No AI fallback: row is either valid (override / [MedicalApp])
-                            // or blocked. Blocked rows prompt the operator to use Editează.
+                            // or blocked. Blocked rows prompt the operator to use Edit.
                             string rowClass;
                             if (r.IsValid && r.MatchedExplicitBlock) rowClass = "table-success";
                             else if (r.IsValid && r.IsManualOverride) rowClass = "table-warning";
@@ -261,13 +249,13 @@ Email: ion.popescu@example.com</pre>
                                             @switch (r.EmailValidity)
                                             {
                                                 case MedicalApp.Services.EmailValidity.Valid:
-                                                    <span class="badge bg-success" data-testid="cam-email-validity-@r.FileName" title="@r.EmailValidityMessage">&#10003; OK</span>
+                                                    <span class="badge bg-success" data-testid="cam-email-validity-@r.FileName" title="@r.EmailValidityMessage">&#10003; @Loc.T("CamCheckEmailOk")</span>
                                                     break;
                                                 case MedicalApp.Services.EmailValidity.InvalidSyntax:
-                                                    <span class="badge bg-danger" data-testid="cam-email-validity-@r.FileName" title="@r.EmailValidityMessage">&#10007; Invalid</span>
+                                                    <span class="badge bg-danger" data-testid="cam-email-validity-@r.FileName" title="@r.EmailValidityMessage">&#10007; @Loc.T("CamCheckEmailInvalid")</span>
                                                     break;
                                                 case MedicalApp.Services.EmailValidity.NoMxRecord:
-                                                    <span class="badge bg-danger" data-testid="cam-email-validity-@r.FileName" title="@r.EmailValidityMessage">&#9888; Fără MX</span>
+                                                    <span class="badge bg-danger" data-testid="cam-email-validity-@r.FileName" title="@r.EmailValidityMessage">&#9888; @Loc.T("CamCheckEmailNoMx")</span>
                                                     break;
                                                 case MedicalApp.Services.EmailValidity.DnsUnknown:
                                                     <span class="badge bg-secondary" data-testid="cam-email-validity-@r.FileName" title="@r.EmailValidityMessage">&hellip;</span>
@@ -278,7 +266,7 @@ Email: ion.popescu@example.com</pre>
                                              r.EmailValidity == MedicalApp.Services.EmailValidity.NoMxRecord)
                                         {
                                             <div class="small text-warning mt-1" data-testid="cam-email-suggest-@r.FileName">
-                                                &#128172; Ai vrut să spui <code>@@@r.EmailDomainSuggestion</code>?
+                                                &#128172; @Loc.T("CamCheckEmailDidYouMean") <code>@@@r.EmailDomainSuggestion</code>?
                                             </div>
                                         }
                                     }
@@ -290,27 +278,26 @@ Email: ion.popescu@example.com</pre>
                                     }
                                     else if (r.IsManualOverride)
                                     {
-                                        <span class="badge bg-warning text-dark">&#9999; Manual</span>
+                                        <span class="badge bg-warning text-dark">&#9999; @Loc.T("CamCheckSourceManual")</span>
                                     }
                                     else if (r.IsValid)
                                     {
-                                        <span class="badge bg-secondary">Auto</span>
+                                        <span class="badge bg-secondary">@Loc.T("CamCheckSourceAuto")</span>
                                     }
                                     else
                                     {
-                                        <span class="badge bg-danger">Blocat</span>
+                                        <span class="badge bg-danger">@Loc.T("CamCheckSourceBlocked")</span>
                                     }
                                 </td>
                                 <td class="small">
                                     @if (r.IsValid)
                                     {
-                                        <span class="text-success">Gata pentru lot.</span>
+                                        <span class="text-success">@Loc.T("CamCheckRowReady")</span>
                                     }
                                     else
                                     {
                                         <span class="text-danger">
-                                            Dacă fișierul nu conține grupul <code>[MedicalApp-Nume+Email]</code>,
-                                            atunci apasă <strong>&#9999; Editează</strong>.
+                                            @Html.Raw(Loc.T("CamCheckRowBlocked"))
                                         </span>
                                     }
                                 </td>
@@ -322,7 +309,7 @@ Email: ion.popescu@example.com</pre>
                                             data-name="@(r.PatientName ?? "")"
                                             data-email="@(r.PatientEmail ?? "")"
                                             data-testid="cam-checkpdfs-edit-btn">
-                                        &#9999; Editează
+                                        &#9999; @Loc.T("CamCheckEditBtn")
                                     </button>
                                     @if (r.IsManualOverride)
                                     {
@@ -331,7 +318,7 @@ Email: ion.popescu@example.com</pre>
                                             <input type="hidden" name="fileName" value="@r.FileName" />
                                             <button type="submit"
                                                     class="btn btn-sm btn-outline-secondary"
-                                                    title="Șterge override-ul manual și revine la auto-extracție"
+                                                    title="@Loc.T("CamCheckClearTooltip")"
                                                     data-testid="cam-checkpdfs-clear-btn">
                                                 &#10005;
                                             </button>
@@ -347,49 +334,49 @@ Email: ion.popescu@example.com</pre>
     }
 </div>
 
-@* ===== Modal Edit Override (un singur modal reutilizat pentru toate rândurile) ===== *@
+@* ===== Edit Override Modal (single modal reused for all rows) ===== *@
 <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <form asp-action="SaveOverride" method="post" class="modal-content"
               data-testid="cam-checkpdfs-edit-form">
             @Html.AntiForgeryToken()
             <div class="modal-header">
-                <h5 class="modal-title">&#9999; Editează metadata pacient</h5>
+                <h5 class="modal-title">&#9999; @Loc.T("CamCheckModalTitle")</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <p class="small text-muted">
-                    Datele introduse aici sunt folosite la lansarea lotului în locul auto-extracției.
+                    @Loc.T("CamCheckModalIntro")
                 </p>
                 <div class="mb-3">
-                    <label class="form-label fw-semibold small">Fișier</label>
+                    <label class="form-label fw-semibold small">@Loc.T("CamCheckModalFile")</label>
                     <input type="text" id="editFileName" name="fileName"
                            class="form-control bg-light" readonly
                            data-testid="cam-checkpdfs-edit-filename" />
                 </div>
                 <div class="mb-3">
-                    <label class="form-label fw-semibold small">Nume complet pacient</label>
+                    <label class="form-label fw-semibold small">@Loc.T("CamCheckModalName")</label>
                     <input type="text" id="editName" name="overrideName" required
                            class="form-control"
-                           placeholder="ex: Ion Popescu"
+                           placeholder="@Loc.T("CamCheckModalNamePh")"
                            data-testid="cam-checkpdfs-edit-name" />
                 </div>
                 <div class="mb-3">
-                    <label class="form-label fw-semibold small">Email pacient</label>
+                    <label class="form-label fw-semibold small">@Loc.T("CamCheckModalEmail")</label>
                     <input type="email" id="editEmail" name="overrideEmail" required
                            class="form-control"
-                           placeholder="ex: ion.popescu@example.com"
+                           placeholder="@Loc.T("CamCheckModalEmailPh")"
                            data-testid="cam-checkpdfs-edit-email" />
                     @* A3 — inline "Did you mean ...?" hint, populated by the
                        page-level script when the typed domain is one Levenshtein
                        edit away from a known consumer email provider. *@
                     <div id="editEmailHint" class="small mt-1 d-none" data-testid="cam-checkpdfs-edit-hint">
-                        <span class="text-warning">&#128172; Ai vrut să spui</span>
+                        <span class="text-warning">&#128172; @Loc.T("CamCheckModalDidYouMean")</span>
                         <button type="button"
                                 id="editEmailHintApply"
                                 class="btn btn-link btn-sm p-0 align-baseline fw-semibold"
                                 data-testid="cam-checkpdfs-edit-hint-apply"></button>
-                        <span class="text-muted">? Apasă pentru a corecta automat.</span>
+                        <span class="text-muted">@Loc.T("CamCheckModalDidYouMeanAfter")</span>
                     </div>
                 </div>
             </div>
@@ -399,15 +386,15 @@ Email: ion.popescu@example.com</pre>
                         formnovalidate
                         class="btn btn-outline-danger me-auto fw-bold js-confirm-btn"
                         data-testid="cam-checkpdfs-edit-delete"
-                        data-confirm-title="Ștergere fișier"
-                        data-confirm-body="Această acțiune este ireversibilă. Override-ul manual asociat (dacă există) va fi șters automat."
-                        data-confirm-ok-label="Da, șterge fișierul"
+                        data-confirm-title="@Loc.T("CamCheckDeleteConfirmTitle")"
+                        data-confirm-body="@Loc.T("CamCheckDeleteConfirmBody")"
+                        data-confirm-ok-label="@Loc.T("CamCheckDeleteConfirmOk")"
                         data-confirm-ok-class="btn-danger">
-                    &#128465; Șterge fișier
+                    &#128465; @Loc.T("CamCheckDeleteBtn")
                 </button>
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Renunță</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">@Loc.T("CamCheckCancel")</button>
                 <button type="submit" class="btn btn-primary fw-bold"
-                        data-testid="cam-checkpdfs-edit-save">Salvează</button>
+                        data-testid="cam-checkpdfs-edit-save">@Loc.T("CamCheckSave")</button>
             </div>
         </form>
     </div>
@@ -417,6 +404,11 @@ Email: ion.popescu@example.com</pre>
 
 @section Scripts {
 <script>
+    // Localized template for the per-file delete-confirm body. The {0}
+    // placeholder is replaced with the actual file name at runtime when
+    // the modal is opened. Comes from Loc.cs so it follows the UI language.
+    var CAM_DELETE_CONFIRM_BODY_TPL = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamCheckDeleteConfirmBodyDynamic")));
+
     document.addEventListener('DOMContentLoaded', function () {
         // ---- Scroll-to-row support ----
         // After UploadFiles / SaveOverride / ClearOverride the controller stores
@@ -452,12 +444,11 @@ Email: ion.popescu@example.com</pre>
             document.getElementById('editFileName').value = fname;
             document.getElementById('editName').value     = btn.getAttribute('data-name')     || '';
             document.getElementById('editEmail').value    = btn.getAttribute('data-email')    || '';
-            // Update delete-button confirm message to include the file name.
+            // Update delete-button confirm message to include the file name,
+            // using the localized template.
             var delBtn = document.querySelector('[data-testid="cam-checkpdfs-edit-delete"]');
             if (delBtn) {
-                delBtn.dataset.confirmBody =
-                    'Vei ȘTERGE definitiv fișierul „' + fname + '" din folderul Original.\n\n' +
-                    'Acțiunea este ireversibilă. Override-ul manual asociat (dacă există) va fi șters automat.';
+                delBtn.dataset.confirmBody = CAM_DELETE_CONFIRM_BODY_TPL.replace('{0}', fname);
             }
             // Trigger an initial typo-check so the operator sees the hint
             // immediately for emails that were already typo'd on the row.

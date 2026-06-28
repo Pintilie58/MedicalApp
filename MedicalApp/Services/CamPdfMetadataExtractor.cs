@@ -27,6 +27,14 @@ namespace MedicalApp.Services
 
         /// <summary>True when keyword heuristics say this PDF is a medical lab report.</summary>
         public bool IsMedicalLabReport { get; set; }
+
+        /// <summary>
+        /// Translation key (in Loc.cs) corresponding to <see cref="Reason"/>.
+        /// Lets callers display a localized message in the live progress log
+        /// while keeping <see cref="Reason"/> itself in English for stable DB
+        /// storage and traceability across languages.
+        /// </summary>
+        public string? ReasonKey { get; set; }
     }
 
     /// <summary>
@@ -141,12 +149,14 @@ namespace MedicalApp.Services
             {
                 _logger.LogWarning(ex, "CAM extractor: PdfTextExtractor failed for {File}", fileNameForLogs);
                 result.Reason = "PDF unreadable (possibly scanned image — needs digital PDF).";
+                result.ReasonKey = "CamProbeUnreadable";
                 return result;
             }
 
             if (string.IsNullOrWhiteSpace(text))
             {
                 result.Reason = "PDF text layer empty (scanned image?).";
+                result.ReasonKey = "CamProbeTextEmpty";
                 return result;
             }
 
@@ -155,6 +165,7 @@ namespace MedicalApp.Services
             if (!result.IsMedicalLabReport)
             {
                 result.Reason = "PDF does not look like a medical lab report (no medical terminology found).";
+                result.ReasonKey = "CamProbeNotMedical";
                 return result;
             }
 
@@ -191,9 +202,16 @@ namespace MedicalApp.Services
             }
             if (patientEmailMatch == null)
             {
-                result.Reason = blacklist.Count > 0
-                    ? "No patient email found (only blacklisted clinic-domain emails were present)."
-                    : "Email not found in PDF.";
+                if (blacklist.Count > 0)
+                {
+                    result.Reason = "No patient email found (only blacklisted clinic-domain emails were present).";
+                    result.ReasonKey = "CamProbeEmailBlacklisted";
+                }
+                else
+                {
+                    result.Reason = "Email not found in PDF.";
+                    result.ReasonKey = "CamProbeEmailNotFound";
+                }
                 return result;
             }
             result.PatientEmail = patientEmailMatch.Value.Trim();
@@ -206,6 +224,7 @@ namespace MedicalApp.Services
             if (string.IsNullOrWhiteSpace(result.PatientName))
             {
                 result.Reason = "Patient name not found in PDF. Add a [MedicalApp] block on the last page (see CheckPdfs help).";
+                result.ReasonKey = "CamProbeNameNotFound";
                 return result;
             }
 
