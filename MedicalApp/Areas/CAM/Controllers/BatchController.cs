@@ -144,14 +144,21 @@ namespace MedicalApp.Areas.CAM.Controllers
             // cold first request after IIS recycle). Seeding it here makes
             // the UI live from the very first poll. The runner then re-uses
             // the same entry via GetOrCreate (idempotent).
+            // Capture the current UI language so the background batch can
+            // localize its progress log AND the redirect flash message using
+            // the operator's preferred language. The batch runs in a fresh
+            // DI scope without HttpContext, so we must pass it explicitly.
+            var lang = System.Globalization.CultureInfo.CurrentUICulture.Name;
+            var langShort = string.IsNullOrEmpty(lang) ? "ro" : lang.Split('-')[0].ToLowerInvariant();
+
             var seeded = _registry.GetOrCreate(batch.Id, clinic.Id, total: 0);
-            seeded.Log("Lot inițializat — pregătesc procesarea…");
+            seeded.Log(Loc.T("CamBatchLogInitialized", langShort));
 
             // Fire & forget. The runner uses its own DI scope, so it survives
             // the disposal of THIS controller's scope when the request returns.
-            _ = Task.Run(() => _runner.RunAsync(batch.Id));
+            _ = Task.Run(() => _runner.RunAsync(batch.Id, langShort));
 
-            TempData["SuccessMessage"] = "Lotul a pornit. Te poți întoarce oricând la această pagină.";
+            TempData["SuccessMessage"] = Loc.T("CamBatchStartFlash", langShort);
             return RedirectToAction(nameof(Progress), new { id = batch.Id });
         }
 

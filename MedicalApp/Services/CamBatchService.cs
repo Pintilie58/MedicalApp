@@ -44,9 +44,20 @@ namespace MedicalApp.Services
         /// (already inserted in <c>ClinicBatchRuns</c> with Status="Running").
         /// Never throws — captures all exceptions and persists the final
         /// state to DB + .txt sumar.
+        ///
+        /// <paramref name="languageCode"/> is the short ISO code (ro/en/fr/es/de)
+        /// captured by BatchController at the time the operator clicked "Start".
+        /// Used to localize the progress.Log() messages displayed in the live
+        /// log UI. The default "ro" keeps existing callers working unchanged
+        /// (e.g. tests, future re-launch endpoints).
         /// </summary>
-        public async Task RunAsync(int batchRunId)
+        public async Task RunAsync(int batchRunId, string languageCode = "ro")
         {
+            // Normalize and guard so a future caller that accidentally passes
+            // "" or "en-US" still reaches Loc.T with a value it understands.
+            var lang = string.IsNullOrWhiteSpace(languageCode)
+                ? "ro"
+                : languageCode.Split('-')[0].ToLowerInvariant();
             CamBatchProgress? progress = null;
             try
             {
@@ -96,11 +107,11 @@ namespace MedicalApp.Services
                 await db.SaveChangesAsync();
 
                 progress = _registry.GetOrCreate(batchRunId, batch.ClinicId, pdfPaths.Count);
-                progress.Log($"Lot pornit. {pdfPaths.Count} fișiere în coadă.");
+                progress.Log(string.Format(Loc.T("CamBatchLogStarted", lang), pdfPaths.Count));
 
                 if (pdfPaths.Count == 0)
                 {
-                    progress.Log("Niciun fișier în Original. Lot finalizat.");
+                    progress.Log(Loc.T("CamBatchLogEmpty", lang));
                     batch.Status = "Completed";
                     batch.FinishedAt = DateTime.UtcNow;
                     await db.SaveChangesAsync();
@@ -148,7 +159,7 @@ namespace MedicalApp.Services
                 await db.SaveChangesAsync();
                 progress.Status = batch.Status;
                 progress.FinishedAt = batch.FinishedAt;
-                progress.Log($"Lot finalizat. Status: {batch.Status}.");
+                progress.Log(string.Format(Loc.T("CamBatchLogFinalized", lang), batch.Status));
 
                 WriteSumar(db, batch, clinic, sumarFolder);
             }
