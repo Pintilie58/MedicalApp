@@ -127,13 +127,13 @@ namespace MedicalApp.Services
                 {
                     if (ct.IsCancellationRequested)
                     {
-                        progress.Log("Anulat de operator. Opresc lotul.");
+                        progress.Log(Loc.T("CamBatchLogCancelledStopping", lang));
                         batch.Status = "Cancelled";
                         break;
                     }
 
                     progress.CurrentFile = Path.GetFileName(path);
-                    progress.Log($"➜ {progress.CurrentFile}");
+                    progress.Log(string.Format(Loc.T("CamBatchLogProcessingFile", lang), progress.CurrentFile));
 
                     try
                     {
@@ -144,7 +144,7 @@ namespace MedicalApp.Services
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "CAM batch {Id}: uncaught error for {File}", batchRunId, path);
-                        progress.Log($"   ✘ Eroare neașteptată: {ex.Message}");
+                        progress.Log(string.Format(Loc.T("CamBatchLogUnexpectedError", lang), ex.Message));
                         await RecordErrorAsync(db, batch, path, null, "Unexpected: " + ex.Message);
                         batch.NotSends++;
                         progress.NotSends++;
@@ -170,7 +170,7 @@ namespace MedicalApp.Services
                 {
                     progress.Status = "Failed";
                     progress.FinishedAt = DateTime.UtcNow;
-                    progress.Log("✘ Eroare fatală: " + ex.Message);
+                    progress.Log(string.Format(Loc.T("CamBatchLogFatalError", lang), ex.Message));
                 }
                 try
                 {
@@ -216,7 +216,7 @@ namespace MedicalApp.Services
             try { bytes = await File.ReadAllBytesAsync(path, ct); }
             catch (Exception ex)
             {
-                progress.Log("   ✘ Citire eșuată: " + ex.Message);
+                progress.Log(string.Format(Loc.T("CamBatchLogReadFailed", lang), ex.Message));
                 await RecordErrorAsync(db, batch, path, null, "Read error: " + ex.Message);
                 batch.NotSends++; progress.NotSends++;
                 await MoveToErrorsIfRetriesExhaustedAsync(db, batch, path, errorsFolder);
@@ -241,7 +241,7 @@ namespace MedicalApp.Services
                     IsValid = true,
                     IsMedicalLabReport = true
                 };
-                progress.Log("   ◇ Folosesc override manual: " + overrideRow.OverrideName);
+                progress.Log(string.Format(Loc.T("CamBatchLogUseOverride", lang), overrideRow.OverrideName));
             }
             else
             {
@@ -250,7 +250,7 @@ namespace MedicalApp.Services
                 if (probe.MatchedExplicitBlock && probe.IsValid)
                 {
                     meta = probe;
-                    progress.Log($"   ⭐ Bloc [MedicalApp]: {probe.PatientName} <{probe.PatientEmail}>");
+                    progress.Log(string.Format(Loc.T("CamBatchLogBlockMedicalApp", lang), probe.PatientName, probe.PatientEmail));
                 }
                 else if (!probe.IsMedicalLabReport)
                 {
@@ -266,7 +266,7 @@ namespace MedicalApp.Services
                     // Per user policy: NO AI fallback for patient identification.
                     // Operator must add [MedicalApp] block in PDF OR set a manual
                     // override via "Editează" on the Verificare PDF-uri page.
-                    progress.Log("   ✘ Fără bloc [MedicalApp] și fără override manual — apasă „Editează” în pagina Verificare PDF-uri.");
+                    progress.Log(Loc.T("CamBatchLogNoBlockNoOverride", lang));
                     await RecordErrorAsync(db, batch, path, null,
                         "PDF fără bloc [MedicalApp] și fără override manual. Apasă „Editează” în pagina Verificare PDF-uri.");
                     batch.NotSends++; progress.NotSends++;
@@ -278,14 +278,14 @@ namespace MedicalApp.Services
             // 2. Check credit budget BEFORE we spend AI tokens
             if (user == null || user.TotalAvailableCredits <= 0)
             {
-                progress.Log("   ✘ Credite epuizate. Cumpără credite și relansează.");
+                progress.Log(Loc.T("CamBatchLogNoCredits", lang));
                 await RecordErrorAsync(db, batch, path, meta!.PatientName, "Out of credits");
                 batch.NotSends++; progress.NotSends++;
                 return;
             }
 
             // 3. Call Gemini with retry + Flash→Pro fallback (mirrors InterpretationController logic).
-            InterpretationResult? result = await CallGeminiWithRetryAsync(gemini, bytes, fileName, clinic, user, progress, ct);
+            InterpretationResult? result = await CallGeminiWithRetryAsync(gemini, bytes, fileName, clinic, user, progress, lang, ct);
             if (result == null)
             {
                 await RecordErrorAsync(db, batch, path, meta!.PatientName, "AI exhausted retries (incl. fallback model)");
@@ -313,7 +313,7 @@ namespace MedicalApp.Services
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "CAM batch {Id}: LoincMatcherClient failed (continuing without LOINC codes)", batch.Id);
-                progress.Log("   ⚠ LOINC matcher indisponibil — Compare-ul nu va avea grupare per clasă.");
+                progress.Log(Loc.T("CamBatchLogLoincUnavailable", lang));
             }
 
             // 3d. Re-compute every parameter's status from its value + reference
@@ -351,7 +351,7 @@ namespace MedicalApp.Services
                 };
                 db.ClinicPatients.Add(patient);
                 await db.SaveChangesAsync();
-                progress.Log($"   + Pacient nou: {patient.Name} <{patient.Email}>");
+                progress.Log(string.Format(Loc.T("CamBatchLogNewPatient", lang), patient.Name, patient.Email));
             }
 
             // 5. Persist this analysis + keep only last 4 per patient
@@ -392,7 +392,7 @@ namespace MedicalApp.Services
             }
             catch (Exception ex)
             {
-                progress.Log("   ✘ Generare PDF interpretare eșuată: " + ex.Message);
+                progress.Log(string.Format(Loc.T("CamBatchLogPdfGenFailed", lang), ex.Message));
                 await RecordErrorAsync(db, batch, path, patient.Name, "PDF gen failure: " + ex.Message);
                 batch.NotSends++; progress.NotSends++;
                 return;
@@ -408,7 +408,7 @@ namespace MedicalApp.Services
                 }
                 catch (Exception ex)
                 {
-                    progress.Log("   ⚠ Compare PDF a eșuat (continuăm): " + ex.Message);
+                    progress.Log(string.Format(Loc.T("CamBatchLogComparePdfFailed", lang), ex.Message));
                     comparePdf = null;
                 }
             }
@@ -459,7 +459,7 @@ namespace MedicalApp.Services
             }
             catch (Exception ex)
             {
-                progress.Log("   ⚠ Mutarea fișierului în Sends a eșuat (rămâne în Original): " + ex.Message);
+                progress.Log(string.Format(Loc.T("CamBatchLogMoveToSendsFailed", lang), ex.Message));
             }
 
             // Cleanup: override-ul manual nu mai are sens după ce fișierul
@@ -682,6 +682,7 @@ namespace MedicalApp.Services
             Clinic clinic,
             User? user,
             CamBatchProgress progress,
+            string lang,
             CancellationToken ct)
         {
             const int maxAttempts = 7;
@@ -709,12 +710,18 @@ namespace MedicalApp.Services
             string EffectiveModelId() => modelOverride ?? settings.Model ?? "(unknown)";
 
             // Resolve display labels once (operator-facing, anonymized).
-            string LabelFor(int tier) => tier switch
+            // The localized prefix ("motor"/"engine"/"moteur"/"motor"/"Engine")
+            // comes from Loc.cs; the brand suffix stays verbatim.
+            string LabelFor(int tier)
             {
-                2 => "motor MedicalApp+",
-                3 => "motor MedicalApp Plus",
-                _ => "motor MedicalApp"
-            };
+                var prefix = Loc.T("CamBatchEnginePrefix", lang);
+                return tier switch
+                {
+                    2 => $"{prefix} MedicalApp+",
+                    3 => $"{prefix} MedicalApp Plus",
+                    _ => $"{prefix} MedicalApp"
+                };
+            }
 
             int attempts = 0;
             Exception? lastEx = null;
@@ -761,13 +768,13 @@ namespace MedicalApp.Services
                         status: "transient_error",
                         errorMessage: $"HTTP {ex.HttpStatusCode}: {(ex.Message.Length > 200 ? ex.Message[..200] : ex.Message)}",
                         ct: ct);
-                    if (TryPromoteTier(attempts, ref currentTier, ref modelOverride, settings, progress))
+                    if (TryPromoteTier(attempts, ref currentTier, ref modelOverride, settings, progress, lang))
                         continue; // promoted — try again immediately without delay
                     if (attempts >= maxAttempts) break;
 
                     int wait = BackoffMs(attempts);
-                    progress.Log($"   ⏳ {LabelFor(currentTier)} suprasolicitat ({ex.HttpStatusCode}), " +
-                                 $"reîncerc în {wait / 1000}s (try {attempts}/{maxAttempts})…");
+                    progress.Log(string.Format(Loc.T("CamBatchLogTierOverloaded", lang),
+                                 LabelFor(currentTier), ex.HttpStatusCode, wait / 1000, attempts, maxAttempts));
                     try { await Task.Delay(wait, ct); }
                     catch (OperationCanceledException) { return null; }
                 }
@@ -780,8 +787,8 @@ namespace MedicalApp.Services
                     && !ct.IsCancellationRequested)
                 {
                     lastEx = ex;
-                    progress.Log($"   ⌛ {LabelFor(currentTier)} a depășit timpul de răspuns " +
-                                 $"(try {attempts}/{maxAttempts}).");
+                    progress.Log(string.Format(Loc.T("CamBatchLogTierTimeout", lang),
+                                 LabelFor(currentTier), attempts, maxAttempts));
                     await aiUsage.LogAsync(
                         source: "CAM",
                         userEmail: user?.Email,
@@ -792,12 +799,12 @@ namespace MedicalApp.Services
                         status: "transient_error",
                         errorMessage: "Timeout: " + (ex.Message.Length > 200 ? ex.Message[..200] : ex.Message),
                         ct: CancellationToken.None);
-                    if (TryPromoteTier(attempts, ref currentTier, ref modelOverride, settings, progress))
+                    if (TryPromoteTier(attempts, ref currentTier, ref modelOverride, settings, progress, lang))
                         continue;
                     if (attempts >= maxAttempts) break;
 
                     int wait = BackoffMs(attempts);
-                    progress.Log($"   ⏳ Reîncerc în {wait / 1000}s…");
+                    progress.Log(string.Format(Loc.T("CamBatchLogRetryIn", lang), wait / 1000));
                     try { await Task.Delay(wait, ct); }
                     catch (OperationCanceledException) { return null; }
                 }
@@ -807,8 +814,8 @@ namespace MedicalApp.Services
                     || ex.Message.Contains("timed out", StringComparison.OrdinalIgnoreCase))
                 {
                     lastEx = ex;
-                    progress.Log($"   ⌛ {LabelFor(currentTier)} răspuns întârziat de rețea " +
-                                 $"(try {attempts}/{maxAttempts}).");
+                    progress.Log(string.Format(Loc.T("CamBatchLogTierSlowNet", lang),
+                                 LabelFor(currentTier), attempts, maxAttempts));
                     await aiUsage.LogAsync(
                         source: "CAM",
                         userEmail: user?.Email,
@@ -819,12 +826,12 @@ namespace MedicalApp.Services
                         status: "transient_error",
                         errorMessage: "Network: " + (ex.Message.Length > 200 ? ex.Message[..200] : ex.Message),
                         ct: ct);
-                    if (TryPromoteTier(attempts, ref currentTier, ref modelOverride, settings, progress))
+                    if (TryPromoteTier(attempts, ref currentTier, ref modelOverride, settings, progress, lang))
                         continue;
                     if (attempts >= maxAttempts) break;
 
                     int wait = BackoffMs(attempts);
-                    progress.Log($"   ⏳ Reîncerc în {wait / 1000}s…");
+                    progress.Log(string.Format(Loc.T("CamBatchLogRetryIn", lang), wait / 1000));
                     try { await Task.Delay(wait, ct); }
                     catch (OperationCanceledException) { return null; }
                 }
@@ -842,13 +849,13 @@ namespace MedicalApp.Services
                         || string.Equals(nextModel, modelOverride ?? settings.Model, StringComparison.OrdinalIgnoreCase))
                     {
                         // No next tier configured — fall through to non-transient handling below.
-                        progress.Log($"   ⚠ Răspuns trunchiat și nu există alt motor configurat.");
+                        progress.Log(Loc.T("CamBatchLogTruncatedNoFallback", lang));
                         return null;
                     }
                     modelOverride = nextModel;
                     currentTier++;
                     attempts--; // refund this attempt — promotion is "free"
-                    progress.Log($"   ↪ Răspuns trunchiat. Comut pe {LabelFor(currentTier)} (output mai mare).");
+                    progress.Log(string.Format(Loc.T("CamBatchLogTruncatedSwitching", lang), LabelFor(currentTier)));
                 }
                 // ---------- MODEL RETIRED by Google (404 NOT_FOUND): promote tier or fail clean ----------
                 // The configured model id no longer exists at Google (typically a
@@ -866,8 +873,8 @@ namespace MedicalApp.Services
                     if (currentTier < 3 && !string.IsNullOrWhiteSpace(nextModel)
                         && !string.Equals(nextModel, ex.RetiredModelId, StringComparison.OrdinalIgnoreCase))
                     {
-                        progress.Log($"   ✘ {LabelFor(currentTier)} indisponibil (modelul a fost retras de furnizor). " +
-                                     $"Comut pe {LabelFor(currentTier + 1)}.");
+                        progress.Log(string.Format(Loc.T("CamBatchLogTierRetiredPromote", lang),
+                                     LabelFor(currentTier), LabelFor(currentTier + 1)));
                         modelOverride = nextModel;
                         currentTier++;
                         attempts--; // refund this attempt — promotion is "free"
@@ -877,22 +884,22 @@ namespace MedicalApp.Services
                         // Last tier or no next model — surface a friendly Romanian
                         // message in the Log Live, plus the technical detail in the
                         // backend log (already done by the service).
-                        progress.Log($"   ✘ {LabelFor(currentTier)} indisponibil " +
-                                     $"(modelul '{ex.RetiredModelId}' a fost retras). " +
-                                     $"Actualizați appsettings.json -> Gemini.SecondaryFallbackModel cu modelul curent recomandat de Google.");
+                        progress.Log(string.Format(Loc.T("CamBatchLogTierRetiredFinal", lang),
+                                     LabelFor(currentTier), ex.RetiredModelId));
                         return null;
                     }
                 }
                 // ---------- USER CANCELLATION: honor immediately ----------
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
-                    progress.Log("   ✘ Anulat de operator.");
+                    progress.Log(Loc.T("CamBatchLogCancelledShort", lang));
                     return null;
                 }
                 // ---------- NON-TRANSIENT: fail fast ----------
                 catch (Exception ex)
                 {
-                    progress.Log($"   ✘ {LabelFor(currentTier)} a eșuat (non-transient): {ex.Message}");
+                    progress.Log(string.Format(Loc.T("CamBatchLogNonTransientFailed", lang),
+                                 LabelFor(currentTier), ex.Message));
                     // Final failure on this tier — record so the Admin dashboard
                     // sees that a Gemini call was attempted (tokens unknown on
                     // exception path, so we log 0/0 but with the effective model
@@ -911,8 +918,8 @@ namespace MedicalApp.Services
                 }
             }
 
-            progress.Log($"   ✘ Toate încercările au eșuat (max {maxAttempts}, ultima cu {LabelFor(currentTier)}): " +
-                         (lastEx?.Message ?? "?"));
+            progress.Log(string.Format(Loc.T("CamBatchLogAllRetriesFailed", lang),
+                         maxAttempts, LabelFor(currentTier), lastEx?.Message ?? "?"));
             // Retry budget exhausted across all tiers — also record as a final
             // failed call so the dashboard can show "AI exhausted retries" rows.
             await aiUsage.LogAsync(
@@ -937,7 +944,7 @@ namespace MedicalApp.Services
         private static bool TryPromoteTier(
             int attempts,
             ref int currentTier, ref string? modelOverride,
-            GeminiSettings settings, CamBatchProgress progress)
+            GeminiSettings settings, CamBatchProgress progress, string lang)
         {
             // 1 → 2 : after attempt 2, switch to FallbackModel (Pro)
             if (currentTier == 1
@@ -947,7 +954,7 @@ namespace MedicalApp.Services
             {
                 modelOverride = settings.FallbackModel;
                 currentTier = 2;
-                progress.Log($"   ↪ Comut pe motor MedicalApp+.");
+                progress.Log(Loc.T("CamBatchLogSwitchToPlus", lang));
                 return true;
             }
             // 2 → 3 : after attempt 5, switch to SecondaryFallbackModel (next-gen Pro)
@@ -959,7 +966,7 @@ namespace MedicalApp.Services
             {
                 modelOverride = settings.SecondaryFallbackModel;
                 currentTier = 3;
-                progress.Log($"   ↪ Comut pe motor MedicalApp Plus (plasă de siguranță).");
+                progress.Log(Loc.T("CamBatchLogSwitchToPlusSafety", lang));
                 return true;
             }
             return false;
