@@ -1,21 +1,21 @@
 @model MedicalApp.Areas.CAM.Models.CamBatchProgressPageViewModel
 @{
-    ViewData["Title"] = "Progres lot — " + Model.ClinicName;
+    ViewData["Title"] = Loc.T("CamProgressTitle") + " — " + Model.ClinicName;
 }
 
 <div class="container py-5">
     <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
         <h2 class="text-primary fw-bold mb-0" data-testid="cam-batch-progress-heading">
-            &#9203; Lot în execuție
+            &#9203; @Loc.T("CamProgressHeading")
         </h2>
         <span class="badge bg-secondary" data-testid="cam-batch-id">#@Model.BatchRunId</span>
         <span class="text-muted small ms-2">
-            Pornit: @Model.StartedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")
+            @Loc.T("CamProgressStarted") @Model.StartedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")
         </span>
         <div class="ms-auto">
             <a asp-controller="Dashboard" asp-action="Index" asp-area="CAM"
                class="btn btn-outline-secondary btn-sm" data-testid="cam-back-dashboard">
-                &larr; Tablou principal
+                &larr; @Loc.T("CamBackDashboard")
             </a>
         </div>
     </div>
@@ -29,26 +29,26 @@
         <div class="card-body">
             <div class="d-flex align-items-center flex-wrap gap-3 mb-2">
                 <div>
-                    <div class="small text-muted">Fișiere selectate</div>
+                    <div class="small text-muted">@Loc.T("CamProgressFilesSelected")</div>
                     <div class="display-5 fw-bold text-primary" id="prgTotal" data-testid="cam-progress-total">0</div>
                 </div>
                 <div class="vr d-none d-md-block" style="height: 60px;"></div>
                 <div>
-                    <div class="small text-muted">Procesate până acum</div>
+                    <div class="small text-muted">@Loc.T("CamProgressProcessedSoFar")</div>
                     <div class="display-6 fw-semibold" id="prgProcessed" data-testid="cam-progress-processed">0</div>
                 </div>
                 <div class="ms-auto text-end">
                     <div class="badge bg-info-subtle text-info-emphasis fs-6 px-3 py-2"
                          id="prgWaitMsg" data-testid="cam-progress-wait-msg">
-                        &#9203; Așteptați câteva secunde…
+                        &#9203; @Loc.T("CamProgressWaitMsg")
                     </div>
                     <div class="small text-muted mt-1">
-                        Interpretarea AI durează ~2-3 min/fișier.
+                        @Loc.T("CamProgressDuration")
                     </div>
                 </div>
             </div>
             <div class="text-muted small">
-                Fișier curent: <code id="prgCurrent" data-testid="cam-progress-current">—</code>
+                @Loc.T("CamProgressCurrentFile") <code id="prgCurrent" data-testid="cam-progress-current">—</code>
             </div>
 
             <!-- Mascotă doctoraș (state machine driven de polling) -->
@@ -68,35 +68,35 @@
     <div class="row g-2 mb-3" data-testid="cam-progress-counters">
         <div class="col-md-3">
             <div class="card border-success"><div class="card-body py-2 text-center">
-                <div class="small text-muted">Trimise</div>
+                <div class="small text-muted">@Loc.T("CamProgressSent")</div>
                 <div class="fs-3 fw-bold text-success" id="prgSent">0</div>
             </div></div>
         </div>
         <div class="col-md-3">
             <div class="card border-info"><div class="card-body py-2 text-center">
-                <div class="small text-muted">Comparate</div>
+                <div class="small text-muted">@Loc.T("CamProgressCompared")</div>
                 <div class="fs-3 fw-bold text-info" id="prgCompared">0</div>
             </div></div>
         </div>
         <div class="col-md-3">
             <div class="card border-warning"><div class="card-body py-2 text-center">
-                <div class="small text-muted">Neexpediate</div>
+                <div class="small text-muted">@Loc.T("CamProgressNotSends")</div>
                 <div class="fs-3 fw-bold text-warning" id="prgNotSends">0</div>
             </div></div>
         </div>
         <div class="col-md-3">
             <div class="card border-secondary"><div class="card-body py-2 text-center">
-                <div class="small text-muted">Stare</div>
-                <div class="fs-5 fw-bold" id="prgStatus" data-testid="cam-progress-status">În execuție</div>
+                <div class="small text-muted">@Loc.T("CamProgressStatus")</div>
+                <div class="fs-5 fw-bold" id="prgStatus" data-testid="cam-progress-status">@Loc.T("CamProgressStatusRunning")</div>
             </div></div>
         </div>
     </div>
 
     <div class="card mb-3">
-        <div class="card-header fw-bold">Log live</div>
+        <div class="card-header fw-bold">@Loc.T("CamProgressLogLive")</div>
         <div class="card-body p-0">
             <pre id="prgLog" data-testid="cam-progress-log"
-                 style="max-height:340px;overflow:auto;margin:0;padding:14px;background:#0d1117;color:#c9d1d9;font-size:12px;line-height:1.6;">Aștept primul mesaj…</pre>
+                 style="max-height:340px;overflow:auto;margin:0;padding:14px;background:#0d1117;color:#c9d1d9;font-size:12px;line-height:1.6;">@Loc.T("CamProgressFirstMessage")</pre>
         </div>
     </div>
 
@@ -106,12 +106,12 @@
             @Html.AntiForgeryToken()
             <button type="submit" class="btn btn-outline-danger fw-bold" id="cancelBtn"
                     data-testid="cam-batch-cancel-submit">
-                &#9209; Anulează lotul
+                &#9209; @Loc.T("CamProgressCancelBtn")
             </button>
         </form>
         <a asp-action="Start" class="btn btn-outline-primary d-none" id="newBatchBtn"
            data-testid="cam-batch-new-link">
-            &#128229; Lansează un lot nou
+            &#128229; @Loc.T("CamProgressNewBatchBtn")
         </a>
     </div>
 </div>
@@ -129,6 +129,19 @@
     var pollMs = 3000;
     var pollTimer = null;
 
+    // Localized status labels (rendered server-side from Loc.T). The English
+    // DB values (Running/Completed/Cancelled/Failed) are used unchanged for
+    // logic comparisons below; only the display label is swapped.
+    var STATUS_LABELS = {
+        'running':   @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamProgressStatusRunning"))),
+        'completed': @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamProgressStatusCompleted"))),
+        'cancelled': @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamProgressStatusCancelled"))),
+        'failed':    @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamProgressStatusFailed")))
+    };
+    var LBL_FINAL_COMPLETED = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamProgressFinalCompleted")));
+    var LBL_FINAL_CANCELLED = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamProgressStatusCancelled")));
+    var LBL_FINAL_FAILED    = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamProgressStatusFailed")));
+
     // Mascota e instanțiată automat la DOMContentLoaded de doctor-mascot.js.
     // O preluăm aici prin API-ul global.
     var mascot = window.DoctorMascot && window.DoctorMascot.get('camProgressMascot');
@@ -142,18 +155,8 @@
         document.getElementById('prgCurrent').textContent = data.currentFile || '—';
 
         var statusEl = document.getElementById('prgStatus');
-        // Map English DB statuses to Romanian for display only — the underlying
-        // comparison logic below stays English so the server contract is unchanged.
-        var statusLabel = (function (s) {
-            switch ((s || '').toLowerCase()) {
-                case 'running':   return 'În execuție';
-                case 'completed': return 'Finalizat';
-                case 'cancelled': return 'Anulat';
-                case 'failed':    return 'Eșuat';
-                default:          return s || '—';
-            }
-        })(data.status);
-        statusEl.textContent = statusLabel;
+        var key = (data.status || '').toLowerCase();
+        statusEl.textContent = STATUS_LABELS[key] || data.status || '—';
         statusEl.className = 'fs-5 fw-bold ' +
             (data.status === 'Running'   ? 'text-primary'
             : data.status === 'Completed' ? 'text-success'
@@ -167,34 +170,28 @@
         }
 
         if (data.finished) {
-            // Swap the "Așteptați…" message for a clear completion badge,
-            // hide Cancel, show "Lansează lot nou".
             var waitMsg = document.getElementById('prgWaitMsg');
             if (data.status === 'Completed') {
                 waitMsg.className = 'badge bg-success fs-6 px-3 py-2';
-                waitMsg.textContent = '✓ Procesare finalizată';
+                waitMsg.textContent = '✓ ' + LBL_FINAL_COMPLETED;
             } else if (data.status === 'Cancelled') {
                 waitMsg.className = 'badge bg-warning text-dark fs-6 px-3 py-2';
-                waitMsg.textContent = '⏹ Anulat';
+                waitMsg.textContent = '⏹ ' + LBL_FINAL_CANCELLED;
             } else {
                 waitMsg.className = 'badge bg-danger fs-6 px-3 py-2';
-                waitMsg.textContent = '✘ Eșuat';
+                waitMsg.textContent = '✘ ' + LBL_FINAL_FAILED;
             }
             document.getElementById('cancelForm').classList.add('d-none');
             document.getElementById('newBatchBtn').classList.remove('d-none');
             if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
         }
 
-        // Update mascotă pe baza progresului (state machine în doctor-mascot.js)
         if (mascot) {
             mascot.onProgress(data.processed, data.total, data.finished, data.status);
         }
     }
 
     function poll() {
-        // Cache-busting query param + cache: 'no-store' on the request side
-        // belt-and-suspenders with the Cache-Control: no-store headers the
-        // server sets — some intermediaries respect one but not the other.
         var url = statusUrl + '?t=' + Date.now();
         fetch(url, { credentials: 'same-origin', cache: 'no-store' })
             .then(function(r) { return r.ok ? r.json() : null; })
@@ -202,7 +199,6 @@
             .catch(function() { /* keep polling on transient errors */ });
     }
 
-    // Așteptăm puțin ca să fie sigur că mascota a fost inițializată (DOMContentLoaded)
     if (!mascot) {
         document.addEventListener('DOMContentLoaded', function() {
             mascot = window.DoctorMascot && window.DoctorMascot.get('camProgressMascot');

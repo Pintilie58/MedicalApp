@@ -1,17 +1,17 @@
 @model MedicalApp.Areas.CAM.Models.CamBatchStartViewModel
 @{
-    ViewData["Title"] = "Lansează lot — " + Model.ClinicName;
+    ViewData["Title"] = Loc.T("CamBatchStartTitle") + " — " + Model.ClinicName;
 }
 
 <div class="container py-5">
     <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
         <h2 class="text-primary fw-bold mb-0" data-testid="cam-batch-start-heading">
-            &#128229; Lansează Interpretare Lot
+            &#128229; @Loc.T("CamBatchStartHeading")
         </h2>
         <div class="ms-auto">
             <a asp-controller="Dashboard" asp-action="Index" asp-area="CAM"
                class="btn btn-outline-secondary" data-testid="cam-back-dashboard">
-                &larr; Înapoi la tablou principal
+                &larr; @Loc.T("CamBackDashboard")
             </a>
         </div>
     </div>
@@ -28,10 +28,10 @@
     @if (Model.AlreadyRunning && Model.RunningBatchId.HasValue)
     {
         <div class="alert alert-warning" data-testid="cam-batch-already-running">
-            &#9888; Există deja un lot în execuție pentru această clinică.
+            &#9888; @Loc.T("CamBatchAlreadyRunning")
             <a asp-action="Progress" asp-route-id="@Model.RunningBatchId.Value"
                class="alert-link fw-bold ms-2" data-testid="cam-batch-goto-running">
-                Vezi progresul &rarr;
+                @Loc.T("CamBatchGotoRunning") &rarr;
             </a>
         </div>
     }
@@ -40,7 +40,7 @@
         <div class="col-md-4">
             <div class="card border-primary" data-testid="cam-batch-card-filecount">
                 <div class="card-body text-center">
-                    <div class="small text-muted">PDF-uri în Original</div>
+                    <div class="small text-muted">@Loc.T("CamBatchPdfsInOriginal")</div>
                     <div class="display-5 fw-bold text-primary">@Model.FileCount</div>
                 </div>
             </div>
@@ -48,7 +48,7 @@
         <div class="col-md-4">
             <div class="card border-success" data-testid="cam-batch-card-credits">
                 <div class="card-body text-center">
-                    <div class="small text-muted">Credite disponibile</div>
+                    <div class="small text-muted">@Loc.T("CamBatchCreditsAvailable")</div>
                     <div class="display-5 fw-bold text-success">@Model.CreditsAvailable</div>
                 </div>
             </div>
@@ -57,7 +57,7 @@
             <div class="card @(Model.CreditsAvailable >= Model.FileCount ? "border-info" : "border-danger")"
                  data-testid="cam-batch-card-needed">
                 <div class="card-body text-center">
-                    <div class="small text-muted">Credite necesare (1/fișier)</div>
+                    <div class="small text-muted">@Loc.T("CamBatchCreditsNeeded")</div>
                     <div class="display-5 fw-bold @(Model.CreditsAvailable >= Model.FileCount ? "text-info" : "text-danger")">
                         @Model.FileCount
                     </div>
@@ -69,18 +69,18 @@
     @if (Model.FileCount == 0)
     {
         <div class="alert alert-info" data-testid="cam-batch-empty">
-            Folderul <code>Original</code> e gol. Pune câteva PDF-uri acolo și
-            revino aici pentru a porni lotul.
+            @Html.Raw(string.Format(Loc.T("CamBatchEmpty"), "<code>Original</code>"))
         </div>
     }
     else if (Model.CreditsAvailable < Model.FileCount)
     {
         <div class="alert alert-danger" data-testid="cam-batch-insufficient-credits">
-            &#9888; Credite insuficiente. Ai nevoie de <strong>@Model.FileCount</strong>
-            credite dar ai doar <strong>@Model.CreditsAvailable</strong>.
+            &#9888; @Html.Raw(string.Format(Loc.T("CamBatchInsufficientCredits"),
+                            "<strong>" + Model.FileCount + "</strong>",
+                            "<strong>" + Model.CreditsAvailable + "</strong>"))
             <a asp-area="" asp-controller="Credits" asp-action="Buy"
                class="btn btn-warning btn-sm ms-2" data-testid="cam-batch-goto-buy">
-                Cumpără credite
+                @Loc.T("CamBatchGotoBuyCredits")
             </a>
         </div>
     }
@@ -88,10 +88,10 @@
     {
         <div class="card mb-3">
             <div class="card-header fw-bold">
-                Fișiere în coada de procesare
+                @Loc.T("CamBatchQueueHeader")
                 @if (Model.FileCount > Model.Files.Count)
                 {
-                    <span class="badge bg-secondary ms-2">primele @Model.Files.Count din @Model.FileCount</span>
+                    <span class="badge bg-secondary ms-2">@string.Format(Loc.T("CamBatchFirstN"), Model.Files.Count, Model.FileCount)</span>
                 }
             </div>
             <div class="card-body p-0">
@@ -115,7 +115,7 @@
             <input type="hidden" name="confirm" value="1" />
             <button type="submit" class="btn btn-primary btn-lg fw-bold"
                     data-testid="cam-batch-start-submit">
-                &#9658; Pornește lotul (@Model.FileCount fișiere)
+                &#9658; @string.Format(Loc.T("CamBatchStartButton"), Model.FileCount)
             </button>
         </form>
     }
