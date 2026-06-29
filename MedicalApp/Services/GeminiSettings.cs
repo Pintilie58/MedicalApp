@@ -52,5 +52,15 @@ namespace MedicalApp.Services
         public int MaxOutputTokens { get; set; } = 32000;
         public float Temperature { get; set; } = 0.0f;
         public int TimeoutSeconds { get; set; } = 600;
+
+        /// <summary>
+        /// Enables the independent post-Gemini completeness audit
+        /// (<see cref="InterpretationCompletenessAuditor"/>): a heuristic
+        /// cross-check between Gemini's <c>key_results.Count</c> and the
+        /// row-count detected in the PDF's text layer (PdfPig). The audit
+        /// only LOGS warnings — it never modifies the interpretation. Set to
+        /// <c>false</c> in <c>appsettings.json</c> to silence the warnings.
+        /// </summary>
+        public bool CompletenessAuditEnabled { get; set; } = true;
     }
 }

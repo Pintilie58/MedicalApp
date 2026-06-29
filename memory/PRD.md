@@ -523,6 +523,48 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
       populează `DriftLoincCodes` (lista celorlalte coduri văzute).
     * View `Compare.cshtml` afișează un `⚠` portocaliu lângă numele
       parametrului, cu tooltip explicativ în română care listează codul
+
+- ✅ **[Feb 2026 — B2C/CAM Bug Fix: First-row-of-table dropped by Gemini Vision]**
+  Observed across 4 successive re-interpretations of the same PDF, the LAST
+  one silently dropped the FIRST data row ("Numar total de Leucocite",
+  LOINC 6690-2). Pattern: the lab printed the first analyte in ALL UPPERCASE
+  right under the section title "HEMATOLOGIE", and Gemini Vision absorbed it
+  into the header. Other "NUMAR TOTAL DE..." rows that appeared later in the
+  page were extracted correctly — confirming it is a positional / boundary
+  failure mode, not a structural blind spot.
+
+  Two-layer defense applied (no other code touched):
+
+  **Layer 1 — Prompt prevention (surgical, generic).**
+  Added one new bullet inside the existing "EXTRACTION COMPLETENESS — MOST
+  IMPORTANT RULE" section of `BuildSystemPrompt()` in
+  `GeminiMedicalInterpretationService.cs`. The rule is **completely
+  generic**: no specific analyte, no specific lab, no specific language. It
+  tells Gemini explicitly that the first row under a section title or
+  column-header line is ALWAYS a normal analyte row (never part of the
+  header), warns about the uppercase / bold visual confusion, and forces a
+  final re-read of the first row under each section before finalizing.
+  ~110 tokens — minimal — no impact on attention for the other rules.
+
+  **Layer 2 — Independent completeness audit (telemetry-only).**
+  New file `Services/InterpretationCompletenessAuditor.cs` (~100 lines,
+  isolated): heuristically counts analyte-like rows in the PDF text layer
+  (extracted via existing `PdfTextExtractor` / PdfPig) and compares against
+  `result.KeyResults.Count`. When the diff is ≥ 2 rows AND ≥ 10% relative,
+  logs a `LogWarning` with the divergence details. **Never modifies the
+  result.** Wired into `CallGeminiAsync` after the existing self-audit, with
+  a try/catch wrapper that swallows any auditor failure (observational
+  layer must NEVER break interpretation).
+
+  Feature flag `Gemini:CompletenessAuditEnabled` in `GeminiSettings`
+  (default `true` — safe because Layer 2 only logs). Set to `false` in
+  `appsettings.json` for instant rollback of the audit; Layer 1 (prompt) is
+  always on as it's a string change.
+
+  Diff stat: +68 lines across 2 existing files, +104 lines in 1 new file.
+  Zero deletions. Zero schema changes. Zero DB migrations.
+
+
       curent vs. celelalte coduri și sugerează verificare manuală.
     * Legendă scurtă în footer-ul tabelului pentru transparență.
   Scop: avertizează utilizatorul când variabilitatea de extragere a textului

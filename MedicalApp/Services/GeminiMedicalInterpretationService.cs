@@ -388,6 +388,52 @@ namespace MedicalApp.Services
                 }
             }
 
+            // ====================================================================
+            // INDEPENDENT POST-GEMINI COMPLETENESS AUDIT
+            // ====================================================================
+            // Different from the self-audit above: that one compares Gemini's
+            // OWN counts (expected_count vs key_results.Count). It can't catch
+            // the case where Gemini visually missed a row entirely — both
+            // counts then agree on the same wrong number.
+            //
+            // This audit uses a TOTALLY INDEPENDENT source of truth: the PDF's
+            // text layer extracted via PdfPig. A divergence between the two
+            // sources is logged as WARNING and NEVER blocks the response or
+            // modifies key_results. Pure observational layer for telemetry.
+            //
+            // Feature-flagged via Gemini:CompletenessAuditEnabled (default true,
+            // because the auditor only LOGS — zero behavioural impact). Set
+            // false in appsettings.json if you ever want to silence it.
+            // ====================================================================
+            if (_settings.CompletenessAuditEnabled && result?.KeyResults != null)
+            {
+                try
+                {
+                    string? auditText = extractedText;
+                    if (string.IsNullOrEmpty(auditText) && !string.IsNullOrEmpty(pdfBase64))
+                    {
+                        // CAM Vision path: re-extract text purely for the audit.
+                        // PdfTextExtractor is local, deterministic and cheap
+                        // (~50ms on a typical lab PDF).
+                        var pdfBytes = Convert.FromBase64String(pdfBase64);
+                        using var pdfMs = new MemoryStream(pdfBytes);
+                        auditText = PdfTextExtractor.Extract(pdfMs);
+                    }
+
+                    InterpretationCompletenessAuditor.Audit(
+                        auditText,
+                        result.KeyResults.Count,
+                        _logger);
+                }
+                catch (Exception auditEx)
+                {
+                    // The audit is observational. A failure here MUST NOT
+                    // break the interpretation flow — we just log and move on.
+                    _logger.LogWarning(auditEx,
+                        "Completeness audit failed silently (non-fatal).");
+                }
+            }
+
             return (result, inputTokens, outputTokens, cleaned);
         }
 
@@ -824,6 +870,18 @@ IT MEANS ""THE COMPLETE LIST OF EVERY SINGLE LAB RESULT FOUND IN THE PDF"".
   the REFERENCE-RANGE LOCALIZATION rule above — translate them to {LANGUAGE_NAME}.
   Numbers, units and acronyms inside the reference stay verbatim.
 - Pay SPECIAL ATTENTION to: Imunochimie / hormones (TSH, FT3, FT4), tumor markers (PSA, CEA, AFP, CA125, CA15-3, CA19-9), vitamins (D, B12, folate, ferritin), iron panel (Fer, Transferrine, CTFF, CST). These are often in separate sub-sections and frequently forgotten.
+- FIRST DATA ROW IN A TABLE — CRITICAL: The first analyte row that appears
+  immediately under a section title (e.g. ""HEMATOLOGY"", ""BIOCHEMISTRY"",
+  ""COAGULATION"", ""ENDOCRINOLOGY"", ""IMMUNOLOGY"", or any equivalent in the
+  source language) OR immediately under the column header line
+  (Test/Parameter/Value/Unit/Reference) is ALWAYS a NORMAL analyte row, NEVER
+  part of the header. This first row has a high risk of being silently
+  absorbed into the section title or column header — especially when the
+  lab prints the analyte name in ALL UPPERCASE or in BOLD. ALWAYS include
+  it as a key_result with its own value, unit and reference range, identical
+  to how you treat every other row. Before finalizing your output, RE-READ
+  the first row immediately under each section title and verify it is in
+  your key_results list.
 
 ==========================================================
 TWIN-PARAMETER RULE (CRITICAL)
