@@ -405,7 +405,7 @@ namespace MedicalApp.Services
             // because the auditor only LOGS — zero behavioural impact). Set
             // false in appsettings.json if you ever want to silence it.
             // ====================================================================
-            if (_settings.CompletenessAuditEnabled && result?.KeyResults != null)
+            if (_settings.CompletenessAuditEnabled && result.KeyResults != null)
             {
                 try
                 {
