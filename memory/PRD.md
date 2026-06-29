@@ -487,6 +487,30 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 
 ## Pending / Backlog
 
+- ✅ **[Feb 2026 — B2B/CAM Patient Email translated]** Final hardcoded
+  Romanian asset in the CAM flow: `CamPatientEmailBuilder.cs` (the HTML
+  email body + subject sent to patients on behalf of the clinic) was
+  entirely in Romanian. Refactored to use `Loc.T()` for every visible
+  string:
+    * Subject — `"Rezultate analize - {Clinic}"` → `Loc.T("CamEmailSubject")`
+    * Header eyebrow, greeting, intro paragraph, the 3 attachment-line
+      variants (1 / 2 / 3 documents), important-note label + body, auto
+      footer disclaimer, footer "Powered by" + tagline.
+    * 12 new `CamEmail*` keys × 5 languages = 60 dictionary entries added
+      right after the `CamCompare*` block in `Loc.cs`.
+  No new public API on `CamPatientEmailBuilder` and no change at the call
+  site in `CamBatchService` — the previous fix that sets
+  `CultureInfo.CurrentUICulture` once at the start of `RunAsync` means
+  plain `Loc.T(key)` inside the builder automatically resolves to the
+  clinic operator's chosen language. The interpretation PDF, the
+  comparison PDF and the patient email now all follow the SAME language
+  end-to-end within a single batch.
+  `Loc.cs` total: 881 keys per language (all 5 languages perfectly
+  aligned). XSS posture preserved — clinic name / patient name / file
+  name are still HTML-encoded before format interpolation.
+
+
+
 ### P0 → DONE
 - ✅ **[Feb 2026 — LOINC Drift Warning în Compare]** Compare view detectează acum
   cazul în care **același nume normalizat de parametru** primește **coduri LOINC
