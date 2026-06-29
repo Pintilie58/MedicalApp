@@ -1210,6 +1210,12 @@ Rules:
 
 OUTPUT FORMAT (CRITICAL):
 - Respond ONLY with a JSON OBJECT (no markdown, no code fences, no commentary).
+- patient_info.age: MUST be the age AS PRINTED IN THE PDF by the lab (e.g.
+  ""56 ani"", ""56 years"", ""Age: 56"", ""Varsta: 56""). This represents the patient's
+  age at sampling time. NEVER substitute it with any age from the PATIENT
+  CONTEXT block — that one is the CURRENT age and is provided only for
+  age-bracketed reference ranges. If the PDF does not print an age, set
+  patient_info.age to null.
 - The JSON MUST conform exactly to this schema. All keys are required, EXCEPT
   ""risk_factors"", ""doctor_questions"" and ""_extraction_audit"" which are optional
   (emit them ONLY when relevant; do not emit any other extra keys):
@@ -1240,7 +1246,21 @@ OUTPUT FORMAT (CRITICAL):
             {
                 patientBlock += "\nPATIENT CONTEXT (declared by the app's owner — use this to pick the correct lipid targets and to mention it in 'summary' and 'recommendations'):\n";
                 if (ctx.AgeYears.HasValue)
-                    patientBlock += $"- Age: {ctx.AgeYears} years\n";
+                {
+                    // The profile-derived age is the patient's CURRENT age (computed
+                    // from birth year). It is NOT the age at sampling time, which is
+                    // what the lab prints in the PDF. Make this distinction explicit
+                    // so Gemini does not copy this value into patient_info.age — that
+                    // field must reflect what the lab actually wrote in the PDF (e.g.
+                    // "Varsta: 56 ani"), even if it differs from the current age.
+                    patientBlock += $"- Current age (today, derived from declared birth year): {ctx.AgeYears} years\n";
+                    patientBlock += "  IMPORTANT: this is the CURRENT age. Use it only for age-dependent reference\n";
+                    patientBlock += "  brackets (e.g. PSA by age, hemoglobin pediatric/adult). DO NOT copy this number\n";
+                    patientBlock += "  into patient_info.age — that field must contain the age the LAB PRINTED IN THE\n";
+                    patientBlock += "  PDF (e.g. literally 'Varsta: 56 ani' or 'Age: 56'), which represents the patient's\n";
+                    patientBlock += "  age at sampling time and may differ from the current age. If the PDF does not\n";
+                    patientBlock += "  print an age, set patient_info.age to null — do NOT fall back to this context value.\n";
+                }
                 if (!string.IsNullOrWhiteSpace(ctx.Gender))
                     patientBlock += $"- Gender: {(ctx.Gender == "M" ? "Male" : ctx.Gender == "F" ? "Female" : ctx.Gender)}\n";
                 if (!string.IsNullOrWhiteSpace(ctx.CardiovascularRisk))

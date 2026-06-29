@@ -460,6 +460,31 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 
 
 
+- ✅ **[Feb 2026 — B2C Bug Fix: patient_info.age shows current age instead of PDF age]**
+  When a B2C user interprets an old lab PDF tied to a profile with a known
+  BirthYear, the generated interpretation PDF was printing the patient's
+  CURRENT age (computed today from BirthYear, e.g. 82) instead of the age
+  the lab actually printed at sampling time (e.g. "Varsta: 56 ani" written
+  by Regina Maria in 2014).
+  - Root cause: `InterpretationController:285-287` builds a `PatientContext`
+    with `AgeYears = Now.Year - BirthYear`. The original prompt then injected
+    that as `"- Age: 82 years\n"` into the patient-context block, with no
+    distinction from the lab-printed age. Gemini, seeing an explicit numeric
+    hint marked "Age", filled `patient_info.age` with that value, overriding
+    the PDF's literal `Varsta: 56 ani`.
+  - Fix: in `GeminiMedicalInterpretationService.BuildUserPrompt` the line is
+    rewritten to `"- Current age (today, derived from declared birth year):
+    {N} years"` with explicit instructions that this is the **current** age,
+    is to be used **only** for age-bracketed reference ranges (PSA by age,
+    pediatric vs. adult hemoglobin), and that `patient_info.age` MUST be set
+    from the PDF — or `null` if the PDF doesn't print one. The same rule is
+    reinforced at the top of the OUTPUT FORMAT section of the system prompt
+    so the model sees it both before the JSON schema and inside the patient
+    context block. Pure prompt-engineering change; no schema/code path
+    modified, no DB migration needed.
+
+
+
 ## Pending / Backlog
 
 ### P0 → DONE
