@@ -139,7 +139,7 @@
             if (sessionStorage.getItem('langAutoChecked') === '1') return;
             sessionStorage.setItem('langAutoChecked', '1');
 
-            var supported = ['en','ro','fr','es','de'];
+            var supported = ['en','ro','fr','es','de','it'];
             var currentLang = (document.documentElement.lang || 'en').toLowerCase().substring(0,2);
 
             // Cookie lookup — same name ASP.NET Core uses by default.

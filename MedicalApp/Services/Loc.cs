@@ -5341,6 +5341,18 @@ namespace MedicalApp.Services
                 ["CamBatchFailedThreeTimesHeader"] = "Diese Datei ist in den Stapeln der Klinik 3-mal fehlgeschlagen. Gründe:",
                 ["UploadFilePleaseSelect"] = "Bitte wähle eine Datei aus.",
                 // ===== End Phase 2 & 3 =====
+            },
+            // ==================================================================
+            // ITALIAN (it) — added Feb 2026 as 6th supported language.
+            // Phase 1: empty dictionary. ALL keys fall back to EN via
+            // Resolve() until Phase 2 fills in the actual translations.
+            // The Admin "Translation Coverage" dashboard will show
+            // "it: 0/999" so progress is visible. Adding an empty dict
+            // is intentionally a no-op for existing languages — no
+            // hardcoded list anywhere depends on a fixed count.
+            // ==================================================================
+            ["it"] = new()
+            {
             }
         };
 
