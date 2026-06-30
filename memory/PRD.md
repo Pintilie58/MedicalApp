@@ -802,6 +802,20 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - Deploy to Azure App Service + SQL Azure
 - PWA (installable on mobile)
 
+## CHANGELOG
+
+### 2026-02 — Codebase translations sweep, Phase 2 & 3 (services + mascot + admin health widget)
+- `LoincClassDisplay.cs`: 28 hardcoded RO labels → `Loc.T()` (Compare-view group headers now follow UI culture).
+- `CamBatchSumarPdfGenerator.cs`: Full PDF localized (title, KPI cards, error table, footer) — 19 keys × 5 langs.
+- `CamBatchSumarWriter.cs`: The `.txt` sibling localized symmetrically (5 extra keys for stats/notSends/status/tries).
+- `EmailDeliverabilityChecker.cs`: All 6 user-facing FriendlyMessage strings now via `Loc.T()`.
+- `_DoctorMascot.cshtml`: Sound toggle `title` + `aria-label` localized.
+- `Views/Admin/Index.cshtml`: Daily-summary button tooltip + the entire LOINC health widget (badge labels, refresh tooltip, status states, "checked" timestamp, "LOINC codes" unit) localized — inline JS reads a `<script type="application/json">` blob.
+- `CamBatchService.cs`: Hardcoded ".reasons.txt" header ("Acest fișier a eșuat de 3 ori…") moved to `Loc.T("CamBatchFailedThreeTimesHeader")`.
+- Total: 73 new keys added to all 5 languages (EN/RO/FR/ES/DE) = **365 new translation entries**.
+- Tested by: User in VS2026 (not yet — pending local pull & rebuild).
+- Status: Phase 2 & 3 + Account pages = ✅ COMPLETE (Account views were already 100% localized).
+
 ## Known constraints
 - Gemini API key is in User Secrets (NOT in repo). Sandbox-ul cloud nu o are.
 - Agent cannot run/test the app in cloud sandbox (no .NET SDK, no SQL Server). Validation happens on user's Windows machine.

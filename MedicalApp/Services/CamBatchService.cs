@@ -648,7 +648,7 @@ namespace MedicalApp.Services
                     .ToListAsync();
 
                 File.WriteAllText(destPdf + ".reasons.txt",
-                    $"Acest fișier a eșuat de 3 ori în loturile clinicii. Motive:\n" +
+                    Loc.T("CamBatchFailedThreeTimesHeader") + "\n" +
                     string.Join("\n", reasons.Select(r => "  • " + r)),
                     System.Text.Encoding.UTF8);
 

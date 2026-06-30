@@ -20,7 +20,7 @@
             <form asp-action="SendDailySummaryNow" method="post" class="d-inline">
                 @Html.AntiForgeryToken()
                 <button type="submit" class="btn btn-outline-success btn-sm"
-                        title="Trimite acum rezumatul zilnic catre toti adminii"
+                        title="@Loc.T("AdminBtnDailySummaryTitle")"
                         data-testid="send-daily-summary-now-btn">
                     &#128231; Send daily summary now
                 </button>
@@ -43,24 +43,39 @@
                 <span id="loincHealthDot" data-testid="loinc-health-dot"
                       class="rounded-circle bg-secondary"
                       style="width:11px;height:11px;display:inline-block;"
-                      title="Se verifică..."></span>
+                      title="@Loc.T("AdminLoincHealthChecking")"></span>
                 <span id="loincHealthStatus" data-testid="loinc-health-status"
                       class="badge bg-secondary text-uppercase" style="letter-spacing:.04em;font-size:.7rem;">
-                    Verific…
+                    @Loc.T("AdminLoincHealthLabelChecking")
                 </span>
                 <span id="loincHealthDetails" data-testid="loinc-health-details"
                       class="small text-muted ms-1"></span>
                 <span class="ms-auto small text-muted" id="loincHealthLastChecked"
                       data-testid="loinc-health-last-checked"></span>
                 <button type="button" id="loincHealthRefresh" data-testid="loinc-health-refresh"
-                        class="btn btn-outline-secondary btn-sm py-0 px-2" title="Verifică din nou">
+                        class="btn btn-outline-secondary btn-sm py-0 px-2" title="@Loc.T("AdminLoincHealthRefreshTitle")">
                     <i class="bi bi-arrow-clockwise"></i>
                 </button>
             </div>
         </div>
     </div>
     @* Inline script — intentionally NOT in @section Scripts so we don't collide
-       with an existing Scripts section already defined further down in this view. *@
+       with an existing Scripts section already defined further down in this view.
+       Status labels are read from a localized JSON blob below so the widget
+       follows the admin's UI language. *@
+    <script type="application/json" id="loincHealthI18n" data-testid="loinc-health-i18n">
+        @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new {
+            unknown   = Loc.T("AdminLoincHealthStatusUnknown"),
+            online    = Loc.T("AdminLoincHealthStatusOnline"),
+            down      = Loc.T("AdminLoincHealthStatusDown"),
+            timeout   = Loc.T("AdminLoincHealthStatusTimeout"),
+            error     = Loc.T("AdminLoincHealthStatusError"),
+            disabled  = Loc.T("AdminLoincHealthStatusDisabled"),
+            checking  = Loc.T("AdminLoincHealthLabelChecking"),
+            codesUnit = Loc.T("AdminLoincHealthCodesUnit"),
+            checkedAt = Loc.T("AdminLoincHealthCheckedAt")
+        }))
+    </script>
     <script>
     (function(){
         // Polls /Admin/LoincServiceHealth every 30s and updates the dot + badge.
@@ -73,14 +88,20 @@
         var refresh = document.getElementById('loincHealthRefresh');
         if (!dot || !badge) return;
 
+        var i18n = {};
+        try {
+            var blob = document.getElementById('loincHealthI18n');
+            if (blob) i18n = JSON.parse(blob.textContent || '{}');
+        } catch (e) { i18n = {}; }
+
         function apply(state) {
-            var bg = 'bg-secondary', label = 'Necunoscut';
-            if (state === 'ok')            { bg = 'bg-success'; label = 'Online'; }
-            else if (state === 'down')     { bg = 'bg-danger';  label = 'Oprit'; }
-            else if (state === 'timeout')  { bg = 'bg-warning text-dark'; label = 'Timeout'; }
-            else if (state === 'error')    { bg = 'bg-danger';  label = 'Eroare'; }
-            else if (state === 'disabled') { bg = 'bg-secondary'; label = 'Dezactivat'; }
-            else                           { bg = 'bg-secondary'; label = 'Verific…'; }
+            var bg = 'bg-secondary', label = i18n.unknown || 'Unknown';
+            if (state === 'ok')            { bg = 'bg-success'; label = i18n.online   || 'Online'; }
+            else if (state === 'down')     { bg = 'bg-danger';  label = i18n.down     || 'Down'; }
+            else if (state === 'timeout')  { bg = 'bg-warning text-dark'; label = i18n.timeout || 'Timeout'; }
+            else if (state === 'error')    { bg = 'bg-danger';  label = i18n.error    || 'Error'; }
+            else if (state === 'disabled') { bg = 'bg-secondary'; label = i18n.disabled || 'Disabled'; }
+            else                           { bg = 'bg-secondary'; label = i18n.checking || 'Checking…'; }
             dot.className   = 'rounded-circle ' + (state === 'ok' ? 'bg-success' :
                                                    state === 'timeout' ? 'bg-warning' :
                                                    (state === 'down' || state === 'error') ? 'bg-danger' : 'bg-secondary');
@@ -98,7 +119,7 @@
                 apply(d.status || (d.ok ? 'ok' : 'down'));
                 var bits = [];
                 if (d.baseUrl)    bits.push(d.baseUrl);
-                if (d.loincCount) bits.push(d.loincCount.toLocaleString() + ' coduri LOINC');
+                if (d.loincCount) bits.push(d.loincCount.toLocaleString() + ' ' + (i18n.codesUnit || 'LOINC codes'));
                 if (d.latencyMs != null) bits.push(d.latencyMs + ' ms');
                 if (d.message && !d.ok) bits.push(d.message);
                 details.textContent = bits.length ? '· ' + bits.join(' · ') : '';
@@ -106,7 +127,7 @@
                 apply('error');
                 details.textContent = '· ' + (e && e.message ? e.message : 'fetch error');
             }
-            if (stamp) stamp.textContent = 'verificat ' + new Date().toLocaleTimeString();
+            if (stamp) stamp.textContent = (i18n.checkedAt || 'checked') + ' ' + new Date().toLocaleTimeString();
         }
 
         poll();

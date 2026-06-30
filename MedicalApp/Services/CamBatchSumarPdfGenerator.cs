@@ -11,6 +11,10 @@ namespace MedicalApp.Services
     /// finished batch. Mirrors the content of
     /// <see cref="CamBatchSumarWriter"/> (the .txt sibling) but in a polished
     /// PDF format suitable for archiving / forwarding to clinic management.
+    ///
+    /// All user-facing strings are localized via <see cref="Loc"/> based on
+    /// the current UI culture (the clinic admin's selected language when
+    /// they click the download button).
     /// </summary>
     public class CamBatchSumarPdfGenerator
     {
@@ -31,7 +35,7 @@ namespace MedicalApp.Services
 
                     page.Header().Column(col =>
                     {
-                        col.Item().Text("Sumar Lot — Procesare Buletine")
+                        col.Item().Text(Loc.T("SumarPdfTitle"))
                             .FontSize(16).Bold().FontColor(Colors.Blue.Darken3);
                         col.Item().Text(clinic.Name).FontSize(11).SemiBold();
                         col.Item().Text($"{clinic.City} · {clinic.Address}")
@@ -49,24 +53,24 @@ namespace MedicalApp.Services
                             {
                                 c.Item().Text(t =>
                                 {
-                                    t.Span("Lot #").FontSize(9).FontColor(Colors.Grey.Darken1);
+                                    t.Span(Loc.T("SumarPdfBatchLabel")).FontSize(9).FontColor(Colors.Grey.Darken1);
                                     t.Span(batch.Id.ToString()).FontSize(13).Bold();
                                 });
                                 c.Item().Text(t =>
                                 {
-                                    t.Span("Pornit: ").FontSize(9).FontColor(Colors.Grey.Darken1);
+                                    t.Span(Loc.T("SumarPdfStartedLabel")).FontSize(9).FontColor(Colors.Grey.Darken1);
                                     t.Span(batch.StartedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss"))
                                         .FontSize(10).SemiBold();
                                 });
                                 c.Item().Text(t =>
                                 {
-                                    t.Span("Finalizat: ").FontSize(9).FontColor(Colors.Grey.Darken1);
+                                    t.Span(Loc.T("SumarPdfFinishedLabel")).FontSize(9).FontColor(Colors.Grey.Darken1);
                                     t.Span(batch.FinishedAt?.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss") ?? "-")
                                         .FontSize(10).SemiBold();
                                 });
                                 c.Item().Text(t =>
                                 {
-                                    t.Span("Durată: ").FontSize(9).FontColor(Colors.Grey.Darken1);
+                                    t.Span(Loc.T("SumarPdfDurationLabel")).FontSize(9).FontColor(Colors.Grey.Darken1);
                                     var dur = (batch.FinishedAt - batch.StartedAt)?.ToString(@"hh\:mm\:ss") ?? "-";
                                     t.Span(dur).FontSize(10).SemiBold();
                                 });
@@ -96,20 +100,20 @@ namespace MedicalApp.Services
                                         .FontSize(8).FontColor(fg);
                                 });
                             }
-                            Kpi("Procesate cu succes", batch.FilesInterpreted, "#E7F1FF", Colors.Blue.Darken3);
-                            Kpi("Emailuri trimise",    batch.FilesSent,        "#D1E7DD", Colors.Green.Darken2);
-                            Kpi("Comparații atașate",  batch.FilesCompared,    "#CFF4FC", Colors.Cyan.Darken2);
-                            Kpi("NotSends (erori)",    batch.NotSends,         "#FFF3CD", Colors.Orange.Darken2);
+                            Kpi(Loc.T("SumarPdfKpiSuccess"), batch.FilesInterpreted, "#E7F1FF", Colors.Blue.Darken3);
+                            Kpi(Loc.T("SumarPdfKpiSent"),    batch.FilesSent,        "#D1E7DD", Colors.Green.Darken2);
+                            Kpi(Loc.T("SumarPdfKpiCompare"), batch.FilesCompared,    "#CFF4FC", Colors.Cyan.Darken2);
+                            Kpi(Loc.T("SumarPdfKpiNotSent"), batch.NotSends,         "#FFF3CD", Colors.Orange.Darken2);
                         });
 
                         content.Item().PaddingBottom(8).Text(t =>
                         {
-                            t.Span("Total fișiere în lot: ").FontSize(10).FontColor(Colors.Grey.Darken2);
+                            t.Span(Loc.T("SumarPdfTotalFilesLabel")).FontSize(10).FontColor(Colors.Grey.Darken2);
                             t.Span(batch.TotalFiles.ToString()).FontSize(11).Bold();
                             if (batch.TotalFiles > 0)
                             {
                                 double successRate = 100.0 * batch.FilesSent / batch.TotalFiles;
-                                t.Span($"  ·  Rată succes: {successRate:F1}%")
+                                t.Span(string.Format(Loc.T("SumarPdfSuccessRateFmt"), successRate))
                                     .FontSize(10).FontColor(Colors.Grey.Darken2);
                             }
                         });
@@ -118,7 +122,7 @@ namespace MedicalApp.Services
                         if (errors.Count > 0)
                         {
                             content.Item().PaddingTop(8).PaddingBottom(4)
-                                .Text("Fișiere NEtrimise (motive)")
+                                .Text(Loc.T("SumarPdfErrorsTitle"))
                                 .FontSize(12).Bold().FontColor(Colors.Orange.Darken2);
 
                             content.Item().Table(table =>
@@ -134,11 +138,11 @@ namespace MedicalApp.Services
 
                                 table.Header(h =>
                                 {
-                                    h.Cell().Element(ErrHeaderCell).Text("Ora").Bold();
-                                    h.Cell().Element(ErrHeaderCell).Text("Fișier").Bold();
-                                    h.Cell().Element(ErrHeaderCell).Text("Pacient").Bold();
-                                    h.Cell().Element(ErrHeaderCell).Text("Motiv").Bold();
-                                    h.Cell().Element(ErrHeaderCell).AlignRight().Text("Try").Bold();
+                                    h.Cell().Element(ErrHeaderCell).Text(Loc.T("SumarPdfErrColTime")).Bold();
+                                    h.Cell().Element(ErrHeaderCell).Text(Loc.T("SumarPdfErrColFile")).Bold();
+                                    h.Cell().Element(ErrHeaderCell).Text(Loc.T("SumarPdfErrColPatient")).Bold();
+                                    h.Cell().Element(ErrHeaderCell).Text(Loc.T("SumarPdfErrColReason")).Bold();
+                                    h.Cell().Element(ErrHeaderCell).AlignRight().Text(Loc.T("SumarPdfErrColRetries")).Bold();
                                 });
 
                                 foreach (var e in errors)
@@ -162,14 +166,14 @@ namespace MedicalApp.Services
                         {
                             content.Item().PaddingTop(8)
                                 .Background("#D1E7DD").Padding(8)
-                                .Text("Toate fișierele din lot au fost procesate cu succes.")
+                                .Text(Loc.T("SumarPdfAllSuccess"))
                                 .FontSize(10).SemiBold().FontColor(Colors.Green.Darken2);
                         }
                     });
 
                     page.Footer().AlignCenter().Text(t =>
                     {
-                        t.Span("Generat automat de MedicalApp+ — ").FontSize(8).FontColor(Colors.Grey.Medium);
+                        t.Span(Loc.T("SumarPdfFooterGenerated")).FontSize(8).FontColor(Colors.Grey.Medium);
                         t.Span("medicalapp.ro").FontSize(8).FontColor(Colors.Blue.Medium);
                         t.Span($"  ·  {DateTime.Now:dd MMM yyyy HH:mm}").FontSize(8).FontColor(Colors.Grey.Medium);
                     });

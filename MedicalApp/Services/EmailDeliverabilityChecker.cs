@@ -125,7 +125,7 @@ namespace MedicalApp.Services
         private EmailValidityResult BuildResultCore(string? email, bool mxKnown, bool mxResolves)
         {
             if (string.IsNullOrWhiteSpace(email))
-                return new EmailValidityResult { Validity = EmailValidity.Empty, FriendlyMessage = "Email gol." };
+                return new EmailValidityResult { Validity = EmailValidity.Empty, FriendlyMessage = Loc.T("EmailValidEmpty") };
 
             email = email.Trim();
             bool syntaxOk;
@@ -142,7 +142,7 @@ namespace MedicalApp.Services
                 return new EmailValidityResult
                 {
                     Validity = EmailValidity.InvalidSyntax,
-                    FriendlyMessage = "Adresa nu respectă formatul corect (ex: nume@domeniu.ro)."
+                    FriendlyMessage = Loc.T("EmailValidInvalidSyntax")
                 };
 
             var domain = ExtractDomain(email);
@@ -154,15 +154,15 @@ namespace MedicalApp.Services
                 {
                     Validity = EmailValidity.DnsUnknown,
                     DomainSuggestion = suggestion,
-                    FriendlyMessage = "Sintaxă OK. Verificarea domeniului este în curs."
+                    FriendlyMessage = Loc.T("EmailValidDnsUnknown")
                 };
             }
 
             if (!mxResolves)
             {
                 var msg = suggestion != null
-                    ? $"Domeniul „{domain}” nu există. Probabil ai vrut să spui „{suggestion}”."
-                    : $"Domeniul „{domain}” nu există sau nu acceptă email. Verifică ortografia.";
+                    ? string.Format(Loc.T("EmailValidNoMxWithSuggestionFmt"), domain, suggestion)
+                    : string.Format(Loc.T("EmailValidNoMxNoSuggestionFmt"), domain);
                 return new EmailValidityResult
                 {
                     Validity = EmailValidity.NoMxRecord,
@@ -174,7 +174,7 @@ namespace MedicalApp.Services
             return new EmailValidityResult
             {
                 Validity = EmailValidity.Valid,
-                FriendlyMessage = "Adresa pare validă și domeniul există."
+                FriendlyMessage = Loc.T("EmailValidValid")
             };
         }
 

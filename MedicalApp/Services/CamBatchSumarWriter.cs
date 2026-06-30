@@ -8,6 +8,8 @@ namespace MedicalApp.Services
     /// in the clinic's <c>Sumar</c> folder. Name convention:
     /// <c>Sum_yyyyMMdd_HHmm.txt</c>. Used by the operator to keep a hard
     /// record of each batch run (file count, errors, durations).
+    ///
+    /// Labels follow the operator's current UI culture via <see cref="Loc"/>.
     /// </summary>
     public static class CamBatchSumarWriter
     {
@@ -22,37 +24,37 @@ namespace MedicalApp.Services
 
             var sb = new StringBuilder();
             sb.AppendLine("=========================================");
-            sb.AppendLine($"  Sumar Lot — {clinic.Name}");
+            sb.AppendLine($"  {Loc.T("SumarPdfTitle")} — {clinic.Name}");
             sb.AppendLine("=========================================");
             sb.AppendLine();
-            sb.AppendLine($"Pornit:    {batch.StartedAt.ToLocalTime():dd MMM yyyy HH:mm:ss}");
-            sb.AppendLine($"Finalizat: {batch.FinishedAt?.ToLocalTime():dd MMM yyyy HH:mm:ss}");
-            sb.AppendLine($"Status:    {batch.Status}");
-            sb.AppendLine($"Durată:    {(batch.FinishedAt - batch.StartedAt)?.ToString(@"hh\:mm\:ss") ?? "-"}");
+            sb.AppendLine($"{Loc.T("SumarPdfStartedLabel")}{batch.StartedAt.ToLocalTime():dd MMM yyyy HH:mm:ss}");
+            sb.AppendLine($"{Loc.T("SumarPdfFinishedLabel")}{batch.FinishedAt?.ToLocalTime():dd MMM yyyy HH:mm:ss}");
+            sb.AppendLine($"{Loc.T("SumarTxtStatusLabel")}{batch.Status}");
+            sb.AppendLine($"{Loc.T("SumarPdfDurationLabel")}{(batch.FinishedAt - batch.StartedAt)?.ToString(@"hh\:mm\:ss") ?? "-"}");
             sb.AppendLine();
-            sb.AppendLine("--- Statistici ---");
-            sb.AppendLine($"  Fișiere procesate (cu succes):   {batch.FilesInterpreted}");
-            sb.AppendLine($"  Emailuri trimise pacienților:    {batch.FilesSent}");
-            sb.AppendLine($"  Comparații atașate (≥2 analize): {batch.FilesCompared}");
-            sb.AppendLine($"  Fișiere NEtrimise (NotSends):    {batch.NotSends}");
-            sb.AppendLine($"  Total fișiere în lot:            {batch.TotalFiles}");
+            sb.AppendLine(Loc.T("SumarTxtStatsHeader"));
+            sb.AppendLine($"  {Loc.T("SumarPdfKpiSuccess")}: {batch.FilesInterpreted}");
+            sb.AppendLine($"  {Loc.T("SumarPdfKpiSent")}: {batch.FilesSent}");
+            sb.AppendLine($"  {Loc.T("SumarPdfKpiCompare")}: {batch.FilesCompared}");
+            sb.AppendLine($"  {Loc.T("SumarPdfKpiNotSent")}: {batch.NotSends}");
+            sb.AppendLine($"  {Loc.T("SumarPdfTotalFilesLabel")}{batch.TotalFiles}");
             sb.AppendLine();
 
             if (errors.Count > 0)
             {
-                sb.AppendLine("--- NotSends (motive) ---");
+                sb.AppendLine(Loc.T("SumarTxtNotSendsHeader"));
                 foreach (var e in errors)
                 {
                     var patient = string.IsNullOrWhiteSpace(e.PatientName) ? "?" : e.PatientName;
-                    sb.AppendLine($"  • [{e.OccurredAt.ToLocalTime():HH:mm:ss}] {e.FileName}  →  pacient: {patient}");
-                    sb.AppendLine($"      Motiv: {e.Reason}");
-                    sb.AppendLine($"      Încercări: {e.RetryCount}");
+                    sb.AppendLine($"  • [{e.OccurredAt.ToLocalTime():HH:mm:ss}] {e.FileName}  →  {Loc.T("SumarTxtPatientLabel")}{patient}");
+                    sb.AppendLine($"      {Loc.T("SumarPdfErrColReason")}: {e.Reason}");
+                    sb.AppendLine($"      {Loc.T("SumarTxtTriesLabel")}{e.RetryCount}");
                 }
                 sb.AppendLine();
             }
 
             sb.AppendLine("---");
-            sb.AppendLine("Generat automat de MedicalApp+ — medicalapp.ro");
+            sb.AppendLine($"{Loc.T("SumarPdfFooterGenerated")}medicalapp.ro");
 
             Directory.CreateDirectory(sumarFolder);
             File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
