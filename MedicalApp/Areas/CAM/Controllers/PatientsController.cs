@@ -96,7 +96,7 @@ namespace MedicalApp.Areas.CAM.Controllers
                 .FirstOrDefaultAsync(p => p.Id == id && p.ClinicId == clinic.Id);
             if (patient == null)
             {
-                TempData["ErrorMessage"] = "Pacientul nu a fost găsit (sau nu aparține acestei clinici).";
+                TempData["ErrorMessage"] = Loc.T("ErrPatientNotFound");
                 return RedirectToAction(nameof(Index));
             }
 
@@ -112,8 +112,8 @@ namespace MedicalApp.Areas.CAM.Controllers
             _db.ClinicPatients.Remove(patient);
             await _db.SaveChangesAsync();
 
-            TempData["SuccessMessage"] =
-                $"Pacientul „{patient.Name}” a fost șters (împreună cu {analyses.Count} analiză(e)).";
+            TempData["SuccessMessage"] = string.Format(
+                Loc.T("OkPatientDeleted"), patient.Name, analyses.Count);
             return RedirectToAction(nameof(Index));
         }
     }

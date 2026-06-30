@@ -134,7 +134,7 @@ namespace MedicalApp.Controllers
             if (profile == null)
             {
                 ModelState.AddModelError(nameof(model.ProfileId),
-                    "Te rugăm să selectezi un profil valid.");
+                    Loc.T("ErrSelectValidProfile"));
                 await RepopulateFormViewBags(user, model);
                 return View(model);
             }

@@ -62,7 +62,7 @@ namespace MedicalApp.Areas.CAM.Controllers
 
             if (clinic == null)
             {
-                TempData["ErrorMessage"] = "Contul tău e marcat ca \"Clinică\" dar nu are date de clinică asociate. Contactează administratorul.";
+                TempData["ErrorMessage"] = Loc.T("ErrAccountClinicNoData");
                 return RedirectToAction("Buy", "Credits", new { area = "" });
             }
 
@@ -128,24 +128,26 @@ namespace MedicalApp.Areas.CAM.Controllers
                 var result = await _retention.CleanupAsync(clinic, days);
                 if (result.TotalDeleted == 0)
                 {
-                    TempData["SuccessMessage"] =
-                        $"Niciun fișier nu era mai vechi de {result.RetentionDaysUsed} zile. " +
-                        $"Notă: folderul Original NU este atins niciodată — fișierele de acolo " +
-                        $"rămân până le ștergi manual.";
+                    TempData["SuccessMessage"] = string.Format(
+                        Loc.T("CamCleanupNothingToDo"),
+                        result.RetentionDaysUsed);
                 }
                 else
                 {
-                    TempData["SuccessMessage"] =
-                        $"Au fost șterse {result.TotalDeleted} fișiere ({result.HumanSize} eliberat) " +
-                        $"— retenție {result.RetentionDaysUsed} zile. " +
-                        $"Sends: {result.FilesDeletedSends} · Sumar: {result.FilesDeletedSumar} · " +
-                        $"Errors: {result.FilesDeletedErrors}.";
+                    TempData["SuccessMessage"] = string.Format(
+                        Loc.T("CamCleanupDoneTemplate"),
+                        result.TotalDeleted,
+                        result.HumanSize,
+                        result.RetentionDaysUsed,
+                        result.FilesDeletedSends,
+                        result.FilesDeletedSumar,
+                        result.FilesDeletedErrors);
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Manual cleanup failed for clinic {Email}", CurrentEmail);
-                TempData["ErrorMessage"] = "Curățarea a eșuat: " + ex.Message;
+                TempData["ErrorMessage"] = string.Format(Loc.T("ErrCleanupFailed"), ex.Message);
             }
 
             return RedirectToAction(nameof(Index));
@@ -361,7 +363,7 @@ namespace MedicalApp.Areas.CAM.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "CAM SumarPdf: generation failed for batch {Id}", id);
-                TempData["ErrorMessage"] = "Generarea PDF Sumar a eșuat: " + ex.Message;
+                TempData["ErrorMessage"] = string.Format(Loc.T("ErrSumarPdfGenerationFailed"), ex.Message);
                 return RedirectToAction(nameof(Index));
             }
 

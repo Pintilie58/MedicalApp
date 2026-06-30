@@ -100,7 +100,7 @@ namespace MedicalApp.Areas.CAM.Controllers
             // Concurrency guard: only one Running batch per clinic at a time.
             if (_registry.HasRunningForClinic(clinic.Id))
             {
-                TempData["ErrorMessage"] = "Există deja un lot în execuție pentru această clinică.";
+                TempData["ErrorMessage"] = Loc.T("ErrBatchAlreadyRunning");
                 return RedirectToAction(nameof(Start));
             }
 
@@ -294,8 +294,8 @@ namespace MedicalApp.Areas.CAM.Controllers
             if (p != null && p.ClinicId == clinic.Id && p.Status == "Running")
             {
                 p.Cts.Cancel();
-                p.Log("⚠ Anulare cerută de operator — opresc după fișierul curent.");
-                TempData["SuccessMessage"] = "Anulare cerută. Lotul se va opri după fișierul curent.";
+                p.Log(Loc.T("CamBatchLogCancelRequested"));
+                TempData["SuccessMessage"] = Loc.T("OkBatchCancelRequested");
             }
             return RedirectToAction(nameof(Progress), new { id });
         }

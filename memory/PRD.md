@@ -594,6 +594,45 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 
 
 
+- ✅ **[Feb 2026 — Translation sweep Phase 1: Controller TempData messages]**
+  Exhaustive scan across all `.cshtml`/`.cs` files identified 124 hardcoded
+  Romanian strings in 25 files. Categorized into 4 phases. **Phase 1
+  complete**: TempData / flash / inline error messages from 7 controllers.
+
+  Files touched:
+  - `ProfilesController.cs` — 21 strings → 21 `Loc.T(...)` calls
+  - `Areas/CAM/Controllers/CheckPdfsController.cs` — 14 strings
+  - `Areas/CAM/Controllers/DashboardController.cs` — 8 strings
+  - `Areas/CAM/Controllers/BatchController.cs` — 3 strings
+  - `Areas/CAM/Controllers/PatientsController.cs` — 2 strings
+  - `AdminController.cs` — 1 string
+  - `InterpretationController.cs` — 1 string
+
+  Added **43 new keys × 5 languages = 215 entries** in `Loc.cs` with
+  semantic prefixes (`Err*`, `Ok*`, `Cam*`). Loc.cs now has **924 keys per
+  language**, all 5 languages perfectly aligned.
+
+  Pattern used: `string.Format(Loc.T("Key"), args...)` for parameterized
+  strings; `Loc.T("Key")` for plain strings. No language parameter passed
+  explicitly — relies on `CultureInfo.CurrentUICulture` already set by
+  `RequestLocalizationMiddleware` (B2C path) or by `CamBatchService.RunAsync`
+  (CAM batch path, fix from a previous session).
+
+  Diff stat: +291 / -62 lines across 8 files. Zero schema changes, zero new
+  files, paranthesis-balanced in all touched files (verified with brace
+  parity check). Categories B (intentional RO matching dictionaries in
+  `CamPdfMetadataExtractor` + `SamplingDateParser`) deliberately left
+  untouched per user's confirmation — those are literal tokens used in
+  regex/Contains() to recognize Romanian medical PDFs and translating them
+  would break detection.
+
+  Remaining phases:
+  - Phase 2: PDF generators (~17 strings)
+  - Phase 3: Display services + remaining views (~16 strings)
+  - Phase 4: Final cleanup scan
+
+
+
       curent vs. celelalte coduri și sugerează verificare manuală.
     * Legendă scurtă în footer-ul tabelului pentru transparență.
   Scop: avertizează utilizatorul când variabilitatea de extragere a textului

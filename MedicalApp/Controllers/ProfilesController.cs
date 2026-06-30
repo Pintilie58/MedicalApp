@@ -100,7 +100,7 @@ namespace MedicalApp.Controllers
                 .FirstOrDefaultAsync(p => p.Id == id && p.UserEmail == CurrentEmail);
             if (profile == null)
             {
-                TempData["ErrorMessage"] = "Profilul nu a fost găsit.";
+                TempData["ErrorMessage"] = Loc.T("ErrProfileNotFound");
                 return RedirectToAction(nameof(Index));
             }
 
@@ -198,7 +198,7 @@ namespace MedicalApp.Controllers
                                           && h.Status == "success");
             if (history == null || string.IsNullOrWhiteSpace(history.RawJsonResult))
             {
-                TempData["ErrorMessage"] = "Raportul nu a fost găsit sau nu mai are date salvate.";
+                TempData["ErrorMessage"] = Loc.T("ErrReportNotFound");
                 return RedirectToAction(nameof(Index));
             }
 
@@ -264,7 +264,7 @@ namespace MedicalApp.Controllers
                 .FirstOrDefaultAsync(h => h.Id == id && h.UserEmail == CurrentEmail);
             if (history == null)
             {
-                TempData["ErrorMessage"] = "Interpretarea nu a fost găsită.";
+                TempData["ErrorMessage"] = Loc.T("ErrInterpretationNotFound");
                 return RedirectToAction(nameof(History), new { id = profileId });
             }
 
@@ -275,7 +275,7 @@ namespace MedicalApp.Controllers
                 "User {Email} deleted interpretation history id={Id} (profile={Pid}, file={File}).",
                 CurrentEmail, id, history.ProfileId, history.OriginalFileName);
 
-            TempData["SuccessMessage"] = "Interpretarea a fost ștearsă din arhivă.";
+            TempData["SuccessMessage"] = Loc.T("OkInterpretationDeletedFromArchive");
             return RedirectToAction(nameof(History), new { id = profileId });
         }
 
@@ -300,9 +300,10 @@ namespace MedicalApp.Controllers
 
             if (distinctIds.Length < CompareInterpretationsViewModel.MinSelections)
             {
-                TempData["ErrorMessage"] =
-                    $"Selectează între {CompareInterpretationsViewModel.MinSelections} și " +
-                    $"{CompareInterpretationsViewModel.MaxSelections} interpretări pentru comparație.";
+                TempData["ErrorMessage"] = string.Format(
+                    Loc.T("ErrSelectBetweenForCompare"),
+                    CompareInterpretationsViewModel.MinSelections,
+                    CompareInterpretationsViewModel.MaxSelections);
                 return RedirectToAction(nameof(History), new { id = profileId });
             }
 
@@ -317,7 +318,7 @@ namespace MedicalApp.Controllers
                 .FirstOrDefaultAsync(p => p.Id == profileId && p.UserEmail == CurrentEmail);
             if (profile == null)
             {
-                TempData["ErrorMessage"] = "Profilul nu a fost găsit.";
+                TempData["ErrorMessage"] = Loc.T("ErrProfileNotFound");
                 return RedirectToAction(nameof(Index));
             }
 
@@ -332,7 +333,7 @@ namespace MedicalApp.Controllers
 
             if (items.Count != distinctIds.Length)
             {
-                TempData["ErrorMessage"] = "Una sau mai multe interpretări selectate nu au fost găsite.";
+                TempData["ErrorMessage"] = Loc.T("ErrOneOrMoreInterpretationsNotFoundSelected");
                 return RedirectToAction(nameof(History), new { id = profileId });
             }
 
@@ -340,8 +341,7 @@ namespace MedicalApp.Controllers
             var check = _archiveAccess.TryConsume(user, "compare");
             if (!check.Allowed)
             {
-                TempData["ErrorMessage"] =
-                    "Ai rămas fără credite pentru comparație. Cumpără credite pentru a continua.";
+                TempData["ErrorMessage"] = Loc.T("ErrNoCreditsForCompare");
                 return RedirectToAction("Buy", "Credits");
             }
             await _db.SaveChangesAsync();
@@ -355,7 +355,7 @@ namespace MedicalApp.Controllers
             }
             if (parsed.Count < CompareInterpretationsViewModel.MinSelections)
             {
-                TempData["ErrorMessage"] = "Comparația nu a putut fi generată din datele stocate.";
+                TempData["ErrorMessage"] = Loc.T("ErrCompareGenerationFailed");
                 return RedirectToAction(nameof(History), new { id = profileId });
             }
 
@@ -404,9 +404,10 @@ namespace MedicalApp.Controllers
 
             if (distinctIds.Length < CompareInterpretationsViewModel.MinSelections)
             {
-                TempData["ErrorMessage"] =
-                    $"Selectează între {CompareInterpretationsViewModel.MinSelections} și " +
-                    $"{CompareInterpretationsViewModel.MaxSelections} interpretări.";
+                TempData["ErrorMessage"] = string.Format(
+                    Loc.T("ErrSelectBetween"),
+                    CompareInterpretationsViewModel.MinSelections,
+                    CompareInterpretationsViewModel.MaxSelections);
                 return RedirectToAction(nameof(History), new { id = req.ProfileId });
             }
 
@@ -426,7 +427,7 @@ namespace MedicalApp.Controllers
 
             if (items.Count != distinctIds.Length)
             {
-                TempData["ErrorMessage"] = "Una sau mai multe interpretări nu au fost găsite.";
+                TempData["ErrorMessage"] = Loc.T("ErrOneOrMoreInterpretationsNotFound");
                 return RedirectToAction(nameof(History), new { id = req.ProfileId });
             }
 
@@ -439,7 +440,7 @@ namespace MedicalApp.Controllers
             }
             if (parsed.Count < CompareInterpretationsViewModel.MinSelections)
             {
-                TempData["ErrorMessage"] = "Comparația nu a putut fi generată din datele stocate.";
+                TempData["ErrorMessage"] = Loc.T("ErrCompareGenerationFailed");
                 return RedirectToAction(nameof(History), new { id = req.ProfileId });
             }
 
@@ -460,7 +461,7 @@ namespace MedicalApp.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "CompareExport: PDF generation failed.");
-                return StatusCode(500, "Generarea PDF a eșuat. Vezi log-ul aplicației.");
+                return StatusCode(500, Loc.T("ErrPdfGenerationFailedSeeLog"));
             }
 
             var fileName = $"Comparatie_{Sanitize(profile.Name)}_{DateTime.Now:yyyyMMdd_HHmm}.pdf";
@@ -860,7 +861,7 @@ namespace MedicalApp.Controllers
                 .FirstOrDefaultAsync(p => p.Id == profileId && p.UserEmail == CurrentEmail);
             if (profile == null)
             {
-                TempData["ErrorMessage"] = "Profilul nu a fost găsit.";
+                TempData["ErrorMessage"] = Loc.T("ErrProfileNotFound");
                 return RedirectToAction(nameof(Index));
             }
 
@@ -877,9 +878,10 @@ namespace MedicalApp.Controllers
 
             if (codeList.Count < EvolutionViewModel.MinSelections)
             {
-                TempData["ErrorMessage"] =
-                    $"Introdu între {EvolutionViewModel.MinSelections} și " +
-                    $"{EvolutionViewModel.MaxSelections} coduri LOINC.";
+                TempData["ErrorMessage"] = string.Format(
+                    Loc.T("ErrEnterBetweenLoincCodes"),
+                    EvolutionViewModel.MinSelections,
+                    EvolutionViewModel.MaxSelections);
                 return RedirectToAction(nameof(History), new { id = profileId });
             }
 
@@ -929,7 +931,7 @@ namespace MedicalApp.Controllers
                 .ToList();
 
             if (codeList.Count < EvolutionViewModel.MinSelections)
-                return BadRequest("Trebuie cel puțin un cod LOINC.");
+                return BadRequest(Loc.T("ErrAtLeastOneLoinc"));
 
             var vm = await BuildEvolutionAsync(profile, codeList);
 
@@ -960,7 +962,7 @@ namespace MedicalApp.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "EvolutionExport: PDF generation failed.");
-                return StatusCode(500, "Generarea PDF a eșuat. Vezi log-ul aplicației.");
+                return StatusCode(500, Loc.T("ErrPdfGenerationFailedSeeLog"));
             }
 
             var fileName = $"Evolutie_{Sanitize(profile.Name)}_{DateTime.Now:yyyyMMdd_HHmm}.pdf";
@@ -1290,14 +1292,14 @@ namespace MedicalApp.Controllers
 
             if (profile.IsDefault)
             {
-                TempData["ErrorMessage"] = "Profilul implicit \"Eu\" nu poate fi șters. Doar poate fi redenumit.";
+                TempData["ErrorMessage"] = Loc.T("ErrDefaultProfileCannotDelete");
                 return RedirectToAction(nameof(Index));
             }
 
             _db.Profiles.Remove(profile);
             await _db.SaveChangesAsync();
 
-            TempData["SuccessMessage"] = $"Profilul \"{profile.Name}\" a fost șters.";
+            TempData["SuccessMessage"] = string.Format(Loc.T("OkProfileDeleted"), profile.Name);
             return RedirectToAction(nameof(Index));
         }
 

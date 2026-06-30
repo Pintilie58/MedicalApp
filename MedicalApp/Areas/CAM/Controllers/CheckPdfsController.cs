@@ -132,7 +132,7 @@ namespace MedicalApp.Areas.CAM.Controllers
                             // No [MedicalApp] block → operator must use "Editează"
                             // to set a manual override. AI fallback is disabled by policy.
                             row.IsValid = false;
-                            row.Reason = "PDF fără bloc [MedicalApp]. Apasă „Editează” pentru a introduce manual numele și emailul.";
+                            row.Reason = Loc.T("CamCheckRowReasonNoBlock");
                         }
                     }
                     catch (Exception ex)
@@ -172,7 +172,7 @@ namespace MedicalApp.Areas.CAM.Controllers
                             // Never let a deliverability check break the page render.
                             _logger.LogDebug(ex, "EmailDeliverabilityChecker failed for {Email}", r.PatientEmail);
                             r.EmailValidity = EmailValidity.DnsUnknown;
-                            r.EmailValidityMessage = "Validare DNS indisponibilă temporar.";
+                            r.EmailValidityMessage = Loc.T("CamEmailValidationDnsUnavailable");
                         }
                     })
                     .ToList();
@@ -203,7 +203,7 @@ namespace MedicalApp.Areas.CAM.Controllers
                 string.IsNullOrWhiteSpace(overrideName) ||
                 string.IsNullOrWhiteSpace(overrideEmail))
             {
-                TempData["ErrorMessage"] = "Toate câmpurile sunt obligatorii.";
+                TempData["ErrorMessage"] = Loc.T("ErrAllFieldsRequired");
                 return RedirectToAction(nameof(Index));
             }
 
@@ -215,7 +215,7 @@ namespace MedicalApp.Areas.CAM.Controllers
             try { _ = new System.Net.Mail.MailAddress(overrideEmail.Trim()); }
             catch
             {
-                TempData["ErrorMessage"] = "Adresa de email pare invalidă (ex: nume@domeniu.ro).";
+                TempData["ErrorMessage"] = Loc.T("ErrEmailLooksInvalid");
                 return RedirectToAction(nameof(Index));
             }
 
@@ -264,7 +264,7 @@ namespace MedicalApp.Areas.CAM.Controllers
                 _db.ClinicPdfOverrides.Remove(ov);
                 await _db.SaveChangesAsync();
             }
-            TempData["SuccessMessage"] = "Override șters. PDF-ul va fi re-analizat automat.";
+            TempData["SuccessMessage"] = Loc.T("OkOverrideCleared");
             // Keep the operator on the same row after the override is cleared.
             TempData["ScrollToFile"] = fileName;
             return RedirectToAction(nameof(Index));
@@ -283,7 +283,7 @@ namespace MedicalApp.Areas.CAM.Controllers
 
             if (string.IsNullOrWhiteSpace(fileName))
             {
-                TempData["ErrorMessage"] = "Nume fișier lipsă.";
+                TempData["ErrorMessage"] = Loc.T("ErrFileNameMissing");
                 return RedirectToAction(nameof(Index));
             }
 
@@ -291,7 +291,7 @@ namespace MedicalApp.Areas.CAM.Controllers
             var safeName = Path.GetFileName(fileName);
             if (!string.Equals(safeName, fileName, StringComparison.Ordinal))
             {
-                TempData["ErrorMessage"] = "Nume fișier invalid.";
+                TempData["ErrorMessage"] = Loc.T("ErrFileNameInvalid");
                 return RedirectToAction(nameof(Index));
             }
 
@@ -300,7 +300,7 @@ namespace MedicalApp.Areas.CAM.Controllers
 
             if (!System.IO.File.Exists(path))
             {
-                TempData["ErrorMessage"] = $"Fișierul „{safeName}” nu mai există în folderul Original.";
+                TempData["ErrorMessage"] = string.Format(Loc.T("ErrFileNoLongerExists"), safeName);
                 return RedirectToAction(nameof(Index));
             }
 
@@ -311,7 +311,7 @@ namespace MedicalApp.Areas.CAM.Controllers
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "DeletePdf: failed to delete {Path}", path);
-                TempData["ErrorMessage"] = "Eroare la ștergere: " + ex.Message;
+                TempData["ErrorMessage"] = string.Format(Loc.T("ErrDeleteFailed"), ex.Message);
                 return RedirectToAction(nameof(Index));
             }
 
@@ -324,7 +324,7 @@ namespace MedicalApp.Areas.CAM.Controllers
                 await _db.SaveChangesAsync();
             }
 
-            TempData["SuccessMessage"] = $"Fișierul „{safeName}” a fost șters din folderul Original.";
+            TempData["SuccessMessage"] = string.Format(Loc.T("OkFileDeleted"), safeName);
             return RedirectToAction(nameof(Index));
         }
 
@@ -343,7 +343,7 @@ namespace MedicalApp.Areas.CAM.Controllers
             if (clinic.EmailDomainBlacklist.Length > 500)
                 clinic.EmailDomainBlacklist = clinic.EmailDomainBlacklist[..500];
             await _db.SaveChangesAsync();
-            TempData["SuccessMessage"] = "Lista de domenii ignorate a fost salvată.";
+            TempData["SuccessMessage"] = Loc.T("OkIgnoredDomainsSaved");
             return RedirectToAction(nameof(Index));
         }
 
@@ -361,14 +361,14 @@ namespace MedicalApp.Areas.CAM.Controllers
 
             if (files == null || files.Count == 0)
             {
-                TempData["ErrorMessage"] = "Niciun fișier selectat.";
+                TempData["ErrorMessage"] = Loc.T("ErrNoFileSelected");
                 return RedirectToAction(nameof(Index));
             }
 
             var originalFolder = _files.GetOriginalFolder(clinic);
             if (!Directory.Exists(originalFolder))
             {
-                TempData["ErrorMessage"] = "Folderul Original nu există încă. Cumpără primul pachet de credite.";
+                TempData["ErrorMessage"] = Loc.T("ErrOriginalFolderMissing");
                 return RedirectToAction(nameof(Index));
             }
 
@@ -409,9 +409,9 @@ namespace MedicalApp.Areas.CAM.Controllers
             }
 
             TempData["SuccessMessage"] =
-                $"Upload finalizat: {copied} copiate" +
-                (rejected > 0 ? $", {rejected} respinse (nu sunt PDF)" : "") +
-                (skipped > 0 ? $", {skipped} sărite (erori I/O)" : "") + ".";
+                string.Format(Loc.T("CamUploadDoneMain"), copied) +
+                (rejected > 0 ? string.Format(Loc.T("CamUploadRejectedSuffix"), rejected) : "") +
+                (skipped > 0 ? string.Format(Loc.T("CamUploadSkippedSuffix"), skipped) : "") + ".";
             if (firstUploadedName != null) TempData["ScrollToFile"] = firstUploadedName;
             return RedirectToAction(nameof(Index));
         }

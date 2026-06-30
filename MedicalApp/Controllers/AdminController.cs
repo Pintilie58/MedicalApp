@@ -87,7 +87,7 @@ namespace MedicalApp.Controllers
             {
                 sw.Stop();
                 return Json(new { ok = false, status = "timeout",
-                    message = "Microserviciul nu a răspuns în 2 secunde.",
+                    message = Loc.T("AdminMicroserviceTimeout"),
                     baseUrl, latencyMs = sw.ElapsedMilliseconds });
             }
             catch (System.Exception ex)
