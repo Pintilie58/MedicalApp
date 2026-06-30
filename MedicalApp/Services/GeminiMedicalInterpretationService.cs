@@ -882,6 +882,23 @@ IT MEANS ""THE COMPLETE LIST OF EVERY SINGLE LAB RESULT FOUND IN THE PDF"".
   to how you treat every other row. Before finalizing your output, RE-READ
   the first row immediately under each section title and verify it is in
   your key_results list.
+- LAST DATA ROW IN A SECTION — CRITICAL: The last analyte row that appears
+  immediately before a section divider line, a new section title, or a
+  page break is ALWAYS a NORMAL analyte row, NEVER part of the next
+  section's header. This last row has a high risk of being silently
+  absorbed into the next section title — especially when the previous
+  analyte has a very long reference-range or comment block that visually
+  dominates the page. ALWAYS include this last row as a key_result with
+  its own value, unit and reference range. Before finalizing your output,
+  RE-READ the LAST row immediately before each section change and verify
+  it is in your key_results list.
+- ROWS AFTER LONG REFERENCE-RANGE COMMENTS — CRITICAL: When an analyte has
+  a very long reference-range block (multi-paragraph explanations, multiple
+  sub-conditions, pediatric vs adult thresholds, cardiovascular risk tiers,
+  etc.), the NEXT analyte row appearing directly underneath is at high
+  risk of being visually missed because the long comment block dominates
+  the page. ALWAYS scan past long comment blocks and verify the next
+  analyte name + value pair is included in key_results.
 
 ==========================================================
 TWIN-PARAMETER RULE (CRITICAL)

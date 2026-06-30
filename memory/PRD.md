@@ -565,6 +565,35 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
   Zero deletions. Zero schema changes. Zero DB migrations.
 
 
+- ✅ **[Feb 2026 — Boundary-row prompt rules round 2: LAST row + post-long-comment]**
+  Validation testing surfaced a 2nd boundary-confusion failure mode that
+  was distinct from the first: at the BOTTOM of a section, the LAST analyte
+  ("Lipide totale", 540.75 mg/dL) was dropped while everything before AND
+  after was extracted correctly. Mechanism: the previous row ("Colesterol
+  non-HDL") had an extremely long multi-tier reference-range comment
+  (pediatric thresholds, CV-risk-very-high / high / moderate targets), and
+  immediately after "Lipide totale" came a section divider for "Rata
+  filtrarii glomerulare (eGFR)". Gemini Vision absorbed "Lipide totale"
+  into either the previous long comment or the next section header.
+
+  Same surgical approach as round 1 (no other code touched):
+  - **Rule B — LAST DATA ROW IN A SECTION** (mirror of the existing
+    FIRST DATA ROW rule). Forces explicit re-read of the row immediately
+    before each section change.
+  - **Rule C — ROWS AFTER LONG REFERENCE-RANGE COMMENTS**. Attacks the
+    attention-dilution mode where a multi-paragraph comment block visually
+    dominates the page and Gemini stops scanning past it.
+
+  Both rules are completely generic — zero specific analyte / lab / language
+  mentions. They describe the failure MECHANISM, not the symptom. Added
+  17 lines to the existing EXTRACTION COMPLETENESS section. No new files,
+  no new flags, no schema/DB changes, zero deletions. Auditor from round 1
+  catches this case automatically too (it counts rows regardless of where
+  they are positionally). Total prompt overhead with all 3 boundary rules
+  (A+B+C) is ~290 tokens — still well within attention budget.
+
+
+
       curent vs. celelalte coduri și sugerează verificare manuală.
     * Legendă scurtă în footer-ul tabelului pentru transparență.
   Scop: avertizează utilizatorul când variabilitatea de extragere a textului
