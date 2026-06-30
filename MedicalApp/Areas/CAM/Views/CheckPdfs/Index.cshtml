@@ -85,7 +85,11 @@
                     if (!inp || !lbl) return;
                     var T_NONE  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamCheckNoFile")));
                     var T_MULTI = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamCheckFilesSelected")));
+                    var T_REQ   = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("UploadFilePleaseSelect")));
+                    // Localize the native HTML5 "required file" popup (always EN by default on Chromium/Edge).
+                    inp.addEventListener('invalid', function () { inp.setCustomValidity(T_REQ); });
                     inp.addEventListener('change', function () {
+                        inp.setCustomValidity(''); // clear after the operator picks a file
                         if (!inp.files || inp.files.length === 0) {
                             lbl.textContent = T_NONE;
                             return;

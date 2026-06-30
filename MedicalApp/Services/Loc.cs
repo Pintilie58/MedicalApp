@@ -1086,6 +1086,7 @@ namespace MedicalApp.Services
                 ["SumarTxtTriesLabel"] = "Tries: ",
                 ["SumarTxtPatientLabel"] = "patient: ",
                 ["CamBatchFailedThreeTimesHeader"] = "This file failed 3 times in clinic batches. Reasons:",
+                ["UploadFilePleaseSelect"] = "Please select a file.",
                 // ===== End Phase 2 & 3 =====
             },
             ["ro"] = new()
@@ -2164,6 +2165,7 @@ namespace MedicalApp.Services
                 ["SumarTxtTriesLabel"] = "Încercări: ",
                 ["SumarTxtPatientLabel"] = "pacient: ",
                 ["CamBatchFailedThreeTimesHeader"] = "Acest fișier a eșuat de 3 ori în loturile clinicii. Motive:",
+                ["UploadFilePleaseSelect"] = "Te rugăm să selectezi un fișier.",
                 // ===== End Phase 2 & 3 =====
             },
             ["fr"] = new()
@@ -3221,6 +3223,7 @@ namespace MedicalApp.Services
                 ["SumarTxtTriesLabel"] = "Essais : ",
                 ["SumarTxtPatientLabel"] = "patient : ",
                 ["CamBatchFailedThreeTimesHeader"] = "Ce fichier a échoué 3 fois dans les lots de la clinique. Motifs :",
+                ["UploadFilePleaseSelect"] = "Veuillez sélectionner un fichier.",
                 // ===== End Phase 2 & 3 =====
             },
             ["es"] = new()
@@ -4278,6 +4281,7 @@ namespace MedicalApp.Services
                 ["SumarTxtTriesLabel"] = "Intentos: ",
                 ["SumarTxtPatientLabel"] = "paciente: ",
                 ["CamBatchFailedThreeTimesHeader"] = "Este archivo falló 3 veces en los lotes de la clínica. Motivos:",
+                ["UploadFilePleaseSelect"] = "Por favor, selecciona un archivo.",
                 // ===== End Phase 2 & 3 =====
             },
             ["de"] = new()
@@ -5335,6 +5339,7 @@ namespace MedicalApp.Services
                 ["SumarTxtTriesLabel"] = "Versuche: ",
                 ["SumarTxtPatientLabel"] = "Patient: ",
                 ["CamBatchFailedThreeTimesHeader"] = "Diese Datei ist in den Stapeln der Klinik 3-mal fehlgeschlagen. Gründe:",
+                ["UploadFilePleaseSelect"] = "Bitte wähle eine Datei aus.",
                 // ===== End Phase 2 & 3 =====
             }
         };

@@ -120,6 +120,74 @@
             integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
             crossorigin="anonymous"></script>
     <script src="~/js/doctor-mascot.js" asp-append-version="true"></script>
+
+    @* ============================================================
+       Smart language auto-detect (runs once per browser).
+       ASP.NET Core's RequestLocalization already honors the
+       Accept-Language HTTP header on the FIRST request, so most
+       visitors land in their browser language out of the box. This
+       small helper makes that decision PERMANENT by writing the
+       .AspNetCore.Culture cookie on the first render — and provides
+       a JS fallback (navigator.language) for the edge case where the
+       Accept-Language header is suppressed (privacy extensions,
+       certain mobile browsers). One-shot: a sessionStorage flag
+       prevents reload loops.
+       ============================================================ *@
+    <script>
+    (function () {
+        try {
+            if (sessionStorage.getItem('langAutoChecked') === '1') return;
+            sessionStorage.setItem('langAutoChecked', '1');
+
+            var supported = ['en','ro','fr','es','de'];
+            var currentLang = (document.documentElement.lang || 'en').toLowerCase().substring(0,2);
+
+            // Cookie lookup — same name ASP.NET Core uses by default.
+            function readCookie(name) {
+                var m = document.cookie.match('(?:^|; )' + name + '=([^;]*)');
+                return m ? decodeURIComponent(m[1]) : null;
+            }
+            var cookieRaw = readCookie('.AspNetCore.Culture');
+            var hasCookie = cookieRaw && cookieRaw.indexOf('uic=') !== -1;
+
+            // Pick best browser language from navigator.languages, then navigator.language.
+            var navLangs = (navigator.languages && navigator.languages.length)
+                ? navigator.languages
+                : [navigator.language || 'en'];
+            var pick = null;
+            for (var i = 0; i < navLangs.length; i++) {
+                var two = (navLangs[i] || '').toLowerCase().substring(0,2);
+                if (supported.indexOf(two) !== -1) { pick = two; break; }
+            }
+            if (!pick) pick = 'en';
+
+            // Helper: write the cookie in the exact format
+            // CookieRequestCultureProvider expects: "c=xx|uic=xx".
+            function writeCultureCookie(lang) {
+                var val = 'c=' + lang + '|uic=' + lang;
+                // 1 year, root path, SameSite=Lax — matches ASP.NET Core defaults.
+                document.cookie = '.AspNetCore.Culture=' + encodeURIComponent(val)
+                    + '; Max-Age=31536000; Path=/; SameSite=Lax';
+            }
+
+            if (!hasCookie) {
+                if (pick !== currentLang) {
+                    // Browser prefers a different supported language than the one
+                    // the server rendered (likely because Accept-Language was
+                    // suppressed and the default "en" was used). Persist the
+                    // user's real choice and reload so the new strings appear.
+                    writeCultureCookie(pick);
+                    window.location.reload();
+                } else {
+                    // Already correct — just make it sticky for future visits
+                    // and so the language dropdown reflects the active choice.
+                    writeCultureCookie(currentLang);
+                }
+            }
+        } catch (e) { /* never break the page on a localization helper */ }
+    })();
+    </script>
+
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

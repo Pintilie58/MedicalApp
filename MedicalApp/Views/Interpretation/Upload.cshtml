@@ -264,7 +264,15 @@
             var nameEl = document.getElementById('pdfFileName');
             if (!input || !nameEl) return;
             var emptyText = nameEl.getAttribute('data-empty-text') || '';
+            // Localized native "required" validation message (replaces the
+            // browser-default "Please select a file." which always renders
+            // in English on Chromium/Edge regardless of the page language).
+            var requiredMsg = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("UploadFilePleaseSelect")));
+            input.addEventListener('invalid', function () {
+                input.setCustomValidity(requiredMsg);
+            });
             input.addEventListener('change', function () {
+                input.setCustomValidity(''); // clear any previous custom message
                 if (input.files && input.files.length > 0) {
                     nameEl.textContent = input.files[0].name;
                     nameEl.classList.add('has-file');

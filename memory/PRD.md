@@ -813,8 +813,16 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - `Views/Admin/Index.cshtml`: Daily-summary button tooltip + the entire LOINC health widget (badge labels, refresh tooltip, status states, "checked" timestamp, "LOINC codes" unit) localized — inline JS reads a `<script type="application/json">` blob.
 - `CamBatchService.cs`: Hardcoded ".reasons.txt" header ("Acest fișier a eșuat de 3 ori…") moved to `Loc.T("CamBatchFailedThreeTimesHeader")`.
 - Total: 73 new keys added to all 5 languages (EN/RO/FR/ES/DE) = **365 new translation entries**.
+
+### 2026-02 — Polish: localized HTML5 file-required popup + smart language auto-detect
+- **`UploadFilePleaseSelect`** key added in 5 langs. Wired via `setCustomValidity()` in both upload forms (`Views/Interpretation/Upload.cshtml` B2C single-file + `Areas/CAM/Views/CheckPdfs/Index.cshtml` B2B multi-file). The native English "Please select a file." popup is now replaced with the user's language.
+- **Smart language auto-detect** added to `Views/Shared/_Layout.cshtml`. On the very first request the browser does, ASP.NET Core's existing `AcceptLanguageHeaderRequestCultureProvider` already picks the visitor's language. The new helper:
+    1. Reads the `.AspNetCore.Culture` cookie. If missing AND `navigator.language` matches a different supported lang than the one rendered → writes the cookie + reloads (handles the edge case where `Accept-Language` is suppressed by privacy extensions).
+    2. If missing but the rendered lang already matches → just persists the cookie (makes the choice sticky for future visits & the dropdown reflects the active choice).
+    3. Uses `sessionStorage.langAutoChecked` as a one-shot guard against reload loops.
+    4. Wrapped in `try/catch` — never breaks the page on a localization helper.
 - Tested by: User in VS2026 (not yet — pending local pull & rebuild).
-- Status: Phase 2 & 3 + Account pages = ✅ COMPLETE (Account views were already 100% localized).
+- Status: Phase 2 & 3 + Account pages + i18n polish = ✅ COMPLETE.
 
 ## Known constraints
 - Gemini API key is in User Secrets (NOT in repo). Sandbox-ul cloud nu o are.
