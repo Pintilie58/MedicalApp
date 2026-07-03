@@ -139,7 +139,10 @@
             if (sessionStorage.getItem('langAutoChecked') === '1') return;
             sessionStorage.setItem('langAutoChecked', '1');
 
-            var supported = ['en','ro','fr','es','de','it'];
+            // Single source of truth: SupportedLanguagesConfig.Codes. Rendered
+            // server-side so the array stays in sync with the C# config.
+            var supported = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                MedicalApp.Services.SupportedLanguagesConfig.Codes));
             var currentLang = (document.documentElement.lang || 'en').toLowerCase().substring(0,2);
 
             // Cookie lookup — same name ASP.NET Core uses by default.

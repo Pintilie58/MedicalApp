@@ -6364,9 +6364,13 @@ namespace MedicalApp.Services
                 kv => kv.Key,
                 kv => (IReadOnlyDictionary<string, string>)kv.Value);
 
-        /// <summary>Two-letter codes of all languages currently bundled in <c>Loc.cs</c>.</summary>
+        /// <summary>Two-letter codes of all officially supported languages,
+        ///     as declared in <see cref="SupportedLanguagesConfig"/>. This is
+        ///     the SOURCE OF TRUTH — a language showing up here but without a
+        ///     dictionary in <c>_translations</c> will fall through to EN
+        ///     fallback (visible in Admin "Translation Coverage" as 0/999).</summary>
         public static IReadOnlyCollection<string> SupportedLanguages
-            => _translations.Keys.ToList();
+            => SupportedLanguagesConfig.Codes;
 
         /// <summary>
         /// Returns a localized string in the language of the current HTTP

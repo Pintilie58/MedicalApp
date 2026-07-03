@@ -68,15 +68,11 @@ namespace MedicalApp.Services
             // covers the entire batch lifetime.
             try
             {
-                var cultureName = lang switch
-                {
-                    "ro" => "ro-RO",
-                    "fr" => "fr-FR",
-                    "es" => "es-ES",
-                    "de" => "de-DE",
-                    "it" => "it-IT",
-                    _    => "en-US"
-                };
+                // Culture selection routed through the single source of truth.
+                // The previous inline switch is preserved just above in git
+                // history and will vanish after Phase 3 cleanup; here we
+                // simply ask the config for the canonical culture code.
+                var cultureName = SupportedLanguagesConfig.GetCultureCode(lang);
                 var culture = new System.Globalization.CultureInfo(cultureName);
                 System.Globalization.CultureInfo.CurrentUICulture = culture;
                 System.Globalization.CultureInfo.CurrentCulture = culture;

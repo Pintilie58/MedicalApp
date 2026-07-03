@@ -143,7 +143,9 @@ namespace MedicalApp.Services
             }
 
             // 3. Last-ditch: hand the whole string to .NET's culture-aware parser.
-            string[] cultures = { "en-US", "ro-RO", "fr-FR", "es-ES", "de-DE", "it-IT" };
+            // Culture list routed through SupportedLanguagesConfig — adding a
+            // new language auto-registers it here.
+            var cultures = SupportedLanguagesConfig.CultureCodes;
             foreach (var cult in cultures)
             {
                 var ci = CultureInfo.GetCultureInfo(cult);

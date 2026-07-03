@@ -126,7 +126,10 @@ namespace MedicalApp.Services
             string? extractedText, CancellationToken ct,
             string? modelOverride = null)
         {
-            var languageName = LanguageNames.TryGetValue(languageCode, out var n) ? n : "English";
+            // Source of truth: SupportedLanguagesConfig. The previous local
+            // LanguageNames dictionary is preserved above for now — it will
+            // be removed in Phase 3 cleanup once this path is confirmed live.
+            var languageName = SupportedLanguagesConfig.GetLangName(languageCode);
 
             // Pick the model to call: explicit override (controller's fallback path)
             // wins over the configured default. This is the ONLY behavioural difference

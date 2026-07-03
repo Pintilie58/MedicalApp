@@ -6,17 +6,12 @@
     // desktop & mobile browsers (Safari, Chrome, Edge, Firefox >= 50, Android,
     // iOS). On Windows 10/11 Chrome they render as the 2-letter code in a
     // pill (which is also fine — still readable).
-    var langs = new (string code, string flag, string label)[]
-    {
-        ("en", "\U0001F1EC\U0001F1E7", "English"),   // 🇬🇧
-        ("ro", "\U0001F1F7\U0001F1F4", "Română"),    // 🇷🇴
-        ("fr", "\U0001F1EB\U0001F1F7", "Français"),  // 🇫🇷
-        ("es", "\U0001F1EA\U0001F1F8", "Español"),   // 🇪🇸
-        ("de", "\U0001F1E9\U0001F1EA", "Deutsch"),   // 🇩🇪
-        ("it", "\U0001F1EE\U0001F1F9", "Italiano")   // 🇮🇹
-    };
-    var currentLang = langs.FirstOrDefault(l => l.code == current);
-    if (currentLang.code == null) currentLang = langs[0];
+    //
+    // Single source of truth: SupportedLanguagesConfig — adding a new
+    // language to that C# file automatically adds it to this dropdown.
+    var langs = MedicalApp.Services.SupportedLanguagesConfig.All;
+    var currentLang = langs.FirstOrDefault(l => l.Code == current)
+                      ?? MedicalApp.Services.SupportedLanguagesConfig.Default;
     string AuthUrl(string tab) => Url.Action("Auth", "Home", new { tab = tab }) ?? "/Home/Auth";
 }
 <!DOCTYPE html>
@@ -55,22 +50,22 @@
             <div class="land-lang">
                 <button class="land-lang-btn" id="landLangBtn" aria-haspopup="true" aria-expanded="false"
                         data-testid="land-lang-btn">
-                    <span class="land-lang-flag" aria-hidden="true">@currentLang.flag</span>
-                    <span class="land-lang-label">@currentLang.label</span>
+                    <span class="land-lang-flag" aria-hidden="true">@currentLang.FlagEmoji</span>
+                    <span class="land-lang-label">@currentLang.NativeName</span>
                     <span class="land-lang-chev" aria-hidden="true">▾</span>
                 </button>
                 <div class="land-lang-menu d-none" id="landLangMenu" data-testid="land-lang-menu">
                     @foreach (var l in langs)
                     {
-                        var isActive = l.code == current;
+                        var isActive = l.Code == current;
                         <form asp-controller="Home" asp-action="SetLanguage" method="post">
-                            <input type="hidden" name="culture" value="@l.code" />
+                            <input type="hidden" name="culture" value="@l.Code" />
                             <input type="hidden" name="returnUrl" value="/" />
                             <button type="submit"
                                     class="land-lang-item @(isActive ? "is-active" : "")"
-                                    data-testid="land-lang-@l.code">
-                                <span class="land-lang-flag" aria-hidden="true">@l.flag</span>
-                                <span class="land-lang-label">@l.label</span>
+                                    data-testid="land-lang-@l.Code">
+                                <span class="land-lang-flag" aria-hidden="true">@l.FlagEmoji</span>
+                                <span class="land-lang-label">@l.NativeName</span>
                                 @if (isActive)
                                 {
                                     <span class="land-lang-check" aria-hidden="true">&#10003;</span>

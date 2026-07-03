@@ -54,7 +54,9 @@ namespace MedicalApp.Services
             if (string.IsNullOrWhiteSpace(_settings.ApiKey))
                 throw new InvalidOperationException("OpenAI API key is not configured. Set OpenAI:ApiKey in appsettings.json or User Secrets.");
 
-            var languageName = LanguageNames.TryGetValue(languageCode, out var n) ? n : "English";
+            // Source of truth: SupportedLanguagesConfig (see comment in
+            // GeminiMedicalInterpretationService for the rationale).
+            var languageName = SupportedLanguagesConfig.GetLangName(languageCode);
 
             var systemPrompt = BuildSystemPrompt();
             var userPrompt = BuildUserPrompt(extractedText, languageName, languageCode);

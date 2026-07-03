@@ -125,15 +125,12 @@ builder.Services.AddSingleton<PendingRegistrationStore>();
 builder.Services.Configure<LoincSettings>(builder.Configuration.GetSection("Loinc"));
 
 // Localization - supported cultures
-var supportedCultures = new[]
-{
-    new CultureInfo("en"),
-    new CultureInfo("ro"),
-    new CultureInfo("fr"),
-    new CultureInfo("es"),
-    new CultureInfo("de"),
-    new CultureInfo("it")
-};
+// Supported cultures come from the single source of truth
+// SupportedLanguagesConfig — adding a new language there automatically
+// registers it with ASP.NET Core's request localization here.
+var supportedCultures = SupportedLanguagesConfig.All
+    .Select(l => new CultureInfo(l.Code))
+    .ToArray();
 
 builder.Services.Configure<RequestLocalizationOptions>(options =>
 {

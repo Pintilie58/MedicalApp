@@ -17,12 +17,12 @@
             <label class="form-label m-0 small text-muted">@Loc.T("SelectLanguage"):</label>
             <select name="culture" class="form-select" style="width:auto; min-width: 180px; font-weight:600; border-color:#0d6efd;"
                     onchange="this.form.submit()" data-testid="auth-lang-select">
-                <option value="en" selected="@(currentCulture == "en")">&#x1F1EC;&#x1F1E7;&nbsp; English</option>
-                <option value="ro" selected="@(currentCulture == "ro")">&#x1F1F7;&#x1F1F4;&nbsp; Română</option>
-                <option value="fr" selected="@(currentCulture == "fr")">&#x1F1EB;&#x1F1F7;&nbsp; Français</option>
-                <option value="es" selected="@(currentCulture == "es")">&#x1F1EA;&#x1F1F8;&nbsp; Español</option>
-                <option value="de" selected="@(currentCulture == "de")">&#x1F1E9;&#x1F1EA;&nbsp; Deutsch</option>
-                <option value="it" selected="@(currentCulture == "it")">&#x1F1EE;&#x1F1F9;&nbsp; Italiano</option>
+                @* Source of truth: SupportedLanguagesConfig.All — adding a
+                   language to that C# file automatically renders it here. *@
+                @foreach (var l in MedicalApp.Services.SupportedLanguagesConfig.All)
+                {
+                    <option value="@l.Code" selected="@(currentCulture == l.Code)">@l.FlagEmoji&nbsp; @l.NativeName</option>
+                }
             </select>
         </form>
     </div>
