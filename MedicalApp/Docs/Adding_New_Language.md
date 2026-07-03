@@ -41,6 +41,11 @@
   - Adaugă `"xx" => "xx-XX"` în switch-ul `cultureName` (ex: `"it" => "it-IT"`)
   - **De ce e critic:** B2B batch-urile setează `CurrentUICulture` din acest switch. Fallback default e `"en-US"` → toate PDF-urile și emailurile din batch generate în EN.
 
+- [ ] **9. `Services/SamplingDateParser.cs` (linia ~52 `MonthLookup` și ~133 `cultures[]`)**
+  - Adaugă numele lunilor în limba nouă în dicționarul `MonthLookup` (short + long forms)
+  - Adaugă `"xx-XX"` în array-ul `cultures[]` de la fallback parser
+  - **De ce e important:** Când Gemini extrage data de recoltare dintr-un PDF italian ("27 gennaio 2014"), parser-ul nostru trebuie s-o înțeleagă. Fără update, aplicația poate ignora sau interpreta greșit data → istoricul și evoluția per pacient pot avea date greșite.
+
 ### **PARTEA C — Traduceri Loc.cs (populare)** — 30-40 min
 
 - [ ] **9. Traducere completă**
@@ -161,6 +166,7 @@ Toate cele 8 locuri hardcodate ar consuma această listă. Adăugarea unei limbi
 | 6 | `Services/GeminiMedicalInterpretationService.cs` | ~30 | `LanguageNames` dict | **⚠ Gemini generează interpretare în EN** |
 | 7 | `Services/MedicalInterpretationService.cs` | ~14 | `LanguageNames` dict (OpenAI) | Fallback provider generează în EN |
 | 8 | `Services/CamBatchService.cs` | ~73 | `cultureName` switch | **⚠ Batch B2B rulează în EN complet** |
+| 9 | `Services/SamplingDateParser.cs` | ~52, ~133 | `MonthLookup` + `cultures[]` | Data de recoltare din PDF-uri poate fi ratată/greșit interpretată |
 
 ---
 

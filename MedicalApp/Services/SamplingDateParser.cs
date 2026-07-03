@@ -48,7 +48,7 @@ namespace MedicalApp.Services
             @"(?<mon>[A-Za-zĂÂÎȘȚăâîșțéèêûôàâç]+)\.?\s+(?<d>\d{1,2}),?\s+(?<y>\d{4})",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-        // Months in English, Romanian, French — short + long, lowercased.
+        // Months in English, Romanian, French, Italian — short + long, lowercased.
         private static readonly Dictionary<string, int> MonthLookup = new(StringComparer.OrdinalIgnoreCase)
         {
             // English
@@ -83,6 +83,19 @@ namespace MedicalApp.Services
             { "juil", 7 }, { "juillet", 7 },
             { "août", 8 }, { "aout", 8 },
             { "déc", 12 }, { "décembre", 12 }, { "decembre", 12 },
+            // Italian
+            { "gen", 1 }, { "gennaio", 1 },
+            { "febbraio", 2 },
+            { "marzo", 3 },
+            { "aprile", 4 },
+            { "maggio", 5 },
+            { "giu", 6 }, { "giugno", 6 },
+            { "lug", 7 }, { "luglio", 7 },
+            { "ago", 8 }, { "agosto", 8 },
+            { "set", 9 }, { "sett", 9 }, { "settembre", 9 },
+            { "ott", 10 }, { "ottobre", 10 },
+            { "novembre", 11 },
+            { "dic", 12 }, { "dicembre", 12 },
         };
 
         public static DateTime? TryParse(string? raw)
@@ -130,7 +143,7 @@ namespace MedicalApp.Services
             }
 
             // 3. Last-ditch: hand the whole string to .NET's culture-aware parser.
-            string[] cultures = { "en-US", "ro-RO", "fr-FR", "es-ES", "de-DE" };
+            string[] cultures = { "en-US", "ro-RO", "fr-FR", "es-ES", "de-DE", "it-IT" };
             foreach (var cult in cultures)
             {
                 var ci = CultureInfo.GetCultureInfo(cult);
