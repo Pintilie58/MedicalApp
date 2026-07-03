@@ -33,7 +33,8 @@ namespace MedicalApp.Services
             ["ro"] = "Romanian (Română)",
             ["fr"] = "French (Français)",
             ["es"] = "Spanish (Español)",
-            ["de"] = "German (Deutsch)"
+            ["de"] = "German (Deutsch)",
+            ["it"] = "Italian (Italiano)"
         };
 
         public GeminiMedicalInterpretationService(

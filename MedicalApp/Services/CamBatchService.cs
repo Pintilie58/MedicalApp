@@ -74,6 +74,7 @@ namespace MedicalApp.Services
                     "fr" => "fr-FR",
                     "es" => "es-ES",
                     "de" => "de-DE",
+                    "it" => "it-IT",
                     _    => "en-US"
                 };
                 var culture = new System.Globalization.CultureInfo(cultureName);
