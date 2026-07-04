@@ -48,7 +48,7 @@ namespace MedicalApp.Services
             @"(?<mon>[A-Za-zĂÂÎȘȚăâîșțéèêûôàâç]+)\.?\s+(?<d>\d{1,2}),?\s+(?<y>\d{4})",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-        // Months in English, Romanian, French, Italian — short + long, lowercased.
+        // Months in English, Romanian, French, Italian, Portuguese — short + long, lowercased.
         private static readonly Dictionary<string, int> MonthLookup = new(StringComparer.OrdinalIgnoreCase)
         {
             // English
@@ -96,6 +96,17 @@ namespace MedicalApp.Services
             { "ott", 10 }, { "ottobre", 10 },
             { "novembre", 11 },
             { "dic", 12 }, { "dicembre", 12 },
+            // Portuguese
+            { "janeiro", 1 },
+            { "fev", 2 }, { "fevereiro", 2 },
+            { "março", 3 }, { "marco", 3 },
+            { "abr", 4 }, { "abril", 4 },
+            { "maio", 5 },
+            { "junho", 6 },
+            { "julho", 7 },
+            { "setembro", 9 },
+            { "out", 10 }, { "outubro", 10 },
+            { "dez", 12 }, { "dezembro", 12 },
         };
 
         public static DateTime? TryParse(string? raw)

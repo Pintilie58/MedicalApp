@@ -74,7 +74,7 @@ namespace MedicalApp.Services
         /// The complete list of supported languages. ORDER MATTERS — this is
         /// the order in which languages appear in the UI dropdowns and in the
         /// Admin "Translation Coverage" table. English first (default fallback),
-        /// then Romanian (project home country), then FR/ES/DE/IT in Romance
+        /// then Romanian (project home country), then FR/ES/DE/IT/PT in Romance
         /// family / add-order.
         /// </summary>
         public static readonly IReadOnlyList<LangDef> All = new List<LangDef>
@@ -144,6 +144,17 @@ namespace MedicalApp.Services
                                      "luglio","agosto","settembre","ottobre","novembre","dicembre" },
                 MonthsShort: new[] { "gen","feb","mar","apr","mag","giu",
                                      "lug","ago","set","ott","nov","dic" }
+            ),
+            new(
+                Code:        "pt",
+                CultureCode: "pt-PT",
+                LangName:    "Portuguese (Português)",
+                NativeName:  "Português",
+                FlagEmoji:   "\U0001F1F5\U0001F1F9",  // 🇵🇹
+                MonthsLong:  new[] { "janeiro","fevereiro","março","abril","maio","junho",
+                                     "julho","agosto","setembro","outubro","novembro","dezembro" },
+                MonthsShort: new[] { "jan","fev","mar","abr","mai","jun",
+                                     "jul","ago","set","out","nov","dez" }
             )
         };
 
