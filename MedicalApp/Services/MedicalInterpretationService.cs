@@ -11,15 +11,10 @@ namespace MedicalApp.Services
         private readonly OpenAISettings _settings;
         private readonly ILogger<MedicalInterpretationService> _logger;
 
-        private static readonly Dictionary<string, string> LanguageNames = new()
-        {
-            ["en"] = "English",
-            ["ro"] = "Romanian (Română)",
-            ["fr"] = "French (Français)",
-            ["es"] = "Spanish (Español)",
-            ["de"] = "German (Deutsch)",
-            ["it"] = "Italian (Italiano)"
-        };
+        // NOTE: LanguageNames used to be a private hardcoded dict here — it
+        // is now sourced from SupportedLanguagesConfig.GetLangName() so
+        // adding a new language never requires touching this file.
+        // (Phase 3 cleanup, Feb 2026.)
 
         public MedicalInterpretationService(
             IOptions<OpenAISettings> options,
@@ -54,8 +49,7 @@ namespace MedicalApp.Services
             if (string.IsNullOrWhiteSpace(_settings.ApiKey))
                 throw new InvalidOperationException("OpenAI API key is not configured. Set OpenAI:ApiKey in appsettings.json or User Secrets.");
 
-            // Source of truth: SupportedLanguagesConfig (see comment in
-            // GeminiMedicalInterpretationService for the rationale).
+            // Source of truth: SupportedLanguagesConfig.
             var languageName = SupportedLanguagesConfig.GetLangName(languageCode);
 
             var systemPrompt = BuildSystemPrompt();

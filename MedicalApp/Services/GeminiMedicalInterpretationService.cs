@@ -27,15 +27,10 @@ namespace MedicalApp.Services
         private const string EndpointFormat =
             "https://generativelanguage.googleapis.com/v1beta/models/{0}:generateContent?key={1}";
 
-        private static readonly Dictionary<string, string> LanguageNames = new()
-        {
-            ["en"] = "English",
-            ["ro"] = "Romanian (Română)",
-            ["fr"] = "French (Français)",
-            ["es"] = "Spanish (Español)",
-            ["de"] = "German (Deutsch)",
-            ["it"] = "Italian (Italiano)"
-        };
+        // NOTE: LanguageNames used to be a private hardcoded dict here — it
+        // is now sourced from SupportedLanguagesConfig.GetLangName() so
+        // adding a new language never requires touching this file.
+        // (Phase 3 cleanup, Feb 2026.)
 
         public GeminiMedicalInterpretationService(
             IOptions<GeminiSettings> options,
@@ -126,9 +121,7 @@ namespace MedicalApp.Services
             string? extractedText, CancellationToken ct,
             string? modelOverride = null)
         {
-            // Source of truth: SupportedLanguagesConfig. The previous local
-            // LanguageNames dictionary is preserved above for now — it will
-            // be removed in Phase 3 cleanup once this path is confirmed live.
+            // Source of truth: SupportedLanguagesConfig.
             var languageName = SupportedLanguagesConfig.GetLangName(languageCode);
 
             // Pick the model to call: explicit override (controller's fallback path)
