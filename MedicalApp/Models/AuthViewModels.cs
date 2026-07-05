@@ -11,7 +11,8 @@ namespace MedicalApp.Models
 
         [LocalizedRequired("PasswordRequired")]
         [DataType(DataType.Password)]
-        [LocalizedStringLength(100, "PasswordMinLength", MinimumLength = 6)]
+        [LocalizedPasswordComplexity]
+        [StringLength(100)]
         [Display(Name = "Password")]
         public string Parola { get; set; } = string.Empty;
 
@@ -79,7 +80,8 @@ namespace MedicalApp.Models
 
         [LocalizedRequired("PasswordRequired")]
         [DataType(DataType.Password)]
-        [LocalizedStringLength(100, "PasswordMinLength", MinimumLength = 6)]
+        [LocalizedPasswordComplexity]
+        [StringLength(100)]
         [Display(Name = "New Password")]
         public string Parola { get; set; } = string.Empty;
 

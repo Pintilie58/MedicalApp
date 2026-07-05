@@ -54,6 +54,83 @@ namespace MedicalApp.Models
     }
 
     /// <summary>
+    /// Enforces the 5-rule password complexity policy introduced in Feb 2026:
+    /// (1) min 8 chars, (2) uppercase, (3) lowercase, (4) digit, (5) special char
+    /// from the fixed set !?@#$%^&amp;* — deliberately narrow to keep the UI
+    /// hint compact and avoid keyboard-layout ambiguity across locales.
+    ///
+    /// <para>Only applied to NEW passwords (Register + ResetPassword). Login uses
+    /// the old (pre-policy) password of existing users unchanged.</para>
+    ///
+    /// <para>Emits <c>data-val-pwdcomplex</c> and <c>data-val-pwdcomplex-*</c>
+    /// attributes so client-side jQuery Validation adapter (registered in
+    /// wwwroot/js/password-complexity.js) mirrors the same 5 checks and shows
+    /// the localized rule list on submit failure.</para>
+    /// </summary>
+    public class LocalizedPasswordComplexityAttribute : ValidationAttribute, IClientModelValidator
+    {
+        // Deliberately narrow special-char set — matches the tooltip shown to
+        // the user (PasswordRuleSpecial). Keep in sync with the JS regex in
+        // password-complexity.js and the popover text in the two views.
+        public const string SpecialChars = "!?@#$%^&*";
+
+        public override bool IsValid(object? value)
+        {
+            var s = value as string;
+            // Empty is intentionally treated as VALID here — the paired
+            // LocalizedRequired attribute owns the "empty" error message.
+            // Returning true keeps the summary to a single, clear error
+            // instead of "Password is required" AND the rule list.
+            if (string.IsNullOrEmpty(s)) return true;
+            if (s.Length < 8) return false;
+            bool hasUpper = false, hasLower = false, hasDigit = false, hasSpecial = false;
+            foreach (var c in s)
+            {
+                if (c >= 'A' && c <= 'Z') hasUpper = true;
+                else if (c >= 'a' && c <= 'z') hasLower = true;
+                else if (c >= '0' && c <= '9') hasDigit = true;
+                else if (SpecialChars.IndexOf(c) >= 0) hasSpecial = true;
+            }
+            return hasUpper && hasLower && hasDigit && hasSpecial;
+        }
+
+        public override string FormatErrorMessage(string name)
+        {
+            // Multi-line list shown in the server-side validation summary.
+            // Each rule is a separate Loc key so translators handle them
+            // independently across the 7 supported languages.
+            return string.Join("\n", new[]
+            {
+                Loc.T("PasswordRulesTitle") + ":",
+                "• " + Loc.T("PasswordRuleMinLength"),
+                "• " + Loc.T("PasswordRuleUpper"),
+                "• " + Loc.T("PasswordRuleLower"),
+                "• " + Loc.T("PasswordRuleDigit"),
+                "• " + Loc.T("PasswordRuleSpecial"),
+            });
+        }
+
+        public void AddValidation(ClientModelValidationContext context)
+        {
+            if (!context.Attributes.ContainsKey("data-val"))
+                context.Attributes.Add("data-val", "true");
+            if (!context.Attributes.ContainsKey("data-val-pwdcomplex"))
+                context.Attributes.Add("data-val-pwdcomplex", FormatErrorMessage(string.Empty));
+
+            // Individual rule messages so the JS adapter can list precisely
+            // which rules are still missing when it renders the inline error.
+            void Add(string k, string v) { if (!context.Attributes.ContainsKey(k)) context.Attributes.Add(k, v); }
+            Add("data-val-pwdcomplex-header",  Loc.T("PasswordRulesTitle"));
+            Add("data-val-pwdcomplex-min",     Loc.T("PasswordRuleMinLength"));
+            Add("data-val-pwdcomplex-upper",   Loc.T("PasswordRuleUpper"));
+            Add("data-val-pwdcomplex-lower",   Loc.T("PasswordRuleLower"));
+            Add("data-val-pwdcomplex-digit",   Loc.T("PasswordRuleDigit"));
+            Add("data-val-pwdcomplex-special", Loc.T("PasswordRuleSpecial"));
+            Add("data-val-pwdcomplex-specialset", SpecialChars);
+        }
+    }
+
+    /// <summary>
     /// CompareAttribute in .NET uses a special adapter that bypasses FormatErrorMessage,
     /// so we do NOT inherit from it. Instead we implement ValidationAttribute + IClientModelValidator
     /// so both server-side and client-side validation use the localized message.
