@@ -36,6 +36,16 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - **LoincDictionary** *(new — LOINC step 1)*: LoincCode (PK string), LongCommonName (indexed), OrderObs, AliasesJson, TranslationsJson, ImportedAt
 
 ## Implemented (changelog)
+- 🐛 **2026-02 — Bug fix: profil implicit „Eu" lipsă pentru useri noi înregistrați după boot**:
+  - **Simptom:** un user B2C nou-înregistrat cu parolă puternică (după activarea politicii de complexitate) intră pe `/Interpretation` și vede dropdown gol pentru profil („-- Selectează profilul --", nici o opțiune).
+  - **Cauză root:** `Services/StartupSeed.EnsureDefaultProfilesAsync` creează profilul „Eu" doar la **pornirea aplicației** pentru userii existenți care nu au încă profil. NU rulează pentru userii care se înregistrează **după** ce aplicația e deja pornită. `AccountController.VerifyEmail` (unde se creează efectiv userul în DB) nu avea niciun cod care să adauge profilul implicit.
+  - **Fix:** în `Controllers/AccountController.cs`, imediat după `_db.Users.Add(user);` (linia 280), adăugat `_db.Profiles.Add(new Profile { UserEmail = user.Email, Name = Loc.T("DefaultProfileNameSelf"), Relationship = "self", IsDefault = true, CreatedAt = DateTime.UtcNow });`. Ambele INSERT-uri intră în aceeași tranzacție cu `SaveChangesAsync`; EF Core ordonează automat User→Profile (FK constraint).
+  - **Localizare:** cheie nouă `DefaultProfileNameSelf` × 7 limbi în `Services/Loc.cs` (en=„Me", ro=„Eu", fr=„Moi", es=„Yo", de=„Ich", it=„Io", pt=„Eu"). Total 1005 chei/limbă, paritate perfectă.
+  - **Discriminator:** `IsDefault=true` este cheia (nu numele) — `InterpretationController.Index` line 97 selectează profilul cu `IsDefault=true` ca default în dropdown; nu a fost nevoie de modificări în controller-ul de interpretare.
+  - **Fără regresii:** `StartupSeed.EnsureDefaultProfilesAsync` rămâne intact — continuă să facă backfill pentru userii legacy la boot. Const-ul `DefaultProfileName = "Eu"` din StartupSeed rămâne hardcodat (existenții au deja „Eu" în DB — consistență). B2B/CAM nu e afectat (userii clinici folosesc `/CAM` nu `/Interpretation`).
+  - Validare statică (`/app/test_reports/iteration_5.json`): 8/8 verificări au trecut, zero issues, zero regresii.
+
+
 - ✅ **2026-02 — Politică de complexitate parolă (Register + ResetPassword, B2C+B2B)**:
   - **`Models/LocalizedAttributes.cs`**: adăugat atributul `LocalizedPasswordComplexityAttribute` (ValidationAttribute + IClientModelValidator) care impune 5 reguli: min 8 caractere, ≥1 majusculă, ≥1 minusculă, ≥1 cifră, ≥1 caracter special din setul explicit `!?@#$%^&*` (const `SpecialChars`). Empty/null returnează `true` — delegăm către `LocalizedRequired` pentru evita eroarea dublă „Field required" + „Rules not met". Emite atributele `data-val-pwdcomplex-*` (header/min/upper/lower/digit/special/specialset) pentru adaptorul JS.
   - **`Models/AuthViewModels.cs`**: `RegisterViewModel.Parola` și `ResetPasswordViewModel.Parola` folosesc acum `[LocalizedPasswordComplexity] + [StringLength(100)]` (înlocuiește `LocalizedStringLength(100, "PasswordMinLength", MinimumLength=6)`). `LoginViewModel.Parola` **NU** are politica — userii existenți cu parole vechi (6 caractere) continuă să se logheze fără impediment.
