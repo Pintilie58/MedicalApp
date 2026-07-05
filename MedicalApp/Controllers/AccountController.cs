@@ -279,6 +279,23 @@ namespace MedicalApp.Controllers
 
             _db.Users.Add(user);
 
+            // Auto-create the default "self" profile for the new user so the
+            // Interpretation page dropdown is pre-populated instead of empty.
+            // Previously this was only handled by StartupSeed at boot time,
+            // which does NOT cover users who register after the app is
+            // already running (fix — Feb 2026 bug report). Discriminator is
+            // IsDefault=true; the Name is a localized display label so each
+            // new user sees the profile in their own UI language ("Eu" for
+            // Romanian, "Me" for English, "Moi" for French, etc.).
+            _db.Profiles.Add(new Profile
+            {
+                UserEmail = user.Email,
+                Name = Loc.T("DefaultProfileNameSelf"),
+                Relationship = "self",
+                IsDefault = true,
+                CreatedAt = DateTime.UtcNow
+            });
+
             // CAM: dacă userul s-a înregistrat ca Clinică, creăm imediat și rândul
             // Clinic asociat (1:1 cu User.Email). Folderele pe disk NU se creează
             // acum — abia după PRIMA cumpărare de credite (vezi CreditsController).
