@@ -36,6 +36,17 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - **LoincDictionary** *(new — LOINC step 1)*: LoincCode (PK string), LongCommonName (indexed), OrderObs, AliasesJson, TranslationsJson, ImportedAt
 
 ## Implemented (changelog)
+- 🐛 **2026-02 — Bug fix: auto-login după VerifyEmail (redirect greșit spre Landing în loc de Interpretare)**:
+  - **Simptom:** utilizator dă click pe „Interpretare gratuită" → se înregistrează Persoană fizică → primește codul de 4 cifre pe email → introduce codul → aterizează pe pagina **Landing** (marketing) în loc de `/Interpretation/Upload`, chiar dacă userul este creat corect în DB.
+  - **Cauză root:** `AccountController.VerifyEmail` POST (linia 374) făcea `RedirectToAction("Index", "Home")`. `HomeController.Index` (linia 13-19) renderează `Landing` pentru orice vizitator FĂRĂ session cookie. Codul crea userul în DB dar nu seta niciodată `HttpContext.Session["UserEmail"]`, așa că nu era „logat" — deci Home/Index îl trimitea la Landing. Bug regresie introdus atunci când pagina Landing a înlocuit vechiul default `/Home/Index=login form`.
+  - **Fix:** înainte de redirect, setăm `Session["UserEmail"] = user.Email` + `Session["JustLoggedIn"] = "1"` (aceleași chei ca Login normal), apoi:
+    - **B2C**: `RedirectToAction("Upload", "Interpretation")` — direct la formularul de upload PDF, cu creditul freemium activ (BonusCredits=1).
+    - **B2B/Clinic**: cache `ClinicId` prin `AsNoTracking()` (aceeași optimizare ca Login pentru polling la 3s), apoi `RedirectToAction("Index", "Dashboard", new { area = "CAM" })`.
+  - Linia veche `TempData["ActiveTab"] = "login"; return RedirectToAction("Index", "Home");` eliminată (inutilă — Landing nu citea ActiveTab).
+  - Rutele error-path (cod expirat, prea multe încercări) rămân neatinse — acolo redirectul spre Home/Index e corect (userul e neautentificat legitim).
+  - Validare statică (`/app/test_reports/iteration_7.json`): 7/7 verificări trecute, brace balance OK, zero regresii.
+
+
 - ✅ **2026-02 — Blocare tab „Clinică" pe fluxul „Interpretare gratuită"**:
   - **Cerință:** când vizitatorul dă click pe un CTA care promite „interpretare gratuită" (Hero, PillarInd, Compare, Pricing), formularul de Înregistrare trebuie să afișeze DOAR opțiunea „Persoană fizică" — B2B/Clinic ascuns complet. Alte CTA-uri (header signin, PillarLab, PillarCln, B2B strip) rămân neafectate.
   - **`Views/Home/Landing.cshtml`**: adăugat helper `AuthUrlFree(string tab)` care generează `/Home/Auth?tab=register&flow=free`. Migrate exact 4 CTA-uri (hero-cta-primary, pillar-ind-cta, compare-cta, pricing-cta). Cele 5 CTA-uri de tip B2B/navigație (land-signin, land-getstarted, pillar-lab-cta, pillar-cln-cta, b2b-cta) rămân pe `AuthUrl` clasic.
