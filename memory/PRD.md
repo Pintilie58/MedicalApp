@@ -36,6 +36,15 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - **LoincDictionary** *(new — LOINC step 1)*: LoincCode (PK string), LongCommonName (indexed), OrderObs, AliasesJson, TranslationsJson, ImportedAt
 
 ## Implemented (changelog)
+- ✅ **2026-02 — Blocare tab „Clinică" pe fluxul „Interpretare gratuită"**:
+  - **Cerință:** când vizitatorul dă click pe un CTA care promite „interpretare gratuită" (Hero, PillarInd, Compare, Pricing), formularul de Înregistrare trebuie să afișeze DOAR opțiunea „Persoană fizică" — B2B/Clinic ascuns complet. Alte CTA-uri (header signin, PillarLab, PillarCln, B2B strip) rămân neafectate.
+  - **`Views/Home/Landing.cshtml`**: adăugat helper `AuthUrlFree(string tab)` care generează `/Home/Auth?tab=register&flow=free`. Migrate exact 4 CTA-uri (hero-cta-primary, pillar-ind-cta, compare-cta, pricing-cta). Cele 5 CTA-uri de tip B2B/navigație (land-signin, land-getstarted, pillar-lab-cta, pillar-cln-cta, b2b-cta) rămân pe `AuthUrl` clasic.
+  - **`Controllers/HomeController.cs`**: `Auth(tab, flow)` acceptă noul param `flow`; dacă `flow=="free"` (case-insensitive) setează `ViewData["Flow"] = "free"`.
+  - **`Controllers/AccountController.cs`**: `Register(model)` citește `Request.Form["flow"]` la începutul acțiunii; dacă e „free" coerce `UserType="Individual"` și golește Clinic-fields (Name/City/Address) ÎNAINTE de validarea Clinic-required — apărare defense-in-depth împotriva unui POST modificat manual. Setează ViewData["Flow"] pentru a supraviețui re-randării la eroare de validare.
+  - **`Views/Home/Index.cshtml`**: nou `isFreeFlow` boolean; când e true: (a) UserType e forțat „Individual", (b) hidden `<input name="flow" value="free">` adăugat în form pentru propagare pe POST, (c) radio-ul `userTypeClinic` + label-ul lui înconjurate de `@if (!isFreeFlow)` — NU se randează deloc în DOM, (d) radio-ul Individual force-checked. JS existent de toggle `#clinicFields` are deja guard `if (!rClinic) return;` — bail-out safe când Clinic nu e randat.
+  - Validare statică (`/app/test_reports/iteration_6.json`): 9/9 verificări trecute; zero regresii pe Login, VerifyEmail, header nav sau alte CTA-uri.
+
+
 - 🐛 **2026-02 — Bug fix: profil implicit „Eu" lipsă pentru useri noi înregistrați după boot**:
   - **Simptom:** un user B2C nou-înregistrat cu parolă puternică (după activarea politicii de complexitate) intră pe `/Interpretation` și vede dropdown gol pentru profil („-- Selectează profilul --", nici o opțiune).
   - **Cauză root:** `Services/StartupSeed.EnsureDefaultProfilesAsync` creează profilul „Eu" doar la **pornirea aplicației** pentru userii existenți care nu au încă profil. NU rulează pentru userii care se înregistrează **după** ce aplicația e deja pornită. `AccountController.VerifyEmail` (unde se creează efectiv userul în DB) nu avea niciun cod care să adauge profilul implicit.
