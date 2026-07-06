@@ -370,8 +370,37 @@ namespace MedicalApp.Controllers
                 // Default freemium: 1 free interpretation, blurred PDF until upgrade.
                 TempData["SuccessMessage"] = Loc.T("RegistrationSuccessFreebie");
             }
-            TempData["ActiveTab"] = "login";
-            return RedirectToAction("Index", "Home");
+
+            // Auto-login the freshly verified user (fix Feb 2026 bug report):
+            // previously we did `RedirectToAction("Index", "Home")` here, which
+            // routes to HomeController.Index — and that action shows the
+            // marketing Landing page when the visitor has no session cookie.
+            // Users reported feeling stuck on Landing after typing the 4-digit
+            // code instead of being able to immediately spend their free credit.
+            // Setting the session cookie now means the "if (Session.UserEmail)"
+            // guards on Home/Index, Dashboard, Interpretation/Upload etc. all
+            // recognise the user, and the follow-up redirect below sends them
+            // straight to the right destination for their account type.
+            HttpContext.Session.SetString("UserEmail", user.Email);
+            HttpContext.Session.SetString("JustLoggedIn", "1");
+
+            if (string.Equals(user.UserType, "Clinic", StringComparison.OrdinalIgnoreCase))
+            {
+                // B2B clinic → CAM Dashboard. Cache ClinicId on session so the
+                // 3-second polling on batch progress can skip the DB lookup
+                // (same optimisation Login does at line ~470).
+                var clinicId = await _db.Clinics.AsNoTracking()
+                    .Where(c => c.UserEmail == user.Email)
+                    .Select(c => c.Id)
+                    .FirstOrDefaultAsync();
+                if (clinicId > 0)
+                    HttpContext.Session.SetInt32("ClinicId", clinicId);
+                return RedirectToAction("Index", "Dashboard", new { area = "CAM" });
+            }
+
+            // B2C individual — land directly on the free-interpretation upload
+            // page so the visitor can consume their bonus credit right away.
+            return RedirectToAction("Upload", "Interpretation");
         }
 
         [HttpPost]
