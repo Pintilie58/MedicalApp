@@ -49,19 +49,34 @@
                         <div class="col-md-6">
                             <div class="border rounded p-3 h-100 d-flex flex-column">
                                 <h5 class="text-primary fw-bold">
-                                    &#11015;&#65039; @Loc.T("DupOpenExistingTitle")
+                                    &#128196; @Loc.T("DupOpenExistingTitle")
                                 </h5>
                                 <p class="small text-muted flex-grow-1">
                                     @Loc.T("DupOpenExistingDesc")
                                     <strong class="text-success">@Loc.T("DupBadgeFree")</strong>
                                     @Loc.T("DupNoCreditNote")
                                 </p>
-                                <a asp-controller="Profiles" asp-action="DownloadReport"
-                                   asp-route-id="@Model.ExistingHistoryId"
-                                   class="btn btn-primary w-100"
-                                   data-testid="btn-open-existing-report">
-                                    @Loc.T("DupOpenExistingTitle")
-                                </a>
+                                @* Two side-by-side actions replace the old single "Open existing report"
+                                   button (Feb 2026 UX change): the user may not have Adobe/PDF viewer
+                                   installed, so we (1) force-download via Content-Disposition:attachment
+                                   OR (2) email the regenerated PDF back to them as an attachment. *@
+                                <div class="d-grid gap-2">
+                                    <a asp-controller="Profiles" asp-action="DownloadReport"
+                                       asp-route-id="@Model.ExistingHistoryId"
+                                       class="btn btn-primary"
+                                       data-testid="btn-download-existing-report">
+                                        &#11015;&#65039; @Loc.T("DupDownloadTitle")
+                                    </a>
+                                    <form asp-controller="Profiles" asp-action="EmailReport" method="post" class="m-0">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@Model.ExistingHistoryId" />
+                                        <input type="hidden" name="profileId" value="@Model.ProfileId" />
+                                        <button type="submit" class="btn btn-outline-primary w-100"
+                                                data-testid="btn-email-existing-report">
+                                            &#9993;&#65039; @Loc.T("DupSendByEmailTitle")
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
                         </div>
 

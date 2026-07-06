@@ -191,6 +191,91 @@ namespace MedicalApp.Controllers
             if (string.IsNullOrEmpty(CurrentEmail))
                 return RedirectToAction("Index", "Home");
 
+            var (pdfBytes, fileName, errorResult) = await TryRegenerateReportPdfAsync(id);
+            if (errorResult != null) return errorResult;
+
+            // `File(bytes, contentType, fileDownloadName)` sets
+            // Content-Disposition: attachment — the browser saves the PDF to
+            // the Downloads folder instead of trying to hand it off to
+            // Adobe Acrobat / Reader (per user request Feb 2026: users who
+            // don't have a PDF viewer installed were left stuck otherwise).
+            return File(pdfBytes!, "application/pdf", fileName!);
+        }
+
+        // ====================================================================
+        // EMAIL REPORT - regenerate PDF and email it back to the current user
+        // as an alternative to downloading. Introduced Feb 2026 alongside the
+        // "Duplicate detected" page where the single "Open existing report"
+        // button was split into two: "Download" (DownloadReport) and "Send
+        // via email" (this action).
+        // ====================================================================
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EmailReport(int id, int? profileId = null)
+        {
+            if (string.IsNullOrEmpty(CurrentEmail))
+                return RedirectToAction("Index", "Home");
+
+            var (pdfBytes, fileName, errorResult) = await TryRegenerateReportPdfAsync(id);
+            if (errorResult != null) return errorResult;
+
+            // Capture UI culture up-front so awaited operations further down
+            // can't drift the language of the email (same pattern used by
+            // CompareExport at line ~474).
+            var lang = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+            var subject = Loc.T("ResultEmailSubject", lang);
+            var greeting = Loc.T("EmailGreeting", lang);
+            var intro = Loc.T("ResultEmailIntro", lang);
+            var attached = Loc.T("ResultEmailAttachedNote", lang);
+            var tagline = Loc.T("Tagline", lang);
+            var regards = Loc.T("EmailRegards", lang);
+            var htmlBody = $@"
+<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
+    <h2 style='color: #0d47a1;'>MedicalApp</h2>
+    <p>{greeting}</p>
+    <p>{intro}</p>
+    <p style='color: #6c757d; font-size: 0.9em;'>{attached}</p>
+    <p style='font-style: italic; color: #0d47a1;'>{tagline}</p>
+    <hr style='border: none; border-top: 1px solid #dee2e6; margin: 20px 0;' />
+    <p style='color: #6c757d; font-size: 0.9em;'>{regards}</p>
+    <p style='color: #0d47a1; font-weight: bold;'>www.MedicalApp.com</p>
+</div>";
+
+            try
+            {
+                await _emailService.SendEmailWithAttachmentAsync(
+                    CurrentEmail, subject, htmlBody, pdfBytes!, fileName!);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "EmailReport: failed to send report id={Id} to {Email}", id, CurrentEmail);
+                TempData["ErrorMessage"] = Loc.T("EmailSendFailedTryDownload", lang);
+                // Fallback: the user was on DuplicateDetected, so bounce back
+                // to Interpretation/Upload where they can retry.
+                return profileId.HasValue
+                    ? RedirectToAction(nameof(History), new { id = profileId.Value })
+                    : RedirectToAction("Upload", "Interpretation");
+            }
+
+            TempData["SuccessMessage"] = string.Format(Loc.T("DupEmailSentFmt", lang), CurrentEmail);
+            return profileId.HasValue
+                ? RedirectToAction(nameof(History), new { id = profileId.Value })
+                : RedirectToAction("Upload", "Interpretation");
+        }
+
+        /// <summary>
+        /// Shared helper used by <see cref="DownloadReport"/> and
+        /// <see cref="EmailReport"/>: regenerates the branded PDF from the
+        /// stored <c>RawJsonResult</c> and returns the bytes + filename.
+        /// Returns an <see cref="IActionResult"/> in <c>errorResult</c> when
+        /// the caller must short-circuit (missing history, deserialize fail,
+        /// PDF regeneration fail); in that case <c>pdfBytes</c>/<c>fileName</c>
+        /// are null and the redirect target is already prepared with a
+        /// TempData error message.
+        /// </summary>
+        private async Task<(byte[]? pdfBytes, string? fileName, IActionResult? errorResult)>
+            TryRegenerateReportPdfAsync(int id)
+        {
             var history = await _db.InterpretationHistories
                 .AsNoTracking()
                 .FirstOrDefaultAsync(h => h.Id == id
@@ -199,7 +284,7 @@ namespace MedicalApp.Controllers
             if (history == null || string.IsNullOrWhiteSpace(history.RawJsonResult))
             {
                 TempData["ErrorMessage"] = Loc.T("ErrReportNotFound");
-                return RedirectToAction(nameof(Index));
+                return (null, null, RedirectToAction(nameof(Index)));
             }
 
             InterpretationResult? result;
@@ -216,14 +301,16 @@ namespace MedicalApp.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to deserialize RawJsonResult for history id={Id}", id);
-                TempData["ErrorMessage"] = "Raportul nu a putut fi reconstruit din datele stocate.";
-                return RedirectToAction(nameof(History), new { id = history.ProfileId ?? 0 });
+                TempData["ErrorMessage"] = Loc.T("ErrReportCannotBeReconstructed");
+                return (null, null, RedirectToAction(nameof(History),
+                    new { id = history.ProfileId ?? 0 }));
             }
 
             if (result == null)
             {
-                TempData["ErrorMessage"] = "Raportul nu a putut fi reconstruit din datele stocate.";
-                return RedirectToAction(nameof(History), new { id = history.ProfileId ?? 0 });
+                TempData["ErrorMessage"] = Loc.T("ErrReportCannotBeReconstructed");
+                return (null, null, RedirectToAction(nameof(History),
+                    new { id = history.ProfileId ?? 0 }));
             }
 
             byte[] pdfBytes;
@@ -241,12 +328,13 @@ namespace MedicalApp.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "PDF regeneration failed for history id={Id}", id);
-                TempData["ErrorMessage"] = "Eroare la generarea PDF-ului.";
-                return RedirectToAction(nameof(History), new { id = history.ProfileId ?? 0 });
+                TempData["ErrorMessage"] = Loc.T("ErrPdfGenerationFailed");
+                return (null, null, RedirectToAction(nameof(History),
+                    new { id = history.ProfileId ?? 0 }));
             }
 
             var fileName = $"MedicalApp_{history.CreatedAt:yyyyMMdd_HHmmss}_report.pdf";
-            return File(pdfBytes, "application/pdf", fileName);
+            return (pdfBytes, fileName, null);
         }
 
         // ====================================================================

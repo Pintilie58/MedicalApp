@@ -1,0 +1,27 @@
+{
+  "summary": "Static verification (no dotnet SDK in sandbox) of the DuplicateDetected two-button split (Download + Email) feature for MedicalApp ASP.NET Core MVC. All 8 static checks from the review request pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "static_verification_results": {
+    "1_helper_extracted": "PASS - TryRegenerateReportPdfAsync(int id) exists at line 276-338 in ProfilesController.cs. Returns (byte[]? pdfBytes, string? fileName, IActionResult? errorResult). Contains DB history lookup (AsNoTracking + Status=='success' + UserEmail==CurrentEmail), JsonSerializer.Deserialize<InterpretationResult> with case-insensitive options, freemium gating (Credite==0 => isFreemium=true), and _pdfGenerator.Generate(result, LocalizedLabels.ForCurrentUi(), isFreemium).",
+    "2_downloadreport_thin": "PASS - DownloadReport(int id) at lines 189-203 is now ~14 lines: session guard on CurrentEmail, calls helper, returns errorResult if set, else `return File(pdfBytes!, \"application/pdf\", fileName!)` (3-arg overload => Content-Disposition:attachment).",
+    "3_emailreport_action": "PASS - EmailReport(int id, int? profileId=null) at lines 212-264 has [HttpPost] + [ValidateAntiForgeryToken], session guard, calls helper, captures lang from CultureInfo.CurrentUICulture.TwoLetterISOLanguageName up-front (line 225), builds HTML body with Loc.T for EmailGreeting/ResultEmailIntro/ResultEmailAttachedNote/Tagline/EmailRegards, calls _emailService.SendEmailWithAttachmentAsync(CurrentEmail, subject, htmlBody, pdfBytes!, fileName!). On exception: TempData[ErrorMessage]=EmailSendFailedTryDownload, redirects to History(profileId) or Interpretation/Upload. On success: TempData[SuccessMessage]=string.Format(Loc.T(\"DupEmailSentFmt\",lang), CurrentEmail) and same redirect logic.",
+    "4_view_two_buttons": "PASS - DuplicateDetected.cshtml lines 63-79: `.d-grid.gap-2` container with (a) <a asp-controller=\"Profiles\" asp-action=\"DownloadReport\" asp-route-id=\"@Model.ExistingHistoryId\" class=\"btn btn-primary\" data-testid=\"btn-download-existing-report\">, and (b) inline <form asp-action=\"EmailReport\" method=\"post\"> with @Html.AntiForgeryToken(), hidden id + profileId, submit button data-testid=\"btn-email-existing-report\" class=\"btn btn-outline-primary w-100\". Right-hand ReInterpret column (line 83+) unchanged.",
+    "5_loc_keys": "PASS - All 5 new keys (DupDownloadTitle, DupSendByEmailTitle, DupEmailSentFmt, ErrReportCannotBeReconstructed, ErrPdfGenerationFailed) exist exactly 7 times each (one per language). Full parity confirmed: each of en/ro/fr/es/de/it/pt has exactly 1010 unique keys.",
+    "6_iemailservice_unchanged": "PASS - IEmailService.cs line 7 exposes SendEmailWithAttachmentAsync unchanged.",
+    "7_brace_balance": "PASS - ProfilesController.cs {=188 }=188, Loc.cs {=1140 }=1140, DuplicateDetected.cshtml {=23 }=23. All diffs = 0.",
+    "8_old_selector_removed": "PASS - grep for `btn-open-existing-report` across /app/MedicalApp/ returns zero matches. New selectors `btn-download-existing-report` and `btn-email-existing-report` present only in DuplicateDetected.cshtml (lines 67, 75)."
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Minor: EmailReport uses `string.Format(Loc.T(\"DupEmailSentFmt\", lang), CurrentEmail)` — verify all 7 language strings contain a single `{0}` placeholder to avoid FormatException at runtime (couldn't runtime-test without dotnet SDK).",
+    "Minor: The error-path redirect in EmailReport goes to Interpretation/Upload when profileId is null; consistent with review spec. Consider whether the DuplicateDetected view always posts profileId — it does (hidden input on line 73 with @Model.ProfileId), so the null branch is defensive but unlikely."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (static only)", "frontend": "N/A (skipped per request)"},
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Sandbox has no dotnet SDK — only static/grep verification possible. User builds & runs on VS2026 locally. Iteration 8 feature: DuplicateDetected page split single 'Open existing report' button into 'Download' (force-attachment) + 'Email' (regenerate & mail). All 8 acceptance checks passed. If a future agent gets dotnet: run the app and hit /Profiles/DownloadReport/{id} (expect Content-Disposition:attachment header) and POST /Profiles/EmailReport with antiforgery token."
+}
