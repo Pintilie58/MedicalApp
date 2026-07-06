@@ -13,6 +13,11 @@
     var currentLang = langs.FirstOrDefault(l => l.Code == current)
                       ?? MedicalApp.Services.SupportedLanguagesConfig.Default;
     string AuthUrl(string tab) => Url.Action("Auth", "Home", new { tab = tab }) ?? "/Home/Auth";
+    // Same as AuthUrl but tags the visit with ?flow=free — used by the four
+    // "free interpretation" CTAs so the Register view can hide the Clinic
+    // account-type option (per user request Feb 2026: only Persoană fizică
+    // may sign up when the user arrives via a "free interpretation" button).
+    string AuthUrlFree(string tab) => Url.Action("Auth", "Home", new { tab = tab, flow = "free" }) ?? "/Home/Auth";
 }
 <!DOCTYPE html>
 <html lang="@current">
@@ -123,7 +128,7 @@
                     @Loc.T("HeroLead")
                 </p>
                 <div class="land-hero-cta">
-                    <a href="@AuthUrl("register")" class="land-btn land-btn-accent land-btn-lg"
+                    <a href="@AuthUrlFree("register")" class="land-btn land-btn-accent land-btn-lg"
                        data-testid="hero-cta-primary">
                         @Loc.T("HeroCtaPrimary") &rarr;
                     </a>
@@ -318,7 +323,7 @@
                     <li>@Loc.T("PillarIndPt6")</li>
                     <li>@Loc.T("PillarIndPt7")</li>
                 </ul>
-                <a href="@AuthUrl("register")" class="land-btn land-btn-ghost mt-3" data-testid="pillar-ind-cta">
+                <a href="@AuthUrlFree("register")" class="land-btn land-btn-ghost mt-3" data-testid="pillar-ind-cta">
                     @Loc.T("PillarIndCta") &rarr;
                 </a>
             </div>
@@ -455,7 +460,7 @@
 
             @* ----- Bottom CTA ----- *@
             <div class="land-compare-cta">
-                <a href="@AuthUrl("register")" class="land-btn land-btn-accent land-btn-lg"
+                <a href="@AuthUrlFree("register")" class="land-btn land-btn-accent land-btn-lg"
                    data-testid="compare-cta">
                     @Loc.T("CompareCta") &rarr;
                 </a>
@@ -531,7 +536,7 @@
                 @Loc.T("PriceFree") <small>· @Loc.T("PriceFreeSub")</small>
             </div>
             <p style="max-width: 480px; margin: 0 auto 1.25rem;">@Loc.T("PriceBody")</p>
-            <a href="@AuthUrl("register")" class="land-btn land-btn-accent land-btn-lg"
+            <a href="@AuthUrlFree("register")" class="land-btn land-btn-accent land-btn-lg"
                data-testid="pricing-cta">
                 @Loc.T("PriceCtaButton") &rarr;
             </a>

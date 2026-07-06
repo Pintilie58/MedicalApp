@@ -79,6 +79,21 @@ namespace MedicalApp.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Register(RegisterViewModel model)
         {
+            // If the visitor arrived through a "free interpretation" CTA the
+            // Register view carries a hidden <input name="flow" value="free">.
+            // We honour it server-side by forcing UserType=Individual — that
+            // way even a hand-crafted POST that flips UserType back to
+            // "Clinic" gets ignored, and the block is defensive (not just UI).
+            var isFreeFlow = string.Equals(Request.Form["flow"], "free", StringComparison.OrdinalIgnoreCase);
+            if (isFreeFlow)
+            {
+                model.UserType = "Individual";
+                model.ClinicName = null;
+                model.ClinicCity = null;
+                model.ClinicAddress = null;
+                ViewData["Flow"] = "free";
+            }
+
             // CAM: dacă userul a ales "Clinic", numele clinicii / localitatea /
             // adresa devin obligatorii. Validăm aici pentru că [Required] pe
             // ViewModel ar bloca și fluxul "Individual".

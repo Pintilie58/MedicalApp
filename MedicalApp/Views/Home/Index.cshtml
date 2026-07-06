@@ -6,6 +6,18 @@
     var successMessage = TempData["SuccessMessage"] as string;
     var errorMessage = TempData["ErrorMessage"] as string;
     var currentCulture = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+
+    // ?flow=free — set by /Home/Auth when the visitor clicks a "free
+    // interpretation" CTA on the landing page (HeroCtaPrimary, PillarIndCta,
+    // CompareCta, PricingCta). In that branch the Register form must:
+    //   1. Force UserType=Individual (checked + only radio rendered)
+    //   2. Hide the Clinic radio option entirely so the user can't switch
+    //   3. Skip the Clinic-only extra fields (name / city / address)
+    //   4. Carry a hidden <input name="flow" value="free"> so AccountController
+    //      can enforce the same policy defensively on POST.
+    // The Login tab and header nav are NOT affected by this flag.
+    var isFreeFlow = string.Equals(ViewData["Flow"] as string, "free", System.StringComparison.OrdinalIgnoreCase);
+    if (isFreeFlow) { registerModel.UserType = "Individual"; }
 }
 
 <link rel="stylesheet" href="~/css/password-complexity.css" asp-append-version="true" />
@@ -111,27 +123,38 @@
                         <div id="registerPane" class="tab-pane fade @(activeTab == "register" ? "show active" : "")">
                             <form asp-controller="Account" asp-action="Register" method="post" autocomplete="off">
                                 @Html.AntiForgeryToken()
+                                @* Preserved from ?flow=free query param — see HomeController.Auth + AccountController.Register. *@
+                                @if (isFreeFlow)
+                                {
+                                    <input type="hidden" name="flow" value="free" data-testid="register-flow-free" />
+                                }
                                 <div asp-validation-summary="All" class="text-danger small mb-2"></div>
 
-                                @* CAM: tip cont — Persoană fizică vs. Clinică Analize Medicale *@
-                                <div class="mb-3">
+                                @* CAM: tip cont — Persoană fizică vs. Clinică Analize Medicale.
+                                   When isFreeFlow==true (visitor came from a "free interpretation"
+                                   CTA), the Clinic radio is hidden and the whole group collapses to
+                                   a single Individual pill — B2B signup is blocked for that flow. *@
+                                <div class="mb-3" data-testid="register-usertype-group">
                                     <label class="form-label fw-semibold">@Loc.T("UserTypeLabel")</label>
                                     <div class="btn-group w-100" role="group" aria-label="User type">
                                         <input type="radio" class="btn-check" name="UserType" id="userTypeIndividual"
                                                value="Individual" autocomplete="off"
-                                               @(string.Equals(registerModel.UserType, "Clinic", StringComparison.OrdinalIgnoreCase) ? "" : "checked")
+                                               @(isFreeFlow || !string.Equals(registerModel.UserType, "Clinic", System.StringComparison.OrdinalIgnoreCase) ? "checked" : "")
                                                data-testid="register-usertype-individual" />
                                         <label class="btn btn-outline-primary" for="userTypeIndividual">
                                             &#128106; @Loc.T("UserTypeIndividual")
                                         </label>
 
-                                        <input type="radio" class="btn-check" name="UserType" id="userTypeClinic"
-                                               value="Clinic" autocomplete="off"
-                                               @(string.Equals(registerModel.UserType, "Clinic", StringComparison.OrdinalIgnoreCase) ? "checked" : "")
-                                               data-testid="register-usertype-clinic" />
-                                        <label class="btn btn-outline-primary" for="userTypeClinic">
-                                            &#127973; @Loc.T("UserTypeClinic")
-                                        </label>
+                                        @if (!isFreeFlow)
+                                        {
+                                            <input type="radio" class="btn-check" name="UserType" id="userTypeClinic"
+                                                   value="Clinic" autocomplete="off"
+                                                   @(string.Equals(registerModel.UserType, "Clinic", System.StringComparison.OrdinalIgnoreCase) ? "checked" : "")
+                                                   data-testid="register-usertype-clinic" />
+                                            <label class="btn btn-outline-primary" for="userTypeClinic">
+                                                &#127973; @Loc.T("UserTypeClinic")
+                                            </label>
+                                        }
                                     </div>
                                 </div>
 

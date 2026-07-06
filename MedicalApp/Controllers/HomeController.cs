@@ -26,7 +26,7 @@ namespace MedicalApp.Controllers
         /// <c>Index.cshtml</c> view unchanged.
         /// </summary>
         [HttpGet]
-        public IActionResult Auth(string? tab = null)
+        public IActionResult Auth(string? tab = null, string? flow = null)
         {
             if (!string.IsNullOrEmpty(HttpContext.Session.GetString("UserEmail")))
                 return RedirectToAction("Dashboard", "Account");
@@ -35,6 +35,15 @@ namespace MedicalApp.Controllers
             ViewData["RegisterModel"] = new RegisterViewModel();
             if (!string.IsNullOrEmpty(tab))
                 ViewData["ActiveTab"] = tab; // "login" or "register"
+
+            // ?flow=free is set by Landing.cshtml's four "free interpretation"
+            // CTAs (HeroCtaPrimary, PillarIndCta, CompareCta, PricingCta).
+            // When present, the Register view hides the "Clinic" account type
+            // option so B2B signup is blocked for that flow — B2B/B2C pillar
+            // buttons on the landing remain unaffected.
+            if (string.Equals(flow, "free", StringComparison.OrdinalIgnoreCase))
+                ViewData["Flow"] = "free";
+
             return View("Index");
         }
 
