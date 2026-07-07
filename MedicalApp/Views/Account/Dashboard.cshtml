@@ -121,3 +121,26 @@
         </div>
     </div>
 </div>
+
+@* B2C interpretation finished successfully — play the longer (~2.5 s)
+   finale jingle. TempData is single-shot so this only fires on the
+   first Dashboard render after a successful /Interpretation/Upload,
+   never on plain dashboard visits. `setTimeout(..., 200)` gives the
+   DoctorMascot autoInit + the browser layout a moment to settle. *@
+@if (TempData["PlayInterpretationSuccessSound"] as string == "1")
+{
+    <script data-testid="interpretation-finish-sound-trigger">
+        (function () {
+            function fire() {
+                if (window.DoctorMascot && typeof window.DoctorMascot.playInterpretationFinishSound === 'function') {
+                    try { window.DoctorMascot.playInterpretationFinishSound(); } catch (e) { /* ignore */ }
+                }
+            }
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function () { setTimeout(fire, 200); });
+            } else {
+                setTimeout(fire, 200);
+            }
+        })();
+    </script>
+}

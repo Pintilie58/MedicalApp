@@ -782,6 +782,12 @@ namespace MedicalApp.Controllers
             }
 
             TempData["SuccessMessage"] = Loc.T("InterpretationEmailedSuccess");
+            // Signal to the Dashboard (redirect destination) that a B2C
+            // interpretation just finished successfully → the page will play
+            // the longer ~2.5 s finale jingle via
+            // window.DoctorMascot.playInterpretationFinishSound(). Cleared
+            // after one page render because TempData is single-shot.
+            TempData["PlayInterpretationSuccessSound"] = "1";
             return RedirectToAction("Dashboard", "Account");
         }
 

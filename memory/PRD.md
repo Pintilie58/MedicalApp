@@ -36,6 +36,16 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - **LoincDictionary** *(new — LOINC step 1)*: LoincCode (PK string), LongCommonName (indexed), OrderObs, AliasesJson, TranslationsJson, ImportedAt
 
 ## Implemented (changelog)
+- ✅ **2026-02 — Feature: melodie „finale" mai lungă (2.5s) la sfârșitul interpretării B2C**:
+  - **Cerință:** sunetul de terminare al mascotei doctor să dureze 2-3 secunde la finalul unei interpretări B2C (înainte nu se emitea niciun sunet — B2C făcea doar redirect fără feedback audio).
+  - **`wwwroot/js/doctor-mascot.js`**: adăugat `playInterpretationFinale(instance)` — 6 note ascendente C major (C5→G6, 0.16s per notă) urmate de un acord susținut C major (C6+E6+G6 în sine wave) ~1s. Total ~2.5 secunde. Melody folosește triangle wave (cald), chord final folosește sine (blând). Respectă `soundMuted` din localStorage + `ctx.resume()` pentru cazul când AudioContext e suspendat (Chrome autoplay policy).
+  - **`window.DoctorMascot.playInterpretationFinishSound()`** (nou, expus global): găsește prima instanță existentă `.doc-mascot` pe pagină și reutilizează AudioContext-ul ei (pentru a păstra preferința „silențios"); fallback pe context temporar dacă nu există mascotă.
+  - **`Controllers/InterpretationController.cs` linia 786**: la finalul reușit al interpretării B2C (înainte de `RedirectToAction("Dashboard", "Account")`), setează `TempData["PlayInterpretationSuccessSound"] = "1"` — flag single-shot.
+  - **`Views/Account/Dashboard.cshtml`**: block Razor `@if (TempData["PlayInterpretationSuccessSound"] == "1")` emite un mic script inline cu `setTimeout(fire, 200)` care apelează `window.DoctorMascot.playInterpretationFinishSound()`. 200 ms lasă `autoInit` al mascotei să ruleze primul.
+  - **Scope:** afectează DOAR B2C (redirect după interpretare). CAM Batch continuă să folosească `playFanfare` (~1s) — user a cerut modificare doar la B2C.
+  - Testing: lint JS PASS, brace balance OK. Modificare izolată, self-test suficient — user testează local pe VS2026.
+
+
 - ✅ **2026-02 — Feature: 2 butoane pe pagina „Analiză deja interpretată" (Download + Email)**:
   - **Cerință:** butonul unic „Deschide raportul existent" înlocuit cu două butoane distincte — „Descarcă interpretarea" (forțează descărcarea PDF, fără deschidere Acrobat) și „Trimite-o pe email" (regenerează PDF-ul și îl trimite ca atașament la emailul userului).
   - **`Controllers/ProfilesController.cs`**: extras helperul `TryRegenerateReportPdfAsync(int id)` din `DownloadReport` — face DB lookup + JsonSerializer.Deserialize + `_pdfGenerator.Generate` cu freemium gating, returnează `(byte[]? pdf, string? fileName, IActionResult? errorResult)`. `DownloadReport` devine ~14 linii (guard + call + `File(..., attachment)`). Nouă acțiune `EmailReport(int id, int? profileId)` POST cu `[ValidateAntiForgeryToken]` folosește același helper, apoi construiește HTML body cu Loc.T (culture capturat up-front) și trimite via `_emailService.SendEmailWithAttachmentAsync`. Pe eroare: TempData ErrorMessage + redirect la History/Upload; pe succes: TempData SuccessMessage cu emailul userului + același redirect.

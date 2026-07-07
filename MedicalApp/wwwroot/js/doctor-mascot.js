@@ -65,6 +65,68 @@
         } catch (e) { /* ignore */ }
     }
 
+    /**
+     * Longer "success" jingle used specifically when a B2C interpretation
+     * finishes (see Views/Account/Dashboard.cshtml → the destination page
+     * for a successful /Interpretation/Upload POST). Runs ~2.5 seconds
+     * instead of the ~0.9 s playFanfare — user Feb 2026 asked for a more
+     * prominent audio cue at the end of the interpretation.
+     *
+     * Design: 6 rising melodic notes (C major triad + octave lift) then a
+     * final held C-major chord (C6 + E6 + G6) sustained ~1 second. Uses a
+     * mix of triangle waves for the melody and sine waves for the chord so
+     * the finale feels warm rather than harsh.
+     *
+     * Accepts either a mascot instance (respects its `soundMuted` flag and
+     * reuses its AudioContext) or a `{ audioCtx, muted }` bag when called
+     * from a page that has no mascot instance ready yet.
+     */
+    function playInterpretationFinale(instance) {
+        if (!instance || instance.soundMuted) return;
+        var ctx = getAudioCtx(instance);
+        if (!ctx) return;
+        // Chrome/Edge/Firefox lock AudioContext until a user gesture; the
+        // Dashboard page is loaded from a form-submit redirect so the user
+        // HAS interacted with the site — resume() unblocks a suspended ctx.
+        if (ctx.state === 'suspended') {
+            try { ctx.resume(); } catch (e) { /* ignore */ }
+        }
+        try {
+            // Six ascending melody notes over ~1.5s: C5 E5 G5 C6 E6 G6.
+            var melody = [523.25, 659.25, 783.99, 1046.5, 1318.51, 1567.98];
+            melody.forEach(function(freq, i) {
+                var t = ctx.currentTime + i * 0.16;
+                var o = ctx.createOscillator();
+                var g = ctx.createGain();
+                o.type = 'triangle';
+                o.frequency.setValueAtTime(freq, t);
+                g.gain.setValueAtTime(0.0001, t);
+                g.gain.exponentialRampToValueAtTime(0.22, t + 0.02);
+                g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+                o.connect(g).connect(ctx.destination);
+                o.start(t);
+                o.stop(t + 0.36);
+            });
+            // Final sustained C major chord starting when the melody ends,
+            // held for ~1 second → total duration ≈ 2.5 s.
+            var chordStart = ctx.currentTime + melody.length * 0.16 + 0.05;
+            var chordFreqs = [1046.5, 1318.51, 1567.98]; // C6, E6, G6
+            chordFreqs.forEach(function(freq) {
+                var o = ctx.createOscillator();
+                var g = ctx.createGain();
+                o.type = 'sine';
+                o.frequency.setValueAtTime(freq, chordStart);
+                g.gain.setValueAtTime(0.0001, chordStart);
+                g.gain.exponentialRampToValueAtTime(0.18, chordStart + 0.05);
+                g.gain.setValueAtTime(0.18, chordStart + 0.7);
+                g.gain.exponentialRampToValueAtTime(0.0001, chordStart + 1.0);
+                o.connect(g).connect(ctx.destination);
+                o.start(chordStart);
+                o.stop(chordStart + 1.05);
+            });
+        } catch (e) { /* ignore */ }
+    }
+
     function setupSoundToggle(instance) {
         var btn = $('[data-doc-sound-toggle]', instance.root);
         var icon = $('[data-doc-sound-icon]', instance.root);
@@ -228,6 +290,32 @@
         init: function(el) {
             if (!el._docMascot) el._docMascot = new DoctorMascot(el);
             return el._docMascot;
+        },
+        /**
+         * Standalone finale sound (~2.5s) triggered by the B2C Dashboard when
+         * arriving from a successful /Interpretation/Upload POST. Doesn't need
+         * a mascot instance — it looks up an existing one on the page (to
+         * respect the persisted `soundMuted` preference), and if none exists
+         * it falls back to a temporary throw-away context. Silent-safe: if
+         * the browser blocks autoplay the try/catch swallows the error.
+         */
+        playInterpretationFinishSound: function() {
+            var any = null;
+            var nodes = $$('.doc-mascot');
+            for (var i = 0; i < nodes.length; i++) {
+                if (nodes[i]._docMascot) { any = nodes[i]._docMascot; break; }
+            }
+            if (any) {
+                playInterpretationFinale(any);
+                return;
+            }
+            // Fallback: build a minimal instance-shaped bag so the helper
+            // can create/use an AudioContext without a mascot on the page.
+            var bag = { soundMuted: false, _audioCtx: null };
+            try {
+                bag.soundMuted = localStorage.getItem(STORAGE_KEY) === '1';
+            } catch (e) { /* ignore */ }
+            playInterpretationFinale(bag);
         }
     };
 })();
