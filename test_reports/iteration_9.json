@@ -1,0 +1,32 @@
+{
+  "summary": "Static verification of rebranding MedicalApp -> MyMedicalApp.NET across 16 files. All primary spec items pass: 199 MyMedicalApp.NET occurrences in Loc.cs, AppTitle rewritten in all 7 languages, key parity 1011 per language (en/ro/fr/es/de/it/pt) - full parity, no www.MedicalApp.com or MedicalApp.com occurrences remain, SenderName = 'MyMedicalApp.NET', brace balance = 0 in all 16 files, footer mailto = contact@mymedicalapp.net, LLM prompts (Gemini/OpenAI line 774/127) still say 'MedicalApp' (protected), CAM regex [MedicalApp] preserved, namespace MedicalApp.Services intact, appsettings SenderEmail still vasilepintilie2003@gmail.com as expected. Sandbox has no dotnet SDK -- no compile test possible; runtime testing to be done by user on VS2026.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "Areas/CAM/Views/Dashboard/Index.cshtml:524", "issue": "'Powered by' link uses https://mymedicalapp.net (missing www.). Spec calls for www.mymedicalapp.net everywhere."},
+      {"endpoint": "Services/CamPatientEmailBuilder.cs:97,99", "issue": "B2B patient email 'Powered by' href/label uses bare mymedicalapp.net (no www.) - inconsistent with all other URLs which use www.mymedicalapp.net."},
+      {"endpoint": "Services/CamBatchService.cs:692-707", "issue": "XML doc comments on CallGeminiWithRetryAsync still describe engine labels as 'motor MedicalApp' / 'motor MedicalApp+' / 'motor MedicalApp Plus'. Actual LabelFor() runtime output correctly returns MyMedicalApp.NET variants - comment/code drift only, non user-facing."},
+      {"endpoint": "Controllers/CreditsController.cs:193", "issue": "Admin purchase-notification email SUBJECT prefix is [MedicalApp] (also DailySummaryService.cs:216 uses [MedicalApp] Rezumat zilnic). Ambiguous: if these are intended as internal admin-tag markers they can stay; if intended as brand references they should be [MyMedicalApp.NET]. Please confirm intent."},
+      {"endpoint": "Models/InterpretationResult.cs:66", "issue": "Doc comment mentions 'sugerate de MedicalApp' - comment-only, non user-facing (actual UI disclaimer text lives in Loc.cs)."},
+      {"endpoint": "Services/CamPatientEmailBuilder.cs:10, Services/SupportedLanguagesConfig.cs:4", "issue": "XML doc comments still reference 'MedicalApp+' - comment-only, safe to leave but noted for completeness."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [],
+  "action_items": [
+    "Decide www vs bare domain: add 'www.' to 3 hrefs (CAM Dashboard Index.cshtml:524; CamPatientEmailBuilder.cs:97 href and :99 href) OR update spec to accept apex domain. Note label text on line 99 ('mymedicalapp.net') is visible to end users.",
+    "Confirm whether email SUBJECT prefixes '[MedicalApp]' in CreditsController.cs:193 and DailySummaryService.cs:216 should remain (internal tag) or be rebranded.",
+    "Optional cleanup: sync XML doc comments in CamBatchService.cs (692-707), CamPatientEmailBuilder.cs (10), SupportedLanguagesConfig.cs (4), InterpretationResult.cs (66) to new brand for consistency."
+  ],
+  "critical_code_review_comments": [
+    "Loc.cs is 7500+ lines with 7 duplicated dictionaries - long-term maintainability risk (out of scope for this iteration).",
+    "Rebrand cleanly separates brand text from protected identifiers (namespace, CAM PDF marker, LLM prompts) - good architectural discipline.",
+    "Minor: apex vs www domain inconsistency should be normalized across all links + labels."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "static-verification-pass", "frontend": "N/A (skipped per request)"},
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration 9 was static-only (no dotnet SDK in sandbox). All primary rebrand goals verified: 199 MyMedicalApp.NET in Loc.cs, key parity 1011 per lang, 7 AppTitle rewrites, no MedicalApp.com anywhere, SenderName updated, all protected items (namespace, [MedicalApp] regex + badge, LLM prompts, LoincSeeder folder comment) intact, brace balance 0 in all 16 modified files. Only remaining nits are 3 apex-domain hrefs missing 'www.' and doc-comment drift in a handful of files. Runtime build/UI validation must be done by user on VS2026."
+}

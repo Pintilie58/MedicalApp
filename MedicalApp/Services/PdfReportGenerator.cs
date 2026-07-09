@@ -9,7 +9,7 @@ namespace MedicalApp.Services
     /// <summary>
     /// Generates the A4 PDF report from an InterpretationResult.
     /// Layout rules: horizontal separator lines only (no boxes), clean vertical alignment,
-    /// branded header/footer with www.MedicalApp.com and tagline.
+    /// branded header/footer with www.mymedicalapp.net and tagline.
     /// </summary>
     public class PdfReportGenerator
     {
@@ -87,7 +87,7 @@ namespace MedicalApp.Services
                 col.Item().AlignCenter().Text(labels.BrandSubtitle)
                     .FontSize(10).FontColor(MutedText);
 
-                col.Item().AlignCenter().Text("www.MedicalApp.com")
+                col.Item().AlignCenter().Text("www.mymedicalapp.net")
                     .FontSize(9).FontColor(BrandColor);
 
                 col.Item().PaddingVertical(6).LineHorizontal(1).LineColor(BrandColor);
@@ -220,7 +220,7 @@ namespace MedicalApp.Services
                                 row.RelativeItem().Text(q).FontSize(10);
                         });
                     }
-                    // Mandatory short MedicalApp disclaimer right below the list.
+                    // Mandatory short MyMedicalApp.NET disclaimer right below the list.
                     col.Item().PaddingTop(2).Background("#FFF7E6")
                         .Padding(8).Text(labels.DoctorQuestionsDisclaimer)
                         .FontSize(8).Italic().FontColor(MutedText);
@@ -274,7 +274,7 @@ namespace MedicalApp.Services
                 col.Item().AlignCenter().Text(labels.Tagline)
                     .FontSize(10).Italic().FontColor(BrandColor);
 
-                col.Item().AlignCenter().Text("www.MedicalApp.com")
+                col.Item().AlignCenter().Text("www.mymedicalapp.net")
                     .FontSize(9).FontColor(BrandColor).Bold();
 
                 col.Item().AlignCenter().Text(text =>
@@ -597,7 +597,7 @@ namespace MedicalApp.Services
         /// <summary>Builds the label set using the current UI culture's translations.</summary>
         public static LocalizedLabels ForCurrentUi() => new()
         {
-            BrandTitle = "MedicalApp",
+            BrandTitle = "MyMedicalApp.NET",
             BrandSubtitle = Loc.T("BrandSubtitle"),
             Tagline = Loc.T("Tagline"),
             PatientInfo = Loc.T("PatientInfoSection"),

@@ -231,14 +231,14 @@ namespace MedicalApp.Controllers
             var regards = Loc.T("EmailRegards", lang);
             var htmlBody = $@"
 <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
-    <h2 style='color: #0d47a1;'>MedicalApp</h2>
+    <h2 style='color: #0d47a1;'>MyMedicalApp.NET</h2>
     <p>{greeting}</p>
     <p>{intro}</p>
     <p style='color: #6c757d; font-size: 0.9em;'>{attached}</p>
     <p style='font-style: italic; color: #0d47a1;'>{tagline}</p>
     <hr style='border: none; border-top: 1px solid #dee2e6; margin: 20px 0;' />
     <p style='color: #6c757d; font-size: 0.9em;'>{regards}</p>
-    <p style='color: #0d47a1; font-weight: bold;'>www.MedicalApp.com</p>
+    <p style='color: #0d47a1; font-weight: bold;'>www.mymedicalapp.net</p>
 </div>";
 
             try
@@ -564,7 +564,7 @@ namespace MedicalApp.Controllers
                 var html =
                     $"<p>{Loc.T("EmailGreeting", lang)}</p>" +
                     $"<p>{string.Format(Loc.T("EmailCompareBodyFmt", lang), safeName, vm.Columns.Count, vm.Rows.Count)}</p>" +
-                    $"<p>{Loc.T("EmailGoodDay", lang)}<br/>— MedicalApp</p>";
+                    $"<p>{Loc.T("EmailGoodDay", lang)}<br/>— MyMedicalApp.NET</p>";
                 try
                 {
                     await _emailService.SendEmailWithAttachmentAsync(
@@ -1065,7 +1065,7 @@ namespace MedicalApp.Controllers
                     $"<p>{Loc.T("EmailGreeting", lang)}</p>" +
                     $"<p>{string.Format(Loc.T("EmailEvolutionBodyFmt", lang), safeName, vm.Series.Count, measurementsTotal)}</p>" +
                     $"<p>{string.Format(Loc.T("EmailEvolutionCodesFmt", lang), $"<code>{codesJoined}</code>")}</p>" +
-                    $"<p>{Loc.T("EmailGoodDay", lang)}<br/>— MedicalApp</p>";
+                    $"<p>{Loc.T("EmailGoodDay", lang)}<br/>— MyMedicalApp.NET</p>";
                 try
                 {
                     await _emailService.SendEmailWithAttachmentAsync(

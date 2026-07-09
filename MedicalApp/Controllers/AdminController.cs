@@ -756,9 +756,9 @@ namespace MedicalApp.Controllers
 
             try
             {
-                var subject = "MedicalApp - Your password has been reset by an administrator";
+                var subject = "MyMedicalApp.NET - Your password has been reset by an administrator";
                 var body = $@"<div style='font-family:Arial;max-width:600px;margin:0 auto;padding:20px;'>
-<h2 style='color:#0d47a1;'>MedicalApp</h2>
+<h2 style='color:#0d47a1;'>MyMedicalApp.NET</h2>
 <p>Hello,</p>
 <p>Your password has been reset by an administrator.</p>
 <p>Your new temporary password is:</p>
@@ -768,7 +768,7 @@ namespace MedicalApp.Controllers
   </span>
 </div>
 <p>Please log in with this password and change it immediately from your account settings.</p>
-<hr/><p style='color:#6c757d;font-size:0.9em;'>MedicalApp - your medical analysis interpreter.</p>
+<hr/><p style='color:#6c757d;font-size:0.9em;'>MyMedicalApp.NET - your medical analysis interpreter.</p>
 </div>";
                 await _emailService.SendEmailAsync(e, subject, body);
                 TempData["SuccessMessage"] = $"New password emailed to {e}.";
@@ -929,7 +929,7 @@ namespace MedicalApp.Controllers
         private static string WrapBulkEmailHtml(string innerHtml) => $@"
 <div style=""font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:0 auto;padding:0;background:#ffffff;"">
   <div style=""background:#0d47a1;color:#ffffff;padding:20px 24px;border-radius:10px 10px 0 0;"">
-    <h2 style=""margin:0;font-size:20px;font-weight:700;letter-spacing:0.3px;"">MedicalApp</h2>
+    <h2 style=""margin:0;font-size:20px;font-weight:700;letter-spacing:0.3px;"">MyMedicalApp.NET</h2>
     <div style=""font-size:13px;opacity:0.9;margin-top:4px;"">Intelligent interpretation of medical analyses</div>
   </div>
   <div style=""padding:24px;color:#212529;font-size:15px;line-height:1.55;border:1px solid #e9ecef;border-top:0;"">

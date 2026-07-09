@@ -298,7 +298,7 @@ namespace MedicalApp.Controllers
             //    nothing useful (image-only PDFs / scans) OR when the extracted
             //    text is just metadata/header without real lab measurements.
             //    Common cause: user opens a PDF in Word, edits the first page
-            //    (adds [MedicalApp] markers, patient/email), exports back to
+            //    (adds [MyMedicalApp.NET] markers, patient/email), exports back to
             //    PDF — Word keeps page 1 as text but RASTERIZES pages 2-3 with
             //    the actual lab table. PdfPig then only sees the administrative
             //    header, Gemini correctly says "no medical data" and the user
@@ -848,7 +848,7 @@ namespace MedicalApp.Controllers
         //  administrative metadata?
         //
         //  Triggered when a PDF was edited in Word (e.g. user adds
-        //  [MedicalApp] / patient / email markers on page 1) and Word
+        //  [MyMedicalApp.NET] / patient / email markers on page 1) and Word
         //  rasterizes pages 2-3 with the actual lab table. PdfPig then
         //  only sees the cover-page header — the resulting text is long
         //  enough to clear the 200-char threshold but contains NO real
@@ -938,7 +938,7 @@ namespace MedicalApp.Controllers
                 : $"<p style='background:#eef5ff;border-left:4px solid #0d47a1;padding:10px 14px;border-radius:6px;margin:16px 0;'>{string.Format(Loc.T("EmailInterpretForProfileFmt", languageCode), $"<strong>{System.Net.WebUtility.HtmlEncode(profileName)}</strong>")}</p>";
             return $@"
 <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
-    <h2 style='color: #0d47a1;'>MedicalApp</h2>
+    <h2 style='color: #0d47a1;'>MyMedicalApp.NET</h2>
     <p>{greeting}</p>
     {profileLine}
     <p>{intro}</p>
@@ -946,7 +946,7 @@ namespace MedicalApp.Controllers
     <p style='font-style: italic; color: #0d47a1;'>{tagline}</p>
     <hr style='border: none; border-top: 1px solid #dee2e6; margin: 20px 0;' />
     <p style='color: #6c757d; font-size: 0.9em;'>{regards}</p>
-    <p style='color: #0d47a1; font-weight: bold;'>www.MedicalApp.com</p>
+    <p style='color: #0d47a1; font-weight: bold;'>www.mymedicalapp.net</p>
 </div>";
         }
 

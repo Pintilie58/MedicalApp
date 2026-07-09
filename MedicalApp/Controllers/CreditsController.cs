@@ -217,7 +217,7 @@ namespace MedicalApp.Controllers
             return $@"
 <div style=""font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:0 auto;padding:0;background:#ffffff;"">
   <div style=""background:#0d47a1;color:#ffffff;padding:20px 24px;border-radius:10px 10px 0 0;"">
-    <h2 style=""margin:0;font-size:20px;font-weight:700;"">&#128176; MedicalApp &mdash; Achizitie noua</h2>
+    <h2 style=""margin:0;font-size:20px;font-weight:700;"">&#128176; MyMedicalApp.NET &mdash; Achizitie noua</h2>
     <div style=""font-size:13px;opacity:0.9;margin-top:4px;"">Notificare automata catre administrator</div>
   </div>
 
@@ -263,12 +263,12 @@ namespace MedicalApp.Controllers
     </div>
 
     <p style=""margin:20px 0 0 0;color:#6c757d;font-size:13px;"">
-      Acest email a fost trimis automat de MedicalApp. Nu raspunde la acest mesaj.
+      Acest email a fost trimis automat de MyMedicalApp.NET. Nu raspunde la acest mesaj.
     </p>
   </div>
 
   <div style=""background:#f1f5fb;color:#0d47a1;padding:14px 24px;border-radius:0 0 10px 10px;text-align:center;font-size:13px;font-weight:600;border:1px solid #e9ecef;border-top:0;"">
-    MedicalApp &mdash; Panou administrator
+    MyMedicalApp.NET &mdash; Panou administrator
   </div>
 </div>";
         }

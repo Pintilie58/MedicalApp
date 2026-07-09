@@ -655,7 +655,7 @@ namespace MedicalApp.Controllers
 
             return $@"
 <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
-    <h2 style='color: #0d6efd;'>MedicalApp</h2>
+    <h2 style='color: #0d6efd;'>MyMedicalApp.NET</h2>
     <p>{greeting}</p>
     <p>{intro}</p>
     <div style='background: #f8f9fa; border: 2px solid #0d6efd; border-radius: 10px; padding: 28px; text-align: center; margin: 24px 0;'>
@@ -679,7 +679,7 @@ namespace MedicalApp.Controllers
 
             return $@"
 <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
-    <h2 style='color: #0d6efd;'>MedicalApp</h2>
+    <h2 style='color: #0d6efd;'>MyMedicalApp.NET</h2>
     <p>{greeting}</p>
     <p>{intro}</p>
     <div style='text-align: center; margin: 30px 0;'>

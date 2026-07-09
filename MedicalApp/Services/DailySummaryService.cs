@@ -269,7 +269,7 @@ namespace MedicalApp.Services
             return $@"
 <div style=""font-family:Arial,Helvetica,sans-serif;max-width:680px;margin:0 auto;padding:0;background:#ffffff;"">
   <div style=""background:#0d47a1;color:#ffffff;padding:20px 24px;border-radius:10px 10px 0 0;"">
-    <h2 style=""margin:0;font-size:20px;font-weight:700;"">&#128202; Rezumat zilnic MedicalApp</h2>
+    <h2 style=""margin:0;font-size:20px;font-weight:700;"">&#128202; Rezumat zilnic MyMedicalApp.NET</h2>
     <div style=""font-size:13px;opacity:0.9;margin-top:4px;"">
       Ultimele 24 ore &nbsp;|&nbsp; Generat la {DateTime.Now:dd/MM/yyyy HH:mm} &nbsp; {activityBadge}
     </div>
@@ -329,12 +329,12 @@ namespace MedicalApp.Services
     </div>
 
     <p style=""margin:24px 0 0 0;color:#6c757d;font-size:13px;text-align:center;"">
-      Acest email este generat automat de MedicalApp in fiecare zi la ora programata.
+      Acest email este generat automat de MyMedicalApp.NET in fiecare zi la ora programata.
     </p>
   </div>
 
   <div style=""background:#f1f5fb;color:#0d47a1;padding:14px 24px;border-radius:0 0 10px 10px;text-align:center;font-size:13px;font-weight:600;border:1px solid #e9ecef;border-top:0;"">
-    MedicalApp &mdash; Panou administrator
+    MyMedicalApp.NET &mdash; Panou administrator
   </div>
 </div>";
         }

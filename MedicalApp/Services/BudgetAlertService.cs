@@ -185,7 +185,7 @@ namespace MedicalApp.Services
             var approxEur = Math.Round(totalCostUsd / 1.10m, 2);
             var thresholdEur = Math.Round(_settings.MonthlyBudgetUsd / 1.10m, 2);
             var body = new System.Text.StringBuilder();
-            body.Append("<h2 style=\"font-family:Arial,sans-serif;color:#b02a37\">⚠️ MedicalApp — Gemini budget alert</h2>");
+            body.Append("<h2 style=\"font-family:Arial,sans-serif;color:#b02a37\">⚠️ MyMedicalApp.NET — Gemini budget alert</h2>");
             body.Append("<p style=\"font-family:Arial,sans-serif\">The month-to-date Gemini cost for <strong>").Append(monthName).Append("</strong> has crossed your configured budget.</p>");
             body.Append("<table style=\"font-family:Arial,sans-serif;border-collapse:collapse;\">");
             body.Append("<tr><td style=\"padding:4px 12px 4px 0;color:#555\">Spent so far:</td><td style=\"padding:4px 0\"><strong>$").Append(totalCostUsd.ToString("F2")).Append(" USD</strong> &nbsp; (~€").Append(approxEur.ToString("F2")).Append(")</td></tr>");
@@ -218,10 +218,10 @@ namespace MedicalApp.Services
             body.Append("<li>Adjust the budget in <code>appsettings.json</code> → <code>BudgetAlert.MonthlyBudgetUsd</code> if your usage just grew naturally.</li>");
             body.Append("<li>Lower the budget alert cooldown if you want the next reminder sooner: <code>BudgetAlert.CooldownHours</code>.</li>");
             body.Append("</ul>");
-            body.Append("<p style=\"font-family:Arial,sans-serif;font-size:12px;color:#888;margin-top:24px\">This is an automated message from MedicalApp. You will not receive another budget alert for at least ")
+            body.Append("<p style=\"font-family:Arial,sans-serif;font-size:12px;color:#888;margin-top:24px\">This is an automated message from MyMedicalApp.NET. You will not receive another budget alert for at least ")
                 .Append(_settings.CooldownHours).Append(" hours, or until ").Append(monthName).Append(" rolls over.</p>");
 
-            var subject = $"⚠️ MedicalApp — Gemini budget exceeded (${totalCostUsd:F2} / ${_settings.MonthlyBudgetUsd:F2} USD)";
+            var subject = $"⚠️ MyMedicalApp.NET — Gemini budget exceeded (${totalCostUsd:F2} / ${_settings.MonthlyBudgetUsd:F2} USD)";
             int sent = 0;
             foreach (var to in recipients)
             {
