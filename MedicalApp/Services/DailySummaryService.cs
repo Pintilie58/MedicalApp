@@ -213,7 +213,7 @@ namespace MedicalApp.Services
                 ActivePromoCodes = activePromoCodes
             };
 
-            var subject = $"[MedicalApp] Rezumat zilnic - {DateTime.Now:dd/MM/yyyy}";
+            var subject = $"[MyMedicalApp.NET] Rezumat zilnic - {DateTime.Now:dd/MM/yyyy}";
             var body = BuildEmailBody(summary);
 
             int sentCount = 0;

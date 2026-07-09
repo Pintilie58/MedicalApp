@@ -36,6 +36,24 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - **LoincDictionary** *(new — LOINC step 1)*: LoincCode (PK string), LongCommonName (indexed), OrderObs, AliasesJson, TranslationsJson, ImportedAt
 
 ## Implemented (changelog)
+- ✅ **2026-02 — Rebranding: MedicalApp → MyMedicalApp.NET (domeniu nou www.mymedicalapp.net)**:
+  - **Regula:** brand vizibil = `MyMedicalApp.NET` (cu extensie peste tot), URL vizibil = `www.mymedicalapp.net` (lowercase, standard web), email contact = `contact@mymedicalapp.net`.
+  - **Fișiere modificate (16 total):**
+    - `Services/Loc.cs` — 199 apariții `MyMedicalApp.NET` în 7 limbi, toate URL-urile `www.MedicalApp.com` → `www.mymedicalapp.net`; paritate 1010 chei/limbă păstrată; `AppTitle` = "MyMedicalApp.NET" în toate 7 limbi.
+    - `Services/EmailSettings.cs` — `SenderName` default `"MyMedicalApp.NET"` (display name pentru „From" în toate e-mailurile SMTP).
+    - `Services/PdfReportGenerator.cs` — header/footer PDF cu URL nou.
+    - `Services/BudgetAlertService.cs`, `Services/DailySummaryService.cs`, `Services/CamBatchService.cs` (LabelFor: engine tiers), `Services/CamPatientEmailBuilder.cs` (Powered-by în emailuri pacient).
+    - `Controllers/AccountController.cs` (register/verify/reset emailuri), `Controllers/AdminController.cs` (reset user password + admin notif), `Controllers/CreditsController.cs` (subject `[MyMedicalApp.NET] Achizitie noua ...`), `Controllers/InterpretationController.cs` (result email HTML), `Controllers/ProfilesController.cs` (compare/email report HTML).
+    - `Views/Home/Landing.cshtml` (`<title>` browser tab, brand pill span-uri, mailto: footer → `contact@mymedicalapp.net`), `Views/Home/Index.cshtml` (placeholder image alt), `Views/Admin/SendEmail.cshtml` (preview header), `Areas/CAM/Views/Dashboard/Index.cshtml` (Powered-by link).
+  - **PROTEJAT (deliberat neschimbat):**
+    - **C# namespace `MedicalApp.Services`** — ~200 fișiere depind de el, rename = spargere garantată. Rename separat, cu Visual Studio Rename tool, e o operație distinctă viitoare.
+    - **`[MedicalApp]` marker de protocol CAM** în `Services/CamPdfMetadataExtractor.cs` regex + badge în `Areas/CAM/Views/CheckPdfs/Index.cshtml` — schimbarea ar sparge identificarea pacienților din PDF-urile deja emise de clinici. Necesită tranziție cu recunoaștere duală + retraining operatori.
+    - **Prompt-uri sistem LLM** (`GeminiMedicalInterpretationService.cs:774`, `MedicalInterpretationService.cs:127`) — schimbarea ar putea influența calitatea răspunsurilor Gemini/OpenAI (LLM ar putea începe să includă `.NET` în interpretări). Rămâne `MedicalApp` intern.
+    - **`SenderEmail` din `appsettings.json`** = `vasilepintilie2003@gmail.com` — user actualizează manual când provisionează `contact@mymedicalapp.net` + App Password Gmail/M365.
+    - **Comentarii XML doc** (`Models/InterpretationResult.cs`, `Services/CamBatchService.cs`, `SupportedLanguagesConfig.cs`) — non-vizibil, curățare viitoare opțională.
+  - Validare statică (`/app/test_reports/iteration_9.json`): 16 fișiere modificate, 199 rewrites Loc.cs, brace balance = 0 în toate, paritate 7 limbi păstrată, protejate toate identificatoarele critice. Zero URL-uri bare `mymedicalapp.net` fără `www.`.
+
+
 - ✅ **2026-02 — Feature: melodie „finale" mai lungă (2.5s) la sfârșitul interpretării B2C**:
   - **Cerință:** sunetul de terminare al mascotei doctor să dureze 2-3 secunde la finalul unei interpretări B2C (înainte nu se emitea niciun sunet — B2C făcea doar redirect fără feedback audio).
   - **`wwwroot/js/doctor-mascot.js`**: adăugat `playInterpretationFinale(instance)` — 6 note ascendente C major (C5→G6, 0.16s per notă) urmate de un acord susținut C major (C6+E6+G6 în sine wave) ~1s. Total ~2.5 secunde. Melody folosește triangle wave (cald), chord final folosește sine (blând). Respectă `soundMuted` din localStorage + `ctx.resume()` pentru cazul când AudioContext e suspendat (Chrome autoplay policy).

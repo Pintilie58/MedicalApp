@@ -190,7 +190,7 @@ namespace MedicalApp.Controllers
                 return;
             }
 
-            var subject = $"[MedicalApp] Achizitie noua - {user.Email} - {package.Credits} credite - {package.PriceEur:F2} EUR";
+            var subject = $"[MyMedicalApp.NET] Achizitie noua - {user.Email} - {package.Credits} credite - {package.PriceEur:F2} EUR";
             var body = BuildAdminPurchaseEmailBody(user, package);
 
             foreach (var adminEmail in admins)

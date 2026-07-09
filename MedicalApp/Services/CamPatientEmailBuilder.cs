@@ -94,9 +94,9 @@ namespace MedicalApp.Services
 
   <div style=""background:#f1f5fb;color:#0d47a1;padding:14px 24px;border-radius:0 0 10px 10px;text-align:center;font-size:12px;border:1px solid #e9ecef;border-top:0;"">
     {footerPowered}
-    <a href=""https://mymedicalapp.net"" style=""color:#0d47a1;font-weight:700;text-decoration:none;"">MyMedicalApp.NET+</a>
+    <a href=""https://www.mymedicalapp.net"" style=""color:#0d47a1;font-weight:700;text-decoration:none;"">MyMedicalApp.NET+</a>
     &mdash; {footerTagline} &mdash;
-    <a href=""https://mymedicalapp.net"" style=""color:#0d47a1;text-decoration:none;"">mymedicalapp.net</a>
+    <a href=""https://www.mymedicalapp.net"" style=""color:#0d47a1;text-decoration:none;"">www.mymedicalapp.net</a>
   </div>
 </div>";
         }
