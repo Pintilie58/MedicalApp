@@ -36,6 +36,16 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - **LoincDictionary** *(new — LOINC step 1)*: LoincCode (PK string), LongCommonName (indexed), OrderObs, AliasesJson, TranslationsJson, ImportedAt
 
 ## Implemented (changelog)
+- 🐛 **2026-02 — Bug fix: Landing header depășea ecranul după rebrand**:
+  - **Simptom:** după rebrand `MedicalApp+` → `MyMedicalApp.NET+`, header-ul Landing (brand + 5 link-uri meniu + limbă + Sign In + Get Started) rămase pe un singur rând flex → depășea viewport-ul pe ≤1280px.
+  - **Fix (CSS/HTML-only):** restructurat `<nav class="land-nav">` în **2 rânduri distincte**:
+    - **Rând 1** — `.land-nav-brand-row`: doar brand-ul, centrat orizontal cu `justify-content: center`, font-size ridicat la `1.5rem` pentru vizibilitate solo.
+    - **Rând 2** — `.land-nav-inner` (existent, doar padding-top eliminat): nav links stânga + language dropdown + Sign In + Get Started dreapta, cu `justify-content: space-between` păstrat.
+  - **Mobile (≤768px):** brand row cu padding + font-size reduse (`1.25rem`), action row cu `justify-content: center` + `gap: 0.5rem` pentru echilibru vizual (nav links deja ascunse pe mobil).
+  - **Zero atingeri** pe restul Landing-ului: Hero, pillars, pricing, footer neschimbate. Toate `data-testid` păstrate (`land-nav`, `land-brand`, `nav-how/compare/features/clinics/pricing`, `land-signin`, `land-getstarted`, `land-lang-btn`).
+  - Validare statică (`/app/test_reports/iteration_10.json`): 9/9 acceptance criteria PASS, brace balance 81/81 Razor + 325/325 CSS, zero regresii, zero action items.
+
+
 - ✅ **2026-02 — Rebranding: MedicalApp → MyMedicalApp.NET (domeniu nou www.mymedicalapp.net)**:
   - **Regula:** brand vizibil = `MyMedicalApp.NET` (cu extensie peste tot), URL vizibil = `www.mymedicalapp.net` (lowercase, standard web), email contact = `contact@mymedicalapp.net`.
   - **Fișiere modificate (16 total):**
