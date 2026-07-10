@@ -40,10 +40,15 @@
 
 @* =========================== NAVBAR =========================== *@
 <nav class="land-nav" data-testid="land-nav">
-    <div class="land-nav-inner">
+    @* Two-row layout (Feb 2026): after rebrand to "MyMedicalApp.NET+" the
+       single-row header would clip on ≤1280 px screens. Row 1 centres the
+       brand; row 2 hosts menu + language picker + auth CTAs. *@
+    <div class="land-nav-brand-row">
         <a class="land-brand" href="/" data-testid="land-brand">
             <span class="land-brand-mark">M+</span> MyMedicalApp.NET+
         </a>
+    </div>
+    <div class="land-nav-inner">
         <ul class="land-nav-links">
             <li><a href="#how" data-testid="nav-how">@Loc.T("NavHow")</a></li>
             <li><a href="#compare" data-testid="nav-compare">@Loc.T("CompareEyebrow")</a></li>

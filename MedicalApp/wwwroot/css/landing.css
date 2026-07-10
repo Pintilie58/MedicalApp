@@ -87,9 +87,23 @@ body.landing-body a:hover { color: var(--land-coral); }
     -webkit-backdrop-filter: blur(16px);
     border-bottom: 1px solid var(--land-border);
 }
+/* Row 1 — brand alone, centered. Added Feb 2026 after the rebrand to
+   MyMedicalApp.NET+ made the single-row header too wide on 1280×720 laptops. */
+.land-nav-brand-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0.9rem 1.5rem 0.4rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+.land-nav-brand-row .land-brand {
+    font-size: 1.5rem; /* slightly larger since it now stands alone */
+}
+/* Row 2 — nav links on the left, language + auth CTAs on the right. */
 .land-nav-inner {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 0.9rem 1.5rem;
+    padding: 0 1.5rem 0.9rem;
     max-width: 1200px; margin: 0 auto;
 }
 .land-brand {
@@ -130,6 +144,19 @@ body.landing-body a:hover { color: var(--land-coral); }
 }
 @media (max-width: 768px) {
     .land-nav-links { display: none; }
+    /* On phones the brand row shrinks and the actions (lang + sign-in)
+       row centres so the two remaining pills stay balanced. */
+    .land-nav-brand-row {
+        padding: 0.7rem 1rem 0.3rem;
+    }
+    .land-nav-brand-row .land-brand {
+        font-size: 1.25rem;
+    }
+    .land-nav-inner {
+        padding: 0 1rem 0.7rem;
+        justify-content: center;
+        gap: 0.5rem;
+    }
 }
 
 /* ============== Buttons ============== */
