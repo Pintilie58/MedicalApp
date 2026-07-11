@@ -141,7 +141,7 @@ namespace MedicalApp.Services
         ///   * 1000 credits pre-loaded (cam_pro package, marked "seed")
         ///   * Original/Sends/Sumar/Errors folders created on disk
         ///   * 5 fictional patients, ALL with emails pointing to the developer's
-        ///     mailbox (vasilepintilie2003@gmail.com) so batch testing in
+        ///     mailbox (contact@mymedicalapp.net) so batch testing in
         ///     Faza 3 sends every test email to a single inbox.
         ///
         /// IDEMPOTENT: re-running the app does NOT re-create the user, top-up
@@ -154,7 +154,7 @@ namespace MedicalApp.Services
         {
             const string demoEmail = "clinica.demo@medicalapp.test";
             const string demoPasswordPlain = "Demo1234!";
-            const string operatorRedirectEmail = "vasilepintilie2003@gmail.com";
+            const string operatorRedirectEmail = "contact@mymedicalapp.net";
 
             using var scope = services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();

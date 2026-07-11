@@ -36,6 +36,15 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - **LoincDictionary** *(new — LOINC step 1)*: LoincCode (PK string), LongCommonName (indexed), OrderObs, AliasesJson, TranslationsJson, ImportedAt
 
 ## Implemented (changelog)
+- ✅ **2026-02 — Migrare SMTP: Gmail → Brevo relay (contact@mymedicalapp.net)**:
+  - **Context:** user a cumpărat domeniul `mymedicalapp.net` (GoDaddy), a creat contul Microsoft 365 `contact@mymedicalapp.net`, l-a înregistrat pe Brevo (SPF+DKIM configurate în DNS-ul GoDaddy). Toate emailurile tranzacționale merg acum prin Brevo relay pentru deliverability profesional.
+  - **`appsettings.json` — EmailSettings**: `SmtpServer=smtp-relay.brevo.com`, `SmtpPort=587`, `SenderEmail=contact@mymedicalapp.net` (afișat în „From"), `SenderName=MyMedicalApp.NET`, `Username=b1b34c001@smtp-brevo.com` (credential relay Brevo), `Password=<Brevo SMTP key>`. Codul din `EmailService.cs` deja distingea `SenderEmail` de `Username` — zero cod C# modificat.
+  - **`appsettings.json` — AdminSettings**: adăugat `contact@mymedicalapp.net` ca prim destinatar al alertelor admin (Budget alert Gemini, Daily summary, Purchase notifications) alături de `vasilepintilie2003@gmail.com` ca backup.
+  - **`Services/StartupSeed.cs` linia 157**: `operatorRedirectEmail` (unde ajung emailurile pacienților fictivi din contul demo B2B) actualizat la `contact@mymedicalapp.net` pentru consistență.
+  - **Cont Admin `contact@mymedicalapp.net`**: userul îl creează manual prin flow-ul normal Register + VerifyEmail, apoi `UPDATE Users SET IsAdmin=1 WHERE Email='contact@mymedicalapp.net';` — zero cod nou (evită hardcodare parolă în seed).
+  - **⚠️ Recomandare securitate**: parola SMTP Brevo e acum în `appsettings.json`. Repo-ul e privat, dar best practice: migrare la `dotnet user-secrets init && dotnet user-secrets set "EmailSettings:Password" "..."` (parola trăiește local pe PC, niciodată în git). P1 din backlog împreună cu cheile OpenAI/Gemini.
+
+
 - 🐛 **2026-02 — Bug fix: Landing header depășea ecranul după rebrand**:
   - **Simptom:** după rebrand `MedicalApp+` → `MyMedicalApp.NET+`, header-ul Landing (brand + 5 link-uri meniu + limbă + Sign In + Get Started) rămase pe un singur rând flex → depășea viewport-ul pe ≤1280px.
   - **Fix (CSS/HTML-only):** restructurat `<nav class="land-nav">` în **2 rânduri distincte**:
