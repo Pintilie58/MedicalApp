@@ -1069,6 +1069,8 @@ namespace MedicalApp.Services
                 // --- Password toggle 👁 (universal show/hide password button) ---
                 ["PasswordToggleShow"] = "Show password",
                 ["PasswordToggleHide"] = "Hide password",
+                // --- Drag-and-drop upload hint (B2C /Interpretation/Upload) ---
+                ["DragDropHint"] = "or drag & drop the PDF here",
                 // --- Admin/Index LOINC health widget (inline JS labels) ---
                 ["AdminBtnDailySummaryTitle"] = "Send the daily summary to all admins now",
                 ["AdminLoincHealthChecking"] = "Checking...",
@@ -2163,6 +2165,8 @@ namespace MedicalApp.Services
                 // --- Password toggle 👁 (universal show/hide password button) ---
                 ["PasswordToggleShow"] = "Afișează parola",
                 ["PasswordToggleHide"] = "Ascunde parola",
+                // --- Drag-and-drop upload hint (B2C /Interpretation/Upload) ---
+                ["DragDropHint"] = "sau trage & plasează PDF-ul aici",
                 // --- Admin/Index LOINC health widget ---
                 ["AdminBtnDailySummaryTitle"] = "Trimite acum rezumatul zilnic către toți adminii",
                 ["AdminLoincHealthChecking"] = "Se verifică...",
@@ -3236,6 +3240,8 @@ namespace MedicalApp.Services
                 // --- Password toggle 👁 (universal show/hide password button) ---
                 ["PasswordToggleShow"] = "Afficher le mot de passe",
                 ["PasswordToggleHide"] = "Masquer le mot de passe",
+                // --- Drag-and-drop upload hint (B2C /Interpretation/Upload) ---
+                ["DragDropHint"] = "ou glissez-déposez le PDF ici",
                 // --- Admin/Index LOINC health widget ---
                 ["AdminBtnDailySummaryTitle"] = "Envoyer maintenant le résumé quotidien à tous les admins",
                 ["AdminLoincHealthChecking"] = "Vérification...",
@@ -4309,6 +4315,8 @@ namespace MedicalApp.Services
                 // --- Password toggle 👁 (universal show/hide password button) ---
                 ["PasswordToggleShow"] = "Mostrar contraseña",
                 ["PasswordToggleHide"] = "Ocultar contraseña",
+                // --- Drag-and-drop upload hint (B2C /Interpretation/Upload) ---
+                ["DragDropHint"] = "o arrastra y suelta el PDF aquí",
                 // --- Admin/Index LOINC health widget ---
                 ["AdminBtnDailySummaryTitle"] = "Enviar ahora el resumen diario a todos los administradores",
                 ["AdminLoincHealthChecking"] = "Comprobando...",
@@ -5382,6 +5390,8 @@ namespace MedicalApp.Services
                 // --- Password toggle 👁 (universal show/hide password button) ---
                 ["PasswordToggleShow"] = "Passwort anzeigen",
                 ["PasswordToggleHide"] = "Passwort ausblenden",
+                // --- Drag-and-drop upload hint (B2C /Interpretation/Upload) ---
+                ["DragDropHint"] = "oder PDF hierher ziehen",
                 // --- Admin/Index LOINC health widget ---
                 ["AdminBtnDailySummaryTitle"] = "Tageszusammenfassung jetzt an alle Admins senden",
                 ["AdminLoincHealthChecking"] = "Wird geprüft...",
@@ -6408,6 +6418,8 @@ namespace MedicalApp.Services
                 // --- Password toggle 👁 (universal show/hide password button) ---
                 ["PasswordToggleShow"] = "Mostra password",
                 ["PasswordToggleHide"] = "Nascondi password",
+                // --- Drag-and-drop upload hint (B2C /Interpretation/Upload) ---
+                ["DragDropHint"] = "oppure trascina qui il PDF",
                 ["AdminBtnDailySummaryTitle"] = "Invia ora il riepilogo giornaliero a tutti gli amministratori",
                 ["AdminLoincHealthChecking"] = "Verifica in corso...",
                 ["AdminLoincHealthLabelChecking"] = "Verif.\u2026",
@@ -7430,6 +7442,8 @@ namespace MedicalApp.Services
                 // --- Password toggle 👁 (universal show/hide password button) ---
                 ["PasswordToggleShow"] = "Mostrar palavra-passe",
                 ["PasswordToggleHide"] = "Ocultar palavra-passe",
+                // --- Drag-and-drop upload hint (B2C /Interpretation/Upload) ---
+                ["DragDropHint"] = "ou arraste o PDF para aqui",
                 ["AdminBtnDailySummaryTitle"] = "Enviar agora o resumo diário a todos os administradores",
                 ["AdminLoincHealthChecking"] = "A verificar...",
                 ["AdminLoincHealthLabelChecking"] = "A verif.\u2026",

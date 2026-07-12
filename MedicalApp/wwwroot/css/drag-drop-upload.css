@@ -1,0 +1,59 @@
+/*!
+ * drag-drop-upload.css — Feb 2026
+ * Visual feedback for elements decorated with `data-dnd-target="pdf"`.
+ * Values are picked to blend with Bootstrap 5 focus / hover states already
+ * used by `.custom-file-input-wrap` on the B2C upload page.
+ *
+ * The `.dnd-hint` span is a small italic caption ("or drop a PDF here") that
+ * hints at the feature. It's hidden on touch-only devices where drag-drop is
+ * not a meaningful interaction (@media hover: hover).
+ */
+
+/* Only decorated wrappers pick up drop-zone behaviour. */
+[data-dnd-target="pdf"] {
+    position: relative;
+    transition: border-color 0.18s ease, background-color 0.18s ease,
+                box-shadow 0.18s ease;
+}
+
+/* -------- Drag-over state -------- */
+[data-dnd-target="pdf"].dnd-drag-over {
+    border-color: #0d6efd !important;   /* Bootstrap primary */
+    border-style: dashed !important;
+    background-color: rgba(13, 110, 253, 0.06) !important;
+    box-shadow: 0 0 0 0.28rem rgba(13, 110, 253, 0.22) !important;
+}
+
+/* -------- Reject state (non-PDF dropped) -------- */
+[data-dnd-target="pdf"].dnd-reject {
+    border-color: #dc3545 !important;   /* Bootstrap danger */
+    background-color: rgba(220, 53, 69, 0.06) !important;
+    animation: dnd-shake 0.35s ease-in-out 0s 2;
+}
+
+@keyframes dnd-shake {
+    0%, 100% { transform: translateX(0); }
+    25%      { transform: translateX(-4px); }
+    75%      { transform: translateX(4px); }
+}
+
+/* -------- Small inline hint next to filename display --------
+   Discoverable-but-unobtrusive. Only shown on devices that report actual
+   hover capability — on phones/tablets drag-drop is meaningless. */
+.dnd-hint {
+    display: none;
+    color: #6c757d;
+    font-size: 0.85rem;
+    font-style: italic;
+    padding: 0 4px;
+    user-select: none;
+}
+@media (hover: hover) and (pointer: fine) {
+    .dnd-hint { display: inline; }
+}
+
+/* Respect users who prefer reduced motion — skip the shake. */
+@media (prefers-reduced-motion: reduce) {
+    [data-dnd-target="pdf"] { transition: none; }
+    [data-dnd-target="pdf"].dnd-reject { animation: none; }
+}

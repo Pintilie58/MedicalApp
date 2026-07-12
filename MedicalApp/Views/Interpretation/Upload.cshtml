@@ -78,7 +78,7 @@
                              cannot be translated, so we hide it and show our own UI). -->
                         <div class="mb-3">
                             <label asp-for="PdfFile" class="form-label fw-semibold">@Loc.T("SelectPdfFile")</label>
-                            <div class="custom-file-input-wrap">
+                            <div class="custom-file-input-wrap" data-dnd-target="pdf">
                                 <input asp-for="PdfFile" type="file" accept="application/pdf,.pdf"
                                        class="custom-file-input-native" id="pdfFileInput" required />
                                 <label for="pdfFileInput" class="btn btn-outline-primary custom-file-input-btn"
@@ -90,6 +90,10 @@
                                       data-testid="upload-file-name">
                                     @Loc.T("UploadFileNoFileChosen")
                                 </span>
+                                @* Small inline hint — visible only on desktop where drag-and-drop
+                                   is meaningful. Progressive enhancement: if drag-drop.js fails to
+                                   load, the hint still shows harmlessly (no functionality lost). *@
+                                <span class="dnd-hint" data-testid="upload-dnd-hint">@Loc.T("DragDropHint")</span>
                             </div>
                             <div class="form-text">@Loc.T("MaxSizeHint")</div>
                             <span asp-validation-for="PdfFile" class="text-danger small"></span>
