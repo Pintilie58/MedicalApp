@@ -149,6 +149,34 @@
         updateUi();
     }
 
+    /**
+     * Battery saver: attaches an IntersectionObserver so animations pause
+     * when the mascot scrolls out of view. When the mascot re-enters the
+     * viewport (or if there's no IntersectionObserver support), animations
+     * resume automatically. Toggles the `.doc-mascot--paused` class on the
+     * root element — CSS drives the actual `animation-play-state`.
+     */
+    function setupVisibilityObserver(instance) {
+        if (!('IntersectionObserver' in window)) return;
+        try {
+            instance._visibilityObserver = new IntersectionObserver(function(entries) {
+                for (var i = 0; i < entries.length; i++) {
+                    var entry = entries[i];
+                    if (entry.isIntersecting) {
+                        instance.root.classList.remove('doc-mascot--paused');
+                    } else {
+                        instance.root.classList.add('doc-mascot--paused');
+                    }
+                }
+            }, {
+                // Pause a hair before fully off-screen for a smoother edge.
+                rootMargin: '0px',
+                threshold: 0.01
+            });
+            instance._visibilityObserver.observe(instance.root);
+        } catch (e) { /* graceful fallback */ }
+    }
+
     function ensureConfetti(instance, active) {
         var conf = $('.doc-confetti', instance.root);
         if (!conf) return;
@@ -182,6 +210,7 @@
         this._finaleTimer = null;
         this._batchEndSoundPlayed = false;
         this._audioCtx = null;
+        this._visibilityObserver = null;
 
         if (this.mode === 'progress' || this.mode === 'waiting') {
             setupSoundToggle(this);
@@ -190,6 +219,12 @@
             // Pornește din start în mers
             this.setState('walking');
         }
+
+        // ---- Battery saver: pause CSS animations when the mascot scrolls
+        // off-screen. Uses IntersectionObserver so it is essentially free at
+        // runtime (no per-frame checks). Falls back to a no-op on ancient
+        // browsers that don't support it.
+        setupVisibilityObserver(this);
     }
 
     DoctorMascot.prototype.setState = function(state) {

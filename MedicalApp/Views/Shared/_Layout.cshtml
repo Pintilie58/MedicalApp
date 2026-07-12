@@ -9,6 +9,8 @@
           integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/doctor-mascot.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/password-toggle.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/mobile-tooltip.css" asp-append-version="true" />
 </head>
 <body>
     <header>
@@ -192,5 +194,21 @@
     </script>
 
     @await RenderSectionAsync("Scripts", required: false)
+
+    @* ---- Universal helpers loaded on every page ----
+       password-toggle: adds an eye 👁 button to every <input type="password">.
+       mobile-tooltip:  turns native `title="..."` into tap-friendly tooltips
+                        on touch-only devices (@@media hover: none).
+       Both are self-contained, auto-init, and share `window.MedicalApp.i18n`
+       for localised aria/title strings. *@
+    <script>
+        window.MedicalApp = window.MedicalApp || {};
+        window.MedicalApp.i18n = Object.assign(window.MedicalApp.i18n || {}, {
+            passwordShow: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("PasswordToggleShow"))),
+            passwordHide: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("PasswordToggleHide")))
+        });
+    </script>
+    <script src="~/js/password-toggle.js" asp-append-version="true"></script>
+    <script src="~/js/mobile-tooltip.js" asp-append-version="true"></script>
 </body>
 </html>

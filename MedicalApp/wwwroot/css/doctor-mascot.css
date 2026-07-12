@@ -246,3 +246,16 @@
     .doc-walker, .doc-walker *, .doc-bouncer, .doc-confetti span,
     .doc-mascot--greeting .doc-arm-right { animation: none !important; }
 }
+
+/* ------------- Battery saver: pause animations when off-screen -------------
+   The IntersectionObserver in doctor-mascot.js toggles `.doc-mascot--paused`
+   on the root when the element scrolls out of the viewport. Pausing (rather
+   than removing) the animations preserves state so the walker resumes from
+   the same frame when it re-enters view. */
+.doc-mascot--paused .doc-walker,
+.doc-mascot--paused .doc-walker *,
+.doc-mascot--paused .doc-bouncer,
+.doc-mascot--paused .doc-confetti span,
+.doc-mascot--paused.doc-mascot--greeting .doc-arm-right {
+    animation-play-state: paused !important;
+}

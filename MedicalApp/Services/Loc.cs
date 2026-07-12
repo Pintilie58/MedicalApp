@@ -1066,6 +1066,9 @@ namespace MedicalApp.Services
                 // --- _DoctorMascot (sound toggle a11y) ---
                 ["DocMascotSoundToggleTitle"] = "Sound on/off",
                 ["DocMascotSoundToggleAria"] = "Sound toggle",
+                // --- Password toggle 👁 (universal show/hide password button) ---
+                ["PasswordToggleShow"] = "Show password",
+                ["PasswordToggleHide"] = "Hide password",
                 // --- Admin/Index LOINC health widget (inline JS labels) ---
                 ["AdminBtnDailySummaryTitle"] = "Send the daily summary to all admins now",
                 ["AdminLoincHealthChecking"] = "Checking...",
@@ -2157,6 +2160,9 @@ namespace MedicalApp.Services
                 // --- _DoctorMascot ---
                 ["DocMascotSoundToggleTitle"] = "Sunet on/off",
                 ["DocMascotSoundToggleAria"] = "Comutator sunet",
+                // --- Password toggle 👁 (universal show/hide password button) ---
+                ["PasswordToggleShow"] = "Afișează parola",
+                ["PasswordToggleHide"] = "Ascunde parola",
                 // --- Admin/Index LOINC health widget ---
                 ["AdminBtnDailySummaryTitle"] = "Trimite acum rezumatul zilnic către toți adminii",
                 ["AdminLoincHealthChecking"] = "Se verifică...",
@@ -3227,6 +3233,9 @@ namespace MedicalApp.Services
                 // --- _DoctorMascot ---
                 ["DocMascotSoundToggleTitle"] = "Son on/off",
                 ["DocMascotSoundToggleAria"] = "Commutateur de son",
+                // --- Password toggle 👁 (universal show/hide password button) ---
+                ["PasswordToggleShow"] = "Afficher le mot de passe",
+                ["PasswordToggleHide"] = "Masquer le mot de passe",
                 // --- Admin/Index LOINC health widget ---
                 ["AdminBtnDailySummaryTitle"] = "Envoyer maintenant le résumé quotidien à tous les admins",
                 ["AdminLoincHealthChecking"] = "Vérification...",
@@ -4297,6 +4306,9 @@ namespace MedicalApp.Services
                 // --- _DoctorMascot ---
                 ["DocMascotSoundToggleTitle"] = "Sonido on/off",
                 ["DocMascotSoundToggleAria"] = "Conmutador de sonido",
+                // --- Password toggle 👁 (universal show/hide password button) ---
+                ["PasswordToggleShow"] = "Mostrar contraseña",
+                ["PasswordToggleHide"] = "Ocultar contraseña",
                 // --- Admin/Index LOINC health widget ---
                 ["AdminBtnDailySummaryTitle"] = "Enviar ahora el resumen diario a todos los administradores",
                 ["AdminLoincHealthChecking"] = "Comprobando...",
@@ -5367,6 +5379,9 @@ namespace MedicalApp.Services
                 // --- _DoctorMascot ---
                 ["DocMascotSoundToggleTitle"] = "Ton ein/aus",
                 ["DocMascotSoundToggleAria"] = "Ton-Schalter",
+                // --- Password toggle 👁 (universal show/hide password button) ---
+                ["PasswordToggleShow"] = "Passwort anzeigen",
+                ["PasswordToggleHide"] = "Passwort ausblenden",
                 // --- Admin/Index LOINC health widget ---
                 ["AdminBtnDailySummaryTitle"] = "Tageszusammenfassung jetzt an alle Admins senden",
                 ["AdminLoincHealthChecking"] = "Wird geprüft...",
@@ -6390,6 +6405,9 @@ namespace MedicalApp.Services
                 ["EmailValidValid"] = "L'indirizzo sembra valido e il dominio esiste.",
                 ["DocMascotSoundToggleTitle"] = "Audio on/off",
                 ["DocMascotSoundToggleAria"] = "Interruttore audio",
+                // --- Password toggle 👁 (universal show/hide password button) ---
+                ["PasswordToggleShow"] = "Mostra password",
+                ["PasswordToggleHide"] = "Nascondi password",
                 ["AdminBtnDailySummaryTitle"] = "Invia ora il riepilogo giornaliero a tutti gli amministratori",
                 ["AdminLoincHealthChecking"] = "Verifica in corso...",
                 ["AdminLoincHealthLabelChecking"] = "Verif.\u2026",
@@ -7409,6 +7427,9 @@ namespace MedicalApp.Services
                 ["EmailValidValid"] = "O endereço parece válido e o domínio existe.",
                 ["DocMascotSoundToggleTitle"] = "Som ligado/desligado",
                 ["DocMascotSoundToggleAria"] = "Interruptor de som",
+                // --- Password toggle 👁 (universal show/hide password button) ---
+                ["PasswordToggleShow"] = "Mostrar palavra-passe",
+                ["PasswordToggleHide"] = "Ocultar palavra-passe",
                 ["AdminBtnDailySummaryTitle"] = "Enviar agora o resumo diário a todos os administradores",
                 ["AdminLoincHealthChecking"] = "A verificar...",
                 ["AdminLoincHealthLabelChecking"] = "A verif.\u2026",

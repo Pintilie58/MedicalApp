@@ -1,0 +1,38 @@
+/*!
+ * mobile-tooltip.css — Feb 2026
+ * Floating tooltip overlay for touch-only devices (see mobile-tooltip.js).
+ * Only activates via `@media (hover: none)` so it never leaks onto desktops.
+ */
+
+@media (hover: none) and (pointer: coarse) {
+    .mobile-tooltip-overlay {
+        position: fixed;
+        z-index: 10000;
+        max-width: 78vw;
+        padding: 8px 12px;
+        background: rgba(15, 23, 42, 0.94);       /* Slate-900 @ 94% */
+        color: #f8fafc;                            /* Slate-50 */
+        border-radius: 8px;
+        font-size: 0.85rem;
+        line-height: 1.35;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+        pointer-events: none;                      /* never blocks taps */
+        opacity: 0;
+        transform: translateY(-4px);
+        transition: opacity 140ms ease, transform 140ms ease;
+        display: none;                              /* JS toggles */
+        white-space: normal;
+    }
+    .mobile-tooltip-overlay.is-visible {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* On non-touch devices, this class is inert — keep the rule to be safe if the
+   JS ever runs from cache after an environment change. */
+@media (hover: hover) {
+    .mobile-tooltip-overlay {
+        display: none !important;
+    }
+}
