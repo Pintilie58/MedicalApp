@@ -2031,7 +2031,7 @@ namespace MedicalApp.Services
                 ["ProfilesSearchMatchFmt"] = "{0} din {1} profile se potrivesc cu „{2}\"",
                 // ===== Phase 4: Custom file input (Choose file / No file chosen) =====
                 ["UploadFileChooseBtn"] = "Alege fișier…",
-                ["UploadFileNoFileChosen"] = "Niciun fișier ales",
+                ["UploadFileNoFileChosen"] = "Niciun fișier selectat",
                 // ===== End Phase 4 =====
                 // ===== Phase 5: DuplicateDetected page + email "for profile" line =====
                 ["DupPageTitle"] = "Analiză duplicată",

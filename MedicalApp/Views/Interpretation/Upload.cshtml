@@ -85,7 +85,7 @@
                                        data-testid="upload-file-choose-btn">
                                     &#128206; @Loc.T("UploadFileChooseBtn")
                                 </label>
-                                <span class="custom-file-input-name text-muted" id="pdfFileName"
+                                <span class="custom-file-input-name" id="pdfFileName"
                                       data-empty-text="@Loc.T("UploadFileNoFileChosen")"
                                       data-testid="upload-file-name">
                                     @Loc.T("UploadFileNoFileChosen")
@@ -99,15 +99,17 @@
                             <span asp-validation-for="PdfFile" class="text-danger small"></span>
                         </div>
 
-                        <div class="alert alert-warning small">
+                        <!-- Submit button — placed directly under the upload box for
+                             quicker "select file → interpret" flow (Feb 2026 UX tweak). -->
+                        <button type="submit" class="btn btn-primary w-100 btn-lg mt-2" id="submitBtn">
+                            @Loc.T("InterpretAndSend")
+                        </button>
+
+                        <div class="alert alert-warning small mt-3">
                             <i class="bi bi-info-circle"></i>
                             <strong>@Loc.T("ProcessingNoticeTitle")</strong><br />
                             @Loc.T("ProcessingNoticeBody")
                         </div>
-
-                        <button type="submit" class="btn btn-primary w-100 btn-lg mt-2" id="submitBtn">
-                            @Loc.T("InterpretAndSend")
-                        </button>
                     </form>
                 </div>
             </div>
@@ -158,24 +160,33 @@
         box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
     }
 
-    /* === Custom localized file input (hides native "Choose File / No file chosen") === */
+    /* === Custom localized file input (hides native "Choose File / No file chosen") ===
+       Feb 2026: enlarged ~3× into a proper drop zone and made the empty-state
+       placeholder red so it functions as a visible "you haven't picked anything"
+       warning. Once a file IS selected, the filename displays in normal accent
+       colour (see .has-file). */
     .custom-file-input-wrap {
         display: flex;
         align-items: center;
-        gap: 12px;
+        justify-content: center;
+        gap: 16px;
         flex-wrap: wrap;
-        padding: 8px 12px;
-        border: 1px solid #ced4da;
-        border-radius: 8px;
+        padding: 32px 20px;
+        min-height: 140px;                 /* ≈ 3× the previous ~48px */
+        border: 2px dashed #ced4da;        /* dashed to signal "drop here" affordance */
+        border-radius: 10px;
         background-color: #fff;
-        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease,
+                    background-color 0.2s ease;
     }
     .custom-file-input-wrap:hover {
         border-color: #0d6efd;
+        background-color: #f8fbff;
         box-shadow: 0 0 0 0.18rem rgba(13, 110, 253, 0.10);
     }
     .custom-file-input-wrap:focus-within {
         border-color: #0d6efd;
+        border-style: solid;
         box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
     }
     /* Hide the native input but keep it accessible & required-validatable. */
@@ -197,12 +208,19 @@
         white-space: nowrap;
         font-weight: 600;
     }
+    /* Empty-state placeholder ("Niciun fișier selectat") — red bold single-line
+       so the user can't miss that no file has been picked yet. */
     .custom-file-input-name {
-        flex: 1;
+        flex: 0 1 auto;
         min-width: 0;
-        word-break: break-all;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
         font-size: 0.95rem;
+        color: #dc3545;                    /* Bootstrap danger */
+        font-weight: 600;
     }
+    /* File chosen → switch to informative accent colour, not a warning. */
     .custom-file-input-name.has-file {
         color: #0d47a1;
         font-weight: 500;
