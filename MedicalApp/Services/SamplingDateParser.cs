@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace MedicalApp.Services
@@ -37,77 +38,108 @@ namespace MedicalApp.Services
             @"(?<!\d)(?<d>\d{1,2})[\-/\.](?<m>\d{1,2})[\-/\.](?<y>\d{2,4})(?!\d)",
             RegexOptions.Compiled);
 
-        // Named-month patterns (English/Romanian/French short or long).
-        // Two distinct regexes — "27 Jan 2014" vs "Jan 27, 2014" — so we
+        // Named-month patterns (English/Romanian/French/Spanish/German/Italian/Portuguese
+        // short or long). Two distinct regexes — "27 Jan 2014" vs "Jan 27, 2014" — so we
         // don't need duplicate named groups inside a single pattern.
+        //
+        // Character class is `\p{L}+` (any Unicode letter) so we correctly capture
+        // month names with German umlauts ("März"), Portuguese cedilla ("março"),
+        // and any future language added to SupportedLanguagesConfig (e.g. Polish
+        // "styczeń"). The surrounding \d and \s anchors keep the match tight.
         private static readonly Regex NamedDateDmy = new(
-            @"(?<d>\d{1,2})\s+(?<mon>[A-Za-zĂÂÎȘȚăâîșțéèêûôàâç]+)\.?\s+(?<y>\d{4})",
+            @"(?<d>\d{1,2})\s+(?<mon>\p{L}+)\.?\s+(?<y>\d{4})",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private static readonly Regex NamedDateMdy = new(
-            @"(?<mon>[A-Za-zĂÂÎȘȚăâîșțéèêûôàâç]+)\.?\s+(?<d>\d{1,2}),?\s+(?<y>\d{4})",
+            @"(?<mon>\p{L}+)\.?\s+(?<d>\d{1,2}),?\s+(?<y>\d{4})",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-        // Months in English, Romanian, French, Italian, Portuguese — short + long, lowercased.
-        private static readonly Dictionary<string, int> MonthLookup = new(StringComparer.OrdinalIgnoreCase)
+        // ---- MonthLookup: built ONCE at class init from
+        // ---- SupportedLanguagesConfig × CultureInfo (CLDR) data.
+        // ----
+        // ---- Adding a new supported language auto-populates its months here
+        // ---- (no code edit needed). CLDR-provided names are stored both as
+        // ---- printed and — for names that carry diacritics — in an accent-
+        // ---- stripped form, since lab OCR sometimes drops the diacritics
+        // ---- ("aout" instead of "août", "marco" instead of "março").
+        // ----
+        // ---- BuildMonthLookup() is separated for readability & unit-testability.
+        // ---- StringComparer.OrdinalIgnoreCase mirrors the previous behaviour.
+        private static readonly Dictionary<string, int> MonthLookup = BuildMonthLookup();
+
+        private static Dictionary<string, int> BuildMonthLookup()
         {
-            // English
-            { "jan", 1 }, { "january", 1 },
-            { "feb", 2 }, { "february", 2 },
-            { "mar", 3 }, { "march", 3 },
-            { "apr", 4 }, { "april", 4 },
-            { "may", 5 },
-            { "jun", 6 }, { "june", 6 },
-            { "jul", 7 }, { "july", 7 },
-            { "aug", 8 }, { "august", 8 },
-            { "sep", 9 }, { "sept", 9 }, { "september", 9 },
-            { "oct", 10 }, { "october", 10 },
-            { "nov", 11 }, { "november", 11 },
-            { "dec", 12 }, { "december", 12 },
-            // Romanian
-            { "ian", 1 }, { "ianuarie", 1 },
-            { "februarie", 2 },
-            { "martie", 3 },
-            { "aprilie", 4 },
-            { "mai", 5 },
-            { "iun", 6 }, { "iunie", 6 },
-            { "iul", 7 }, { "iulie", 7 },
-            { "noi", 11 }, { "noiembrie", 11 },
-            { "decembrie", 12 },
-            // French
-            { "janv", 1 }, { "janvier", 1 },
-            { "févr", 2 }, { "fevrier", 2 }, { "février", 2 },
-            { "mars", 3 },
-            { "avr", 4 }, { "avril", 4 },
-            { "juin", 6 },
-            { "juil", 7 }, { "juillet", 7 },
-            { "août", 8 }, { "aout", 8 },
-            { "déc", 12 }, { "décembre", 12 }, { "decembre", 12 },
-            // Italian
-            { "gen", 1 }, { "gennaio", 1 },
-            { "febbraio", 2 },
-            { "marzo", 3 },
-            { "aprile", 4 },
-            { "maggio", 5 },
-            { "giu", 6 }, { "giugno", 6 },
-            { "lug", 7 }, { "luglio", 7 },
-            { "ago", 8 }, { "agosto", 8 },
-            { "set", 9 }, { "sett", 9 }, { "settembre", 9 },
-            { "ott", 10 }, { "ottobre", 10 },
-            { "novembre", 11 },
-            { "dic", 12 }, { "dicembre", 12 },
-            // Portuguese
-            { "janeiro", 1 },
-            { "fev", 2 }, { "fevereiro", 2 },
-            { "março", 3 }, { "marco", 3 },
-            { "abr", 4 }, { "abril", 4 },
-            { "maio", 5 },
-            { "junho", 6 },
-            { "julho", 7 },
-            { "setembro", 9 },
-            { "out", 10 }, { "outubro", 10 },
-            { "dez", 12 }, { "dezembro", 12 },
-        };
+            var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            // 1) CLDR data for every supported culture.
+            //    MonthGenitiveNames matters for Slavic langs (Polish, Czech…) where
+            //    the printed form differs from the lookup form. For our current
+            //    Romance/Germanic set it returns the same as MonthNames.
+            foreach (var cultureCode in SupportedLanguagesConfig.CultureCodes)
+            {
+                CultureInfo ci;
+                try { ci = CultureInfo.GetCultureInfo(cultureCode); }
+                catch (CultureNotFoundException) { continue; }
+
+                var dtf = ci.DateTimeFormat;
+                for (int m = 0; m < 12; m++)
+                {
+                    Register(map, dtf.MonthNames[m], m + 1);
+                    Register(map, dtf.AbbreviatedMonthNames[m], m + 1);
+                    Register(map, dtf.MonthGenitiveNames[m], m + 1);
+                    Register(map, dtf.AbbreviatedMonthGenitiveNames[m], m + 1);
+                }
+            }
+
+            // 2) Real-world lab variants NOT in CLDR. Each entry is a colloquial
+            //    or historical form observed in production lab reports. This list
+            //    is verified against the previous hardcoded lookup: every alias
+            //    that used to work still resolves to the same month.
+            var supplement = new (string alias, int month)[]
+            {
+                ("sept", 9),      // English/Italian colloquial for September
+                ("noi",  11),     // Romanian colloquial for noiembrie
+                ("sett", 9),      // Italian colloquial for settembre
+                ("marco", 3),     // Portuguese "março" without cedilla (some labs)
+                ("aout", 8),      // French "août" without circumflex
+                ("decembre", 12), // French "décembre" without accent
+                ("fevrier", 2),   // French "février" without accent
+            };
+            foreach (var (alias, month) in supplement) map[alias] = month;
+
+            return map;
+        }
+
+        /// <summary>Adds <paramref name="name"/> to <paramref name="map"/>, plus an
+        /// accent-stripped duplicate when the name carries diacritics. No-op on
+        /// null/whitespace input — safe to call with any DateTimeFormatInfo entry.</summary>
+        private static void Register(Dictionary<string, int> map, string? name, int month)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return;
+            var trimmed = name.Trim().TrimEnd('.');
+            if (trimmed.Length == 0) return;
+
+            map[trimmed] = month;
+
+            var ascii = StripDiacritics(trimmed);
+            if (!string.Equals(ascii, trimmed, StringComparison.Ordinal))
+                map[ascii] = month;
+        }
+
+        /// <summary>Returns <paramref name="s"/> with combining diacritical marks
+        /// removed — Unicode NFD → drop <c>Mn</c> category → NFC. Used so
+        /// "août" also matches "aout" and "März" also matches "Marz".</summary>
+        private static string StripDiacritics(string s)
+        {
+            var normalized = s.Normalize(NormalizationForm.FormD);
+            var sb = new StringBuilder(normalized.Length);
+            foreach (var c in normalized)
+            {
+                if (CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
+                    sb.Append(c);
+            }
+            return sb.ToString().Normalize(NormalizationForm.FormC);
+        }
 
         public static DateTime? TryParse(string? raw)
         {
