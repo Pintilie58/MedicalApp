@@ -84,6 +84,14 @@ namespace MedicalApp.Controllers
                 }).ToList()
             };
 
+            // "+ Profil nou" gate (Feb 2026 anti-abuse). B2C users must have at
+            // least 1 PAID credit to add extra family profiles; bonus credits
+            // don't count. See ProfileGateService for the full rationale.
+            var user = await _db.Users.AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Email == CurrentEmail);
+            ViewBag.CanCreateProfile =
+                ProfileGateService.CanCreateAdditionalProfile(user, profiles.Count);
+
             return View(vm);
         }
 
@@ -1251,10 +1259,19 @@ namespace MedicalApp.Controllers
         // CREATE
         // ====================================================================
         [HttpGet]
-        public IActionResult Create()
+        public async Task<IActionResult> Create()
         {
             if (string.IsNullOrEmpty(CurrentEmail))
                 return RedirectToAction("Index", "Home");
+
+            // Anti-abuse gate (Feb 2026): B2C users need paid credits to add
+            // extra profiles. Bypassed by direct URL navigation without this
+            // check. See ProfileGateService for details.
+            if (!await UserCanCreateAnotherProfileAsync())
+            {
+                TempData["ErrorMessage"] = Loc.T("ProfileLockRequirePaidCredits");
+                return RedirectToAction(nameof(Index));
+            }
 
             return View("Form", new ProfileFormViewModel());
         }
@@ -1265,6 +1282,16 @@ namespace MedicalApp.Controllers
         {
             if (string.IsNullOrEmpty(CurrentEmail))
                 return RedirectToAction("Index", "Home");
+
+            // Server-side enforcement of the anti-abuse gate — mirrors the GET
+            // guard so an attacker cannot bypass the disabled button by
+            // POSTing directly (curl/Postman/DevTools). Must never be removed
+            // even if the view-level check is refactored away.
+            if (!await UserCanCreateAnotherProfileAsync())
+            {
+                TempData["ErrorMessage"] = Loc.T("ProfileLockRequirePaidCredits");
+                return RedirectToAction(nameof(Index));
+            }
 
             if (!ModelState.IsValid) return View("Form", model);
 
@@ -1408,6 +1435,24 @@ namespace MedicalApp.Controllers
                 "very_high"    => "very_high",
                 _              => null
             };
+        }
+
+        /// <summary>
+        /// Anti-abuse gate helper (Feb 2026). Encapsulates the two DB reads
+        /// required to consult <see cref="ProfileGateService"/>: the current
+        /// user (for UserType + paid credit balance) and the count of profiles
+        /// they already own. Returns false when the current user context is
+        /// broken (session cleared, user row deleted) — safest default.
+        /// </summary>
+        private async Task<bool> UserCanCreateAnotherProfileAsync()
+        {
+            if (string.IsNullOrEmpty(CurrentEmail)) return false;
+            var user = await _db.Users.AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Email == CurrentEmail);
+            if (user == null) return false;
+            var profileCount = await _db.Profiles
+                .CountAsync(p => p.UserEmail == CurrentEmail);
+            return ProfileGateService.CanCreateAdditionalProfile(user, profileCount);
         }
     }
 }

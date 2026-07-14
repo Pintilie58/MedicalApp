@@ -94,6 +94,13 @@ namespace MedicalApp.Controllers
                 })
                 .ToListAsync();
 
+            // "+ Profil nou" gate — same rule as /Profiles: B2C users need paid
+            // credits for extra family profiles. Passed to the view so it can
+            // grey-out the button. Server-side enforcement lives in
+            // ProfilesController.Create; this ViewBag is UI-only.
+            ViewBag.CanCreateProfile =
+                ProfileGateService.CanCreateAdditionalProfile(user, profiles.Count);
+
             var defaultId = profiles.FirstOrDefault(p => p.IsDefault)?.Id
                          ?? profiles.FirstOrDefault()?.Id;
 

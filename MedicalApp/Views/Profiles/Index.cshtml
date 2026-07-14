@@ -22,9 +22,28 @@
                        class="btn btn-outline-secondary" data-testid="btn-back-dashboard">
                         &larr; @Loc.T("BackToDashboard")
                     </a>
-                    <a asp-action="Create" class="btn btn-primary" data-testid="btn-create-profile">
-                        &#43; @Loc.T("ProfileFormHeadingNew")
-                    </a>
+                    @{
+                        // Feb 2026 anti-abuse gate — see ProfileGateService.
+                        // When ViewBag.CanCreateProfile is false the button is
+                        // rendered as a locked variant that redirects to /Credits
+                        // instead of the create form.
+                        var canCreate = ViewBag.CanCreateProfile as bool? ?? true;
+                    }
+                    @if (canCreate)
+                    {
+                        <a asp-action="Create" class="btn btn-primary" data-testid="btn-create-profile">
+                            &#43; @Loc.T("ProfileFormHeadingNew")
+                        </a>
+                    }
+                    else
+                    {
+                        <a asp-controller="Credits" asp-action="Buy"
+                           class="btn btn-outline-secondary"
+                           data-testid="btn-create-profile-locked"
+                           title="@Loc.T("ProfileLockTooltip")">
+                            &#128274; @Loc.T("ProfileFormHeadingNew")
+                        </a>
+                    }
                 </div>
             </div>
 

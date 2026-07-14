@@ -1071,6 +1071,9 @@ namespace MedicalApp.Services
                 ["PasswordToggleHide"] = "Hide password",
                 // --- Drag-and-drop upload hint (B2C /Interpretation/Upload) ---
                 ["DragDropHint"] = "or drag & drop the PDF here",
+                // --- Profile creation gate (Feb 2026 anti-abuse) ---
+                ["ProfileLockRequirePaidCredits"] = "Adding family profiles requires paid credits. Buy credits to unlock this feature.",
+                ["ProfileLockTooltip"] = "Buy credits to unlock family profiles",
                 // --- Admin/Index LOINC health widget (inline JS labels) ---
                 ["AdminBtnDailySummaryTitle"] = "Send the daily summary to all admins now",
                 ["AdminLoincHealthChecking"] = "Checking...",
@@ -2167,6 +2170,9 @@ namespace MedicalApp.Services
                 ["PasswordToggleHide"] = "Ascunde parola",
                 // --- Drag-and-drop upload hint (B2C /Interpretation/Upload) ---
                 ["DragDropHint"] = "sau trage & plasează PDF-ul aici",
+                // --- Profile creation gate (Feb 2026 anti-abuse) ---
+                ["ProfileLockRequirePaidCredits"] = "Adăugarea de profile pentru familie necesită credite plătite. Cumpără credite pentru a debloca această funcție.",
+                ["ProfileLockTooltip"] = "Cumpără credite pentru a debloca profile de familie",
                 // --- Admin/Index LOINC health widget ---
                 ["AdminBtnDailySummaryTitle"] = "Trimite acum rezumatul zilnic către toți adminii",
                 ["AdminLoincHealthChecking"] = "Se verifică...",
@@ -3242,6 +3248,9 @@ namespace MedicalApp.Services
                 ["PasswordToggleHide"] = "Masquer le mot de passe",
                 // --- Drag-and-drop upload hint (B2C /Interpretation/Upload) ---
                 ["DragDropHint"] = "ou glissez-déposez le PDF ici",
+                // --- Profile creation gate (Feb 2026 anti-abuse) ---
+                ["ProfileLockRequirePaidCredits"] = "L'ajout de profils familiaux nécessite des crédits payés. Achetez des crédits pour débloquer cette fonction.",
+                ["ProfileLockTooltip"] = "Achetez des crédits pour débloquer les profils familiaux",
                 // --- Admin/Index LOINC health widget ---
                 ["AdminBtnDailySummaryTitle"] = "Envoyer maintenant le résumé quotidien à tous les admins",
                 ["AdminLoincHealthChecking"] = "Vérification...",
@@ -4317,6 +4326,9 @@ namespace MedicalApp.Services
                 ["PasswordToggleHide"] = "Ocultar contraseña",
                 // --- Drag-and-drop upload hint (B2C /Interpretation/Upload) ---
                 ["DragDropHint"] = "o arrastra y suelta el PDF aquí",
+                // --- Profile creation gate (Feb 2026 anti-abuse) ---
+                ["ProfileLockRequirePaidCredits"] = "Añadir perfiles familiares requiere créditos de pago. Compra créditos para desbloquear esta función.",
+                ["ProfileLockTooltip"] = "Compra créditos para desbloquear perfiles familiares",
                 // --- Admin/Index LOINC health widget ---
                 ["AdminBtnDailySummaryTitle"] = "Enviar ahora el resumen diario a todos los administradores",
                 ["AdminLoincHealthChecking"] = "Comprobando...",
@@ -5392,6 +5404,9 @@ namespace MedicalApp.Services
                 ["PasswordToggleHide"] = "Passwort ausblenden",
                 // --- Drag-and-drop upload hint (B2C /Interpretation/Upload) ---
                 ["DragDropHint"] = "oder PDF hierher ziehen",
+                // --- Profile creation gate (Feb 2026 anti-abuse) ---
+                ["ProfileLockRequirePaidCredits"] = "Das Hinzufügen von Familienprofilen erfordert bezahlte Credits. Kaufe Credits, um diese Funktion freizuschalten.",
+                ["ProfileLockTooltip"] = "Credits kaufen, um Familienprofile freizuschalten",
                 // --- Admin/Index LOINC health widget ---
                 ["AdminBtnDailySummaryTitle"] = "Tageszusammenfassung jetzt an alle Admins senden",
                 ["AdminLoincHealthChecking"] = "Wird geprüft...",
@@ -6420,6 +6435,9 @@ namespace MedicalApp.Services
                 ["PasswordToggleHide"] = "Nascondi password",
                 // --- Drag-and-drop upload hint (B2C /Interpretation/Upload) ---
                 ["DragDropHint"] = "oppure trascina qui il PDF",
+                // --- Profile creation gate (Feb 2026 anti-abuse) ---
+                ["ProfileLockRequirePaidCredits"] = "L'aggiunta di profili familiari richiede crediti a pagamento. Acquista crediti per sbloccare questa funzionalità.",
+                ["ProfileLockTooltip"] = "Acquista crediti per sbloccare i profili familiari",
                 ["AdminBtnDailySummaryTitle"] = "Invia ora il riepilogo giornaliero a tutti gli amministratori",
                 ["AdminLoincHealthChecking"] = "Verifica in corso...",
                 ["AdminLoincHealthLabelChecking"] = "Verif.\u2026",
@@ -7444,6 +7462,9 @@ namespace MedicalApp.Services
                 ["PasswordToggleHide"] = "Ocultar palavra-passe",
                 // --- Drag-and-drop upload hint (B2C /Interpretation/Upload) ---
                 ["DragDropHint"] = "ou arraste o PDF para aqui",
+                // --- Profile creation gate (Feb 2026 anti-abuse) ---
+                ["ProfileLockRequirePaidCredits"] = "Adicionar perfis familiares requer créditos pagos. Compra créditos para desbloquear esta funcionalidade.",
+                ["ProfileLockTooltip"] = "Compra créditos para desbloquear perfis familiares",
                 ["AdminBtnDailySummaryTitle"] = "Enviar agora o resumo diário a todos os administradores",
                 ["AdminLoincHealthChecking"] = "A verificar...",
                 ["AdminLoincHealthLabelChecking"] = "A verif.\u2026",
