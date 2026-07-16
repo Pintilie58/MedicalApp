@@ -570,6 +570,48 @@ namespace MedicalApp.Controllers
                     _logger.LogWarning(ex,
                         "{Provider} produced an invalid response (model try {N}/{Max}). Retrying... Reason: {Reason}",
                         providerName, modelAttempts, maxAttemptsModel, ex.Message);
+
+                    // Feb 2026 — Tiered promotion on JSON/audit failures.
+                    // Historical bug: retrying the SAME model on dense reports
+                    // (e.g. 78 parameters, ~20k output tokens) tends to repeat
+                    // the same syntax error. On the reported production
+                    // incident, Flash was called 3× consecutively and failed 3×
+                    // with the exact same "'}' invalid without matching open"
+                    // error at doctor_questions[5]. Meanwhile Pro (Fallback)
+                    // and 3.1-Pro (SecondaryFallback) were never tried.
+                    //
+                    // Fix: escalate to the next tier IMMEDIATELY, without
+                    // consuming a retry slot on the same underperforming model.
+                    // Mirrors the tiered promotion pattern already used for
+                    // MaxOutputTokens above (~line 540).
+                    //
+                    // Progression on a dense report:
+                    //   attempt 1 = Flash          → JSON error caught here
+                    //   attempt 2 = Pro (Fallback) → new model, better chance
+                    //   attempt 3 = 3.1-Pro (Sec.) → strongest model, last shot
+                    string? nextModel = null;
+                    if (currentModelOverride == null)
+                        nextModel = _geminiSettings.FallbackModel;
+                    else if (string.Equals(currentModelOverride, _geminiSettings.FallbackModel,
+                                           StringComparison.OrdinalIgnoreCase))
+                        nextModel = _geminiSettings.SecondaryFallbackModel;
+                    // else: already on SecondaryFallback → no higher tier to
+                    // escalate to. The retry then re-tries the same top-tier
+                    // model (better than nothing, sometimes 3.1-Pro succeeds
+                    // on the second call).
+
+                    if (!string.IsNullOrWhiteSpace(nextModel)
+                        && !string.Equals(nextModel, currentModelOverride, StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(nextModel, _geminiSettings.Model, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var prev = currentModelOverride ?? _geminiSettings.Model;
+                        currentModelOverride = nextModel;
+                        _logger.LogWarning(
+                            "{Provider} JSON/audit failure on {Prev}. Escalating to {Next} " +
+                            "for the next attempt (retry slot {N}/{Max} already consumed).",
+                            providerName, prev, currentModelOverride, modelAttempts, maxAttemptsModel);
+                    }
+
                     lastException = ex;
                     await Task.Delay(1500 * modelAttempts); // 1.5s, 3s
                 }
