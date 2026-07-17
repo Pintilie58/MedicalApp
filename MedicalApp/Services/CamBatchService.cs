@@ -889,6 +889,37 @@ namespace MedicalApp.Services
                     attempts--; // refund this attempt — promotion is "free"
                     progress.Log(string.Format(Loc.T("CamBatchLogTruncatedSwitching", lang), LabelFor(currentTier)));
                 }
+                // ---------- IMMEDIATE TIER PROMOTION: JSON malformed / audit mismatch ----------
+                // Feb 2026 — Symmetric with the B2C fix in InterpretationController.cs.
+                // Any InvalidOperationException that ISN'T a MaxOutputTokens truncation
+                // signals a model-side quality issue: unparseable JSON, empty response,
+                // or self-audit mismatch that exceeded the 95% completeness tolerance
+                // (see GeminiMedicalInterpretationService self-audit block). Retrying the
+                // SAME model on dense reports (60+ params) tends to repeat the same
+                // failure, so we promote to the next tier immediately without consuming
+                // a retry attempt — mirrors the MaxOutputTokens strategy above.
+                //
+                // Why B2B needs this: clinic batches of 50-100 PDFs previously lost 1-2
+                // dense reports per batch to the generic catch below, marking them as
+                // NotSent without ever trying Pro/3.1-Pro. Now the pipeline auto-heals.
+                catch (Exception ex) when (
+                    ex is InvalidOperationException
+                    && !ex.Message.Contains("MaxOutputTokens", StringComparison.OrdinalIgnoreCase)
+                    && currentTier < 3)
+                {
+                    lastEx = ex;
+                    string? nextModel = currentTier == 1 ? settings.FallbackModel : settings.SecondaryFallbackModel;
+                    if (string.IsNullOrWhiteSpace(nextModel)
+                        || string.Equals(nextModel, modelOverride ?? settings.Model, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // No next tier configured — fall through to non-transient handling below.
+                        return null;
+                    }
+                    modelOverride = nextModel;
+                    currentTier++;
+                    attempts--; // refund this attempt — promotion is "free"
+                    progress.Log(string.Format(Loc.T("CamBatchLogTruncatedSwitching", lang), LabelFor(currentTier)));
+                }
                 // ---------- MODEL RETIRED by Google (404 NOT_FOUND): promote tier or fail clean ----------
                 // The configured model id no longer exists at Google (typically a
                 // preview that was rotated out). No amount of retry will fix it,
