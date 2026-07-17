@@ -1298,6 +1298,24 @@ Rules:
     in ""key_results"", you skipped 2 parameters and your output is INCOMPLETE.
   - Do this BEFORE you submit. Re-scan the PDF if the counts disagree.
 
+MANDATORY 3-STEP CONSISTENCY CHECK (Feb 2026 — do this SILENTLY before emitting):
+  STEP 1 — Count key_results.length. Call this N.
+  STEP 2 — Count parameter_names.length. Call this M.
+  STEP 3 — If (expected_count == N == M) proceed to emit.
+           If any of the three disagree, you MUST reconcile them BEFORE emitting,
+           using ONE of these two paths:
+             PATH A (preferred) — ADD the missing entries so all three counts
+                                  agree with the true parameter count you saw.
+             PATH B (fallback)  — REDUCE expected_count to equal min(N, M) and
+                                  trim parameter_names to match. Use this ONLY
+                                  when you genuinely cannot recover the missing
+                                  key_results entries.
+  Never emit a JSON where expected_count > key_results.length. Internal
+  consistency between the three counts is MORE IMPORTANT than reporting the
+  ""aspirational"" count. A JSON with 75 consistent entries beats a JSON that
+  claims 78 but only lists 75 — the latter forces an expensive retry that will
+  probably produce the same mismatch.
+
 OUTPUT FORMAT (CRITICAL):
 - Respond ONLY with a JSON OBJECT (no markdown, no code fences, no commentary).
 - patient_info.age: MUST be the age AS PRINTED IN THE PDF by the lab (e.g.
