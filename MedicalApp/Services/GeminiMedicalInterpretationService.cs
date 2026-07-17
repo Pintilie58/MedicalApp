@@ -351,9 +351,21 @@ namespace MedicalApp.Services
             if (result == null)
                 throw new InvalidOperationException("The AI returned an empty response.");
 
-            // Self-audit verification: if the model declared more parameters than it
-            // actually emitted in key_results, it silently skipped some.
-            // Throw a recoverable error so the controller's retry loop kicks in.
+            // Self-audit verification: the model declares an expected count of
+            // parameters (via _extraction_audit). Historically we forced an
+            // expensive retry whenever declared > emitted by ≥2. But on dense
+            // reports (60+ parameters) Gemini Flash/Pro/3.1-Pro ALL consistently
+            // miss 2-4 items due to internal dedup — retrying repeats the same
+            // miss pattern and burns 5-10 minutes for no gain.
+            //
+            // Feb 2026 tolerance policy:
+            //   * ≥ 95% completeness         → WARN + accept (small loss on dense
+            //                                   report; verified on CIRIP 75/78)
+            //   * off-by-one on ≥5 params    → WARN + accept (legacy case)
+            //   * anything worse             → force retry (existing behaviour)
+            //
+            // The independent post-Gemini audit below still runs and can flag
+            // genuine hallucinations against the PDF text layer.
             if (result.IsMedicalAnalysis && result.Audit != null)
             {
                 var listed = result.KeyResults?.Count ?? 0;
@@ -364,24 +376,30 @@ namespace MedicalApp.Services
                 // ground truth (the model sometimes fills only one of them).
                 var groundTruth = Math.Max(expected, auditNames);
 
-                if (groundTruth > listed && groundTruth - listed >= 2)
+                if (groundTruth > listed)
                 {
-                    _logger.LogWarning(
-                        "Gemini self-audit mismatch: declared {GroundTruth} parameters but emitted only {Listed} in key_results. Forcing retry.",
-                        groundTruth, listed);
-                    throw new InvalidOperationException(
-                        $"Gemini extraction incomplete: model declared {groundTruth} parameters but only emitted {listed}. Retrying.");
-                }
-                else if (groundTruth > listed)
-                {
-                    // Off-by-one: usually a duplicate counted in audit, or a
-                    // parameter listed in parameter_names but skipped because it
-                    // had no value (e.g. row "Status:" with no result yet).
-                    // Worth a log line but NOT worth a 60s retry that costs
-                    // ~2-3k tokens and may run into another transient 503.
-                    _logger.LogInformation(
-                        "Gemini self-audit minor mismatch (off-by-one): declared {GroundTruth} but emitted {Listed}. Continuing.",
-                        groundTruth, listed);
+                    var missing = groundTruth - listed;
+                    var completenessPct = listed * 100.0 / groundTruth;
+
+                    bool tolerable = completenessPct >= 95.0
+                                  || (missing == 1 && groundTruth >= 5);
+
+                    if (tolerable)
+                    {
+                        _logger.LogWarning(
+                            "Gemini self-audit tolerated: {Listed}/{GroundTruth} parameters " +
+                            "({Pct:F1}% completeness, {Missing} missing). Accepting result.",
+                            listed, groundTruth, completenessPct, missing);
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "Gemini self-audit mismatch: declared {GroundTruth} parameters but emitted only {Listed} in key_results " +
+                            "({Pct:F1}% completeness). Forcing retry.",
+                            groundTruth, listed, completenessPct);
+                        throw new InvalidOperationException(
+                            $"Gemini extraction incomplete: {listed}/{groundTruth} parameters ({completenessPct:F1}% completeness). Retrying.");
+                    }
                 }
             }
 
