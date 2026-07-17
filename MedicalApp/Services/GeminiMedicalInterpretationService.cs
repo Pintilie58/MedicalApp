@@ -1112,132 +1112,81 @@ What it is NOT:
 How to build it (template):
   ""<Analyte name in English> [<Property>] in <Specimen>[ by <Method>]""
 
-Worked examples (these are the format we expect — adapt to YOUR parameter):
-  ""GGT"" / ""Gamma GT"" / ""Glutamiltranspeptidaza""
-      -> ""Gamma glutamyl transferase [Enzymatic activity/volume] in Serum or Plasma""
-  ""VSH"" / ""VS"" / ""Vitesse de sédimentation""
-      -> ""Erythrocyte sedimentation rate""
-  ""Glicemie"" / ""Glucoza"" (in biochemistry panel, blood-derived)
+Worked examples — focus on the tricky cases (LLM already knows trivial ones):
+
+Section-dependent (SAME analyte, DIFFERENT specimen):
+  ""Glicemie"" / ""Glucoza"" (biochemistry panel, blood-derived)
       -> ""Glucose [Mass/volume] in Serum or Plasma""
-  ""Glucoza (urina)"" (in urinalysis dipstick section)
+  ""Glucoza (urina)"" (urinalysis dipstick section)
       -> ""Glucose [Mass/volume] in Urine by Test strip""
-  ""Hemoglobina"" (in CBC)
+  ""Hemoglobina"" (CBC)
       -> ""Hemoglobin [Mass/volume] in Blood""
-  ""Hemoglobina urinară"" (in urinalysis dipstick)
+  ""Hemoglobina urinară"" (urinalysis dipstick)
       -> ""Hemoglobin [Presence] in Urine by Test strip""
-  ""LDH"" / ""Lactat dehidrogenaza"" / ""Lactate dehydrogenase"" (total, serum, fără mențiune izoenzimă)
+
+Enzyme vs isoenzyme (production error observed — DO NOT MIX):
+  ""LDH"" / ""Lactat dehidrogenaza"" / ""Lactate dehydrogenase"" (total, serum)
       -> ""Lactate dehydrogenase [Enzymatic activity/volume] in Serum or Plasma by Lactate to pyruvate reaction""
-      NOTE: emit acest text canonic pentru LDH TOTAL. Do NOT emit "" LDH 1"" sau ""isoenzyme""
-      pentru LDH total — acelea sunt teste specializate diferite.
+      NOTE: emit this canonical text for LDH TOTAL. Do NOT emit ""LDH 1"" or ""isoenzyme""
+      for total LDH — those are specialized tests with different codes.
+  ""LDH"" isoenzime specifice (LDH1, LDH2, ...)
+      -> ""LDH isoenzyme 1 [Enzymatic activity/volume] in Serum or Plasma""
+
+Antibody name confusion (production error observed):
   ""Anti-TPO"" / ""Anti-tiroidperoxidaza"" / ""TPO antibody"" / ""Anti-thyroperoxidase""
       -> ""Thyroperoxidase Ab [Units/volume] in Serum""
-      NOTE: NU este același lucru cu ""Thyroid colloidal Ab"" (anticorpi anti-coloid)
-      sau cu ""Thyroglobulin Ab"" (anti-Tg). TPO = enzima thyroperoxidase.
-  ""LDH"" izoenzime specifice (LDH1, LDH2, ...) — folosește numele specific
-      ""LDH isoenzyme 1 [Enzymatic activity/volume] in Serum or Plasma""
-  ""TSH""
-      -> ""Thyrotropin [Units/volume] in Serum or Plasma""
-  ""FT4"" / ""T4 libre""
-      -> ""Thyroxine free [Mass/volume] in Serum or Plasma""
-  ""LDL"" / ""LDL-Cholesterol""
-      -> ""Cholesterol in LDL [Mass/volume] in Serum or Plasma""
-  ""Non-HDL cholesterol""
-      -> ""Cholesterol non HDL [Mass/volume] in Serum or Plasma""
-  ""Colesterol total""
-      -> ""Cholesterol [Mass/volume] in Serum or Plasma""
-  ""ALT"" / ""SGPT"" / ""TGP""
-      -> ""Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma""
-  ""AST"" / ""SGOT"" / ""TGO""
-      -> ""Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma""
-  ""Creatinina serica""
-      -> ""Creatinine [Mass/volume] in Serum or Plasma""
-  ""eGFR"" / ""DFG"" / ""Rata estimata a filtrarii glomerulare""
-      -> ""Glomerular filtration rate/1.73 sq M.predicted in Serum, Plasma or Blood by Creatinine-based formula""
-  ""Densitate urinară"" / ""Urine specific gravity""
-      -> ""Specific gravity of Urine""
-  ""pH urinar"" (dipstick)
-      -> ""pH of Urine by Test strip""
-  ""Procentul de protrombină"" / ""Quick %""
-      -> ""Prothrombin time (PT) actual/normal""
-  ""INR""
-      -> ""INR in Platelet poor plasma by Coagulation assay""
-  ""Anti-tiroglobulină"" / ""Anti-Tg""
-      -> ""Thyroglobulin Ab [Units/volume] in Serum""
-  ""Calcitonina""
-      -> ""Calcitonin [Mass/volume] in Serum or Plasma""
-  ""Neutrofile"" absolute count -> ""Neutrophils [#/volume] in Blood""
-  ""Neutrofile %"" -> ""Neutrophils/100 leukocytes in Blood""
-  ""Limfocite"" absolute count -> ""Lymphocytes [#/volume] in Blood""
-  ""Limfocite %"" -> ""Lymphocytes/100 leukocytes in Blood""
-  ""Monocite"" absolute count -> ""Monocytes [#/volume] in Blood""
-  ""Monocite %"" -> ""Monocytes/100 leukocytes in Blood""
-  ""Eozinofile"" absolute count -> ""Eosinophils [#/volume] in Blood""
-  ""Eozinofile %"" -> ""Eosinophils/100 leukocytes in Blood""
-  ""Bazofile"" absolute count -> ""Basophils [#/volume] in Blood""
-  ""Bazofile %"" -> ""Basophils/100 leukocytes in Blood""
-  ""Hematocrit"" -> ""Hematocrit [Volume Fraction] of Blood""
-  ""MCV"" / ""Volum eritrocitar mediu"" / ""Volumul mediu eritrocitar"" / ""Mean corpuscular volume""
+      NOTE: NOT the same as ""Thyroid colloidal Ab"" (anti-coloid) or
+      ""Thyroglobulin Ab"" (anti-Tg). TPO = enzyme thyroperoxidase.
+
+WBC differential — percentage vs absolute (CRITICAL):
+  ""Neutrofile"" with unit % -> ""Neutrophils/100 leukocytes in Blood""
+  ""Neutrofile"" with unit /uL or x10^3/uL -> ""Neutrophils [#/volume] in Blood""
+  Same pattern for Lymphocytes, Monocytes, Eosinophils, Basophils.
+  Use the UNIT as the discriminator; never emit a bare ""Neutrophils"".
+
+RBC/PLT nomenclature (multi-language variants):
+  ""MCV"" / ""Volum eritrocitar mediu"" / ""Volumul mediu eritrocitar""
       -> ""Erythrocyte mean corpuscular volume [Entitic volume] by Automated count""
-  ""MCH"" / ""Hemoglobina eritrocitara medie"" / ""Mean corpuscular hemoglobin"" / ""Hb medie pe eritrocit""
-      -> ""Erythrocyte mean corpuscular hemoglobin [Entitic mass] by Automated count""
-  ""MCHC"" / ""Concentratia medie de hemoglobina"" / ""Mean corpuscular hemoglobin concentration"" / ""Concentratie medie Hb""
+  ""MCHC"" / ""Concentratia medie de hemoglobina"" / ""Concentratie medie Hb""
       -> ""Erythrocyte mean corpuscular hemoglobin concentration [Mass/volume] by Automated count""
-  ""RDW"" / ""Largimea curbei de distributie eritrocitara"" / ""Red cell distribution width"" / ""Indice distributie eritrocitara""
+  ""RDW"" / ""Largimea curbei de distributie eritrocitara"" / ""Red cell distribution width""
       -> ""Erythrocyte distribution width [Ratio] by Automated count""
-  ""MPV"" / ""Volum trombocitar mediu"" / ""Mean platelet volume""
-      -> ""Platelet mean volume [Entitic volume] in Blood by Automated count""
-  ""PDW"" / ""Largimea curbei de distributie trombocitara"" / ""Platelet distribution width""
-      -> ""Platelet distribution width [Ratio] in Blood""
-  ""PCT"" / ""Plachetocrit"" / ""Plateletcrit""
-      -> ""Plateletcrit [Volume Fraction] in Blood""
-  ""Celule epiteliale plate"" / urine sediment
+
+Urinalysis-specific (unusual specimens):
+  ""Celule epiteliale plate"" (urine sediment)
       -> ""Epithelial cells [#/area] in Urine sediment by Microscopy high power field""
   ""Urobilinogen urinar"" (dipstick)
       -> ""Urobilinogen [Mass/volume] in Urine by Test strip""
 
-GUIDELINES — keep these in mind when building parameter_normalized_en:
-  1. Use the LOINC English vocabulary where you know it (Urate, not Uric acid;
-     Thyrotropin, not TSH; Thyroglobulin Ab, not anti-Tg antibodies).
-  2. ALWAYS include the SPECIMEN explicitly (""in Serum or Plasma"", ""in Blood"",
-     ""in Urine by Test strip"", ""in Urine sediment"", ""in CSF""). Specimen is
-     the most common reason a downstream matcher picks the wrong code.
-  3. Use the section context of the PDF to discriminate ambiguous names. A
-     parameter ""Glucoza"" inside the urinalysis dipstick block is ""Glucose in
-     Urine by Test strip"", NOT ""Glucose in Serum or Plasma"".
-  4. Prefer the COMMON canonical form, not an exotic method-specific one.
-     If the lab printed ""Hemoglobina"" without specifying method, emit
-     ""Hemoglobin [Mass/volume] in Blood"" (not the specific cyanmethemoglobin
-     variant).
-  5. For derived parameters that have no LOINC equivalent (e.g. ""HOMA-IR"",
-     proprietary panels, in-house ratios), emit a descriptive English name:
-     ""HOMA-IR insulin resistance index"" — leave it as plain text, the
-     downstream matcher will either find a code or skip.
-  6. If you genuinely cannot map the parameter to a meaningful English
-     medical term, emit null. The downstream pipeline will handle it.
-  7. **STRICT TRANSLATION RULE** — parameter_normalized_en MUST be in ENGLISH,
-     not Romanian / French / German. NEVER copy the raw Romanian parameter name
-     into parameter_normalized_en. If the lab printed ""Hemoglobina eritrocitara
-     medie"" you MUST emit ""Erythrocyte mean corpuscular hemoglobin [Entitic mass]
-     by Automated count"", NOT ""Hemoglobina eritrocitara medie {HEM}"" or
-     ""Mean corpuscular hemoglobin"" without the bracketed property. Romanian
-     names get matched to wrong codes — translate to canonical English EVERY time.
-  8. **STRIP ALL ABBREVIATIONS IN BRACES/PARENS** when building the canonical
-     name. Inputs like ""Hemoglobina eritrocitara medie {HEM}"",
-     ""Concentratia medie a hemoglobinei eritrocitare (MCHC)"",
-     ""CA 19 - 9 ( Antigen carbohidrat )"" must produce a CLEAN canonical
-     English term without the parenthetical alias — those parentheticals
-     trick the semantic matcher into picking wrong codes.
-  9. **DIFFERENTIATE % vs ABSOLUTE COUNT for WBC differential**. The lab row
-     ""Neutrofile: 60%"" is a fraction (""Neutrophils/100 leukocytes in Blood""),
-     while ""Neutrofile: 4500 /uL"" is an absolute count
-     (""Neutrophils [#/volume] in Blood""). NEVER emit a bare ""Neutrophils""
-     without specifying which. Use the unit (% vs /uL or x10^3/uL) to decide.
-     Same rule for Lymphocytes, Monocytes, Eosinophils, Basophils.
- 10. **NEVER emit the SINGULAR form** (""Neutrofil"", ""Limfocit"", ""Monocit"")
-     when the lab row clearly counts CELLS — these are CELL POPULATIONS,
-     always plural in LOINC (""Neutrophils"", ""Lymphocytes"", ""Monocytes"").
+For simpler analytes (TSH, FT4, ALT, AST, Cholesterol total/LDL/non-HDL,
+Creatinine, eGFR, Ferritin, Iron, INR, Vitamin B12/D/folate, CA 125/15-3,
+CEA, AFP, MCH, MPV, PDW, PCT, Hematocrit, etc.) apply the same template
+using well-known LOINC canonical names — no worked example needed.
 
-ADDITIONAL CANONICAL EXAMPLES (covering analytes observed misnormalized in
+GUIDELINES — apply when building parameter_normalized_en:
+  1. LOINC vocabulary + common canonical form. Use standard English terms
+     (Urate not Uric acid; Thyrotropin not TSH). Prefer the COMMON canonical
+     form, not exotic method-specific variants unless the lab printed one
+     (e.g. plain ""Hemoglobin [Mass/volume] in Blood"", not cyanmethemoglobin).
+  2. SPECIMEN is MANDATORY. Always include ""in Serum or Plasma"", ""in Blood"",
+     ""in Urine by Test strip"", ""in Urine sediment"", ""in CSF"". Missing specimen
+     is the #1 reason a downstream matcher picks the wrong code.
+  3. Use SECTION CONTEXT to disambiguate. A parameter ""Glucoza"" inside the
+     urinalysis dipstick block is ""Glucose in Urine by Test strip"", NOT
+     ""Glucose in Serum or Plasma"".
+  4. DERIVED params without LOINC (HOMA-IR, in-house ratios, proprietary
+     panels) → emit a descriptive English name as plain text. If truly
+     impossible to map → emit null. The downstream matcher will handle it.
+  5. **ENGLISH ONLY + STRIP ALL PARENTHETICALS/BRACES**. NEVER copy the raw
+     Romanian/French/German name. ""Hemoglobina eritrocitara medie {HEM}""
+     MUST become ""Erythrocyte mean corpuscular hemoglobin [Entitic mass]
+     by Automated count"". Parentheticals like ""(Antigen carbohidrat)"" or
+     ""{HEM}"" trick the semantic matcher — remove them BEFORE emitting.
+  6. ALWAYS use PLURAL cell names in the differential (Neutrophils,
+     Lymphocytes, Monocytes, Eosinophils, Basophils) — never singular
+     (Neutrofil, Limfocit). LOINC uses populations.
+
+ADDITIONAL CANONICAL EXAMPLES (tricky cases observed misnormalized in
 production logs — always emit EXACTLY this English text when you see the
 listed Romanian aliases):
   ""HOMA"" / ""HOMA-IR"" / ""Indice HOMA"" / ""HOMA insulin resistance index""
@@ -1248,28 +1197,10 @@ listed Romanian aliases):
       -> ""Cancer Ag 19-9 [Units/volume] in Serum or Plasma""
       NOTE: the parenthetical ""(Antigen carbohidrat)"" is a translation hint,
       NOT part of the analyte name. Strip it before emitting.
-  ""CA 125"" / ""Antigen carbohidrat 125"" / ""Cancer Ag 125""
-      -> ""Cancer Ag 125 [Units/volume] in Serum or Plasma""
-  ""CA 15-3"" / ""Cancer Ag 15-3""
-      -> ""Cancer Ag 15-3 [Units/volume] in Serum or Plasma""
-  ""CEA"" / ""Antigen carcinoembrionar""
-      -> ""Carcinoembryonic Ag [Mass/volume] in Serum or Plasma""
-  ""AFP"" / ""Alfa-fetoproteina""
-      -> ""Alpha-1-Fetoprotein [Mass/volume] in Serum or Plasma""
-  ""Vitamina B6"" / ""Piridoxal fosfat"" (forma activă)
-      -> ""Pyridoxal phosphate [Mass/volume] in Serum or Plasma""
   ""Vitamina B12"" / ""Cobalamina""
       -> ""Cobalamin (Vitamin B12) [Mass/volume] in Serum or Plasma""
   ""Vitamina D"" / ""25-OH vitamina D"" / ""25-hidroxi vitamina D total""
       -> ""25-hydroxyvitamin D3+25-hydroxyvitamin D2 [Mass/volume] in Serum or Plasma""
-  ""Acid folic"" / ""Folat""
-      -> ""Folate [Mass/volume] in Serum or Plasma""
-  ""Fier seric"" / ""Sideremie"" / ""Fer""
-      -> ""Iron [Mass/volume] in Serum or Plasma""
-  ""Feritina"" / ""Ferritin""
-      -> ""Ferritin [Mass/volume] in Serum or Plasma""
-  ""Transferina"" / ""Transferrin""
-      -> ""Transferrin [Mass/volume] in Serum or Plasma""
 
 PRE-OUTPUT CHECK (mandatory): before emitting each parameter_normalized_en
 silently ask yourself: ""Is this text 100% in English, with explicit specimen,
