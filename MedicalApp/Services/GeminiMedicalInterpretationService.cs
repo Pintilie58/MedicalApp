@@ -1171,6 +1171,24 @@ GUIDELINES — apply when building parameter_normalized_en:
   2. SPECIMEN is MANDATORY. Always include ""in Serum or Plasma"", ""in Blood"",
      ""in Urine by Test strip"", ""in Urine sediment"", ""in CSF"". Missing specimen
      is the #1 reason a downstream matcher picks the wrong code.
+  2b. METHOD is MANDATORY WHEN PRESENT in the raw parameter text. LOINC has
+     DIFFERENT codes for the same analyte depending on measurement method
+     (e.g. VSH generic = 30341-2, but VSH by Westergren = 4537-7). If the raw
+     name mentions any of these method markers, you MUST include them using
+     LOINC's ""by X"" suffix:
+       Westergren, HPLC, ELISA, ICMA, ECLIA, RIA, CLIA, chemiluminescence,
+       immunoassay, colorimetric, enzymatic, kinetic, endpoint, turbidimetric,
+       nephelometric, cyanmethemoglobin, automated count, manual microscopy,
+       flow cytometry, test strip, dipstick.
+     Examples:
+       ""VSH - Westergren""       -> ""Erythrocyte sedimentation rate in Blood by Westergren""
+       ""VSH"" (no method)        -> ""Erythrocyte sedimentation rate in Blood""
+       ""TSH ICMA""               -> ""Thyrotropin [Units/volume] in Serum or Plasma by ICMA""
+       ""Ferritin (ECLIA)""       -> ""Ferritin [Mass/volume] in Serum or Plasma by ECLIA""
+     Method ≠ parenthetical alias. Do NOT strip ""Westergren"" or ""ELISA"" as
+     if they were translation hints — they define WHICH LOINC code applies.
+     Rule 5 (strip parentheticals) applies to translation aliases like
+     ""(Antigen carbohidrat)"" or ""{HEM}"", NOT to method markers.
   3. Use SECTION CONTEXT to disambiguate. A parameter ""Glucoza"" inside the
      urinalysis dipstick block is ""Glucose in Urine by Test strip"", NOT
      ""Glucose in Serum or Plasma"".
