@@ -916,20 +916,20 @@ IT MEANS ""THE COMPLETE LIST OF EVERY SINGLE LAB RESULT FOUND IN THE PDF"".
   analyte name + value pair is included in key_results.
 
 ==========================================================
-TWIN-PARAMETER RULE (CRITICAL)
+TWIN-PARAMETER SAFETY CHECK (anti-omission)
 ==========================================================
-Several common laboratory parameters come in PAIRS or SMALL FAMILIES on the same panel.
-If you see ONE of them, you MUST scan again for the OTHERS in the SAME report - they are
-almost always present together. Concretely:
-  * PSA family → look for BOTH ""PSA total"" AND ""PSA free"" (a.k.a. ""FREE PSA"", ""PSA libre"", ""PSA liber""). If only one is in your output but the PDF shows two, you missed one.
-  * Thyroid family → ""TSH"", ""FT3"" (T3 libre), ""FT4"" (T4 libre), often ""anti-TPO"".
-  * Iron family → ""Fer (Iron)"", ""Transferrine"", ""CTFF / TIBC"", ""Coefficient de saturation""/""TSAT"".
-  * B-vitamin family → ""Vitamin B12"", ""Folate / Folic acid"", often together with ""Ferritin"".
-  * Liver enzymes → ""ALT/TGP"", ""AST/TGO"", ""Gamma GT"", ""ALP"", ""Bilirubin"".
-  * Lipid panel → ""Cholesterol total"", ""HDL"", ""LDL"", ""Triglycerides"", ""Cholesterol non-HDL"".
-  * Renal panel → ""Creatinine"", ""Urea"", ""eGFR (DFG/MDRD/CKD-EPI)"".
-  * Hematology core → ""Hemoglobin"", ""Hematocrit"", ""RBC"", ""WBC"", ""Platelets"", and ALL the WBC differential lines.
-Before you finalize, RE-READ the PDF specifically looking for these family members. Missing a twin parameter (e.g. reporting only Total PSA when Free PSA is also printed) is THE most common error and MUST be avoided.
+Certain analytes come in pairs or small families on the SAME panel. Before
+finalizing your output, verify you did not miss a twin from the same report:
+  PSA:      total ↔ free
+  Thyroid:  TSH ↔ FT3 ↔ FT4 ↔ anti-TPO
+  Iron:     Fer/Iron ↔ Ferritin ↔ Transferrin ↔ TSAT / TIBC
+  B-vits:   Vitamin B12 ↔ Folate (often together with Ferritin)
+  Liver:    ALT/TGP ↔ AST/TGO ↔ Gamma GT ↔ ALP ↔ Bilirubin
+  Lipid:    Cholesterol total ↔ HDL ↔ LDL ↔ Triglycerides ↔ non-HDL
+  Renal:    Creatinine ↔ Urea ↔ eGFR (DFG/MDRD/CKD-EPI)
+  CBC:      Hemoglobin ↔ Hematocrit ↔ RBC ↔ WBC ↔ Platelets ↔ full WBC differential
+Missing a twin (e.g. reporting Total PSA without Free PSA when both are
+printed) is the #1 production omission error and MUST NOT happen.
 
 ==========================================================
 MULTI-THRESHOLD / TIERED-TARGET RULE (CRITICAL)
