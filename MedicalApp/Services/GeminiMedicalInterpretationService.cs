@@ -1189,6 +1189,35 @@ GUIDELINES — apply when building parameter_normalized_en:
      if they were translation hints — they define WHICH LOINC code applies.
      Rule 5 (strip parentheticals) applies to translation aliases like
      ""(Antigen carbohidrat)"" or ""{HEM}"", NOT to method markers.
+  2c. USE VALUE + UNIT + REFERENCE RANGE as disambiguation signals when the
+     same analyte name could map to multiple LOINC codes. The value/unit/range
+     TRIO is your safety-check against choosing the wrong canonical identity.
+
+     UNIT tells you the property axis:
+       ""mg/dL"", ""g/L"", ""ng/mL""       → Mass/volume
+       ""mmol/L"", ""µmol/L"", ""pmol/L"" → Moles/volume
+       ""IU/L"", ""U/L"", ""kU/L""         → Enzyme activity
+       ""%""                            → Fraction (WBC diff, HbA1c)
+       ""/uL"", ""10^3/uL""              → Cell count per volume
+
+     VALUE + REFERENCE RANGE narrow the analyte identity when the raw name
+     is ambiguous. Common traps:
+       - ""Colesterol"" with ref ""<100"" + value ~130    → LDL (CV target),
+         NOT Cholesterol total (Total range is 150-200).
+       - ""Colesterol"" with ref "">40"" or "">50""       → HDL,
+         NOT Cholesterol total.
+       - ""Glucoza"" with ref ""negative""/""absent""     → Urine dipstick,
+         NOT Serum glucose (Serum range is 70-100 mg/dL).
+       - ""Hemoglobina"" with ref ""absent""              → Urine, NOT Blood.
+       - ""FT3"" / ""FT4"" with unit ""pmol/L""            → Moles/volume LOINC,
+         NOT the Mass/volume peer (systematic Gemini miscall).
+
+     RULE: before finalizing each parameter_normalized_en, silently cross-check
+     it against the value/unit/reference-range trio you already extracted. If
+     the trio contradicts your chosen canonical name (e.g. you picked
+     ""Cholesterol total"" but the range is ""<100""), RECONSIDER — you probably
+     misidentified the analyte. Pick the canonical name whose typical value/
+     range profile matches what the PDF actually printed.
   3. Use SECTION CONTEXT to disambiguate. A parameter ""Glucoza"" inside the
      urinalysis dipstick block is ""Glucose in Urine by Test strip"", NOT
      ""Glucose in Serum or Plasma"".
