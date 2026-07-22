@@ -1231,6 +1231,40 @@ step in the application; if you include them, they will be discarded. Your job
 is ONLY to provide a clean, standardized English name for each analyte.
 
 ==========================================================
+PANEL HEADER (verbatim copy) — MANDATORY FIELD
+==========================================================
+For EVERY entry in ""key_results"" you MUST also emit:
+
+  ""panel_header_raw"": string|null
+
+What it is:
+  The LITERAL, VERBATIM text of the section/panel header under which this
+  parameter appears in the PDF. It is the group title printed by the lab
+  above a block of related analytes — often containing the panel name, the
+  specimen, the measurement technology, and sometimes the analyzer model.
+
+Examples of valid ""panel_header_raw"" values (copy them EXACTLY as printed):
+  ""Hemoleucograma completa - Sange - Spectroscopie de impedanta, spectrofotometrie, citometrie in flux (PENTRA ES 60)""
+  ""Biochimie serică — Ser — Spectrofotometrie""
+  ""Sumar urina - Urina - Bandeleta reactiva / Microscopie sediment""
+  ""Coagulare - Plasma citrata - Metoda coagulometrica""
+  ""Hormoni tiroidieni - Ser - Electrochemiluminescenta (ECLIA)""
+
+Rules:
+  1. COPY THE TEXT EXACTLY as it appears in the PDF. Preserve original
+     language, punctuation, dashes, capitalization, analyzer model in
+     parentheses. Do NOT translate. Do NOT paraphrase. Do NOT summarize.
+  2. Do NOT invent, infer, or reconstruct a header that is not printed.
+     If the parameter has no visible group/panel header above it (rare —
+     but possible for standalone results or malformed PDFs), emit null.
+  3. All parameters belonging to the SAME visual block MUST share the same
+     ""panel_header_raw"" string (byte-for-byte identical). This is how the
+     downstream matcher recognizes the group.
+  4. This field carries context (specimen + method + analyzer) that we use
+     downstream to resolve the correct LOINC code axes. Your only job here
+     is faithful copying — do NOT try to reason about which axes matter.
+
+==========================================================
 SELF-VERIFICATION FIELD (MANDATORY)
 ==========================================================
 Add a TOP-LEVEL field ""_extraction_audit"" to the JSON output. It is your private audit
@@ -1281,7 +1315,7 @@ OUTPUT FORMAT (CRITICAL):
   ""rejection_reason"": string|null,
   ""patient_info"": { ""name"": string|null, ""age"": string|null, ""sex"": string|null, ""date_taken"": string|null, ""laboratory"": string|null, ""doctor_requesting"": string|null },
   ""summary"": string,
-  ""key_results"": [ { ""parameter"": string, ""value"": string, ""unit"": string, ""reference_range"": string, ""status"": ""normal""|""high""|""low""|""borderline"", ""explanation"": string, ""parameter_normalized_en"": string|null } ],
+  ""key_results"": [ { ""parameter"": string, ""value"": string, ""unit"": string, ""reference_range"": string, ""status"": ""normal""|""high""|""low""|""borderline"", ""explanation"": string, ""parameter_normalized_en"": string|null, ""panel_header_raw"": string|null } ],
   ""abnormal_findings"": [ { ""parameter"": string, ""explanation"": string, ""severity"": ""mild""|""moderate""|""severe"" } ],
   ""correlations"": string,
   ""recommendations"": string,
@@ -1388,7 +1422,7 @@ Task:
 3. Apply the value-vs-reference pairing rules from the system instructions (WBC differential, age-dependent ranges, dual-unit rows, mismatched magnitudes).
 4. Determine each parameter's status (normal/high/low/borderline).
 5. If a cardiovascular-risk category was declared above, USE THE PROVIDED LIPID TARGETS for LDL-C, non-HDL and Triglycerides INSTEAD OF the multi-threshold rule, and explicitly mention the declared risk category in 'summary', 'explanation' for those parameters, and 'recommendations'.
-6. For EVERY parameter in 'key_results', also emit the field 'parameter_normalized_en' as described in the system instructions: a clean standardized English medical term for the analyte (with explicit specimen). Example: parameter=""Glicemie"" -> ""parameter_normalized_en"": ""Glucose [Mass/volume] in Serum or Plasma"". Do NOT emit ""loinc_code"", ""loinc_long_name"" or ""loinc_confidence"" — those are resolved downstream.
+6. For EVERY parameter in 'key_results', also emit the field 'parameter_normalized_en' as described in the system instructions: a clean standardized English medical term for the analyte (with explicit specimen). Example: parameter=""Glicemie"" -> ""parameter_normalized_en"": ""Glucose [Mass/volume] in Serum or Plasma"". Do NOT emit ""loinc_code"", ""loinc_long_name"" or ""loinc_confidence"" — those are resolved downstream. Also emit 'panel_header_raw' for each parameter: the LITERAL, verbatim text of the section/panel header from the PDF (copy exactly — do NOT translate or paraphrase; emit null only if the parameter has no visible group header).
 7. Produce the structured JSON object exactly per the schema in the system instructions, written entirely in {languageName}. Do NOT wrap it in markdown fences.";
         }
     }
