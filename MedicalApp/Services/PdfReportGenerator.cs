@@ -350,11 +350,36 @@ namespace MedicalApp.Services
                     h.Cell().PaddingBottom(4).AlignCenter().Text(labels.Status).SemiBold().FontColor(BrandColor).FontSize(10);
                 });
 
+                // Track the panel header of the previous row so we only emit
+                // the group header once per contiguous block of parameters.
+                // Preserves Gemini's key_results order (== PDF section order).
+                string? lastHeader = null;
+                bool firstIteration = true;
+
                 for (int i = 0; i < results.Count; i++)
                 {
                     var r = results[i];
                     var (arrow, color) = StatusArrow(r.Status);
                     bool blur = isFreemium && BlurAt(i);
+
+                    // Group header row (span all 4 columns) — emitted only when
+                    // panel_header_raw changes vs. the previous row. Contains
+                    // the verbatim panel/section header text copied by Gemini
+                    // from the original PDF (e.g. "Hemoleucograma completa -
+                    // Sange - Spectroscopie de impedanta ... (PENTRA ES 60)").
+                    // Not blurred for freemium: it is not PHI, only metadata.
+                    var currentHeader = string.IsNullOrWhiteSpace(r.PanelHeaderRaw)
+                        ? null : r.PanelHeaderRaw!.Trim();
+                    bool headerChanged = firstIteration ||
+                        !string.Equals(currentHeader, lastHeader, StringComparison.Ordinal);
+                    if (headerChanged && !string.IsNullOrWhiteSpace(currentHeader))
+                    {
+                        t.Cell().ColumnSpan(4).PaddingTop(6).PaddingBottom(2)
+                            .Text(currentHeader)
+                            .SemiBold().Italic().FontSize(9).FontColor(BrandColor);
+                    }
+                    lastHeader = currentHeader;
+                    firstIteration = false;
 
                     // Parameter cell
                     t.Cell().PaddingVertical(4).BorderTop(0.25f).BorderColor(Colors.Grey.Lighten2)
