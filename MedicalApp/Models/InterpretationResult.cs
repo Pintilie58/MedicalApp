@@ -152,6 +152,17 @@ namespace MedicalApp.Models
             [JsonPropertyName("parameter_normalized_en")]
             public string? ParameterNormalizedEn { get; set; }
 
+            /// <summary>
+            /// Textul literal al antetului grupului/panelului din PDF-ul original,
+            /// preluat de Gemini fără interpretare (ex. "Hemoleucograma completa -
+            /// Sange - Spectroscopie de impedanta, citometrie in flux (PENTRA ES 60)").
+            /// Folosit downstream de Python matcher pentru a extrage determinist axele
+            /// Sistem și Metodă când Gemini le ratează. Poate fi null când PDF-ul nu
+            /// are un antet clar de grup.
+            /// </summary>
+            [JsonPropertyName("panel_header_raw")]
+            public string? PanelHeaderRaw { get; set; }
+
             // -------- LOINC fields (populated downstream by the matcher) --------
             // These are NOT emitted by Gemini anymore. They are populated by the
             // LoincMatcherClient after the interpretation succeeds, by calling the
