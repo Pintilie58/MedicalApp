@@ -1231,38 +1231,116 @@ step in the application; if you include them, they will be discarded. Your job
 is ONLY to provide a clean, standardized English name for each analyte.
 
 ==========================================================
-PANEL HEADER (verbatim copy) — MANDATORY FIELD
+SOURCE CONTEXT (verbatim copy) — TWO MANDATORY FIELDS
 ==========================================================
-For EVERY entry in ""key_results"" you MUST also emit:
+For EVERY entry in ""key_results"" you MUST also emit TWO context fields:
 
   ""panel_header_raw"": string|null
+  ""analyte_line_raw"": string|null
 
+Together they carry the RAW SOURCE TEXT the PDF prints ABOUT how each
+analyte was measured (specimen, method, analyzer). Downstream we use
+these to resolve LOINC axes deterministically. Your ONLY job here is
+FAITHFUL COPYING — do NOT reason about which axes matter, do NOT
+translate, do NOT paraphrase, do NOT summarize.
+
+----------------------------------------------------------
+FIELD 1 — ""panel_header_raw""
+----------------------------------------------------------
 What it is:
-  The LITERAL, VERBATIM text of the section/panel header under which this
-  parameter appears in the PDF. It is the group title printed by the lab
-  above a block of related analytes — often containing the panel name, the
-  specimen, the measurement technology, and sometimes the analyzer model.
-
-Examples of valid ""panel_header_raw"" values (copy them EXACTLY as printed):
-  ""Hemoleucograma completa - Sange - Spectroscopie de impedanta, spectrofotometrie, citometrie in flux (PENTRA ES 60)""
-  ""Biochimie serică — Ser — Spectrofotometrie""
-  ""Sumar urina - Urina - Bandeleta reactiva / Microscopie sediment""
-  ""Coagulare - Plasma citrata - Metoda coagulometrica""
-  ""Hormoni tiroidieni - Ser - Electrochemiluminescenta (ECLIA)""
+  The section/panel header printed by the lab ABOVE a block of related
+  analytes. Often contains the panel name, specimen, technology, and
+  sometimes the analyzer model.
 
 Rules:
-  1. COPY THE TEXT EXACTLY as it appears in the PDF. Preserve original
-     language, punctuation, dashes, capitalization, analyzer model in
-     parentheses. Do NOT translate. Do NOT paraphrase. Do NOT summarize.
-  2. Do NOT invent, infer, or reconstruct a header that is not printed.
-     If the parameter has no visible group/panel header above it (rare —
-     but possible for standalone results or malformed PDFs), emit null.
-  3. All parameters belonging to the SAME visual block MUST share the same
-     ""panel_header_raw"" string (byte-for-byte identical). This is how the
-     downstream matcher recognizes the group.
-  4. This field carries context (specimen + method + analyzer) that we use
-     downstream to resolve the correct LOINC code axes. Your only job here
-     is faithful copying — do NOT try to reason about which axes matter.
+  1. COPY the header text EXACTLY as printed (language, punctuation,
+     dashes, capitalization, parentheses).
+  2. STRIP administrative annotations that carry ZERO medical value:
+     ""VALIDAT DE : <NAME> - <TITLE>"" / ""VALIDATED BY <NAME>""
+     ""AVIZAT DE ..."" / ""VERIFICAT DE ..."" / ""APROBAT DE ...""
+     ""SEMNAT ELECTRONIC"" / ""ELECTRONIC SIGNATURE"" / ""Signed by ...""
+     ""EMIS DE ..."" / ""INTERPRETAT DE ...""
+     Together with the trailing name + medical title (Dr., Chimist,
+     Medic, Biolog, etc.). Keep ONLY the medical/technical portion of
+     the header (section name + specimen + method + analyzer).
+  3. All parameters belonging to the SAME visual block MUST share the
+     SAME ""panel_header_raw"" string (byte-for-byte identical after
+     the stripping in rule 2). This is how the downstream matcher
+     recognizes group boundaries.
+  4. If no visible group header exists, emit null. If the header
+     contains ONLY administrative annotations with NO section name
+     and NO medical context, also emit null.
+
+Worked examples (RAW → EMIT):
+  RAW:  ""IMUNOLOGIE - VALIDAT DE : MARIANA-SILVIA PRISECARU - CHIMIST MEDICAL PRINCIPAL""
+  EMIT: ""IMUNOLOGIE""
+  (stripped everything after ""VALIDAT DE :"" — that portion is admin;
+   kept the section name)
+
+  RAW:  ""Hemoleucograma completa - Sange - Spectroscopie de impedanta, spectrofotometrie, citometrie in flux (PENTRA ES 60)""
+  EMIT: ""Hemoleucograma completa - Sange - Spectroscopie de impedanta, spectrofotometrie, citometrie in flux (PENTRA ES 60)""
+  (no admin annotation → copy unchanged)
+
+  RAW:  ""Biochimie serică — Ser — Spectrofotometrie   AVIZAT DE : Dr. Ion Popescu""
+  EMIT: ""Biochimie serică — Ser — Spectrofotometrie""
+
+  RAW:  ""VALIDAT DE : Dr. Ana Munteanu - Medic Primar""
+  EMIT: null   (nothing medical remains after stripping)
+
+----------------------------------------------------------
+FIELD 2 — ""analyte_line_raw""
+----------------------------------------------------------
+What it is:
+  The metadata inline on the SAME row as the analyte — specimen, method
+  and analyzer parentheticals — as printed by the lab. Complements
+  ""panel_header_raw"" when the lab puts the LOINC-relevant metadata
+  on each row instead of the panel header (or in ADDITION to it).
+
+What to include:
+  - Specimen indicator (""-Ser"", ""-Sange"", ""-Plasma"", ""-Urina"", etc.)
+  - Method (""Turbidimetrie"", ""ELISA"", ""ECLIA"", ""ICMA"",
+    ""chemiluminiscenta"", ""HPLC"", ""Westergren"", ""spectrofotometrie"", etc.)
+  - Analyzer model in parentheses (""(ABX PENTRA C400 ISE)"",
+    ""(ADVIA CENTAUR CP)"", ""(COBAS 8000)"", etc.)
+  - The exact separators (dashes, commas, spaces) as printed.
+
+What to EXCLUDE:
+  - The row NUMBER prefix (e.g. ""24."" or ""24)"" at the start).
+  - The analyte name itself (already captured in ""parameter"").
+  - The numeric value, unit, and reference range (already captured
+    in ""value"", ""unit"", ""reference_range"").
+
+Rules:
+  1. COPY THE METADATA SEGMENT VERBATIM. Do NOT paraphrase.
+  2. If the row prints NO metadata beyond the analyte name (typical
+     for CBC rows where the specimen/method live in the panel header),
+     emit null. Do NOT invent metadata.
+  3. Do NOT duplicate metadata that is also in ""panel_header_raw"" —
+     if the row has no ADDITIONAL detail beyond what the panel header
+     already says, emit null.
+
+Worked examples (whole raw row → EMIT):
+  RAW row: ""24. Proteina C reactiva -Ser - Turbidimetrie (ABX PENTRA C400 ISE) 10.46 mg/L 0 - 5 / mg/L""
+  EMIT:    ""-Ser - Turbidimetrie (ABX PENTRA C400 ISE)""
+
+  RAW row: ""27. TSH -Ser - chemiluminiscenta (ADVIA CENTAUR CP) 1.791 uUI/ml 0.55 - 4.78 / uUI/ml""
+  EMIT:    ""-Ser - chemiluminiscenta (ADVIA CENTAUR CP)""
+
+  RAW row: ""28. 25 OH VITAMINA D * -Ser - ELISA (ALEGRIA) 21.7 ng/ml Carenta: < 12 ng/ml ...""
+  EMIT:    ""-Ser - ELISA (ALEGRIA)""
+
+  RAW row: ""Hematocrit  46.7 %  39-50 / %""
+  EMIT:    null   (row prints no inline metadata — everything is in
+                    the panel header ""Hemoleucograma completa - Sange - ..."")
+
+  RAW row: ""VSH - Westergren  12 mm/h  0-20 / mm/h""
+  EMIT:    ""- Westergren""
+
+Together, ""panel_header_raw"" and ""analyte_line_raw"" give the downstream
+matcher the FULL raw context needed to resolve the correct LOINC code
+regardless of whether the lab printed metadata in the panel header
+(Type A: Hematology), inline per row (Type B: Immunology), or in both
+(Type C: mixed panels).
 
 ==========================================================
 SELF-VERIFICATION FIELD (MANDATORY)
@@ -1315,7 +1393,7 @@ OUTPUT FORMAT (CRITICAL):
   ""rejection_reason"": string|null,
   ""patient_info"": { ""name"": string|null, ""age"": string|null, ""sex"": string|null, ""date_taken"": string|null, ""laboratory"": string|null, ""doctor_requesting"": string|null },
   ""summary"": string,
-  ""key_results"": [ { ""parameter"": string, ""value"": string, ""unit"": string, ""reference_range"": string, ""status"": ""normal""|""high""|""low""|""borderline"", ""explanation"": string, ""parameter_normalized_en"": string|null, ""panel_header_raw"": string|null } ],
+  ""key_results"": [ { ""parameter"": string, ""value"": string, ""unit"": string, ""reference_range"": string, ""status"": ""normal""|""high""|""low""|""borderline"", ""explanation"": string, ""parameter_normalized_en"": string|null, ""panel_header_raw"": string|null, ""analyte_line_raw"": string|null } ],
   ""abnormal_findings"": [ { ""parameter"": string, ""explanation"": string, ""severity"": ""mild""|""moderate""|""severe"" } ],
   ""correlations"": string,
   ""recommendations"": string,
@@ -1422,7 +1500,7 @@ Task:
 3. Apply the value-vs-reference pairing rules from the system instructions (WBC differential, age-dependent ranges, dual-unit rows, mismatched magnitudes).
 4. Determine each parameter's status (normal/high/low/borderline).
 5. If a cardiovascular-risk category was declared above, USE THE PROVIDED LIPID TARGETS for LDL-C, non-HDL and Triglycerides INSTEAD OF the multi-threshold rule, and explicitly mention the declared risk category in 'summary', 'explanation' for those parameters, and 'recommendations'.
-6. For EVERY parameter in 'key_results', also emit the field 'parameter_normalized_en' as described in the system instructions: a clean standardized English medical term for the analyte (with explicit specimen). Example: parameter=""Glicemie"" -> ""parameter_normalized_en"": ""Glucose [Mass/volume] in Serum or Plasma"". Do NOT emit ""loinc_code"", ""loinc_long_name"" or ""loinc_confidence"" — those are resolved downstream. Also emit 'panel_header_raw' for each parameter: the LITERAL, verbatim text of the section/panel header from the PDF (copy exactly — do NOT translate or paraphrase; emit null only if the parameter has no visible group header).
+6. For EVERY parameter in 'key_results', also emit the field 'parameter_normalized_en' as described in the system instructions: a clean standardized English medical term for the analyte (with explicit specimen). Example: parameter=""Glicemie"" -> ""parameter_normalized_en"": ""Glucose [Mass/volume] in Serum or Plasma"". Do NOT emit ""loinc_code"", ""loinc_long_name"" or ""loinc_confidence"" — those are resolved downstream. Also emit the TWO source-context fields: 'panel_header_raw' (the section/panel header text from the PDF — STRIP administrative annotations like ""VALIDAT DE ..."", ""AVIZAT DE ..."", ""SEMNAT ELECTRONIC"" and their trailing names/titles; keep only the medical/technical portion; null if nothing medical remains) AND 'analyte_line_raw' (the specimen/method/analyzer metadata printed INLINE on the analyte row, excluding the row number, analyte name, value, unit and range; null if the row has no inline metadata beyond the name). Copy verbatim — do NOT translate or paraphrase.
 7. Produce the structured JSON object exactly per the schema in the system instructions, written entirely in {languageName}. Do NOT wrap it in markdown fences.";
         }
     }
