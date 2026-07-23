@@ -74,6 +74,33 @@ class LoincRequest(BaseModel):
             "property than the best match. Fixes Gemini's systematic miscall "
             "of FT3/FT4 in pmol/L to the Mass/volume LOINC codes."))
 
+    # ---- Etapa Python-1: source context fields (Type A/B/C PDF layouts) ----
+    # Optional raw-source fields copied verbatim by Gemini from the PDF. In
+    # this stage they are only ACCEPTED and LOGGED — the matching pipeline
+    # still runs on ``test_name`` alone. Etapa Python-2/3 will consume them
+    # inside the fuzzy + rules layers to disambiguate LOINC axes (Method,
+    # Specimen) when Gemini's normalization is ambiguous or wrong.
+    raw_parameter_name: str | None = Field(
+        default=None, max_length=500,
+        description=(
+            "Original raw analyte name as printed in the PDF (before Gemini "
+            "translation/normalization). E.g. 'Proteina C reactiva'. Used as "
+            "an alternative fuzzy source when 'test_name' is misnormalized."))
+    panel_header_raw: str | None = Field(
+        default=None, max_length=1000,
+        description=(
+            "Verbatim section/panel header from the PDF, admin annotations "
+            "stripped by Gemini. E.g. 'Hemoleucograma completa - Sange - "
+            "Impedanta (PENTRA ES 60)'. Contains specimen + method + analyzer "
+            "keywords for LOINC axis inference in the rules layer."))
+    analyte_line_raw: str | None = Field(
+        default=None, max_length=500,
+        description=(
+            "Verbatim inline metadata from the analyte row (specimen + method "
+            "+ analyzer), copied by Gemini after stripping row number, name, "
+            "value, unit and range. E.g. '-Ser - Turbidimetrie (ABX PENTRA "
+            "C400 ISE)'. Complements panel_header_raw for Type B layouts."))
+
 
 class LoincResponse(BaseModel):
     loinc: str
@@ -115,6 +142,20 @@ def match(req: LoincRequest):
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="LOINC store is not loaded. Run seed_embeddings.py first.",
         )
+
+    # Etapa Python-1: log receipt of the new source-context fields so we can
+    # verify end-to-end that C# is sending them correctly for both Type A
+    # (metadata in panel header) and Type B (metadata inline per row) PDFs.
+    # The matching pipeline itself is NOT yet consuming these fields — that
+    # arrives in Etapa Python-2/3. Anything unusual visible here (e.g. always
+    # null, wrong content, obvious misparsing) can be caught before we wire
+    # the fields into scoring.
+    log.info(
+        "/loinc/match received | test_name=%r unit=%r raw=%r panel_header=%r analyte_line=%r",
+        req.test_name, req.unit,
+        req.raw_parameter_name, req.panel_header_raw, req.analyte_line_raw,
+    )
+
     try:
         result = find_loinc(req.test_name, unit=req.unit)
     except Exception as ex:

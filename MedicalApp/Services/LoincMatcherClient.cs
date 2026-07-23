@@ -74,7 +74,13 @@ namespace MedicalApp.Services
                     continue;
                 }
 
-                var match = await MatchOneAsync(kr.ParameterNormalizedEn!, kr.Unit, ct);
+                var match = await MatchOneAsync(
+                    kr.ParameterNormalizedEn!,
+                    kr.Unit,
+                    kr.Parameter,        // raw analyte name (pre-Gemini normalization)
+                    kr.PanelHeaderRaw,   // verbatim section header (admin stripped)
+                    kr.AnalyteLineRaw,   // verbatim inline row metadata
+                    ct);
                 if (match == null)
                 {
                     stats.NoMatch++;
@@ -115,7 +121,13 @@ namespace MedicalApp.Services
             return stats;
         }
 
-        private async Task<MatcherResponse?> MatchOneAsync(string normalizedText, string? unit, CancellationToken ct)
+        private async Task<MatcherResponse?> MatchOneAsync(
+            string normalizedText,
+            string? unit,
+            string? rawParameterName,
+            string? panelHeaderRaw,
+            string? analyteLineRaw,
+            CancellationToken ct)
         {
             try
             {
@@ -123,7 +135,14 @@ namespace MedicalApp.Services
                 cts.CancelAfter(TimeSpan.FromSeconds(_settings.TimeoutSeconds));
 
                 var resp = await _http.PostAsJsonAsync("/loinc/match",
-                    new MatcherRequest { TestName = normalizedText, Unit = unit }, cts.Token);
+                    new MatcherRequest
+                    {
+                        TestName = normalizedText,
+                        Unit = unit,
+                        RawParameterName = rawParameterName,
+                        PanelHeaderRaw = panelHeaderRaw,
+                        AnalyteLineRaw = analyteLineRaw,
+                    }, cts.Token);
 
                 if (!resp.IsSuccessStatusCode)
                 {
@@ -156,6 +175,21 @@ namespace MedicalApp.Services
             // mismatches that Gemini introduces (it sometimes emits the
             // "Mass/volume" LOINC name even when the lab printed FT3 in pmol/L).
             [JsonPropertyName("unit")]      public string? Unit { get; set; }
+
+            // ---- Etapa Python-1: source context fields ----
+            // Optional raw text copied verbatim by Gemini from the PDF.
+            // Sent for every request; the Python matcher currently only logs
+            // them (Etapa Python-1) and will consume them in the fuzzy + rules
+            // layers (Etapa Python-2/3) to disambiguate LOINC axes when Gemini's
+            // English normalization is ambiguous or wrong. Null-safe on both
+            // ends: System.Text.Json omits null properties by default and the
+            // Python side treats missing fields as None.
+            [JsonPropertyName("raw_parameter_name")]
+            public string? RawParameterName { get; set; }
+            [JsonPropertyName("panel_header_raw")]
+            public string? PanelHeaderRaw { get; set; }
+            [JsonPropertyName("analyte_line_raw")]
+            public string? AnalyteLineRaw { get; set; }
         }
 
         private class MatcherResponse
