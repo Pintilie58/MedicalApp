@@ -163,6 +163,23 @@ namespace MedicalApp.Models
             [JsonPropertyName("panel_header_raw")]
             public string? PanelHeaderRaw { get; set; }
 
+            /// <summary>
+            /// Textul literal al metadatelor per-rând (specimen, metodă,
+            /// analizor) din linia analitei în PDF-ul original, curățat de
+            /// numărul prefix, numele analitei, valoare, unitate și range.
+            /// Ex.: "-Ser - Turbidimetrie (ABX PENTRA C400 ISE)".
+            /// Complementar cu <see cref="PanelHeaderRaw"/>: unele laboratoare
+            /// pun metadatele LOINC (specimen/metodă) în antetul panelului
+            /// (Tip A), altele pe fiecare rând individual (Tip B). Downstream
+            /// Python matcher concatenează ambele câmpuri ca sursă de
+            /// keyword-uri pentru rezolvarea deterministă a axelor LOINC
+            /// (System, Method) indiferent de layout-ul PDF-ului.
+            /// Null când rândul nu conține metadata inline (ex. rândurile
+            /// CBC unde toată info-ul e în antetul de grup).
+            /// </summary>
+            [JsonPropertyName("analyte_line_raw")]
+            public string? AnalyteLineRaw { get; set; }
+
             // -------- LOINC fields (populated downstream by the matcher) --------
             // These are NOT emitted by Gemini anymore. They are populated by the
             // LoincMatcherClient after the interpretation succeeds, by calling the
