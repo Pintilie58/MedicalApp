@@ -330,7 +330,13 @@ def _hard_reject_penalty(query_norm: str, candidate_name: str) -> float:
 # -------------------------------------------------------------------------
 # Public API
 # -------------------------------------------------------------------------
-def find_loinc(test_name: str, unit: Optional[str] = None) -> Optional[MatchResult]:
+def find_loinc(
+    test_name: str,
+    unit: Optional[str] = None,
+    raw_parameter_name: Optional[str] = None,
+    panel_header_raw: Optional[str] = None,
+    analyte_line_raw: Optional[str] = None,
+) -> Optional[MatchResult]:
     """Resolve the best LOINC code for an English medical test name.
 
     When ``unit`` is provided we post-correct the match: if the unit
@@ -340,13 +346,34 @@ def find_loinc(test_name: str, unit: Optional[str] = None) -> Optional[MatchResu
     systematic Gemini mistake of emitting "Triiodothyronine free
     [Mass/volume]" when the lab actually reported FT3 in pmol/L
     (correct LOINC = 14928-6, not 3051-0).
+
+    Etapa Python-2/3 additions
+    --------------------------
+    ``raw_parameter_name`` (Python-2): the ORIGINAL analyte name printed in
+        the PDF (e.g. 'Proteina C reactiva') before Gemini normalization.
+        Used inside the fuzzy layer as an alternative comparison source
+        against LOINC long_name / component. Robust against cases where
+        Gemini's English normalization drifts semantically (e.g. emits
+        'Blood cell count' for a row that actually says 'Leucocite') —
+        the raw name still matches the correct candidate.
+    ``panel_header_raw`` / ``analyte_line_raw`` (Python-3): verbatim
+        source-context strings copied by Gemini from the PDF (panel
+        header, per-row inline metadata). Reserved for the rules layer
+        (Etapa Python-3): keyword extraction for method / specimen
+        disambiguation across LOINC axes. Currently accepted here for
+        API stability but NOT yet consumed inside ``_semantic_match``.
     """
     if STORE.embeddings is None or not STORE.metadata:
         raise RuntimeError("LoincStore is not loaded. Call STORE.load() first.")
     if not test_name or not test_name.strip():
         return None
 
-    result = _semantic_match(test_name)
+    result = _semantic_match(
+        test_name,
+        raw_parameter_name=raw_parameter_name,
+        panel_header_raw=panel_header_raw,
+        analyte_line_raw=analyte_line_raw,
+    )
     if result is None:
         return result
 
@@ -381,9 +408,24 @@ def find_loinc(test_name: str, unit: Optional[str] = None) -> Optional[MatchResu
     return result
 
 
-def _semantic_match(test_name: str) -> Optional[MatchResult]:
+def _semantic_match(
+    test_name: str,
+    *,
+    raw_parameter_name: Optional[str] = None,
+    panel_header_raw: Optional[str] = None,
+    analyte_line_raw: Optional[str] = None,
+) -> Optional[MatchResult]:
     """Anchor + embedding + fuzzy + rules pipeline, unit-agnostic.
-    Caller (find_loinc) applies unit-aware post-correction on the result."""
+    Caller (find_loinc) applies unit-aware post-correction on the result.
+
+    ``raw_parameter_name`` (Python-2): used in the FUZZY layer as an
+        alternative source alongside ``test_name``, guarding against Gemini
+        normalization drift.
+    ``panel_header_raw`` / ``analyte_line_raw`` (Python-3): reserved for the
+        RULES layer keyword extraction; currently unused inside this function.
+    """
+    # Silence unused-arg linter until Python-3 consumes these.
+    _ = (panel_header_raw, analyte_line_raw)
     # 0. HARD-ACCEPT LAYER — canonical anchors short-circuit the matcher
     # when Gemini emits one of the curated standardized English terms (see
     # canonical_anchors.py). This eliminates the systematic mis-mappings of
@@ -417,6 +459,9 @@ def _semantic_match(test_name: str) -> Optional[MatchResult]:
         )
 
     query_norm = _normalize(test_name)
+    # Etapa Python-2: pre-normalize the raw analyte name once for reuse
+    # inside the per-candidate fuzzy loop below. None if not provided.
+    raw_norm = _normalize(raw_parameter_name) if raw_parameter_name else None
     model = get_model()
 
     # 1. Semantic similarity (vectorized over all LOINC rows).
@@ -447,6 +492,18 @@ def _semantic_match(test_name: str) -> Optional[MatchResult]:
         f_long = fuzz.token_set_ratio(query_norm, long_name.lower()) / 100.0
         f_comp = fuzz.token_set_ratio(query_norm, comp.lower()) / 100.0
         fz = max(f_long, f_comp)
+
+        # Etapa Python-2: raw analyte name as an ALTERNATIVE fuzzy source.
+        # When Gemini's normalized English drifts semantically (e.g. emits
+        # a compound noun that doesn't match the LOINC long_name well), the
+        # raw name printed on the PDF often still lexically matches. We add
+        # it into the max — never lowers the score, only lifts candidates
+        # whose long_name/component the raw name matches better than the
+        # normalized string. Safe by construction (MAX over more sources).
+        if raw_norm:
+            fr_long = fuzz.token_set_ratio(raw_norm, long_name.lower()) / 100.0
+            fr_comp = fuzz.token_set_ratio(raw_norm, comp.lower()) / 100.0
+            fz = max(fz, fr_long, fr_comp)
 
         rl = _apply_rules(query_norm, meta)
 

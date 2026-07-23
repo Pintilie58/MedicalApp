@@ -157,7 +157,13 @@ def match(req: LoincRequest):
     )
 
     try:
-        result = find_loinc(req.test_name, unit=req.unit)
+        result = find_loinc(
+            req.test_name,
+            unit=req.unit,
+            raw_parameter_name=req.raw_parameter_name,
+            panel_header_raw=req.panel_header_raw,
+            analyte_line_raw=req.analyte_line_raw,
+        )
     except Exception as ex:
         log.exception("find_loinc failed for input: %r (unit=%r)", req.test_name, req.unit)
         raise HTTPException(status_code=500, detail=str(ex))
