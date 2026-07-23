@@ -401,6 +401,15 @@ namespace MedicalApp.Services
                             else
                             {
                                 c.Item().Text(r.Parameter).SemiBold().FontSize(10);
+                                // Inline analyte metadata copied verbatim from the PDF row
+                                // (specimen + method + analyzer, e.g.
+                                // "-Ser - Turbidimetrie (ABX PENTRA C400 ISE)"). Displayed
+                                // between the analyte name and the explanation so the user
+                                // can see exactly which lab methodology produced the value
+                                // and how the downstream LOINC axes were resolved.
+                                if (!string.IsNullOrWhiteSpace(r.AnalyteLineRaw))
+                                    c.Item().PaddingTop(1).Text(r.AnalyteLineRaw!.Trim())
+                                        .Italic().FontSize(8).FontColor(MutedText);
                                 if (!string.IsNullOrWhiteSpace(r.Explanation))
                                     c.Item().PaddingTop(1).Text(r.Explanation).FontSize(8).FontColor(MutedText);
                                 if (!string.IsNullOrWhiteSpace(r.LoincCode))
