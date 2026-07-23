@@ -25,6 +25,7 @@ from __future__ import annotations
 import logging
 import re
 import threading
+import unicodedata
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -113,13 +114,82 @@ _SPECIMEN_KEYWORDS = {
 }
 
 _METHOD_KEYWORDS = {
+    # -- Legacy (pre-Etapa Python-3) --
     "test strip":  {"test strip", "dipstick"},
     "dipstick":    {"test strip", "dipstick"},
     "westergren":  {"westergren"},
-    "microscopy":  {"microscopy"},
+    "microscopy":  {"microscopy", "manual"},
     "calculation": {"calculation", "calculated"},
     "direct":      {"direct"},
     "ifcc":        {"ifcc"},
+
+    # -- Etapa Python-3: multi-language method markers --------------------
+    # Activated when the CONTEXT text (test_name + panel_header_raw +
+    # analyte_line_raw + raw_parameter_name, diacritics-stripped) contains
+    # the trigger phrase. Each entry pushes LOINC candidates whose ``method``
+    # or ``name`` field contains any of the allowed English tokens up in the
+    # ranking. Keys are stored in the ASCII form to match the diacritics-
+    # stripped context (see _strip_diacritics). Only method markers with
+    # well-established LOINC axis meaning are included — spectrophotometry
+    # is intentionally excluded because it covers dozens of unrelated LOINC
+    # axes and would trigger false positives.
+
+    # --- Automated hematology: impedance + flow cytometry → "Automated count"
+    "automated":        {"automated"},
+    "automated count":  {"automated"},
+    "impedance":        {"automated"},
+    "impedanta":        {"automated"},           # RO ("impedanță")
+    "impedancia":       {"automated"},           # ES / PT
+    "impedanz":         {"automated"},           # DE
+    "flow cytometry":   {"flow cytometry", "automated"},
+    "cytometry":        {"flow cytometry", "automated"},
+    "citometrie":       {"flow cytometry", "automated"},  # RO
+    "citometria":       {"flow cytometry", "automated"},  # ES / PT / IT
+    "cytometrie en flux": {"flow cytometry", "automated"},  # FR (diacritics stripped)
+    "durchflusszytometrie": {"flow cytometry", "automated"},  # DE
+
+    # --- Manual hematology: optical microscopy → "Manual count" / "Microscopy"
+    "manual count":     {"manual", "microscopy"},
+    "microscopie":      {"microscopy", "manual"},  # RO / FR
+    "microscopia":      {"microscopy", "manual"},  # ES / PT / IT
+    "mikroskopie":      {"microscopy", "manual"},  # DE
+    "mikroskopia":      {"microscopy", "manual"},  # PL
+
+    # --- Turbidimetry (CRP, immunoglobulins, ferritin)
+    "turbidimetry":     {"turbidimetric", "turbidimetry"},
+    "turbidimetric":    {"turbidimetric", "turbidimetry"},
+    "turbidimetrie":    {"turbidimetric", "turbidimetry"},  # RO / FR / DE
+    "turbidimetria":    {"turbidimetric", "turbidimetry"},  # ES / PT / IT
+
+    # --- Nephelometry
+    "nephelometry":     {"nephelometric", "nephelometry"},
+    "nephelometric":    {"nephelometric", "nephelometry"},
+    "nefelometrie":     {"nephelometric", "nephelometry"},  # RO / FR
+    "nefelometria":     {"nephelometric", "nephelometry"},  # ES / PT / IT
+
+    # --- ELISA / EIA (enzyme immunoassay)
+    "elisa":            {"elisa", "immunoassay", "eia"},
+    "eia":              {"eia", "immunoassay"},
+
+    # --- ECLIA / chemiluminescence family (thyroid, tumor markers, hormones)
+    "eclia":                    {"eclia", "chemiluminescence", "immunoassay"},
+    "electrochemiluminescence": {"eclia", "chemiluminescence", "immunoassay"},
+    "electrochemiluminescenta": {"eclia", "chemiluminescence", "immunoassay"},  # RO
+    "chemiluminescence":        {"chemiluminescence", "immunoassay", "icma", "cmia"},
+    "chemiluminescenta":        {"chemiluminescence", "immunoassay", "icma", "cmia"},  # RO
+    "chemiluminiscenta":        {"chemiluminescence", "immunoassay", "icma", "cmia"},  # RO alt spelling
+    "chimiluminescence":        {"chemiluminescence", "immunoassay"},  # FR variant
+    "icma":                     {"chemiluminescence", "immunoassay", "icma"},
+    "cmia":                     {"chemiluminescence", "immunoassay", "cmia"},
+
+    # --- HPLC (chromatography)
+    "hplc":             {"hplc", "high performance liquid chromatography", "chromatography"},
+
+    # --- Coagulometric (fibrinogen, clotting factors)
+    "coagulometric":    {"coagulometric", "clot", "clauss"},
+    "coagulometrie":    {"coagulometric", "clot", "clauss"},  # RO / FR
+    "coagulometria":    {"coagulometric", "clot", "clauss"},  # ES / PT / IT
+    "clauss":           {"clauss", "coagulometric"},
 }
 
 _PROPERTY_KEYWORDS = {
@@ -135,6 +205,30 @@ _PROPERTY_KEYWORDS = {
 
 def _normalize(s: str) -> str:
     return re.sub(r"\s+", " ", s.lower()).strip()
+
+
+def _strip_diacritics(s: str) -> str:
+    """Strip Unicode combining marks (diacritics) from ``s``.
+
+    Used EXCLUSIVELY when building the rules-layer context text so that the
+    hand-curated keyword dictionaries (which store the ASCII form:
+    ``impedanta``, ``cytometrie``, ``serique``) substring-match input written
+    with native orthography in any of the ~30 supported languages:
+
+        ``impedanță`` (RO)   → ``impedanta``
+        ``cytométrie`` (FR)  → ``cytometrie``
+        ``sérique`` (FR)     → ``serique``
+        ``turbidimétrie``    → ``turbidimetrie``
+        ``nefelometría`` (ES)→ ``nefelometria``
+
+    NOT applied to:
+      * anchor lookup keys (all English canonical strings, ASCII)
+      * LOINC dictionary metadata (LOINC ships English text)
+      * the semantic embedding input (SentenceTransformer handles Unicode)
+      * the fuzzy layer (rapidfuzz's token_set_ratio is robust enough)
+    """
+    s = unicodedata.normalize("NFD", s)
+    return "".join(c for c in s if unicodedata.category(c) != "Mn")
 
 
 # -------------------------------------------------------------------------
@@ -247,10 +341,34 @@ def _find_peer_with_property(
     return best
 
 
-def _apply_rules(query_norm: str, candidate: dict) -> float:
-    """Return rules score in [0, 1] — fraction of rules satisfied. We only
-    apply rules that the query EXPLICITLY mentions (specimen/method/property
-    keywords). Other candidates get rules=1.0 (neutral, no penalty)."""
+def _apply_rules(context_norm: str, candidate: dict, *, source_context_norm: Optional[str] = None) -> float:
+    """Return rules score in [0, 1] — fraction of rules satisfied.
+
+    We only apply rules whose trigger keyword appears in the CONTEXT text
+    (test_name + raw_parameter_name + panel_header_raw + analyte_line_raw,
+    diacritics-stripped by the caller — see ``_semantic_match``). Candidates
+    with no rule keywords in context get rules=1.0 (neutral, no penalty).
+
+    Method-rule priority (Python-3)
+    -------------------------------
+    Gemini's ``parameter_normalized_en`` can drift on the LOINC METHOD axis
+    (e.g. emits ``by Estimated`` for a Hematocrit measured with impedance,
+    or ``by Automated count`` for a differential done with optical
+    microscopy). To prevent Gemini's guess from contradicting the ground
+    truth printed in the PDF, method rules are resolved with a priority:
+
+      1. If ANY method keyword fires in ``source_context_norm``
+         (panel_header + analyte_line + raw_parameter_name only —
+         the PDF's own words), method rules use ONLY that source context.
+         Gemini's test_name is ignored for method disambiguation.
+      2. Otherwise, method rules fall back to the full ``context_norm``,
+         preserving the legacy behavior for cases where the method marker
+         only appears in Gemini's normalized text (e.g. lab printed just
+         ``VSH`` but Gemini emitted ``... by Westergren``).
+
+    Specimen + property rules always use the full ``context_norm`` — those
+    axes are captured reliably by Gemini's normalization.
+    """
     sys_val = (candidate.get("system") or "").lower()
     meth_val = (candidate.get("method") or "").lower()
     prop_val = (candidate.get("property") or "").lower()
@@ -259,26 +377,33 @@ def _apply_rules(query_norm: str, candidate: dict) -> float:
     checks_made = 0
     checks_passed = 0
 
+    # SPECIMEN rules — full context (Gemini reliable for "in Serum"/"in Blood"/etc.)
     for kw, allowed in _SPECIMEN_KEYWORDS.items():
-        if kw in query_norm:
+        if kw in context_norm:
             checks_made += 1
             if any(a in sys_val or a in name_val for a in allowed):
                 checks_passed += 1
 
+    # METHOD rules — source-first, full-fallback (Python-3 priority resolution)
+    method_ctx = context_norm
+    if source_context_norm is not None:
+        if any(kw in source_context_norm for kw in _METHOD_KEYWORDS):
+            method_ctx = source_context_norm
     for kw, allowed in _METHOD_KEYWORDS.items():
-        if kw in query_norm:
+        if kw in method_ctx:
             checks_made += 1
             if any(a in meth_val or a in name_val for a in allowed):
                 checks_passed += 1
 
+    # PROPERTY rules — full context (Gemini reliable for "[Mass/volume]", "[Volume Fraction]", etc.)
     for kw, allowed in _PROPERTY_KEYWORDS.items():
-        if kw in query_norm:
+        if kw in context_norm:
             checks_made += 1
             if any(a in prop_val or a in name_val for a in allowed):
                 checks_passed += 1
 
     if checks_made == 0:
-        # No rule keywords in query — don't penalize, don't boost.
+        # No rule keywords in context — don't penalize, don't boost.
         return 1.0
     return checks_passed / checks_made
 
@@ -421,11 +546,14 @@ def _semantic_match(
     ``raw_parameter_name`` (Python-2): used in the FUZZY layer as an
         alternative source alongside ``test_name``, guarding against Gemini
         normalization drift.
-    ``panel_header_raw`` / ``analyte_line_raw`` (Python-3): reserved for the
-        RULES layer keyword extraction; currently unused inside this function.
+    ``panel_header_raw`` / ``analyte_line_raw`` (Python-3): consumed in the
+        RULES layer via a unified diacritics-stripped ``context_norm`` that
+        concatenates all four raw sources. Keyword rules search this richer
+        text so specimen/method hints printed in the PDF (impedanță,
+        citometrie in flux, microscopie optică, turbidimetrie, ECLIA…)
+        can boost the LOINC candidate whose axes agree, regardless of any
+        Gemini normalization drift on ``parameter_normalized_en``.
     """
-    # Silence unused-arg linter until Python-3 consumes these.
-    _ = (panel_header_raw, analyte_line_raw)
     # 0. HARD-ACCEPT LAYER — canonical anchors short-circuit the matcher
     # when Gemini emits one of the curated standardized English terms (see
     # canonical_anchors.py). This eliminates the systematic mis-mappings of
@@ -462,6 +590,46 @@ def _semantic_match(
     # Etapa Python-2: pre-normalize the raw analyte name once for reuse
     # inside the per-candidate fuzzy loop below. None if not provided.
     raw_norm = _normalize(raw_parameter_name) if raw_parameter_name else None
+
+    # Etapa Python-3: build a UNIFIED, diacritics-stripped context text used
+    # ONLY by the rules layer (_apply_rules). Concatenates every raw source
+    # Gemini gave us — the normalized English term, the raw analyte name in
+    # the PDF's native language, the panel/section header and the per-row
+    # inline metadata — so that specimen/method/property keywords printed
+    # anywhere in the source PDF can boost the LOINC candidate whose axes
+    # agree. Diacritics stripping lets the ASCII keyword dictionaries
+    # (impedanta, cytometrie, serique, turbidimetrie…) match the native
+    # orthography of ~30 supported languages.
+    #
+    # We build TWO variants:
+    #   * ``full_context_norm``   — includes ``test_name`` (Gemini's English
+    #                                normalization). Used for specimen/
+    #                                property rules and as method-rule
+    #                                fallback when the PDF source alone
+    #                                does not carry any method marker.
+    #   * ``source_context_norm`` — panel_header + analyte_line + raw name
+    #                                only (the PDF's own words). Takes
+    #                                priority for METHOD rules to prevent
+    #                                a wrong ``by Automated`` / ``by
+    #                                Estimated`` guess in Gemini's
+    #                                normalization from contradicting the
+    #                                lab's actual printed method.
+    _context_parts = [test_name]
+    _source_parts: List[str] = []
+    if raw_parameter_name:
+        _context_parts.append(raw_parameter_name)
+        _source_parts.append(raw_parameter_name)
+    if panel_header_raw:
+        _context_parts.append(panel_header_raw)
+        _source_parts.append(panel_header_raw)
+    if analyte_line_raw:
+        _context_parts.append(analyte_line_raw)
+        _source_parts.append(analyte_line_raw)
+    context_norm = _strip_diacritics(_normalize(" ".join(_context_parts)))
+    source_context_norm = (
+        _strip_diacritics(_normalize(" ".join(_source_parts))) if _source_parts else None
+    )
+
     model = get_model()
 
     # 1. Semantic similarity (vectorized over all LOINC rows).
@@ -505,7 +673,7 @@ def _semantic_match(
             fr_comp = fuzz.token_set_ratio(raw_norm, comp.lower()) / 100.0
             fz = max(fz, fr_long, fr_comp)
 
-        rl = _apply_rules(query_norm, meta)
+        rl = _apply_rules(context_norm, meta, source_context_norm=source_context_norm)
 
         final = SEM_WEIGHT * sem + FUZZY_WEIGHT * fz + RULES_WEIGHT * rl
 
