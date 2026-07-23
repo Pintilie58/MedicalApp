@@ -1248,44 +1248,95 @@ translate, do NOT paraphrase, do NOT summarize.
 FIELD 1 — ""panel_header_raw""
 ----------------------------------------------------------
 What it is:
-  The section/panel header printed by the lab ABOVE a block of related
+  The section/panel header(s) printed by the lab ABOVE a block of related
   analytes. Often contains the panel name, specimen, technology, and
   sometimes the analyzer model.
 
 Rules:
   1. COPY the header text EXACTLY as printed (language, punctuation,
      dashes, capitalization, parentheses).
-  2. STRIP administrative annotations that carry ZERO medical value:
-     ""VALIDAT DE : <NAME> - <TITLE>"" / ""VALIDATED BY <NAME>""
-     ""AVIZAT DE ..."" / ""VERIFICAT DE ..."" / ""APROBAT DE ...""
-     ""SEMNAT ELECTRONIC"" / ""ELECTRONIC SIGNATURE"" / ""Signed by ...""
-     ""EMIS DE ..."" / ""INTERPRETAT DE ...""
-     Together with the trailing name + medical title (Dr., Chimist,
-     Medic, Biolog, etc.). Keep ONLY the medical/technical portion of
-     the header (section name + specimen + method + analyzer).
-  3. All parameters belonging to the SAME visual block MUST share the
+  2. STRIP ADMINISTRATIVE ANNOTATIONS — this is a UNIVERSAL,
+     LANGUAGE-AGNOSTIC rule, not a keyword list. Remove any text that
+     identifies WHO validated, approved, signed, released or authored
+     the result, INCLUDING:
+       - person names of validators / approvers / signatories
+       - medical/professional titles that qualify those names in ANY
+         language (e.g. Dr., MD, PhD, PharmD, Chimist, Medic, Biolog,
+         Assist., Tehnician, Doktor, Ärztin, Médecin, Biologiste,
+         Farmacéutico, Bioanalyst, MT (ASCP), 医師, 医学博士,
+         الطبيب, رئيس المختبر, Технолог, Биолог, Lekarz, Diagnosta, etc.)
+       - signature markers / timestamps / operator IDs (electronic
+         signature notices, ""signed by …"", ""released by …"",
+         ""authorized by …"" — in ANY language)
+       - laboratory operator / department identifiers when they only
+         name a person or shift, not a specimen/method/analyzer
+     Recognize these SEMANTICALLY: any phrase whose sole purpose is
+     to name the human agent behind the result carries NO information
+     about how the test was performed and must be removed. This works
+     across ALL languages (the app supports ~30) — do NOT rely on a
+     fixed vocabulary.
+     Keep the section name and every specimen/method/analyzer descriptor.
+  3. HANDLE NESTED HEADERS. When an analyte lives under MULTIPLE nested
+     headers (a broad category header AND one or more sub-panel headers
+     between it and the analyte row), CONCATENATE all of them from
+     outermost to innermost using "" | "" (space-pipe-space) as separator.
+     Apply Rule 2 to EACH level independently before concatenating.
+     If a level is fully administrative and stripping leaves nothing
+     medical, DROP that level entirely (do not emit an empty segment).
+     If only ONE header exists, no separator is emitted.
+     Rationale: the downstream matcher scans the whole string for
+     specimen / method / analyzer keywords — concatenation preserves
+     all context without asking you to decide which header is ""more
+     specific"" (that decision varies by lab layout and language).
+  4. All parameters belonging to the SAME visual block MUST share the
      SAME ""panel_header_raw"" string (byte-for-byte identical after
-     the stripping in rule 2). This is how the downstream matcher
-     recognizes group boundaries.
-  4. If no visible group header exists, emit null. If the header
-     contains ONLY administrative annotations with NO section name
-     and NO medical context, also emit null.
+     the stripping in rule 2 and the concatenation in rule 3). This
+     is how the downstream matcher recognizes group boundaries.
+  5. If no visible group header exists, emit null. If ALL header
+     levels collapse to nothing after Rule 2 stripping, also emit null.
 
 Worked examples (RAW → EMIT):
-  RAW:  ""IMUNOLOGIE - VALIDAT DE : MARIANA-SILVIA PRISECARU - CHIMIST MEDICAL PRINCIPAL""
-  EMIT: ""IMUNOLOGIE""
-  (stripped everything after ""VALIDAT DE :"" — that portion is admin;
-   kept the section name)
 
-  RAW:  ""Hemoleucograma completa - Sange - Spectroscopie de impedanta, spectrofotometrie, citometrie in flux (PENTRA ES 60)""
-  EMIT: ""Hemoleucograma completa - Sange - Spectroscopie de impedanta, spectrofotometrie, citometrie in flux (PENTRA ES 60)""
-  (no admin annotation → copy unchanged)
+  Single-level, admin present:
+    RAW:  ""IMUNOLOGIE - VALIDAT DE : MARIANA-SILVIA PRISECARU - CHIMIST MEDICAL PRINCIPAL""
+    EMIT: ""IMUNOLOGIE""
 
-  RAW:  ""Biochimie serică — Ser — Spectrofotometrie   AVIZAT DE : Dr. Ion Popescu""
-  EMIT: ""Biochimie serică — Ser — Spectrofotometrie""
+  Single-level, no admin:
+    RAW:  ""Hemoleucograma completa - Sange - Spectroscopie de impedanta, spectrofotometrie, citometrie in flux (PENTRA ES 60)""
+    EMIT: ""Hemoleucograma completa - Sange - Spectroscopie de impedanta, spectrofotometrie, citometrie in flux (PENTRA ES 60)""
 
-  RAW:  ""VALIDAT DE : Dr. Ana Munteanu - Medic Primar""
-  EMIT: null   (nothing medical remains after stripping)
+  Single-level, admin at end:
+    RAW:  ""Biochimie serică — Ser — Spectrofotometrie   AVIZAT DE : Dr. Ion Popescu""
+    EMIT: ""Biochimie serică — Ser — Spectrofotometrie""
+
+  Single-level, header is entirely admin:
+    RAW:  ""VALIDAT DE : Dr. Ana Munteanu - Medic Primar""
+    EMIT: null
+
+  Two-level nested (BOTH useful):
+    RAW outer: ""HEMATOLOGIE - VALIDAT DE : DIANA SANDRA POPA - MEDIC PRIMAR MEDICINA DE LABORATOR""
+    RAW inner: ""1. Examen citologic al frotiului sanguin -Sange - Microscopie optica (MANUAL HEMATOLOGIE)""
+    Outer stripped: ""HEMATOLOGIE""
+    Inner stripped: ""1. Examen citologic al frotiului sanguin -Sange - Microscopie optica (MANUAL HEMATOLOGIE)""
+    EMIT panel_header_raw:
+      ""HEMATOLOGIE | 1. Examen citologic al frotiului sanguin -Sange - Microscopie optica (MANUAL HEMATOLOGIE)""
+
+  Two-level nested (SAME PDF, different sub-panel):
+    RAW outer: ""HEMATOLOGIE - VALIDAT DE : DIANA SANDRA POPA - MEDIC PRIMAR MEDICINA DE LABORATOR""
+    RAW inner: ""2. Hemoleucograma completa -Sange - Spectroscopie de impedanta, spectrofotometrie, citometrie in flux (PENTRA ES 60)""
+    EMIT: ""HEMATOLOGIE | 2. Hemoleucograma completa -Sange - Spectroscopie de impedanta, spectrofotometrie, citometrie in flux (PENTRA ES 60)""
+
+  Two-level nested (outer collapses after admin-strip):
+    RAW outer: ""VALIDAT DE : Prof. Dr. J. Kowalski - Kierownik Laboratorium""
+    RAW inner: ""Panel biochemiczny podstawowy - Surowica - Spektrofotometria""
+    Outer stripped: (empty)  → level dropped
+    EMIT: ""Panel biochemiczny podstawowy - Surowica - Spektrofotometria""
+
+  Three-level nested (all useful):
+    Level 1: ""HEMATOLOGIE""
+    Level 2: ""Diferential leucocitar""
+    Level 3: ""-Sange - Microscopie optica""
+    EMIT: ""HEMATOLOGIE | Diferential leucocitar | -Sange - Microscopie optica""
 
 ----------------------------------------------------------
 FIELD 2 — ""analyte_line_raw""
@@ -1318,10 +1369,40 @@ Rules:
   3. Do NOT duplicate metadata that is also in ""panel_header_raw"" —
      if the row has no ADDITIONAL detail beyond what the panel header
      already says, emit null.
+  4. CRITICAL DISAMBIGUATION — ""analyte_line_raw"" is EXCLUSIVELY for
+     metadata printed on the SAME visual row as ONE analyte's name and
+     value. It is NOT for text that appears above a GROUP of analytes.
+     Ask yourself: does this metadata text apply to a SINGLE analyte
+     row, or does it visually govern MULTIPLE consecutive analyte rows?
+       - Applies to ONE row (specimen/method printed inline next to
+         the analyte name, on the same visual line as its value):
+         → this belongs in ""analyte_line_raw"".
+       - Applies to MULTIPLE consecutive rows (a sub-panel title
+         printed once above a block of analytes that share it):
+         → this belongs in ""panel_header_raw"" (concatenated with any
+         outer header via "" | "" per FIELD 1 rule 3). It does NOT
+         belong in ""analyte_line_raw"".
+     Example of the mistake to AVOID: a lab prints
+       ""1. Examen citologic al frotiului sanguin -Sange - Microscopie optica (MANUAL HEMATOLOGIE)""
+     as a single sub-panel title above four rows (Neutrofile segmentate,
+     Eozinofile, Limfocite, Monocite). This is a SUB-PANEL HEADER, not
+     per-row metadata — because the same text is shared by all four
+     rows and is printed ONCE above them, not next to each value.
+     For every one of these four analytes:
+       CORRECT:
+         panel_header_raw = ""HEMATOLOGIE | 1. Examen citologic al frotiului sanguin -Sange - Microscopie optica (MANUAL HEMATOLOGIE)""
+         analyte_line_raw = null
+       WRONG (do NOT do this):
+         panel_header_raw = ""HEMATOLOGIE""
+         analyte_line_raw = ""-Sange - Microscopie optica (MANUAL HEMATOLOGIE)""
+     The visual heuristic: if the SAME text appears next to only ONE
+     analyte's value → analyte_line_raw. If the same text is printed
+     ONCE and governs several rows below it → panel_header_raw.
 
 Worked examples (whole raw row → EMIT):
   RAW row: ""24. Proteina C reactiva -Ser - Turbidimetrie (ABX PENTRA C400 ISE) 10.46 mg/L 0 - 5 / mg/L""
   EMIT:    ""-Ser - Turbidimetrie (ABX PENTRA C400 ISE)""
+  (inline per-row metadata — appears on the same line as one value)
 
   RAW row: ""27. TSH -Ser - chemiluminiscenta (ADVIA CENTAUR CP) 1.791 uUI/ml 0.55 - 4.78 / uUI/ml""
   EMIT:    ""-Ser - chemiluminiscenta (ADVIA CENTAUR CP)""
@@ -1329,12 +1410,17 @@ Worked examples (whole raw row → EMIT):
   RAW row: ""28. 25 OH VITAMINA D * -Ser - ELISA (ALEGRIA) 21.7 ng/ml Carenta: < 12 ng/ml ...""
   EMIT:    ""-Ser - ELISA (ALEGRIA)""
 
-  RAW row: ""Hematocrit  46.7 %  39-50 / %""
-  EMIT:    null   (row prints no inline metadata — everything is in
-                    the panel header ""Hemoleucograma completa - Sange - ..."")
+  RAW row: ""Hematocrit  46.7 %  39-50 / %""  (under panel header ""Hemoleucograma completa - Sange - ..."")
+  EMIT:    null
 
   RAW row: ""VSH - Westergren  12 mm/h  0-20 / mm/h""
   EMIT:    ""- Westergren""
+
+  RAW row: ""Neutrofile segmentate  50 %  40 - 70 / %""
+    (under sub-panel ""1. Examen citologic al frotiului sanguin -Sange - Microscopie optica (MANUAL HEMATOLOGIE)"")
+  EMIT:    null   (the specimen/method belong to the SUB-PANEL header
+                    shared by four rows — put them in panel_header_raw
+                    via concatenation, NOT here)
 
 Together, ""panel_header_raw"" and ""analyte_line_raw"" give the downstream
 matcher the FULL raw context needed to resolve the correct LOINC code
@@ -1500,7 +1586,7 @@ Task:
 3. Apply the value-vs-reference pairing rules from the system instructions (WBC differential, age-dependent ranges, dual-unit rows, mismatched magnitudes).
 4. Determine each parameter's status (normal/high/low/borderline).
 5. If a cardiovascular-risk category was declared above, USE THE PROVIDED LIPID TARGETS for LDL-C, non-HDL and Triglycerides INSTEAD OF the multi-threshold rule, and explicitly mention the declared risk category in 'summary', 'explanation' for those parameters, and 'recommendations'.
-6. For EVERY parameter in 'key_results', also emit the field 'parameter_normalized_en' as described in the system instructions: a clean standardized English medical term for the analyte (with explicit specimen). Example: parameter=""Glicemie"" -> ""parameter_normalized_en"": ""Glucose [Mass/volume] in Serum or Plasma"". Do NOT emit ""loinc_code"", ""loinc_long_name"" or ""loinc_confidence"" — those are resolved downstream. Also emit the TWO source-context fields: 'panel_header_raw' (the section/panel header text from the PDF — STRIP administrative annotations like ""VALIDAT DE ..."", ""AVIZAT DE ..."", ""SEMNAT ELECTRONIC"" and their trailing names/titles; keep only the medical/technical portion; null if nothing medical remains) AND 'analyte_line_raw' (the specimen/method/analyzer metadata printed INLINE on the analyte row, excluding the row number, analyte name, value, unit and range; null if the row has no inline metadata beyond the name). Copy verbatim — do NOT translate or paraphrase.
+6. For EVERY parameter in 'key_results', also emit the field 'parameter_normalized_en' as described in the system instructions: a clean standardized English medical term for the analyte (with explicit specimen). Example: parameter=""Glicemie"" -> ""parameter_normalized_en"": ""Glucose [Mass/volume] in Serum or Plasma"". Do NOT emit ""loinc_code"", ""loinc_long_name"" or ""loinc_confidence"" — those are resolved downstream. Also emit the TWO source-context fields: 'panel_header_raw' (the section/panel header text from the PDF — SEMANTICALLY strip administrative annotations that identify validators / approvers / signatories in ANY language, including person names, medical/professional titles and signature markers; when an analyte lives under NESTED headers, CONCATENATE all levels from outermost to innermost with "" | "" separator per FIELD 1 rule 3; null only if all levels collapse) AND 'analyte_line_raw' (the specimen/method/analyzer metadata printed INLINE on ONE analyte row only, excluding the row number, analyte name, value, unit and range; do NOT put SUB-PANEL headers here — those belong in panel_header_raw; null if the row has no inline per-row metadata). Copy verbatim — do NOT translate or paraphrase.
 7. Produce the structured JSON object exactly per the schema in the system instructions, written entirely in {languageName}. Do NOT wrap it in markdown fences.";
         }
     }

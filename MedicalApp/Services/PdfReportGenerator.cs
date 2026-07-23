@@ -374,9 +374,26 @@ namespace MedicalApp.Services
                         !string.Equals(currentHeader, lastHeader, StringComparison.Ordinal);
                     if (headerChanged && !string.IsNullOrWhiteSpace(currentHeader))
                     {
-                        t.Cell().ColumnSpan(4).PaddingTop(6).PaddingBottom(2)
-                            .Text(currentHeader)
-                            .SemiBold().Italic().FontSize(9).FontColor(BrandColor);
+                        // Nested panel headers are concatenated by Gemini using
+                        // " | " between outermost and innermost levels (see
+                        // GeminiMedicalInterpretationService PANEL_HEADER rule 3).
+                        // Render each level on its own visual line so the user can
+                        // read the full hierarchy without horizontal overflow:
+                        //   HEMATOLOGIE
+                        //   1. Examen citologic al frotiului sanguin -Sange - Microscopie optica ...
+                        var headerLevels = currentHeader!.Split(
+                            new[] { " | " },
+                            StringSplitOptions.RemoveEmptyEntries);
+                        t.Cell().ColumnSpan(4).PaddingTop(6).PaddingBottom(2).Column(headerCol =>
+                        {
+                            foreach (var level in headerLevels)
+                            {
+                                var trimmed = level.Trim();
+                                if (trimmed.Length == 0) continue;
+                                headerCol.Item().Text(trimmed)
+                                    .SemiBold().Italic().FontSize(9).FontColor(BrandColor);
+                            }
+                        });
                     }
                     lastHeader = currentHeader;
                     firstIteration = false;
