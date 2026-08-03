@@ -940,3 +940,12 @@ Dacă user-ul a făcut `Git → Commit + Push` în VS2022 între sesiuni (migră
 4. Apoi începe task-ul nou → Save to Github nu mai dă conflict.
 
 Remote-ul `github` este deja configurat ca `https://github.com/Pintilie58/MedicalApp.git`.
+
+### 2026-06 — Plan de Afaceri POCIDIF rescris integral GREENFIELD (doar PARTEA A II-A)
+- User a cerut reconstrucția completă: proiect prezentat 100% de la zero, DOAR Partea a II-a (Descrierea proiectului) conform Anexei 4, cu subcapitole noi și C.4 cu TOATE etapele/fazele (inclusiv landing page, înregistrare, autentificare etc.), datele din draftul anterior (FIXMEDICAL S.R.L., 800.000 EUR, 18 luni, POCIDIF), inovația evidențiată.
+- Generatorul a fost modularizat: `/app/bp/` (helpers, cover, c1, c2, c3, c4_arhitectura, c4_etape, c4_specificatii, c4_ecrane, c4_dictionar, c5, c6, c7, c8, c9, glosar) + `/app/generate_business_plan.py` (asamblor).
+- Structură: C.1 (5 subcap) · C.2 (6 subcap, inovație) · C.3 (6 subcap, personas) · C.4 (12 subcap; C.4.4 = 11 etape × ~30 faze cu livrabile+criterii de acceptanță) · C.5–C.9 + Glosar. 30 tabele, ~98.500 caractere, estimare 40–48 pagini.
+- Narativă verificată: zero referințe la prototip existent/refactoring/migrare; totul la timp viitor.
+- Output: `/app/Plan_Afaceri_MyMedicalApp_FIXMEDICAL.docx`, copiat în `/app/frontend/public/` (accesibil la [PREVIEW_URL]/Plan_Afaceri_MyMedicalApp_FIXMEDICAL.docx — verificat 200 OK).
+- ATENȚIE fork nou: scriptul vechi monolitic a fost șters de `git reset --hard github/main` (commit-uri locale nepush-ate); a fost recuperat din reflog (a2909c5) apoi înlocuit cu varianta modulară. Regula git fetch+reset rămâne, dar verifică întâi reflog dacă lipsesc fișiere.
+- Pending user: feedback pe conținut; posibile extinderi spre 60+ pagini (mai mult detaliu per fază, context de piață, capturi descrise).
