@@ -118,6 +118,20 @@ builder.Services.AddHttpClient<LoincMatcherClient>((sp, http) =>
     http.Timeout = TimeSpan.FromSeconds(Math.Max(opts.TimeoutSeconds * 2, 10));
 });
 
+// ---------------------------------------------------------------------------
+// LOINC microservice health monitor + optional auto-start (self-healing).
+// AZURE-SAFE: LoincAutoStart.Enabled defaults to false in appsettings.json,
+// and the restart code path is additionally gated on Windows only. On Azure
+// this hosted service just keeps an in-memory /ready snapshot fresh so the
+// admin widget stops issuing live blocking HTTP calls on every dashboard hit.
+// KILL SWITCH: set "LoincAutoStart:Enabled" to false in appsettings.json and
+// restart the app — nothing else changes.
+// ---------------------------------------------------------------------------
+builder.Services.Configure<LoincAutoStartSettings>(
+    builder.Configuration.GetSection("LoincAutoStart"));
+builder.Services.AddSingleton<ILoincHealthState, LoincHealthState>();
+builder.Services.AddHostedService<LoincHealthMonitor>();
+
 // Pending registrations (in-memory, singleton)
 builder.Services.AddSingleton<PendingRegistrationStore>();
 

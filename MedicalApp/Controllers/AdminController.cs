@@ -39,64 +39,54 @@ namespace MedicalApp.Controllers
 
         // =====================================================================
         //  LOINC microservice health probe (admin-only).
-        //  Pings http://<loinc-base>/health and returns a tiny JSON the
-        //  dashboard widget polls every 30s. Cheap (loopback, <5ms typical)
-        //  and CANNOT slow down user-facing pages — only the Admin page calls
-        //  it, and the call is async, with a tight 2s timeout so a stale
-        //  socket never blocks the response. Returns:
+        //  Reads the in-memory snapshot maintained by LoincHealthMonitor
+        //  (background service polling /ready every 15s). Returns instantly
+        //  (0 ms) — no live HTTP call is issued on the user request path, so
+        //  a down microservice never blocks the admin dashboard. Response
+        //  shape is unchanged (backward-compatible with the existing widget):
         //    { ok: true,  status: "ok",     loincCount: 12345, latencyMs: 3 }
         //    { ok: false, status: "down",   message: "...",   latencyMs: 2003 }
         // =====================================================================
         [HttpGet]
-        public async Task<IActionResult> LoincServiceHealth()
+        public IActionResult LoincServiceHealth([FromServices] ILoincHealthState state)
         {
-            var baseUrl = (_loincSettings?.BaseUrl ?? "").TrimEnd('/');
-            if (string.IsNullOrWhiteSpace(baseUrl) || _loincSettings?.Enabled != true)
+            // If the background monitor has not completed its first probe yet
+            // (very short window right after app start), fall through with
+            // status="unknown" so the widget still renders — do not block.
+            var status = state.Status;
+            if (status == "disabled")
             {
-                return Json(new { ok = false, status = "disabled",
-                    message = "LoincMatcher is disabled in appsettings.json (LoincMatcher.Enabled=false).",
-                    baseUrl, latencyMs = 0 });
-            }
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            try
-            {
-                var client = _httpClientFactory.CreateClient();
-                using var cts = new System.Threading.CancellationTokenSource(System.TimeSpan.FromSeconds(2));
-                using var resp = await client.GetAsync(baseUrl + "/ready", cts.Token);
-                sw.Stop();
-                if (!resp.IsSuccessStatusCode)
+                return Json(new
                 {
-                    return Json(new { ok = false, status = "error",
-                        message = $"HTTP {(int)resp.StatusCode} from {baseUrl}/ready",
-                        baseUrl, latencyMs = sw.ElapsedMilliseconds });
-                }
-                var body = await resp.Content.ReadAsStringAsync(cts.Token);
-                // Best-effort parse of "loinc_count" from /ready payload (e.g. {"status":"ready","loinc_count":12345}).
-                int? loincCount = null;
-                try
-                {
-                    using var doc = System.Text.Json.JsonDocument.Parse(body);
-                    if (doc.RootElement.TryGetProperty("loinc_count", out var lc) && lc.ValueKind == System.Text.Json.JsonValueKind.Number)
-                        loincCount = lc.GetInt32();
-                }
-                catch { /* not JSON or different schema — keep loincCount = null */ }
-                return Json(new { ok = true, status = "ok", loincCount,
-                    baseUrl, latencyMs = sw.ElapsedMilliseconds });
+                    ok = false,
+                    status,
+                    message = state.Message,
+                    baseUrl = state.BaseUrl,
+                    latencyMs = 0
+                });
             }
-            catch (System.OperationCanceledException)
+
+            if (status == "timeout")
             {
-                sw.Stop();
-                return Json(new { ok = false, status = "timeout",
+                return Json(new
+                {
+                    ok = false,
+                    status,
                     message = Loc.T("AdminMicroserviceTimeout"),
-                    baseUrl, latencyMs = sw.ElapsedMilliseconds });
+                    baseUrl = state.BaseUrl,
+                    latencyMs = state.LatencyMs
+                });
             }
-            catch (System.Exception ex)
+
+            return Json(new
             {
-                sw.Stop();
-                return Json(new { ok = false, status = "down",
-                    message = ex.GetBaseException().Message,
-                    baseUrl, latencyMs = sw.ElapsedMilliseconds });
-            }
+                ok = state.IsUp,
+                status,
+                loincCount = state.LoincCount,
+                message = state.Message,
+                baseUrl = state.BaseUrl,
+                latencyMs = state.LatencyMs
+            });
         }
 
         // =====================================================================
