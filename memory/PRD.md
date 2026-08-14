@@ -949,3 +949,13 @@ Remote-ul `github` este deja configurat ca `https://github.com/Pintilie58/Medica
 - Output: `/app/Plan_Afaceri_MyMedicalApp_FIXMEDICAL.docx`, copiat în `/app/frontend/public/` (accesibil la [PREVIEW_URL]/Plan_Afaceri_MyMedicalApp_FIXMEDICAL.docx — verificat 200 OK).
 - ATENȚIE fork nou: scriptul vechi monolitic a fost șters de `git reset --hard github/main` (commit-uri locale nepush-ate); a fost recuperat din reflog (a2909c5) apoi înlocuit cu varianta modulară. Regula git fetch+reset rămâne, dar verifică întâi reflog dacă lipsesc fișiere.
 - Pending user: feedback pe conținut; posibile extinderi spre 60+ pagini (mai mult detaliu per fază, context de piață, capturi descrise).
+
+### 2026-06 — Fix P1: robustețea matcher-ului LOINC (cazul Hemoglobina 718-7 vs 16931-8)
+- RCA confirmat matematic (scor simulat 0.831 ≈ 82% afișat): Gemini a emis sufixul stocastic "by Automated count" → ancora exact-match a ratat → semantic (MiniLM favoriza sufixul comun) + regula de metodă (impedanta/citometrie penaliza 718-7 fără metodă) au ales 16931-8 (Hct/Hgb Ratio).
+- Implementat în `loinc_service/`:
+  1. `canonical_anchors.py`: `strip_method_suffix()` + `lookup_anchor_stripped()` — ancoră second-chance după tăierea sufixului " by <method>" (doar după ratarea exact-match).
+  2. `loinc_store.py`: `name_index` + `get_by_name()` — lookup determinist pe LONG_COMMON_NAME exact.
+  3. `pipeline.py`: `_deterministic_lookup()` cu 3 straturi (ancoră exactă → nume LOINC exact → ancoră cu sufix tăiat), fiecare validat de garduri: `_method_contradicts` (doar metode EXPLICITE contradictorii resping; candidații fără metodă nu sunt respinși), `_raw_name_contradicts` (anti-halucinație asimetric: respinge doar cu dovadă pozitivă că numele brut aparține ALTUI analit ancorat, sim≥0.85 + gap≥0.20; "VSH" românesc nu declanșează), `_unit_contradicts_property` (g/dL nu poate fi Ratio/Fraction).
+  4. `_apply_rules`: credit parțial 0.5 pentru candidați fără metodă (Fix 3); penalizare ×0.25 în bucla semantică pentru contradicție unitate↔Ratio (Fix 2).
+- `test_pipeline_smoke.py` extins: suită GOLDEN cu 12 cazuri istorice (Hgb+sufix, Hct Estimated/Automated, FT3 pmol/L swap, MCH/MCHC, LDL by calculation, VSH raw, anti-halucinație) + 19 legacy. Rezultat: 31/31 PASS, zero regresii.
+- Validare finală pe mașina userului (dicționar complet 97k + SQL Server): PENDING.

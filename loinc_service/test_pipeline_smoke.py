@@ -1,15 +1,19 @@
 """
 test_pipeline_smoke.py
 ----------------------
-Smoke test (sandbox-only, no SQL Server needed): seeds a tiny LOINC corpus
-with ~25 hand-picked codes that cover the parameters the user has been
-debugging, runs the matcher against the EXACT English terms the new Gemini
-prompt is supposed to emit, and asserts the matcher returns the right code.
+Smoke + GOLDEN regression test (sandbox-only, no SQL Server needed): seeds a
+tiny LOINC corpus with hand-picked codes covering the parameters the user has
+been debugging, runs the matcher and asserts the right code comes back.
 
-This is NOT a unit test for production — it's a sanity check that the
-FastAPI + sentence-transformers + rapidfuzz + numpy + rules pipeline glues
-together correctly. The real validation runs on the user's Windows machine
-against the full 97k LOINC corpus.
+Two suites:
+  * TESTS  — legacy smoke checks (exact canonical Gemini emissions).
+  * GOLDEN — every historical mis-mapping bug, with full source context
+             (unit, raw name, panel header), so any future tuning of the
+             matcher is measurable instead of guessed. Run BEFORE and AFTER
+             every algorithm change.
+
+This is NOT a unit test for production — the real validation runs on the
+user's Windows machine against the full 97k LOINC corpus.
 """
 
 from __future__ import annotations
@@ -68,11 +72,30 @@ LOINC_SAMPLE = [
                 "Hematocrit", "VFr", "Bld",     "Automated count"),
     ("32623-1", "Platelet mean volume [Entitic volume] in Blood by Automated count",
                 "Platelet mean volume", "EntVol", "Bld", "Automated count"),
+
+    # --- Added for the GOLDEN suite (Hemoglobin / Hct confusion cluster) ---
+    ("16931-8", "Hematocrit/Hemoglobin [Ratio] of Blood by Automated count",
+                "Hematocrit/Hemoglobin", "Ratio", "Bld", "Automated count"),
+    ("48703-3", "Hematocrit [Volume Fraction] of Blood by Estimated",
+                "Hematocrit", "VFr", "Bld", "Estimated"),
+    ("789-8",   "Erythrocytes [#/volume] in Blood by Automated count",
+                "Erythrocytes", "NCnc", "Bld", "Automated count"),
+    # --- FT3 mass/moles pair (unit-swap regression) ---
+    ("3051-0",  "Triiodothyronine (T3) Free [Mass/volume] in Serum or Plasma",
+                "Triiodothyronine.free", "MCnc", "Ser/Plas", None),
+    ("14928-6", "Triiodothyronine (T3) Free [Moles/volume] in Serum or Plasma",
+                "Triiodothyronine.free", "SCnc", "Ser/Plas", None),
+    # --- MCV / MCH / MCHC anchors ---
+    ("787-2",   "Erythrocyte mean corpuscular volume [Entitic volume] by Automated count",
+                "Erythrocyte mean corpuscular volume", "EntVol", "RBC", "Automated count"),
+    ("785-6",   "Erythrocyte mean corpuscular hemoglobin [Entitic mass] by Automated count",
+                "Erythrocyte mean corpuscular hemoglobin", "EntMass", "RBC", "Automated count"),
+    ("786-4",   "Erythrocyte mean corpuscular hemoglobin concentration [Mass/volume] by Automated count",
+                "Erythrocyte mean corpuscular hemoglobin concentration", "MCnc", "RBC", "Automated count"),
 ]
 
 
-# Queries the new Gemini prompt is supposed to emit (parameter_normalized_en),
-# paired with the EXPECTED LOINC code.
+# Legacy smoke suite: canonical Gemini emissions -> expected LOINC.
 TESTS = [
     ("Glucose [Mass/volume] in Serum or Plasma",                              "2345-7"),
     ("Glucose [Mass/volume] in Urine by Test strip",                          "5792-7"),
@@ -93,6 +116,75 @@ TESTS = [
     ("Erythrocyte sedimentation rate",                                        "4537-7"),
     ("Cholesterol in HDL [Mass/volume] in Serum or Plasma",                   "2085-9"),
     ("Hematocrit [Volume Fraction] of Blood",                                 "4544-3"),
+]
+
+
+_PENTRA_PANEL = ("Hemoleucograma completa - Sange - Spectroscopie de impedanta, "
+                 "spectrofotometrie, citometrie in flux (PENTRA ES 60)")
+
+# GOLDEN regression suite: every historical mis-mapping, with source context.
+# Fields: query, unit, raw (raw_parameter_name), panel (panel_header_raw),
+#         expected (LOINC or None), expect_source ("anchor"/"semantic"/None).
+GOLDEN = [
+    dict(note="Hgb canonical + full context -> anchor",
+         query="Hemoglobin [Mass/volume] in Blood",
+         unit="g/dL", raw="Hemoglobina", panel=_PENTRA_PANEL,
+         expected="718-7", expect_source="anchor"),
+
+    dict(note="BUG 2026-06: Hgb + 'by Automated count' suffix must NOT map to Hct/Hgb Ratio 16931-8",
+         query="Hemoglobin [Mass/volume] in Blood by Automated count",
+         unit="g/dL", raw="Hemoglobina", panel=_PENTRA_PANEL,
+         expected="718-7", expect_source="anchor"),
+
+    dict(note="A GENUINE Hct/Hgb ratio row must still map to 16931-8 (exact-name layer)",
+         query="Hematocrit/Hemoglobin [Ratio] of Blood by Automated count",
+         unit=None, raw="Raport Hematocrit/Hemoglobina", panel=_PENTRA_PANEL,
+         expected="16931-8", expect_source="anchor"),
+
+    dict(note="Python-3 case: Gemini says 'by Estimated' but PDF says impedance -> Automated 4544-3",
+         query="Hematocrit [Volume Fraction] of Blood by Estimated",
+         unit="%", raw="Hematocrit", panel=_PENTRA_PANEL,
+         expected="4544-3", expect_source="anchor"),
+
+    dict(note="No method context: 'by Estimated' exact LOINC name is trusted -> 48703-3",
+         query="Hematocrit [Volume Fraction] of Blood by Estimated",
+         unit="%", raw=None, panel=None,
+         expected="48703-3", expect_source="anchor"),
+
+    dict(note="Anti-hallucination: Gemini says Hemoglobin but PDF row says Hematocrit -> anchor must NOT fire",
+         query="Hemoglobin [Mass/volume] in Blood",
+         unit="%", raw="Hematocrit", panel=_PENTRA_PANEL,
+         expected=None, expect_source="semantic"),
+
+    dict(note="FT3 unit swap: Mass/volume anchor + pmol/L -> Moles/volume peer 14928-6",
+         query="Triiodothyronine free [Mass/volume] in Serum or Plasma",
+         unit="pmol/L", raw="FT3", panel=None,
+         expected="14928-6", expect_source="anchor"),
+
+    dict(note="MCH canonical anchor",
+         query="Erythrocyte mean corpuscular hemoglobin [Entitic mass] by Automated count",
+         unit="pg", raw="MCH (Hemoglobina eritrocitara medie)", panel=_PENTRA_PANEL,
+         expected="785-6", expect_source="anchor"),
+
+    dict(note="MCHC canonical anchor (g/dL is MCnc, must not be unit-rejected)",
+         query="Erythrocyte mean corpuscular hemoglobin concentration [Mass/volume] by Automated count",
+         unit="g/dL", raw="MCHC (Concentratia medie de hemoglobina)", panel=_PENTRA_PANEL,
+         expected="786-4", expect_source="anchor"),
+
+    dict(note="LDL by calculation: exact LOINC name wins over generic 2089-1 anchor",
+         query="Cholesterol in LDL [Mass/volume] in Serum or Plasma by calculation",
+         unit="mg/dL", raw="LDL - colesterol", panel=None,
+         expected="13457-7", expect_source="anchor"),
+
+    dict(note="Romanian raw name 'VSH' must NOT trigger the anti-hallucination guard",
+         query="Erythrocyte sedimentation rate",
+         unit="mm/h", raw="VSH", panel=None,
+         expected="4537-7", expect_source="anchor"),
+
+    dict(note="Erythrocytes canonical + suffix already anchored",
+         query="Erythrocytes [#/volume] in Blood by Automated count",
+         unit="10^6/mm3", raw="Numar total de eritrocite", panel=_PENTRA_PANEL,
+         expected="789-8", expect_source="anchor"),
 ]
 
 
@@ -130,10 +222,13 @@ def run_tests():
     STORE.load()
     print(f"Loaded {STORE.size} entries.\n")
 
+    failed = []
+
+    # ---------------- Legacy smoke suite ----------------
+    print("LEGACY SMOKE SUITE")
     print(f"{'INPUT':<70} {'EXPECTED':<10} {'GOT':<10} {'SCORE':<6} {'OK'}")
     print("-" * 110)
     passed = 0
-    failed = []
     for query, expected in TESTS:
         result = find_loinc(query)
         got = result.loinc if result else "—"
@@ -143,14 +238,47 @@ def run_tests():
         if not ok:
             failed.append((query, expected, got, score))
         print(f"{query[:68]:<70} {expected:<10} {got:<10} {score:<6} {'✅' if ok else '❌'}")
+    print(f"Legacy: {passed}/{len(TESTS)} passed.\n")
 
-    print(f"\nResult: {passed}/{len(TESTS)} passed.")
+    # ---------------- GOLDEN regression suite ----------------
+    print("GOLDEN REGRESSION SUITE")
+    print("-" * 110)
+    gpassed = 0
+    for case in GOLDEN:
+        result = find_loinc(
+            case["query"],
+            unit=case.get("unit"),
+            raw_parameter_name=case.get("raw"),
+            panel_header_raw=case.get("panel"),
+        )
+        got = result.loinc if result else "—"
+        src = result.source if result else "—"
+        score = f"{result.score:.2f}" if result else ""
+        ok = True
+        reasons = []
+        if case.get("expected") is not None and got != case["expected"]:
+            ok = False
+            reasons.append(f"code: expected {case['expected']} got {got}")
+        if case.get("expect_source") is not None and src != case["expect_source"]:
+            ok = False
+            reasons.append(f"source: expected {case['expect_source']} got {src}")
+        gpassed += 1 if ok else 0
+        if not ok:
+            failed.append((case["note"], case.get("expected"), got, score))
+        print(f"{'✅' if ok else '❌'}  {case['note']}")
+        print(f"      -> got {got} (source={src}, score={score})"
+              + (f"   [{'; '.join(reasons)}]" if reasons else ""))
+    print(f"\nGolden: {gpassed}/{len(GOLDEN)} passed.")
+
+    total = passed + gpassed
+    total_all = len(TESTS) + len(GOLDEN)
+    print(f"\nTOTAL: {total}/{total_all} passed.")
     if failed:
         print("\nFailed cases:")
         for q, e, g, s in failed:
             print(f"  ❌  {q}")
             print(f"      expected={e}  got={g}  score={s}")
-    return passed == len(TESTS)
+    return total == total_all
 
 
 if __name__ == "__main__":

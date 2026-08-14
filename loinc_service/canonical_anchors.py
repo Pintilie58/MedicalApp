@@ -287,6 +287,36 @@ def lookup_anchor(test_name: str) -> Optional[str]:
     return _ANCHOR_LOOKUP.get(_normalize_key(test_name))
 
 
+def strip_method_suffix(test_name: str) -> str:
+    """Return ``test_name`` (normalized) with the trailing ``by <method>``
+    segment removed — e.g. ``Hemoglobin [Mass/volume] in Blood by Automated
+    count`` -> ``hemoglobin [mass/volume] in blood``. Uses the LAST ``by``
+    occurrence so multi-part names keep their earlier structure intact."""
+    n = _normalize_key(test_name)
+    idx = n.rfind(" by ")
+    if idx <= 0:
+        return n
+    return n[:idx].strip()
+
+
+def lookup_anchor_stripped(test_name: str) -> Optional[str]:
+    """Second-chance anchor lookup: retries the anchor table AFTER stripping
+    a trailing ``by <method>`` suffix. Gemini stochastically appends method
+    suffixes ("by Automated count", "by calculation"…) to otherwise canonical
+    terms; the exact lookup then misses and the semantic pipeline can drift
+    to a wrong neighbour (e.g. 16931-8 Hct/Hgb Ratio instead of 718-7).
+    Stripping can only land on the SAME analyte's methodless anchor — never
+    on a different analyte — because the base name must still match exactly.
+
+    Callers MUST try :func:`lookup_anchor` (exact) first."""
+    if not test_name:
+        return None
+    stripped = strip_method_suffix(test_name)
+    if not stripped or stripped == _normalize_key(test_name):
+        return None
+    return _ANCHOR_LOOKUP.get(stripped)
+
+
 def all_anchors() -> dict[str, str]:
     """Return a COPY of the raw anchor table (canonical-name -> LOINC code)
     for the ``GET /loinc/anchors`` inspection endpoint."""

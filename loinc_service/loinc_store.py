@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import List
 
@@ -41,6 +42,11 @@ class LoincStore:
         # `load()` time so the canonical-anchors layer can resolve a code in
         # O(1) without scanning the 97k-row metadata list.
         self.code_index: dict[str, int] = {}
+        # Fast lookup: normalized LONG_COMMON_NAME -> index. Lets the matcher
+        # deterministically accept a query that IS a verbatim LOINC name
+        # (e.g. "Cholesterol in LDL [Mass/volume] in Serum or Plasma by
+        # calculation") without going through the probabilistic pipeline.
+        self.name_index: dict[str, int] = {}
 
     def load(self) -> None:
         if not EMBEDDINGS_FILE.exists() or not METADATA_FILE.exists():
@@ -74,10 +80,14 @@ class LoincStore:
         # (LOINC codes are unique by spec, but if the seed file accidentally
         # contains duplicates we prefer the earlier row).
         self.code_index = {}
+        self.name_index = {}
         for i, m in enumerate(self.metadata):
             code = (m.get("loinc") or "").strip()
             if code and code not in self.code_index:
                 self.code_index[code] = i
+            name = re.sub(r"\s+", " ", (m.get("name") or "").lower()).strip()
+            if name and name not in self.name_index:
+                self.name_index[name] = i
 
         log.info(
             "LoincStore loaded: %d entries, embedding dim=%d, ~%.1f MB.",
@@ -91,6 +101,17 @@ class LoincStore:
         if not loinc:
             return None
         idx = self.code_index.get(loinc.strip())
+        if idx is None:
+            return None
+        return self.metadata[idx]
+
+    def get_by_name(self, name: str) -> dict | None:
+        """Return the metadata dict whose LONG_COMMON_NAME equals ``name``
+        (case/whitespace-insensitive), or None."""
+        if not name:
+            return None
+        key = re.sub(r"\s+", " ", name.lower()).strip()
+        idx = self.name_index.get(key)
         if idx is None:
             return None
         return self.metadata[idx]

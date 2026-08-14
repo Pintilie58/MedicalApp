@@ -40,7 +40,7 @@ from config import (
     SEM_WEIGHT,
     TOP_K,
 )
-from canonical_anchors import lookup_anchor
+from canonical_anchors import all_anchors, lookup_anchor, lookup_anchor_stripped
 from loinc_store import STORE
 
 log = logging.getLogger("loinc.pipeline")
@@ -298,6 +298,120 @@ def _infer_property_from_unit(unit: Optional[str]) -> Optional[str]:
     return None
 
 
+# -------------------------------------------------------------------------
+# Deterministic-layer guards (Fix 2 + Fix 5).
+# -------------------------------------------------------------------------
+# LOINC property values that denote a RATIO/FRACTION — physically
+# incompatible with a concentration unit like g/dL or mmol/L. Covers both
+# LOINC's short forms (VFr, MFr, NFr…) and the long forms.
+_RATIO_LIKE_PROPERTY_TOKENS = {
+    "ratio", "relrto", "vfr", "nfr", "mfr", "sfr", "cfr",
+    "volume fraction", "mass fraction", "number fraction",
+    "substance fraction", "catalytic fraction",
+}
+
+
+def _unit_contradicts_property(
+    unit: Optional[str], prop: Optional[str], name: Optional[str] = None
+) -> bool:
+    """True when the reported unit proves a CONCENTRATION (Mass/volume or
+    Moles/volume) but the candidate LOINC is a RATIO/FRACTION — a physical
+    impossibility (a g/dL value can never be a Hct/Hgb ratio). Mass↔Moles
+    mismatches are NOT flagged here; those are legitimately auto-corrected
+    by the peer-swap logic in ``find_loinc``."""
+    if _infer_property_from_unit(unit) is None:
+        return False
+    p = (prop or "").strip().lower()
+    if p in _RATIO_LIKE_PROPERTY_TOKENS:
+        return True
+    return "[ratio]" in (name or "").lower()
+
+
+# Cache of (loinc_code, component_lowercase) for every RESOLVED anchor code.
+# Built lazily on first use (STORE must be loaded). Used by the raw-name
+# anti-hallucination guard to detect that the PDF's own analyte name matches
+# a DIFFERENT well-known analyte than the one Gemini normalized to.
+_ANCHOR_COMPONENTS_CACHE: Optional[list] = None
+
+
+def _anchor_components() -> list:
+    global _ANCHOR_COMPONENTS_CACHE
+    if _ANCHOR_COMPONENTS_CACHE is None:
+        pairs = []
+        seen: set[str] = set()
+        for _term, code in all_anchors().items():
+            if code in seen:
+                continue
+            seen.add(code)
+            meta = STORE.get_by_code(code)
+            if meta is None:
+                continue
+            comp = (meta.get("component") or "").strip().lower()
+            if comp:
+                pairs.append((code, comp))
+        _ANCHOR_COMPONENTS_CACHE = pairs
+    return _ANCHOR_COMPONENTS_CACHE
+
+
+def _raw_name_contradicts(raw_norm: Optional[str], meta: dict) -> bool:
+    """Anti-hallucination guard for the deterministic layers.
+
+    Fires ONLY on strong POSITIVE evidence that the raw PDF analyte name
+    belongs to a DIFFERENT analyte than the chosen code: the raw name must
+    (a) match the chosen component poorly (<0.70), AND (b) match some OTHER
+    anchored component almost perfectly (>=0.85), AND (c) with a clear gap
+    (>=0.20). Absence of similarity alone (e.g. Romanian "VSH" vs English
+    "Erythrocyte sedimentation rate") NEVER fires the guard — otherwise
+    every legitimately-translated raw name would be rejected."""
+    if not raw_norm:
+        return False
+    comp = (meta.get("component") or meta.get("name") or "").strip().lower()
+    chosen_sim = fuzz.token_set_ratio(raw_norm, comp) / 100.0
+    if chosen_sim >= 0.70:
+        return False
+    best_other, best_comp = 0.0, None
+    for code, other_comp in _anchor_components():
+        if code == meta.get("loinc") or other_comp == comp:
+            continue
+        s = fuzz.token_set_ratio(raw_norm, other_comp) / 100.0
+        if s > best_other:
+            best_other, best_comp = s, other_comp
+    if best_other >= 0.85 and (best_other - chosen_sim) >= 0.20:
+        log.warning(
+            "GUARD raw name %r contradicts deterministic pick %s (component=%r "
+            "sim=%.2f) — raw name is much closer to %r (sim=%.2f). "
+            "Falling back to the semantic pipeline.",
+            raw_norm, meta.get("loinc"), comp, chosen_sim, best_comp, best_other,
+        )
+        return True
+    return False
+
+
+def _method_contradicts(source_context_norm: Optional[str], meta: dict) -> bool:
+    """True when the PDF's own words fire method keywords (impedanta,
+    citometrie…) that the candidate's EXPLICIT method contradicts. Candidates
+    with NO method are never contradicted (LOINC often has only a methodless
+    code for an analyte — e.g. Hemoglobin 718-7)."""
+    if not source_context_norm:
+        return False
+    meth_val = (meta.get("method") or "").strip().lower()
+    if not meth_val:
+        return False
+    name_val = (meta.get("name") or "").lower()
+    fired = [kw for kw in _METHOD_KEYWORDS if kw in source_context_norm]
+    if not fired:
+        return False
+    for kw in fired:
+        if any(a in meth_val or a in name_val for a in _METHOD_KEYWORDS[kw]):
+            return False
+    log.warning(
+        "GUARD source context fired method keywords %r but candidate %s has "
+        "contradicting method %r. Rejecting deterministic pick.",
+        fired, meta.get("loinc"), meta.get("method"),
+    )
+    return True
+
+
 def _find_peer_with_property(
     component: Optional[str],
     system: Optional[str],
@@ -394,6 +508,13 @@ def _apply_rules(context_norm: str, candidate: dict, *, source_context_norm: Opt
             checks_made += 1
             if any(a in meth_val or a in name_val for a in allowed):
                 checks_passed += 1
+            elif not meth_val:
+                # METHODLESS candidate: not a contradiction, LOINC often has
+                # only a methodless code for the analyte (e.g. Hemoglobin
+                # 718-7 — there IS no "by Automated count" variant). Half
+                # credit: below an explicit method match, above an explicit
+                # method contradiction.
+                checks_passed += 0.5
 
     # PROPERTY rules — full context (Gemini reliable for "[Mass/volume]", "[Volume Fraction]", etc.)
     for kw, allowed in _PROPERTY_KEYWORDS.items():
@@ -495,6 +616,7 @@ def find_loinc(
 
     result = _semantic_match(
         test_name,
+        unit=unit,
         raw_parameter_name=raw_parameter_name,
         panel_header_raw=panel_header_raw,
         analyte_line_raw=analyte_line_raw,
@@ -533,9 +655,99 @@ def find_loinc(
     return result
 
 
+def _make_deterministic_result(meta: dict) -> MatchResult:
+    return MatchResult(
+        loinc=meta["loinc"],
+        name=meta.get("name") or "",
+        component=meta.get("component"),
+        property=meta.get("property"),
+        system=meta.get("system"),
+        method=meta.get("method"),
+        score=1.0,
+        loinc_class=meta.get("class"),
+        source="anchor",
+    )
+
+
+def _deterministic_lookup(
+    test_name: str,
+    *,
+    unit: Optional[str],
+    raw_norm: Optional[str],
+    source_context_norm: Optional[str],
+) -> Optional[MatchResult]:
+    """Three deterministic resolution layers, tried in order. Each hit is
+    validated by cheap guards before being accepted; a rejected hit falls
+    through to the next layer and ultimately to the semantic pipeline.
+
+      1. EXACT anchor (legacy behavior, unchanged) + raw-name/unit guards.
+      2. EXACT LOINC long-name in the loaded dictionary — Gemini emitted a
+         verbatim LOINC name; trust it unless the PDF's own method keywords
+         contradict the name's method axis.
+      3. Suffix-stripped anchor — Gemini appended a stochastic ``by <method>``
+         suffix to an otherwise canonical anchored term. Stripping can only
+         land on the SAME analyte's anchor, never on a different analyte.
+    """
+    # ---- Layer 1: exact anchor -------------------------------------------
+    anchor_code = lookup_anchor(test_name)
+    if anchor_code is not None:
+        meta = STORE.get_by_code(anchor_code)
+        if meta is not None:
+            if not _raw_name_contradicts(raw_norm, meta) and not _unit_contradicts_property(
+                unit, meta.get("property"), meta.get("name")
+            ):
+                log.info(
+                    "ANCHOR hit for %r -> %s %r (score=1.000, confidence=exact).",
+                    test_name, anchor_code, meta.get("name") or "",
+                )
+                return _make_deterministic_result(meta)
+            log.warning(
+                "ANCHOR hit for %r -> %s rejected by guards; using semantic pipeline.",
+                test_name, anchor_code,
+            )
+        else:
+            log.warning(
+                "ANCHOR for %r maps to code %s but that code is missing from "
+                "the loaded LoincStore (partial seed?). Falling back.",
+                test_name, anchor_code,
+            )
+
+    # ---- Layer 2: exact LOINC long-name ----------------------------------
+    meta = STORE.get_by_name(test_name)
+    if meta is not None:
+        if (not _method_contradicts(source_context_norm, meta)
+                and not _raw_name_contradicts(raw_norm, meta)
+                and not _unit_contradicts_property(unit, meta.get("property"), meta.get("name"))):
+            log.info(
+                "EXACT-NAME hit for %r -> %s (score=1.000, confidence=exact).",
+                test_name, meta.get("loinc"),
+            )
+            return _make_deterministic_result(meta)
+        log.info("EXACT-NAME hit for %r rejected by guards; continuing.", test_name)
+
+    # ---- Layer 3: method-suffix-stripped anchor --------------------------
+    stripped_code = lookup_anchor_stripped(test_name)
+    if stripped_code is not None:
+        meta = STORE.get_by_code(stripped_code)
+        if meta is not None:
+            if (not _method_contradicts(source_context_norm, meta)
+                    and not _raw_name_contradicts(raw_norm, meta)
+                    and not _unit_contradicts_property(unit, meta.get("property"), meta.get("name"))):
+                log.info(
+                    "ANCHOR-STRIPPED hit for %r -> %s %r (method suffix removed; "
+                    "score=1.000, confidence=exact).",
+                    test_name, stripped_code, meta.get("name") or "",
+                )
+                return _make_deterministic_result(meta)
+            log.info("ANCHOR-STRIPPED hit for %r rejected by guards; continuing.", test_name)
+
+    return None
+
+
 def _semantic_match(
     test_name: str,
     *,
+    unit: Optional[str] = None,
     raw_parameter_name: Optional[str] = None,
     panel_header_raw: Optional[str] = None,
     analyte_line_raw: Optional[str] = None,
@@ -554,38 +766,9 @@ def _semantic_match(
         can boost the LOINC candidate whose axes agree, regardless of any
         Gemini normalization drift on ``parameter_normalized_en``.
     """
-    # 0. HARD-ACCEPT LAYER — canonical anchors short-circuit the matcher
-    # when Gemini emits one of the curated standardized English terms (see
-    # canonical_anchors.py). This eliminates the systematic mis-mappings of
-    # MCV/MCH/MCHC/RDW/WBC that the embedding model can't disambiguate.
-    anchor_code = lookup_anchor(test_name)
-    if anchor_code is not None:
-        meta = STORE.get_by_code(anchor_code)
-        if meta is not None:
-            log.info(
-                "ANCHOR hit for %r -> %s %r (score=1.000, confidence=exact).",
-                test_name, anchor_code, meta.get("name") or "",
-            )
-            return MatchResult(
-                loinc=meta["loinc"],
-                name=meta.get("name") or "",
-                component=meta.get("component"),
-                property=meta.get("property"),
-                system=meta.get("system"),
-                method=meta.get("method"),
-                score=1.0,
-                loinc_class=meta.get("class"),
-                source="anchor",
-            )
-        # Anchor code not present in the loaded LoincDictionary — log a
-        # warning ONCE and fall through to the semantic matcher so we
-        # never serve a 404 just because of a stale seed.
-        log.warning(
-            "ANCHOR for %r maps to code %s but that code is missing from "
-            "the loaded LoincStore (partial seed?). Falling back to semantic match.",
-            test_name, anchor_code,
-        )
-
+    # 0. Normalize inputs + build the rules-layer context FIRST — the
+    # deterministic layers below need raw_norm / source_context_norm for
+    # their validation guards.
     query_norm = _normalize(test_name)
     # Etapa Python-2: pre-normalize the raw analyte name once for reuse
     # inside the per-candidate fuzzy loop below. None if not provided.
@@ -630,9 +813,21 @@ def _semantic_match(
         _strip_diacritics(_normalize(" ".join(_source_parts))) if _source_parts else None
     )
 
+    # 1. HARD-ACCEPT LAYERS — exact anchor / exact LOINC name / suffix-
+    # stripped anchor, each validated by cheap guards. See
+    # ``_deterministic_lookup`` for the full strategy.
+    det = _deterministic_lookup(
+        test_name,
+        unit=unit,
+        raw_norm=raw_norm,
+        source_context_norm=source_context_norm,
+    )
+    if det is not None:
+        return det
+
     model = get_model()
 
-    # 1. Semantic similarity (vectorized over all LOINC rows).
+    # 2. Semantic similarity (vectorized over all LOINC rows).
     q_emb = model.encode([test_name], normalize_embeddings=True)[0].astype(np.float32)
     # Embeddings in STORE are already L2-normalized -> dot product = cosine sim.
     sims: np.ndarray = STORE.embeddings @ q_emb  # shape (N,)
@@ -680,6 +875,11 @@ def _semantic_match(
         # Apply narrow hard-rejection penalties for known close-neighbor
         # ambiguities (e.g. MCV / MCH / MCHC vs Erythrocyte diameter).
         final *= _hard_reject_penalty(query_norm, long_name)
+
+        # Unit guard (Fix 2): a concentration unit (g/dL, mmol/L…) can never
+        # belong to a RATIO/FRACTION code — push such candidates off the top.
+        if _unit_contradicts_property(unit, meta.get("property"), long_name):
+            final *= 0.25
 
         candidates.append((
             final,
