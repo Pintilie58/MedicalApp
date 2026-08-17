@@ -164,7 +164,20 @@ namespace MedicalApp.Services
             var auto = _autoStartOpts.CurrentValue;
 
             if (!auto.Enabled)
-                return Task.CompletedTask;                       // gate #1
+            {
+                // gate #1 — log ONCE per outage so a silent config issue
+                // (e.g. app accidentally running in Production env) is visible.
+                if (_consecutiveFailures == auto.FailuresBeforeRestart)
+                {
+                    _logger.LogWarning(
+                        "LoincHealthMonitor: microservice down ({Count} consecutive failures), " +
+                        "but auto-restart is DISABLED (LoincAutoStart.Enabled=false — check " +
+                        "ASPNETCORE_ENVIRONMENT / appsettings.{Env}.json).",
+                        _consecutiveFailures,
+                        Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production");
+                }
+                return Task.CompletedTask;
+            }
 
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
