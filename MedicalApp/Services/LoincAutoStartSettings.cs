@@ -20,10 +20,13 @@ namespace MedicalApp.Services
         public int PollIntervalSeconds { get; set; } = 15;
 
         /// <summary>Per-probe HTTP timeout. Default 800 ms (was 2000 in the old inline check).</summary>
-        public int ProbeTimeoutMs { get; set; } = 800;
+        /// <summary>Probe timeout. Generous on purpose: the service is CPU-bound
+        /// during batch matching and a busy-but-alive uvicorn may answer slowly —
+        /// a short timeout produces false "down" verdicts and spurious restarts.</summary>
+        public int ProbeTimeoutMs { get; set; } = 3000;
 
         /// <summary>Consecutive failed probes required before we attempt a restart. Default 2 (avoids one-off blips).</summary>
-        public int FailuresBeforeRestart { get; set; } = 2;
+        public int FailuresBeforeRestart { get; set; } = 3;
 
         /// <summary>Minimum seconds between two restart attempts. Default 60s.</summary>
         public int RestartCooldownSeconds { get; set; } = 60;

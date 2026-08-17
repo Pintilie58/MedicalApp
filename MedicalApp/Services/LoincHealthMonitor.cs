@@ -158,7 +158,7 @@ namespace MedicalApp.Services
             }
         }
 
-        private Task OnProbeFailedAsync()
+        private async Task OnProbeFailedAsync()
         {
             _consecutiveFailures++;
             var auto = _autoStartOpts.CurrentValue;
@@ -176,7 +176,7 @@ namespace MedicalApp.Services
                         _consecutiveFailures,
                         Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production");
                 }
-                return Task.CompletedTask;
+                return;
             }
 
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -187,11 +187,11 @@ namespace MedicalApp.Services
                     _logger.LogWarning(
                         "LoincHealthMonitor: microservice down, but auto-restart is skipped on non-Windows host.");
                 }
-                return Task.CompletedTask;
+                return;
             }
 
             if (_consecutiveFailures < auto.FailuresBeforeRestart)
-                return Task.CompletedTask;
+                return;
 
             var sinceLast = DateTime.UtcNow - _lastRestartAttemptUtc;
             if (sinceLast < TimeSpan.FromSeconds(auto.RestartCooldownSeconds))
@@ -199,12 +199,47 @@ namespace MedicalApp.Services
                 _logger.LogDebug(
                     "LoincHealthMonitor: restart suppressed by cooldown ({Sec}s remaining).",
                     (int)(TimeSpan.FromSeconds(auto.RestartCooldownSeconds) - sinceLast).TotalSeconds);
-                return Task.CompletedTask;                       // gate #3
+                return;                                          // gate #3
             }
 
             _lastRestartAttemptUtc = DateTime.UtcNow;
+
+            // gate #4 — SECOND OPINION: one last probe with a long (8s) timeout.
+            // A busy-but-alive service (CPU saturated by batch matching) will
+            // answer within 8s; a truly dead one will not. Prevents spawning a
+            // doomed duplicate instance that dies on "port already in use".
+            if (!await ConfirmDownAsync())
+                return;
+
             TryStartUvicorn(auto);
-            return Task.CompletedTask;
+        }
+
+        /// <summary>Returns true when the service is REALLY down (confirmation
+        /// probe with generous timeout also failed).</summary>
+        private async Task<bool> ConfirmDownAsync()
+        {
+            try
+            {
+                var baseUrl = (_matcherOpts.CurrentValue?.BaseUrl ?? string.Empty).TrimEnd('/');
+                if (string.IsNullOrWhiteSpace(baseUrl))
+                    return true;
+
+                var client = _httpFactory.CreateClient();
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+                using var resp = await client.GetAsync(baseUrl + "/ready", cts.Token);
+                if (resp.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation(
+                        "LoincHealthMonitor: confirmation probe succeeded — service is alive but busy. Restart cancelled.");
+                    _consecutiveFailures = 0;
+                    return false;
+                }
+                return true;
+            }
+            catch
+            {
+                return true;
+            }
         }
 
         private void TryStartUvicorn(LoincAutoStartSettings auto)
