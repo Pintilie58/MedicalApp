@@ -28,15 +28,22 @@ namespace MedicalApp.Services
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly CamBatchRegistry _registry;
         private readonly ILogger<CamBatchService> _logger;
+        // Debug aid: when CamBatch:AttachDebugJson = true (Development only),
+        // the full RawJsonResult (Gemini emissions + LOINC matcher decisions)
+        // is attached to the interpretation email as a .json file so mapping
+        // anomalies can be diagnosed without querying the DB.
+        private readonly bool _attachDebugJson;
 
         public CamBatchService(
             IServiceScopeFactory scopeFactory,
             CamBatchRegistry registry,
-            ILogger<CamBatchService> logger)
+            ILogger<CamBatchService> logger,
+            IConfiguration configuration)
         {
             _scopeFactory = scopeFactory;
             _registry = registry;
             _logger = logger;
+            _attachDebugJson = configuration.GetValue<bool>("CamBatch:AttachDebugJson");
         }
 
         /// <summary>
@@ -461,6 +468,13 @@ namespace MedicalApp.Services
                 };
                 if (comparePdf != null)
                     attachments.Add((comparePdf, "Raport_Comparatie.pdf", "application/pdf"));
+
+                if (_attachDebugJson)
+                {
+                    var jsonBytes = System.Text.Encoding.UTF8.GetBytes(rawJson);
+                    var jsonName = Path.GetFileNameWithoutExtension(fileName) + "_Gemini_LOINC.json";
+                    attachments.Add((jsonBytes, jsonName, "application/json"));
+                }
 
                 await email.SendEmailWithAttachmentsAsync(patient.Email, subject, html, attachments);
                 batch.FilesSent++; progress.Sent++;
