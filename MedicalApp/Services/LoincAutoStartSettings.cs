@@ -33,7 +33,7 @@ namespace MedicalApp.Services
 
         /// <summary>PowerShell command line executed inside <see cref="WorkingDirectory"/>.</summary>
         public string StartCommand { get; set; } =
-            @".\.venv\Scripts\Activate.ps1; uvicorn main:app --host 127.0.0.1 --port 8000";
+            @"$host.UI.RawUI.WindowTitle='LOINC Service (auto-started)'; .\.venv\Scripts\Activate.ps1; uvicorn main:app --host 127.0.0.1 --port 8000";
 
         /// <summary>When true, the spawned PowerShell window is visible (dev). When false, hidden (prod on-prem).</summary>
         public bool ShowWindow { get; set; } = true;
