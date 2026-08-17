@@ -27,6 +27,7 @@ from typing import List
 
 import numpy as np
 
+from canonical_anchors import canon_key
 from config import EMBEDDINGS_FILE, METADATA_FILE
 
 log = logging.getLogger("loinc.store")
@@ -85,7 +86,7 @@ class LoincStore:
             code = (m.get("loinc") or "").strip()
             if code and code not in self.code_index:
                 self.code_index[code] = i
-            name = re.sub(r"\s+", " ", (m.get("name") or "").lower()).strip()
+            name = canon_key(m.get("name") or "")
             if name and name not in self.name_index:
                 self.name_index[name] = i
 
@@ -107,11 +108,11 @@ class LoincStore:
 
     def get_by_name(self, name: str) -> dict | None:
         """Return the metadata dict whose LONG_COMMON_NAME equals ``name``
-        (case/whitespace-insensitive), or None."""
+        after anchor-style canonicalization (case/whitespace/preposition/
+        Ag-Ab-insensitive), or None."""
         if not name:
             return None
-        key = re.sub(r"\s+", " ", name.lower()).strip()
-        idx = self.name_index.get(key)
+        idx = self.name_index.get(canon_key(name))
         if idx is None:
             return None
         return self.metadata[idx]

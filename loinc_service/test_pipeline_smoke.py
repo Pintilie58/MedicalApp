@@ -92,6 +92,22 @@ LOINC_SAMPLE = [
                 "Erythrocyte mean corpuscular hemoglobin", "EntMass", "RBC", "Automated count"),
     ("786-4",   "Erythrocyte mean corpuscular hemoglobin concentration [Mass/volume] by Automated count",
                 "Erythrocyte mean corpuscular hemoglobin concentration", "MCnc", "RBC", "Automated count"),
+    # --- Batch 2 (session 2026-06): urea / fibrinogen / PSA / MPV / HbA1c ---
+    ("3091-6",  "Urea [Mass/volume] in Serum or Plasma",               "Urea",           "MCnc", "Ser/Plas", None),
+    ("22664-7", "Urea [Moles/volume] in Serum or Plasma",              "Urea",           "SCnc", "Ser/Plas", None),
+    ("3094-0",  "Urea nitrogen [Mass/volume] in Serum or Plasma",      "Urea nitrogen",  "MCnc", "Ser/Plas", None),
+    ("3255-7",  "Fibrinogen [Mass/volume] in Platelet poor plasma by Coagulation assay",
+                "Fibrinogen", "MCnc", "PPP", "Coagulation assay"),
+    ("48664-7", "Fibrinogen [Mass/volume] in Platelet poor plasma by Coagulation.derived",
+                "Fibrinogen", "MCnc", "PPP", "Coagulation.derived"),
+    ("2857-1",  "Prostate specific Ag [Mass/volume] in Serum or Plasma",
+                "Prostate specific Ag", "MCnc", "Ser/Plas", None),
+    ("83112-3", "Prostate specific Ag [Mass/volume] in Serum or Plasma by Immunoassay",
+                "Prostate specific Ag", "MCnc", "Ser/Plas", "Immunoassay"),
+    ("28542-9", "Platelet [Entitic mean volume] in Blood",             "Platelet mean volume", "EntVol", "Bld", None),
+    ("4548-4",  "Hemoglobin A1c/Hemoglobin.total in Blood",            "Hemoglobin A1c/Hemoglobin.total", "MFr", "Bld", None),
+    ("71875-9", "Hemoglobin A1c/Hemoglobin.total [Pure mass fraction] in Blood",
+                "Hemoglobin A1c/Hemoglobin.total", "MFr", "Bld", None),
 ]
 
 
@@ -185,6 +201,74 @@ GOLDEN = [
          query="Erythrocytes [#/volume] in Blood by Automated count",
          unit="10^6/mm3", raw="Numar total de eritrocite", panel=_PENTRA_PANEL,
          expected="789-8", expect_source="anchor"),
+
+    # ---- Batch 2 (real Gemini emissions captured from user's debug JSON) ----
+    dict(note="BUG Hct: 'in Blood' (prepozitie) fara sufix NU mai are voie sa dea 48703-3 Estimated",
+         query="Hematocrit [Volume fraction] in Blood",
+         unit="%", raw="Hematocrit", panel=_PENTRA_PANEL,
+         expected="4544-3", expect_source="anchor"),
+
+    dict(note="Hct: 'in Blood by Automated count' -> strip sufix + prepozitie -> 4544-3",
+         query="Hematocrit [Volume Fraction] in Blood by Automated count",
+         unit="%", raw="Hematocrit", panel=_PENTRA_PANEL,
+         expected="4544-3", expect_source="anchor"),
+
+    dict(note="BUG MPV: emisia fara metoda nu mai are voie sa dea 28542-9 (methodless)",
+         query="Platelet mean volume [Entitic volume] in Blood",
+         unit="um^3", raw="MPV (Volum trombocitar mediu)", panel=_PENTRA_PANEL,
+         expected="32623-1", expect_source="anchor"),
+
+    dict(note="MPV: emisia fara specimen ('[Entitic volume] by Automated count') -> 32623-1",
+         query="Platelet mean volume [Entitic volume] by Automated count",
+         unit="um^3", raw="MPV (Volum trombocitar mediu)", panel=_PENTRA_PANEL,
+         expected="32623-1", expect_source="anchor"),
+
+    dict(note="BUG Fibrinogen: 'in Plasma' nu mai are voie sa dea 48664-7 (derived)",
+         query="Fibrinogen [Mass/volume] in Plasma",
+         unit="mg/dL", raw="Fibrinogenemie", panel="COAGULARE",
+         line="-Plasma - Coagulometrie (BFT II)",
+         expected="3255-7", expect_source="anchor"),
+
+    dict(note="Fibrinogen: 'in Plasma by Coagulometry' -> strip -> 3255-7",
+         query="Fibrinogen [Mass/volume] in Plasma by Coagulometry",
+         unit="mg/dL", raw="Fibrinogenemie", panel="COAGULARE",
+         line="-Plasma - Coagulometrie (BFT II)",
+         expected="3255-7", expect_source="anchor"),
+
+    dict(note="BUG PSA: 'antigen' (cuvant intreg) nu mai are voie sa dea 83112-3",
+         query="Prostate specific antigen [Mass/volume] in Serum or Plasma",
+         unit="ng/mL", raw="PSA", panel="IMUNOLOGIE",
+         line="-Ser - chemiluminiscenta (ADVIA CENTAUR CP)",
+         expected="2857-1", expect_source="anchor"),
+
+    dict(note="PSA: varianta '.total' -> 2857-1",
+         query="Prostate specific antigen.total [Mass/volume] in Serum or Plasma",
+         unit="ng/mL", raw="PSA", panel="IMUNOLOGIE",
+         line="-Ser - chemiluminiscenta (ADVIA CENTAUR CP)",
+         expected="2857-1", expect_source="anchor"),
+
+    dict(note="BUG HbA1c: '[Mass Fraction] in Blood' nu mai are voie sa dea 71875-9 (IFCC)",
+         query="Hemoglobin A1c [Mass Fraction] in Blood",
+         unit="%", raw="Hemoglobina glicata (HbA1c)", panel=None,
+         line="-Sange - (BA200)",
+         expected="4548-4", expect_source="anchor"),
+
+    dict(note="HbA1c: 'A1c/Total Hemoglobin in Blood' -> 4548-4",
+         query="Hemoglobin A1c/Total Hemoglobin in Blood",
+         unit="%", raw="Hemoglobina glicata (HbA1c)", panel="BIOCHIMIE SERICA",
+         line="-Ser - Turbidimetrie (ABX PENTRA C400 ISE)",
+         expected="4548-4", expect_source="anchor"),
+
+    dict(note="BUGFIX ancora Uree: cheia [Mass/volume] -> 3091-6 (nu 22664-7 = moles)",
+         query="Urea [Mass/volume] in Serum or Plasma",
+         unit="mg/dL", raw="Uree serica", panel="BIOCHIMIE SERICA",
+         line="-Ser - Spectrofotometrie (ABX PENTRA C400 ISE)",
+         expected="3091-6", expect_source="anchor"),
+
+    dict(note="Urea nitrogen (emisie BUN): ramane 3094-0 (unificarea o face Etapa 3)",
+         query="Urea nitrogen [Mass/volume] in Serum or Plasma",
+         unit="mg/dL", raw="Uree serica", panel="BIOCHIMIE SERICA",
+         expected="3094-0", expect_source="anchor"),
 ]
 
 
@@ -250,6 +334,7 @@ def run_tests():
             unit=case.get("unit"),
             raw_parameter_name=case.get("raw"),
             panel_header_raw=case.get("panel"),
+            analyte_line_raw=case.get("line"),
         )
         got = result.loinc if result else "—"
         src = result.source if result else "—"

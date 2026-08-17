@@ -60,6 +60,9 @@ _RAW_ANCHORS: dict[str, str] = {
     "Platelets [#/volume] in Blood by Automated count": "777-3",
     "Platelets [#/volume] in Blood": "777-3",
     "Platelet mean volume [Entitic volume] in Blood by Automated count": "32623-1",
+    # Gemini sometimes drops the specimen from the MPV term; after method-
+    # suffix stripping the property-qualified stem is still unambiguous.
+    "Platelet mean volume [Entitic volume]": "32623-1",
     "Platelet distribution width [Ratio] in Blood": "32207-3",
     "Plateletcrit [Volume Fraction] in Blood": "51637-7",
 
@@ -139,13 +142,21 @@ _RAW_ANCHORS: dict[str, str] = {
 
     # ----- Renal panel -----
     "Creatinine [Mass/volume] in Serum or Plasma": "2160-0",
-    "Urea [Mass/volume] in Serum or Plasma": "22664-7",
+    # BUGFIX 2026-06 (confirmed with real lab data): the Mass/volume key
+    # previously pointed to 22664-7, which is the MOLES/volume code — a
+    # property-axis mismatch. RO labs report urea in mg/dL → 3091-6.
+    "Urea [Mass/volume] in Serum or Plasma": "3091-6",
+    "Urea [Moles/volume] in Serum or Plasma": "22664-7",
     "Urea nitrogen [Mass/volume] in Serum or Plasma": "3094-0",
     "Urate [Mass/volume] in Serum or Plasma": "3084-1",
 
     # ----- Glucose / diabetes -----
     "Glucose [Mass/volume] in Serum or Plasma": "2345-7",
     "Hemoglobin A1c/Hemoglobin.total in Blood": "4548-4",
+    # Gemini drift variants for HbA1c (%). NGSP percent result → 4548-4;
+    # only an explicit IFCC mmol/mol result should map to 71875-9/59261-8.
+    "Hemoglobin A1c/Total Hemoglobin in Blood": "4548-4",
+    "Hemoglobin A1c [Mass fraction] in Blood": "4548-4",
     # Insulin — multiple LOINC codes exist for different units; we cover the
     # two most common (Units/volume and Mass/volume) and they all map to the
     # standard fasting insulin code.
@@ -235,6 +246,11 @@ _RAW_ANCHORS: dict[str, str] = {
 
     # ----- Tumor markers -----
     "Prostate specific Ag [Mass/volume] in Serum or Plasma": "2857-1",
+    "Prostate specific Ag.total [Mass/volume] in Serum or Plasma": "2857-1",
+
+    # ----- Coagulation: Fibrinogen (Clauss / coagulometric = standard RO) -----
+    "Fibrinogen [Mass/volume] in Platelet poor plasma by Coagulation assay": "3255-7",
+    "Fibrinogen [Mass/volume] in Plasma": "3255-7",
     "Cancer Ag 19-9 [Units/volume] in Serum or Plasma": "24108-3",
     "Cancer Ag 125 [Units/volume] in Serum or Plasma": "10334-1",
     "Cancer Ag 15-3 [Units/volume] in Serum or Plasma": "17842-6",
@@ -266,16 +282,70 @@ _RAW_ANCHORS: dict[str, str] = {
 
 
 def _normalize_key(s: str) -> str:
-    """Same normalization used by pipeline._normalize — kept here as a tiny
-    private copy so this module has no circular import."""
-    return re.sub(r"\s+", " ", s.lower()).strip()
+    """DEPRECATED name kept for readability of older call sites — now simply
+    delegates to :func:`canon_key`."""
+    return canon_key(s)
 
 
-# Pre-normalized lookup map — built once at import time. Keys are guaranteed
-# lowercase + single-spaced; values are LOINC codes (untouched).
-_ANCHOR_LOOKUP: dict[str, str] = {
-    _normalize_key(term): code for term, code in _RAW_ANCHORS.items()
-}
+_SYNONYM_PATTERNS = [
+    (re.compile(r"\bantigen\b"), "ag"),
+    (re.compile(r"\bantibody\b"), "ab"),
+]
+
+
+def canon_key(s: str) -> str:
+    """Canonical anchor key: lowercase, collapsed whitespace, unified
+    prepositions (" of " ≡ " in ") and Ag/Ab abbreviations. Applied to BOTH
+    the curated anchor terms and the incoming Gemini emissions so cosmetic
+    drift ("Hematocrit ... in Blood" vs "... of Blood", "antigen" vs "Ag")
+    can no longer bypass the deterministic layer."""
+    n = re.sub(r"\s+", " ", s.lower()).strip()
+    n = n.replace(" of ", " in ")
+    for pat, rep in _SYNONYM_PATTERNS:
+        n = pat.sub(rep, n)
+    return n
+
+
+def _build_lookup() -> dict[str, str]:
+    lookup: dict[str, str] = {}
+    for term, code in _RAW_ANCHORS.items():
+        key = canon_key(term)
+        if key in lookup and lookup[key] != code:
+            raise ValueError(
+                f"Anchor collision after canonicalization: {key!r} maps to "
+                f"both {lookup[key]} and {code}. Fix _RAW_ANCHORS."
+            )
+        lookup[key] = code
+
+    # Auto-generate BASE aliases: for every method-suffixed anchor also index
+    # the suffix-less stem (e.g. "platelet mean volume [entitic volume] in
+    # blood by automated count" -> "... in blood") so a Gemini emission
+    # WITHOUT the method suffix still resolves deterministically. An alias is
+    # only added when unambiguous: explicit entries always win, and two
+    # suffixed anchors sharing one stem cancel each other out.
+    aliases: dict[str, str] = {}
+    ambiguous: set[str] = set()
+    for key, code in lookup.items():
+        idx = key.rfind(" by ")
+        if idx <= 0:
+            continue
+        base = key[:idx].strip()
+        if not base or base in lookup:
+            continue
+        if base in aliases and aliases[base] != code:
+            ambiguous.add(base)
+            continue
+        aliases[base] = code
+    for base in ambiguous:
+        aliases.pop(base, None)
+    lookup.update(aliases)
+    return lookup
+
+
+# Pre-normalized lookup map — built once at import time (raises on collision
+# so a bad anchor edit is caught at service startup, never in production
+# matching). Includes auto-generated suffix-less base aliases.
+_ANCHOR_LOOKUP: dict[str, str] = _build_lookup()
 
 
 def lookup_anchor(test_name: str) -> Optional[str]:

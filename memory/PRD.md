@@ -959,3 +959,16 @@ Remote-ul `github` este deja configurat ca `https://github.com/Pintilie58/Medica
   4. `_apply_rules`: credit parțial 0.5 pentru candidați fără metodă (Fix 3); penalizare ×0.25 în bucla semantică pentru contradicție unitate↔Ratio (Fix 2).
 - `test_pipeline_smoke.py` extins: suită GOLDEN cu 12 cazuri istorice (Hgb+sufix, Hct Estimated/Automated, FT3 pmol/L swap, MCH/MCHC, LDL by calculation, VSH raw, anti-halucinație) + 19 legacy. Rezultat: 31/31 PASS, zero regresii.
 - Validare finală pe mașina userului (dicționar complet 97k + SQL Server): PENDING.
+
+### 2026-06 — Etapa 1 „coduri corecte și unitare": canonicalizare ancore + garduri semantice
+- RCA pe emisii reale Gemini (din JSON-ul debug atașat pe email): prepoziția „in/of" + parafraze („antigen" vs „Ag", „.total", fără specimen/metodă) ocoleau toate straturile deterministe → semantic alegea coduri diferite per interpretare (Hct 48703-3 vs 4544-3, MPV 28542-9 vs 32623-1, Fibrinogen 48664-7 vs 3255-7, PSA 83112-3 vs 2857-1, HbA1c 71875-9/4546-8 vs 4548-4).
+- **BUG CONFIRMAT în ancore (suspiciunea userului)**: „Urea [Mass/volume]..." → 22664-7 (cod MOLES!) — corectat la 3091-6; adăugată cheia [Moles/volume] → 22664-7.
+- Implementat în `loinc_service/`:
+  1. `canonical_anchors.py`: `canon_key()` (lowercase + „ of "≡„ in " + antigen→ag/antibody→ab), `_build_lookup()` cu detecție de coliziuni (raise la startup) + aliasuri automate de bază fără sufix „by <method>" (aliasurile ambigue se anulează; cheile explicite câștigă — ESR rămâne 30341-2 pe bază). 162 chei totale.
+  2. Ancore noi: Fibrinogen→3255-7 (2 variante), PSA.total→2857-1, MPV fără specimen→32623-1, HbA1c→4548-4 (2 variante drift).
+  3. `loinc_store.py`: `name_index` construit cu `canon_key` (layer 2 tolerant la prepoziții).
+  4. `pipeline.py`: penalizare ×0.5 în stratul semantic pentru metodă EXPLICIT contradictorie cu keywords din PDF (methodless neafectați); `_method_contradicts` cu param `quiet`; seturile „coagulometrie/coagulometric/coagulometria" extinse cu token „coagulation" (3255-7 „Coagulation assay" nu mai era considerat contradictoriu).
+- `test_pipeline_smoke.py`: +12 cazuri golden din emisiile reale (total 43 teste: 19 legacy + 24 golden) → 43/43 PASS.
+- C#: `CamBatchService` atașează JSON-ul debug (`<fisier>_Gemini_LOINC.json`) la emailul de interpretare sub flag `CamBatch:AttachDebugJson` (true doar în Development).
+- Etapa 2 (RELMA-like axis parsing + SHORTNAME în fuzzy) și Etapa 3 (echivalență la Comparare + sticky mapping per pacient în C#) — APROBATE de user, de implementat.
+- Validare pe mașina userului (dicționar 97k): PENDING (re-interpretare fișiere + Comparație).

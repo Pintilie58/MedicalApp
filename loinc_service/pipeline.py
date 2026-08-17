@@ -186,9 +186,9 @@ _METHOD_KEYWORDS = {
     "hplc":             {"hplc", "high performance liquid chromatography", "chromatography"},
 
     # --- Coagulometric (fibrinogen, clotting factors)
-    "coagulometric":    {"coagulometric", "clot", "clauss"},
-    "coagulometrie":    {"coagulometric", "clot", "clauss"},  # RO / FR
-    "coagulometria":    {"coagulometric", "clot", "clauss"},  # ES / PT / IT
+    "coagulometric":    {"coagulometric", "clot", "clauss", "coagulation"},
+    "coagulometrie":    {"coagulometric", "clot", "clauss", "coagulation"},  # RO / FR
+    "coagulometria":    {"coagulometric", "clot", "clauss", "coagulation"},  # ES / PT / IT
     "clauss":           {"clauss", "coagulometric"},
 }
 
@@ -387,7 +387,7 @@ def _raw_name_contradicts(raw_norm: Optional[str], meta: dict) -> bool:
     return False
 
 
-def _method_contradicts(source_context_norm: Optional[str], meta: dict) -> bool:
+def _method_contradicts(source_context_norm: Optional[str], meta: dict, quiet: bool = False) -> bool:
     """True when the PDF's own words fire method keywords (impedanta,
     citometrie…) that the candidate's EXPLICIT method contradicts. Candidates
     with NO method are never contradicted (LOINC often has only a methodless
@@ -404,11 +404,12 @@ def _method_contradicts(source_context_norm: Optional[str], meta: dict) -> bool:
     for kw in fired:
         if any(a in meth_val or a in name_val for a in _METHOD_KEYWORDS[kw]):
             return False
-    log.warning(
-        "GUARD source context fired method keywords %r but candidate %s has "
-        "contradicting method %r. Rejecting deterministic pick.",
-        fired, meta.get("loinc"), meta.get("method"),
-    )
+    if not quiet:
+        log.warning(
+            "GUARD source context fired method keywords %r but candidate %s has "
+            "contradicting method %r. Rejecting deterministic pick.",
+            fired, meta.get("loinc"), meta.get("method"),
+        )
     return True
 
 
@@ -880,6 +881,13 @@ def _semantic_match(
         # belong to a RATIO/FRACTION code — push such candidates off the top.
         if _unit_contradicts_property(unit, meta.get("property"), long_name):
             final *= 0.25
+
+        # Method guard (semantic layer): an EXPLICIT method contradicting the
+        # PDF's own method keywords halves the score, so text similarity can
+        # no longer promote a wrong-method sibling (e.g. Hct "by Estimated"
+        # under an impedance panel). Methodless candidates are unaffected.
+        if _method_contradicts(source_context_norm, meta, quiet=True):
+            final *= 0.5
 
         candidates.append((
             final,
