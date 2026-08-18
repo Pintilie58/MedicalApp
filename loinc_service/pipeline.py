@@ -34,6 +34,7 @@ from rapidfuzz import fuzz
 from sentence_transformers import SentenceTransformer
 
 from config import (
+    AXIS_WEIGHT,
     EMBEDDING_MODEL_NAME,
     FUZZY_WEIGHT,
     RULES_WEIGHT,
@@ -41,7 +42,7 @@ from config import (
     TOP_K,
 )
 from canonical_anchors import all_anchors, lookup_anchor, lookup_anchor_stripped
-from loinc_store import STORE
+from loinc_store import STORE, parse_loinc_axes
 
 log = logging.getLogger("loinc.pipeline")
 
@@ -411,6 +412,128 @@ def _method_contradicts(source_context_norm: Optional[str], meta: dict, quiet: b
             fired, meta.get("loinc"), meta.get("method"),
         )
     return True
+
+
+# -------------------------------------------------------------------------
+# Etapa 2 (RELMA): axis-by-axis matching.
+# The Gemini emission is parsed into the LOINC axes (component / property /
+# system / method) with the SAME grammar parser used to enrich the store, and
+# each axis is compared against the candidate's axis independently. Cosmetic
+# text drift ("in/of", word order, suffixes) becomes structurally irrelevant,
+# and an error on one axis (wrong component) can no longer be compensated by
+# similarity on another (same method suffix).
+# -------------------------------------------------------------------------
+
+# Property text/short-form -> family token. Unknown values stay neutral.
+_AXIS_PROP_FAMILY = {
+    "mcnc": "mass_conc", "mass/volume": "mass_conc", "mass concentration": "mass_conc",
+    "scnc": "subst_conc", "moles/volume": "subst_conc", "substance concentration": "subst_conc",
+    "ccnc": "cat_conc", "enzymatic activity/volume": "cat_conc", "catalytic concentration": "cat_conc",
+    "acnc": "arb_conc", "units/volume": "arb_conc", "arbitrary concentration": "arb_conc",
+    "ncnc": "num_conc", "#/volume": "num_conc", "number concentration": "num_conc",
+    "naric": "num_area", "#/area": "num_area",
+    "vfr": "vol_fr", "volume fraction": "vol_fr",
+    "mfr": "mass_fr", "mass fraction": "mass_fr", "pure mass fraction": "mass_fr",
+    "nfr": "num_fr", "number fraction": "num_fr",
+    "entvol": "ent_vol", "entitic volume": "ent_vol", "entitic mean volume": "ent_vol",
+    "entmass": "ent_mass", "entitic mass": "ent_mass",
+    "ratio": "ratio", "relrto": "ratio",
+    "reltime": "rel_time",
+    "prthr": "presence", "presence": "presence", "ord": "presence",
+    "rate": "rate", "vrat": "vol_rate", "volume rate/area": "vol_rate",
+    "logcnc": "log_conc",
+    "mrto": "mass_ratio", "mass ratio": "mass_ratio",
+    "titr": "titer", "titer": "titer",
+}
+
+# Specimen text/short-form -> canonical token + coarse group for partial credit.
+_AXIS_SYSTEM_CANON = {
+    "bld": ("blood", "blood"), "blood": ("blood", "blood"), "whole blood": ("blood", "blood"),
+    "bld.a": ("arterial_blood", "blood"), "arterial blood": ("arterial_blood", "blood"),
+    "bld.v": ("venous_blood", "blood"), "venous blood": ("venous_blood", "blood"),
+    "ser/plas": ("ser_plas", "ser"), "serum or plasma": ("ser_plas", "ser"),
+    "ser": ("serum", "ser"), "serum": ("serum", "ser"),
+    "plas": ("plasma", "ser"), "plasma": ("plasma", "ser"),
+    "ppp": ("ppp", "ser"), "platelet poor plasma": ("ppp", "ser"),
+    "ser/plas/bld": ("ser_plas_bld", "ser"), "serum, plasma or blood": ("ser_plas_bld", "ser"),
+    "urine": ("urine", "urine"),
+    "urine sed": ("urine_sed", "urine"), "urine sediment": ("urine_sed", "urine"),
+    "rbc": ("rbc", "blood"), "red blood cells": ("rbc", "blood"),
+}
+
+# Method equivalence groups (Gemini wording vs LOINC MethodTyp wording).
+_AXIS_METHOD_GROUPS = (
+    {"automated", "automated count", "impedance", "flow cytometry"},
+    {"test strip", "strip", "dipstick"},
+    {"coagulation assay", "coagulation", "coagulometric", "coagulometry", "clauss"},
+    {"immunoassay", "ia", "chemiluminescence", "cmia", "icma", "eclia", "clia", "immune"},
+    {"microscopy", "light microscopy", "manual", "manual count", "microscopy high power field"},
+    {"calculation", "calculated"},
+    {"estimated"},
+    {"hplc", "chromatography"},
+    {"electrophoresis"},
+)
+
+
+def _axis_component_sim(q_comp: Optional[str], meta: dict) -> float:
+    if not q_comp:
+        return 0.5
+    qn = q_comp.replace(".", " ").lower().strip()
+    best = 0.0
+    for cand in (meta.get("component"), meta.get("shortname")):
+        if cand:
+            best = max(best, fuzz.token_set_ratio(qn, cand.replace(".", " ").lower()) / 100.0)
+    return best if best > 0 else 0.5
+
+
+def _axis_property_sim(q_prop: Optional[str], c_prop: Optional[str]) -> float:
+    if not q_prop or not c_prop:
+        return 0.5
+    qf = _AXIS_PROP_FAMILY.get(q_prop.strip().lower())
+    cf = _AXIS_PROP_FAMILY.get(c_prop.strip().lower())
+    if qf is None or cf is None:
+        return 1.0 if q_prop.strip().lower() == c_prop.strip().lower() else 0.5
+    return 1.0 if qf == cf else 0.0
+
+
+def _axis_system_sim(q_sys: Optional[str], c_sys: Optional[str]) -> float:
+    if not q_sys or not c_sys:
+        return 0.5
+    q = _AXIS_SYSTEM_CANON.get(q_sys.strip().lower())
+    c = _AXIS_SYSTEM_CANON.get(c_sys.strip().lower())
+    if q is None or c is None:
+        return 1.0 if q_sys.strip().lower() == c_sys.strip().lower() else 0.5
+    if q[0] == c[0]:
+        return 1.0
+    if q[1] == c[1]:
+        return 0.75      # same coarse group (e.g. Serum vs Serum or Plasma)
+    return 0.0
+
+
+def _axis_method_sim(q_meth: Optional[str], c_meth: Optional[str]) -> float:
+    q = (q_meth or "").strip().lower()
+    c = (c_meth or "").strip().lower()
+    if not q and not c:
+        return 1.0
+    if not q or not c:
+        return 0.5       # absence is not a contradiction (LOINC-methodless codes)
+    if q in c or c in q:
+        return 1.0
+    if fuzz.token_set_ratio(q, c) >= 60:
+        return 1.0
+    for group in _AXIS_METHOD_GROUPS:
+        if any(g in q for g in group) and any(g in c for g in group):
+            return 1.0
+    return 0.0
+
+
+def _axis_score(q_axes: dict, meta: dict) -> float:
+    return (
+        0.50 * _axis_component_sim(q_axes.get("component"), meta)
+        + 0.20 * _axis_property_sim(q_axes.get("property"), meta.get("property"))
+        + 0.15 * _axis_system_sim(q_axes.get("system"), meta.get("system"))
+        + 0.15 * _axis_method_sim(q_axes.get("method"), meta.get("method"))
+    )
 
 
 def _find_peer_with_property(
@@ -828,6 +951,16 @@ def _semantic_match(
 
     model = get_model()
 
+    # Etapa 2 (RELMA): parse the Gemini emission into LOINC axes ONCE. The
+    # axis layer only engages when the emission is structurally parseable
+    # (component + at least one more axis); free-text emissions fall back to
+    # the legacy blend. AXIS_WEIGHT=0 disables the layer entirely.
+    q_axes: Optional[dict] = None
+    if AXIS_WEIGHT > 0:
+        parsed = parse_loinc_axes(test_name)
+        if parsed.get("component") and (parsed.get("property") or parsed.get("system")):
+            q_axes = parsed
+
     # 2. Semantic similarity (vectorized over all LOINC rows).
     q_emb = model.encode([test_name], normalize_embeddings=True)[0].astype(np.float32)
     # Embeddings in STORE are already L2-normalized -> dot product = cosine sim.
@@ -872,6 +1005,12 @@ def _semantic_match(
         rl = _apply_rules(context_norm, meta, source_context_norm=source_context_norm)
 
         final = SEM_WEIGHT * sem + FUZZY_WEIGHT * fz + RULES_WEIGHT * rl
+
+        # Etapa 2 (RELMA): blend in the axis-by-axis score. Axis errors on
+        # component/property can no longer be compensated by surface-text
+        # similarity on method/system suffixes.
+        if q_axes is not None:
+            final = AXIS_WEIGHT * _axis_score(q_axes, meta) + (1.0 - AXIS_WEIGHT) * final
 
         # Apply narrow hard-rejection penalties for known close-neighbor
         # ambiguities (e.g. MCV / MCH / MCHC vs Erythrocyte diameter).

@@ -980,3 +980,10 @@ Remote-ul `github` este deja configurat ca `https://github.com/Pintilie58/Medica
 - Alte fix-uri în aceeași sesiune: LoincHealthMonitor — ProbeTimeoutMs 800→3000, FailuresBeforeRestart 2→3, gate #4 „second opinion" (probe de confirmare 8s înainte de spawn; elimină duplicatele care mureau cu Errno 10048 când serviciul era ocupat de batch), titlu fereastră „LOINC Service (auto-started)", log explicit când Enabled=false.
 - Test: `test_pipeline_smoke.py` rulează acum în DUAL MODE (seed complet + seed sărac simulat) — 45 cazuri × 2 = 90/90 PASS, incl. HDL mmol/L→14646-4 și mg/dL→2085-9.
 - Pending: validare pe mașina userului; sugestie viitoare: conversie de unități în Comparare (mmol/L→mg/dL) pentru a alinia istoric coloanele HDL vechi; pre-flight check LOINC la start interpretare/lot cu avertisment (aprobat de user ca idee, neimplementat).
+
+### 2026-06 — Etapa 2 RELMA implementată: potrivire axă-cu-axă
+- `pipeline.py`: emisia Gemini e descompusă cu `parse_loinc_axes()` (același parser ca enrichment-ul dicționarului) în Component/Property/System/Method; scor pe axe: 0.50·comp (fuzzy, incl. SHORTNAME, dot-normalizat) + 0.20·prop (familii: MCnc/SCnc/VFr/MFr/EntVol/NCnc/CCnc/ACnc/Presence/Ratio...) + 0.15·system (canonicalizare + grupuri coarse: Ser≈Ser/Plas≈PPP 0.75) + 0.15·method (grupuri de echivalență: automated≈impedance, coagulation≈clauss, IA≈chemiluminescence...; absența = 0.5 neutru).
+- Blend: `final = AXIS_WEIGHT·axis + (1-AXIS_WEIGHT)·(0.60·sem+0.25·fuzzy+0.15·rules)`; gate: doar dacă emisia e parsabilă (component + încă o axă). Toate gardurile/penalizările existente rămân.
+- KILL SWITCH: `LOINC_AXIS_WEIGHT=0` (env var, config.py, default 0.45) — dezactivare instant fără rollback.
+- Teste: 90/90 PASS (45 × seed complet + 45 × seed sărac). Demo: deriva inedită „Hemoglobin level [Mass/volume]..." → 718-7 cu scor 0.84 (vs 0.76 fără axe); erorile inter-axe (16931-8) imposibile structural (prop Ratio ≠ Mass = 0 pe axa property).
+- Validare pe mașina userului: PENDING.

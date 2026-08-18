@@ -62,6 +62,12 @@ SEM_WEIGHT = float(os.environ.get("LOINC_SEM_WEIGHT", "0.60"))
 FUZZY_WEIGHT = float(os.environ.get("LOINC_FUZZY_WEIGHT", "0.25"))
 RULES_WEIGHT = float(os.environ.get("LOINC_RULES_WEIGHT", "0.15"))
 
+# Etapa 2 (RELMA): weight of the AXIS layer in the blended score.
+#   final = AXIS_WEIGHT * axis_score + (1 - AXIS_WEIGHT) * legacy_score
+# KILL SWITCH: set LOINC_AXIS_WEIGHT=0 to disable the axis layer entirely
+# (instant rollback to the pre-Etapa-2 behavior, no code changes needed).
+AXIS_WEIGHT = float(os.environ.get("LOINC_AXIS_WEIGHT", "0.45"))
+
 # Number of top semantic candidates to keep for the fuzzy+rules re-rank stage.
 TOP_K = int(os.environ.get("LOINC_TOP_K", "25"))
 
