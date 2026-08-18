@@ -30,6 +30,68 @@ import numpy as np
 from canonical_anchors import canon_key
 from config import EMBEDDINGS_FILE, METADATA_FILE
 
+
+_BRACKET_RE = re.compile(r"\[([^\]]+)\]")
+
+
+def parse_loinc_axes(name: str) -> dict:
+    """Derive (component, property, system, method) from a LOINC long common
+    name, which follows the strict grammar::
+
+        <Component> [<Property>] in|of <System> by <Method>
+
+    Used as a FALLBACK when the SQL seed lacks the axis columns (the C#
+    ``LoincDictionary`` table only ships LoincCode + LongCommonName + Class),
+    which otherwise silently disables the unit-swap / peer-search / guard
+    logic in the pipeline. Examples::
+
+        "Cholesterol in HDL [Mass/volume] in Serum or Plasma"
+            -> component="Cholesterol in HDL", property="Mass/volume",
+               system="Serum or Plasma", method=None
+        "Hematocrit [Volume Fraction] of Blood by Automated count"
+            -> component="Hematocrit", property="Volume Fraction",
+               system="Blood", method="Automated count"
+        "pH of Urine by Test strip"
+            -> component="pH", system="Urine", method="Test strip"
+    """
+    if not name:
+        return {}
+    n = re.sub(r"\s+", " ", name).strip()
+
+    method = None
+    core = n
+    idx_by = n.rfind(" by ")
+    if idx_by > 0:
+        method = n[idx_by + 4:].strip() or None
+        core = n[:idx_by].strip()
+
+    prop = None
+    component = core
+    system = None
+    m_br = _BRACKET_RE.search(core)
+    if m_br:
+        prop = m_br.group(1).strip() or None
+        component = core[:m_br.start()].strip()
+        rest = core[m_br.end():].strip()
+        if rest.startswith("in ") or rest.startswith("of "):
+            system = rest[3:].strip()
+        elif rest:
+            system = rest
+    else:
+        # No bracket. Split on the LAST " in "/" of " so components that
+        # legitimately contain "in" ("Cholesterol in HDL") stay intact.
+        idx_sys = max(core.rfind(" in "), core.rfind(" of "))
+        if idx_sys > 0:
+            component = core[:idx_sys].strip()
+            system = core[idx_sys + 4:].strip()
+
+    return {
+        "component": component or None,
+        "property": prop,
+        "system": system or None,
+        "method": method,
+    }
+
 log = logging.getLogger("loinc.store")
 
 
@@ -76,6 +138,29 @@ class LoincStore:
         norms = np.linalg.norm(self.embeddings, axis=1, keepdims=True)
         norms[norms == 0] = 1.0
         self.embeddings = (self.embeddings / norms).astype(np.float32)
+
+        # AXIS ENRICHMENT: when the SQL seed lacks Component/Property/System/
+        # Method columns (the C# LoincDictionary table only ships LoincCode +
+        # LongCommonName + Class), derive the axes from the long name so the
+        # unit-swap, peer-search and guard logic stay functional.
+        enriched = 0
+        for m in self.metadata:
+            if m.get("component") and m.get("property") and m.get("system"):
+                continue
+            axes = parse_loinc_axes(m.get("name") or "")
+            filled = False
+            for k in ("component", "property", "system", "method"):
+                if not m.get(k) and axes.get(k):
+                    m[k] = axes[k]
+                    filled = True
+            if filled:
+                enriched += 1
+        if enriched:
+            log.info(
+                "Axis enrichment: derived component/property/system/method from "
+                "the long name for %d of %d entries (SQL seed lacks axis columns).",
+                enriched, len(self.metadata),
+            )
 
         # Build the code -> index map. We keep the FIRST occurrence of a code
         # (LOINC codes are unique by spec, but if the seed file accidentally

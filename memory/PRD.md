@@ -972,3 +972,11 @@ Remote-ul `github` este deja configurat ca `https://github.com/Pintilie58/Medica
 - C#: `CamBatchService` atașează JSON-ul debug (`<fisier>_Gemini_LOINC.json`) la emailul de interpretare sub flag `CamBatch:AttachDebugJson` (true doar în Development).
 - Etapa 2 (RELMA-like axis parsing + SHORTNAME în fuzzy) și Etapa 3 (echivalență la Comparare + sticky mapping per pacient în C#) — APROBATE de user, de implementat.
 - Validare pe mașina userului (dicționar 97k): PENDING (re-interpretare fișiere + Comparație).
+
+### 2026-06 — BUG CRITIC rezolvat: axele LOINC lipseau din seed → UNIT-SWAP mort pe mașina userului
+- Simptom: Colesterol HDL în mmol/L primea 2085-9 (Mass/volume) în loc de 14646-4 (Moles/volume); Compararea amesteca 1.27 mmol/L cu 44.3 mg/dL pe același rând.
+- RCA: tabela SQL `LoincDictionary` (model C# `LoincEntry`) NU are coloanele Component/Property/System/Method → `seed_embeddings.py` (tolerant) a produs metadata cu axe None pentru toate cele 97.314 intrări → `_property_family(None)`=None → UNIT-SWAP, peer-search și garda anti-halucinație erau dezactivate silențios pe mașina userului (funcționau doar în sandbox, unde eșantionul avea axe).
+- Fix elegant (fără migrații SQL, fără re-seed): `parse_loinc_axes()` în `loinc_store.py` — derivă axele din gramatica numelui lung (`Component [Property] in|of System by Method`), aplicat ca enrichment la `STORE.load()` doar pe câmpurile lipsă.
+- Alte fix-uri în aceeași sesiune: LoincHealthMonitor — ProbeTimeoutMs 800→3000, FailuresBeforeRestart 2→3, gate #4 „second opinion" (probe de confirmare 8s înainte de spawn; elimină duplicatele care mureau cu Errno 10048 când serviciul era ocupat de batch), titlu fereastră „LOINC Service (auto-started)", log explicit când Enabled=false.
+- Test: `test_pipeline_smoke.py` rulează acum în DUAL MODE (seed complet + seed sărac simulat) — 45 cazuri × 2 = 90/90 PASS, incl. HDL mmol/L→14646-4 și mg/dL→2085-9.
+- Pending: validare pe mașina userului; sugestie viitoare: conversie de unități în Comparare (mmol/L→mg/dL) pentru a alinia istoric coloanele HDL vechi; pre-flight check LOINC la start interpretare/lot cu avertisment (aprobat de user ca idee, neimplementat).

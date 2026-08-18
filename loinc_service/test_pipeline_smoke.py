@@ -108,6 +108,9 @@ LOINC_SAMPLE = [
     ("4548-4",  "Hemoglobin A1c/Hemoglobin.total in Blood",            "Hemoglobin A1c/Hemoglobin.total", "MFr", "Bld", None),
     ("71875-9", "Hemoglobin A1c/Hemoglobin.total [Pure mass fraction] in Blood",
                 "Hemoglobin A1c/Hemoglobin.total", "MFr", "Bld", None),
+    # --- HDL mass/moles pair (unit-swap regression, bug 2026-06) ---
+    ("14646-4", "Cholesterol in HDL [Moles/volume] in Serum or Plasma",
+                "Cholesterol in HDL", "SCnc", "Ser/Plas", None),
 ]
 
 
@@ -269,6 +272,19 @@ GOLDEN = [
          query="Urea nitrogen [Mass/volume] in Serum or Plasma",
          unit="mg/dL", raw="Uree serica", panel="BIOCHIMIE SERICA",
          expected="3094-0", expect_source="anchor"),
+
+    # ---- Batch 3: HDL unit-swap (bug real: mmol/L primea codul de Mass 2085-9) ----
+    dict(note="BUG HDL: mmol/L trebuie sa dea codul Moles 14646-4, nu 2085-9",
+         query="Cholesterol HDL [Mass/volume] in Serum or Plasma",
+         unit="mmol/L", raw="Colesterol HDL", panel="Profil lipidic",
+         line="Ser / Metoda spectrofotometrie",
+         expected="14646-4"),
+
+    dict(note="HDL mg/dL ramane pe codul Mass 2085-9",
+         query="Cholesterol HDL [Mass/volume] in Serum or Plasma by Enzymatic method",
+         unit="mg/dL", raw="Colesterol HDL", panel="Biochimie | Profil lipidic",
+         line="Ser/metoda enzimatica / spectrofotometrie",
+         expected="2085-9"),
 ]
 
 
@@ -300,9 +316,12 @@ def seed_sample():
 
 def run_tests():
     # Import AFTER seed file exists so STORE can be loaded.
+    import pipeline
     from loinc_store import STORE
     from pipeline import find_loinc
 
+    # Reset the anchor-components cache (rebuilt from the freshly loaded STORE)
+    pipeline._ANCHOR_COMPONENTS_CACHE = None
     STORE.load()
     print(f"Loaded {STORE.size} entries.\n")
 
@@ -366,8 +385,47 @@ def run_tests():
     return total == total_all
 
 
+def strip_axes_from_metadata() -> str:
+    """Simulate the user's production seed, where the SQL LoincDictionary has
+    NO Component/Property/System/Method columns — every axis is None and the
+    pipeline must rely on parse_loinc_axes() enrichment. Returns a JSON backup
+    of the full metadata so it can be restored afterwards."""
+    with open(METADATA_FILE, "r", encoding="utf-8") as f:
+        meta = json.load(f)
+    backup = json.dumps(meta, ensure_ascii=False)
+    for m in meta:
+        m["component"] = None
+        m["property"] = None
+        m["system"] = None
+        m["method"] = None
+    with open(METADATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False)
+    return backup
+
+
+def restore_metadata(backup: str) -> None:
+    with open(METADATA_FILE, "w", encoding="utf-8") as f:
+        f.write(backup)
+
+
 if __name__ == "__main__":
     if "--no-seed" not in sys.argv:
         seed_sample()
-    ok = run_tests()
-    sys.exit(0 if ok else 1)
+
+    print("\n" + "=" * 80)
+    print("MOD 1: seed COMPLET (cu axele Component/Property/System/Method)")
+    print("=" * 80)
+    ok_full = run_tests()
+
+    print("\n" + "=" * 80)
+    print("MOD 2: seed SARAC (fara axe — ca pe masina utilizatorului; enrichment din nume)")
+    print("=" * 80)
+    backup = strip_axes_from_metadata()
+    try:
+        ok_poor = run_tests()
+    finally:
+        restore_metadata(backup)
+
+    print(f"\nREZULTAT FINAL: seed complet={'PASS' if ok_full else 'FAIL'}  "
+          f"seed sarac={'PASS' if ok_poor else 'FAIL'}")
+    sys.exit(0 if (ok_full and ok_poor) else 1)
