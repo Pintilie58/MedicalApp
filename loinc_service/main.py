@@ -117,6 +117,8 @@ class LoincResponse(BaseModel):
     # Provenance: "anchor" => hard-coded canonical mapping (score=1.0,
     # patient-grade certainty). "semantic" => embedding+fuzzy+rules pipeline.
     loinc_source: str = "semantic"
+    # "Verdict pe axe": per-axis explanation of the decision (strings only).
+    axis_verdict: dict[str, str] | None = None
 
 
 # -------------------- Endpoints --------------------

@@ -101,6 +101,7 @@ namespace MedicalApp.Services
                 kr.LoincClass = match.LoincClass;
                 kr.LoincSource = match.LoincSource;
                 kr.LoincScore = match.Score;
+                kr.LoincAxisVerdict = match.AxisVerdict;
                 kr.LoincConfidence = match.Score switch
                 {
                     >= 0.85 => "high",
@@ -202,6 +203,7 @@ namespace MedicalApp.Services
             [JsonPropertyName("method")]       public string? Method { get; set; }
             [JsonPropertyName("loinc_class")]  public string? LoincClass { get; set; }
             [JsonPropertyName("loinc_source")] public string? LoincSource { get; set; }
+            [JsonPropertyName("axis_verdict")] public Dictionary<string, string>? AxisVerdict { get; set; }
         }
 
         public class MatcherStats

@@ -987,3 +987,10 @@ Remote-ul `github` este deja configurat ca `https://github.com/Pintilie58/Medica
 - KILL SWITCH: `LOINC_AXIS_WEIGHT=0` (env var, config.py, default 0.45) — dezactivare instant fără rollback.
 - Teste: 90/90 PASS (45 × seed complet + 45 × seed sărac). Demo: deriva inedită „Hemoglobin level [Mass/volume]..." → 718-7 cu scor 0.84 (vs 0.76 fără axe); erorile inter-axe (16931-8) imposibile structural (prop Ratio ≠ Mass = 0 pe axa property).
 - Validare pe mașina userului: PENDING.
+
+### 2026-06 — „Verdict pe axe" implementat (explicabilitatea deciziei LOINC)
+- `pipeline.py`: `MatchResult.axis_verdict` (dict de stringuri) construit de `_build_axis_verdict()` pe toate cele 3 drumuri: determinist (cu eticheta stratului: „ancoră exactă" / „nume LOINC exact" / „ancoră după tăierea sufixului"), semantic (cu ponderea axelor) și unit-swap (notă explicită „X [MCnc] → Y [SCnc] — unitatea cere...").
+- Format per axă: „query ↔ candidat = similaritate" + axis_score agregat.
+- `main.py`: `LoincResponse.axis_verdict`; C#: `LoincMatcherClient.MatcherResponse.AxisVerdict` → `KeyResult.LoincAxisVerdict` (`loinc_axis_verdict` în JSON) → ajunge automat în RawJsonResult și în atașamentul debug de pe email.
+- Teste: 90/90 PASS (dual-mode); demo verificat pe cele 3 drumuri.
+- PENDING de la user: „mai sunt câteva analize de același fel care nu au LOINC identic" — de diagnosticat cu verdictul pe axe când userul trimite JSON-urile noi.

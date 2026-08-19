@@ -82,6 +82,10 @@ class MatchResult:
     # "auto-suggested" — important for patient confidence on common analytes
     # (CBC, lipid panel, liver enzymes) where anchors give certainty.
     source: str = "semantic"
+    # Etapa "Verdict pe axe": human-readable per-axis breakdown of WHY this
+    # code was chosen (component/property/system/method comparisons + decision
+    # path). Flows through C# into the debug JSON e-mail attachment.
+    axis_verdict: Optional[dict] = None
 
     def to_dict(self) -> dict:
         return {
@@ -94,6 +98,7 @@ class MatchResult:
             "score": float(self.score),
             "loinc_class": self.loinc_class,
             "loinc_source": self.source,
+            "axis_verdict": self.axis_verdict,
         }
 
 
@@ -536,6 +541,25 @@ def _axis_score(q_axes: dict, meta: dict) -> float:
     )
 
 
+def _build_axis_verdict(q_axes: Optional[dict], meta: dict, decision: str) -> dict:
+    """Human-readable per-axis breakdown: 'query ↔ candidate = sim'. Strings
+    only (C# deserializes it as Dictionary<string,string>)."""
+    v: dict = {"decision": decision}
+    if q_axes:
+        def fmt(q, c, s):
+            return f"{q or '—'} ↔ {c or '—'} = {s:.2f}"
+        v["component"] = fmt(q_axes.get("component"), meta.get("component"),
+                             _axis_component_sim(q_axes.get("component"), meta))
+        v["property"] = fmt(q_axes.get("property"), meta.get("property"),
+                            _axis_property_sim(q_axes.get("property"), meta.get("property")))
+        v["system"] = fmt(q_axes.get("system"), meta.get("system"),
+                          _axis_system_sim(q_axes.get("system"), meta.get("system")))
+        v["method"] = fmt(q_axes.get("method"), meta.get("method"),
+                          _axis_method_sim(q_axes.get("method"), meta.get("method")))
+        v["axis_score"] = f"{_axis_score(q_axes, meta):.3f}"
+    return v
+
+
 def _find_peer_with_property(
     component: Optional[str],
     system: Optional[str],
@@ -774,12 +798,20 @@ def find_loinc(
                 score=result.score,
                 loinc_class=peer.get("class"),
                 source=result.source,
+                axis_verdict={
+                    **(result.axis_verdict or {}),
+                    "unit_swap": (
+                        f"{result.loinc} [{result.property}] → {peer['loinc']} "
+                        f"[{peer.get('property')}] — unitatea '{unit}' cere {desired_property}"
+                    ),
+                },
             )
 
     return result
 
 
-def _make_deterministic_result(meta: dict) -> MatchResult:
+def _make_deterministic_result(meta: dict, test_name: str, via: str) -> MatchResult:
+    q_axes = parse_loinc_axes(test_name)
     return MatchResult(
         loinc=meta["loinc"],
         name=meta.get("name") or "",
@@ -790,6 +822,9 @@ def _make_deterministic_result(meta: dict) -> MatchResult:
         score=1.0,
         loinc_class=meta.get("class"),
         source="anchor",
+        axis_verdict=_build_axis_verdict(
+            q_axes if q_axes.get("component") else None, meta,
+            decision=f"determinist: {via} (scor 1.0)"),
     )
 
 
@@ -824,7 +859,7 @@ def _deterministic_lookup(
                     "ANCHOR hit for %r -> %s %r (score=1.000, confidence=exact).",
                     test_name, anchor_code, meta.get("name") or "",
                 )
-                return _make_deterministic_result(meta)
+                return _make_deterministic_result(meta, test_name, "ancoră exactă")
             log.warning(
                 "ANCHOR hit for %r -> %s rejected by guards; using semantic pipeline.",
                 test_name, anchor_code,
@@ -846,7 +881,7 @@ def _deterministic_lookup(
                 "EXACT-NAME hit for %r -> %s (score=1.000, confidence=exact).",
                 test_name, meta.get("loinc"),
             )
-            return _make_deterministic_result(meta)
+            return _make_deterministic_result(meta, test_name, "nume LOINC exact în dicționar")
         log.info("EXACT-NAME hit for %r rejected by guards; continuing.", test_name)
 
     # ---- Layer 3: method-suffix-stripped anchor --------------------------
@@ -862,7 +897,7 @@ def _deterministic_lookup(
                     "score=1.000, confidence=exact).",
                     test_name, stripped_code, meta.get("name") or "",
                 )
-                return _make_deterministic_result(meta)
+                return _make_deterministic_result(meta, test_name, "ancoră după tăierea sufixului de metodă")
             log.info("ANCHOR-STRIPPED hit for %r rejected by guards; continuing.", test_name)
 
     return None
@@ -1043,4 +1078,18 @@ def _semantic_match(
         ))
 
     candidates.sort(key=lambda x: x[0], reverse=True)
-    return candidates[0][1] if candidates else None
+    if not candidates:
+        return None
+
+    best = candidates[0][1]
+    best_meta = {
+        "component": best.component, "property": best.property,
+        "system": best.system, "method": best.method,
+    }
+    decision = (
+        f"semantic (axe active, pondere {AXIS_WEIGHT})"
+        if q_axes is not None
+        else "semantic (emisie neparsabilă pe axe — formula legacy)"
+    )
+    best.axis_verdict = _build_axis_verdict(q_axes, best_meta, decision)
+    return best

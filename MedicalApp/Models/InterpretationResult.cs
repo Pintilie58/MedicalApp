@@ -254,6 +254,18 @@ namespace MedicalApp.Models
             /// </summary>
             [JsonPropertyName("loinc_score")]
             public double? LoincScore { get; set; }
+
+            /// <summary>
+            /// "Verdict pe axe" — per-axis explanation of WHY the Python
+            /// matcher chose this LOINC code: component / property / system /
+            /// method comparisons ("query ↔ candidate = similarity") plus the
+            /// decision path (deterministic anchor layer vs semantic blend)
+            /// and, when applicable, the unit-swap note. Diagnostic only —
+            /// flows into RawJsonResult and the debug JSON e-mail attachment.
+            /// Null on rows interpreted before this feature.
+            /// </summary>
+            [JsonPropertyName("loinc_axis_verdict")]
+            public Dictionary<string, string>? LoincAxisVerdict { get; set; }
         }
 
         public class AbnormalFinding
