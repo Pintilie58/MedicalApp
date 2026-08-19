@@ -111,6 +111,16 @@ LOINC_SAMPLE = [
     # --- HDL mass/moles pair (unit-swap regression, bug 2026-06) ---
     ("14646-4", "Cholesterol in HDL [Moles/volume] in Serum or Plasma",
                 "Cholesterol in HDL", "SCnc", "Ser/Plas", None),
+    # --- Batch 4: VSH + Procente de protrombina (numele exact din dicționarul userului) ---
+    ("30341-2", "Erythrocyte [Sedimentation Rate] in Blood",           "ESR", "Rate", "Bld", None),
+    ("82477-1", "Erythrocyte [Sedimentation Rate] in Blood by Photometric method",
+                "ESR", "Rate", "Bld", "Photometric method"),
+    ("40457-4", "Prothrombin Ab [Units/volume] in Serum or Plasma",
+                "Prothrombin Ab", "ACnc", "Ser/Plas", None),
+    ("77161-8", "Prothrombin activity [Units/volume] in Platelet poor plasma by Coagulation assay --immediately after addition of factor II depleted plasma",
+                "Prothrombin activity", "ACnc", "PPP", "Coagulation assay"),
+    ("3289-6",  "Prothrombin activity actual/normal in Platelet poor plasma by Coagulation assay",
+                "Prothrombin activity actual/normal", "RelTime", "PPP", "Coagulation assay"),
 ]
 
 
@@ -132,7 +142,8 @@ TESTS = [
     ("Thyrotropin [Units/volume] in Serum or Plasma",                         "3016-3"),
     ("Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma","1742-6"),
     ("Gamma glutamyl transferase [Enzymatic activity/volume] in Serum or Plasma", "2324-2"),
-    ("Erythrocyte sedimentation rate",                                        "4537-7"),
+    # 30341-2 = codul-umbrelă generic ESR (politica RO de consistență).
+    ("Erythrocyte sedimentation rate",                                        "30341-2"),
     ("Cholesterol in HDL [Mass/volume] in Serum or Plasma",                   "2085-9"),
     ("Hematocrit [Volume Fraction] of Blood",                                 "4544-3"),
 ]
@@ -198,7 +209,7 @@ GOLDEN = [
     dict(note="Romanian raw name 'VSH' must NOT trigger the anti-hallucination guard",
          query="Erythrocyte sedimentation rate",
          unit="mm/h", raw="VSH", panel=None,
-         expected="4537-7", expect_source="anchor"),
+         expected="30341-2", expect_source="anchor"),
 
     dict(note="Erythrocytes canonical + suffix already anchored",
          query="Erythrocytes [#/volume] in Blood by Automated count",
@@ -285,6 +296,50 @@ GOLDEN = [
          unit="mg/dL", raw="Colesterol HDL", panel="Biochimie | Profil lipidic",
          line="Ser/metoda enzimatica / spectrofotometrie",
          expected="2085-9"),
+
+    # ---- Batch 4 (emisii reale: VSH + Procente de protrombina) ----
+    dict(note="BUG VSH: 'in Blood' fara metoda -> umbrela generica 30341-2",
+         query="Erythrocyte sedimentation rate in Blood",
+         unit="mm/h", raw="VSH", panel="Hematologie",
+         line="Sange EDTA / Metoda fotometrica",
+         expected="30341-2", expect_source="anchor"),
+
+    dict(note="BUG VSH: varianta 'by Microphotometric method' se unifica tot pe 30341-2",
+         query="Erythrocyte sedimentation rate in Blood by Microphotometric method",
+         unit="mm/h", raw="VSH", panel="VSH",
+         line="Sange EDTA/metoda microfotometrica capilara",
+         expected="30341-2", expect_source="anchor"),
+
+    dict(note="VSH Westergren explicit ramane 4537-7 (politica pastrata)",
+         query="Erythrocyte sedimentation rate by Westergren method",
+         unit="mm/h", raw="VSH", panel=None,
+         expected="4537-7", expect_source="anchor"),
+
+    dict(note="BUG PT%: '[Units/volume] in Coagulation plasma' NU mai are voie sa dea 40457-4 (anticorp!)",
+         query="Prothrombin [Units/volume] in Coagulation plasma",
+         unit="%", raw="Procente de protrombina", panel="Hematologie | Timp de protrombina QUICK",
+         line="Plasma citrat / metoda coagulometrica",
+         expected="3289-6", expect_source="anchor"),
+
+    dict(note="BUG PT%: '[Units/volume] in Platelet poor plasma' -> 3289-6 (nu 77161-8 factor II)",
+         query="Prothrombin [Units/volume] in Platelet poor plasma",
+         unit="%", raw="Procente de protrombina", panel="Timp de protrombina QUICK | Plasma citrat / Metoda: coagulometrica",
+         expected="3289-6", expect_source="anchor"),
+
+    dict(note="PT%: '[Ratio] in Coagulation plasma by Coagulation assay' -> strip -> 3289-6",
+         query="Prothrombin [Ratio] in Coagulation plasma by Coagulation assay",
+         unit="%", raw="Procente de protrombina", panel="Timp de protrombina QUICK | Plasma citrat / Metoda: coagulometrica",
+         expected="3289-6", expect_source="anchor"),
+
+    dict(note="Un test GENUIN de anticorpi anti-protrombina ramane pe 40457-4 (exact-name)",
+         query="Prothrombin Ab [Units/volume] in Serum or Plasma",
+         unit="U/mL", raw="Anticorpi anti-protrombina", panel="IMUNOLOGIE",
+         expected="40457-4", expect_source="anchor"),
+
+    dict(note="PT actual/normal (emisia canonica veche) ramane 5894-1",
+         query="Prothrombin time (PT) actual/normal",
+         unit="%", raw="Timp Quick", panel=None,
+         expected="5894-1", expect_source="anchor"),
 ]
 
 

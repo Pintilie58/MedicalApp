@@ -41,7 +41,7 @@ from config import (
     SEM_WEIGHT,
     TOP_K,
 )
-from canonical_anchors import all_anchors, lookup_anchor, lookup_anchor_stripped
+from canonical_anchors import all_anchors, canon_key, lookup_anchor, lookup_anchor_stripped
 from loinc_store import STORE, parse_loinc_axes
 
 log = logging.getLogger("loinc.pipeline")
@@ -196,6 +196,10 @@ _METHOD_KEYWORDS = {
     "coagulometrie":    {"coagulometric", "clot", "clauss", "coagulation"},  # RO / FR
     "coagulometria":    {"coagulometric", "clot", "clauss", "coagulation"},  # ES / PT / IT
     "clauss":           {"clauss", "coagulometric"},
+    # Photometric ESR analyzers (Alifax/Alcor). NOTE: "spectrofotometrie"
+    # deliberately does NOT contain the substring "fotometric".
+    "fotometric":       {"photometric"},   # RO "fotometrica"/"microfotometrica"
+    "photometric":      {"photometric"},
 }
 
 _PROPERTY_KEYWORDS = {
@@ -464,6 +468,8 @@ _AXIS_SYSTEM_CANON = {
     "urine": ("urine", "urine"),
     "urine sed": ("urine_sed", "urine"), "urine sediment": ("urine_sed", "urine"),
     "rbc": ("rbc", "blood"), "red blood cells": ("rbc", "blood"),
+    "coagulation plasma": ("ppp", "ser"), "citrated plasma": ("ppp", "ser"),
+    "plasma citrat": ("ppp", "ser"),
 }
 
 # Method equivalence groups (Gemini wording vs LOINC MethodTyp wording).
@@ -473,6 +479,7 @@ _AXIS_METHOD_GROUPS = (
     {"coagulation assay", "coagulation", "coagulometric", "coagulometry", "clauss"},
     {"immunoassay", "ia", "chemiluminescence", "cmia", "icma", "eclia", "clia", "immune"},
     {"microscopy", "light microscopy", "manual", "manual count", "microscopy high power field"},
+    {"photometric", "fotometric"},
     {"calculation", "calculated"},
     {"estimated"},
     {"hplc", "chromatography"},
@@ -488,7 +495,13 @@ def _axis_component_sim(q_comp: Optional[str], meta: dict) -> float:
     for cand in (meta.get("component"), meta.get("shortname")):
         if cand:
             best = max(best, fuzz.token_set_ratio(qn, cand.replace(".", " ").lower()) / 100.0)
-    return best if best > 0 else 0.5
+    if best == 0:
+        return 0.5
+    # Antibody/antigen tests are NEVER interchangeable with the analyte itself
+    # ('Prothrombin' vs 'Prothrombin Ab' would otherwise score 1.0 as subset).
+    if meta.get("component") and _ab_ag_mismatch(q_comp, meta["component"]):
+        best = min(best, 0.30)
+    return best
 
 
 def _axis_property_sim(q_prop: Optional[str], c_prop: Optional[str]) -> float:
@@ -515,12 +528,22 @@ def _axis_system_sim(q_sys: Optional[str], c_sys: Optional[str]) -> float:
     return 0.0
 
 
-def _axis_method_sim(q_meth: Optional[str], c_meth: Optional[str]) -> float:
+def _axis_method_sim(q_meth: Optional[str], c_meth: Optional[str],
+                     source_context_norm: Optional[str] = None) -> float:
     q = (q_meth or "").strip().lower()
     c = (c_meth or "").strip().lower()
     if not q and not c:
         return 1.0
-    if not q or not c:
+    if not q and c:
+        # Gemini omitted the method, but the PDF's own words may confirm the
+        # candidate's method ("Serviciul corectează ce omite Gemini"). ONLY an
+        # upgrade — absence of context evidence stays neutral, never a penalty.
+        if source_context_norm:
+            for kw, allowed in _METHOD_KEYWORDS.items():
+                if kw in source_context_norm and any(a in c for a in allowed):
+                    return 1.0
+        return 0.5
+    if not c:
         return 0.5       # absence is not a contradiction (LOINC-methodless codes)
     if q in c or c in q:
         return 1.0
@@ -532,16 +555,17 @@ def _axis_method_sim(q_meth: Optional[str], c_meth: Optional[str]) -> float:
     return 0.0
 
 
-def _axis_score(q_axes: dict, meta: dict) -> float:
+def _axis_score(q_axes: dict, meta: dict, source_context_norm: Optional[str] = None) -> float:
     return (
         0.50 * _axis_component_sim(q_axes.get("component"), meta)
         + 0.20 * _axis_property_sim(q_axes.get("property"), meta.get("property"))
         + 0.15 * _axis_system_sim(q_axes.get("system"), meta.get("system"))
-        + 0.15 * _axis_method_sim(q_axes.get("method"), meta.get("method"))
+        + 0.15 * _axis_method_sim(q_axes.get("method"), meta.get("method"), source_context_norm)
     )
 
 
-def _build_axis_verdict(q_axes: Optional[dict], meta: dict, decision: str) -> dict:
+def _build_axis_verdict(q_axes: Optional[dict], meta: dict, decision: str,
+                        source_context_norm: Optional[str] = None) -> dict:
     """Human-readable per-axis breakdown: 'query ↔ candidate = sim'. Strings
     only (C# deserializes it as Dictionary<string,string>)."""
     v: dict = {"decision": decision}
@@ -555,8 +579,8 @@ def _build_axis_verdict(q_axes: Optional[dict], meta: dict, decision: str) -> di
         v["system"] = fmt(q_axes.get("system"), meta.get("system"),
                           _axis_system_sim(q_axes.get("system"), meta.get("system")))
         v["method"] = fmt(q_axes.get("method"), meta.get("method"),
-                          _axis_method_sim(q_axes.get("method"), meta.get("method")))
-        v["axis_score"] = f"{_axis_score(q_axes, meta):.3f}"
+                          _axis_method_sim(q_axes.get("method"), meta.get("method"), source_context_norm))
+        v["axis_score"] = f"{_axis_score(q_axes, meta, source_context_norm):.3f}"
     return v
 
 
@@ -708,6 +732,23 @@ _HARD_REJECT_RULES: list[tuple[str, set[str], set[str]]] = [
 ]
 
 
+_AB_AG_TOKENS = ("ab", "ag")
+
+
+def _ab_ag_mismatch(query_norm: str, candidate_name: str) -> bool:
+    """True when exactly ONE side is an antibody/antigen test. 'Prothrombin'
+    vs 'Prothrombin Ab' are medically different analytes, but token-set fuzzy
+    scores them 1.0 (subset). Token-based so 'ab'/'ag' inside words don't fire."""
+    q = canon_key(query_norm)          # normalizes antibody->ab, antigen->ag
+    c = canon_key(candidate_name)
+    q_tokens = set(re.findall(r"[a-z0-9.]+", q))
+    c_tokens = set(re.findall(r"[a-z0-9.]+", c))
+    for tok in _AB_AG_TOKENS:
+        if (tok in q_tokens) != (tok in c_tokens):
+            return True
+    return False
+
+
 def _hard_reject_penalty(query_norm: str, candidate_name: str) -> float:
     """Return a multiplier in (0, 1] to apply to the final score. 1.0 means
     no penalty. Anything less aggressively pushes the candidate down the
@@ -718,6 +759,8 @@ def _hard_reject_penalty(query_norm: str, candidate_name: str) -> float:
         if any(kw in query_norm for kw in q_keywords):
             if any(rt in cand_lower for rt in reject_tokens):
                 return 0.25
+    if _ab_ag_mismatch(query_norm, candidate_name):
+        return 0.30
     return 1.0
 
 
@@ -1045,7 +1088,7 @@ def _semantic_match(
         # component/property can no longer be compensated by surface-text
         # similarity on method/system suffixes.
         if q_axes is not None:
-            final = AXIS_WEIGHT * _axis_score(q_axes, meta) + (1.0 - AXIS_WEIGHT) * final
+            final = AXIS_WEIGHT * _axis_score(q_axes, meta, source_context_norm) + (1.0 - AXIS_WEIGHT) * final
 
         # Apply narrow hard-rejection penalties for known close-neighbor
         # ambiguities (e.g. MCV / MCH / MCHC vs Erythrocyte diameter).
@@ -1091,5 +1134,5 @@ def _semantic_match(
         if q_axes is not None
         else "semantic (emisie neparsabilă pe axe — formula legacy)"
     )
-    best.axis_verdict = _build_axis_verdict(q_axes, best_meta, decision)
+    best.axis_verdict = _build_axis_verdict(q_axes, best_meta, decision, source_context_norm)
     return best

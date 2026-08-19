@@ -248,6 +248,21 @@ _RAW_ANCHORS: dict[str, str] = {
     "Prostate specific Ag [Mass/volume] in Serum or Plasma": "2857-1",
     "Prostate specific Ag.total [Mass/volume] in Serum or Plasma": "2857-1",
 
+    # ----- ESR / VSH: politică de consistență RO -----
+    # Toate variantele fără metodă explicită Westergren se unifică pe codul
+    # generic 30341-2 (umbrella, method-unspecified) ca aceeași analiză din
+    # laboratoare diferite (fotometric, micrometodă) să cadă pe UN singur rând
+    # în Comparație. Westergren explicit rămâne 4537-7 (ancora existentă).
+    "Erythrocyte sedimentation rate in Blood": "30341-2",
+
+    # ----- Procente de protrombina (PT% / activitate de protrombină) -----
+    # Confirmat pe loinc.org: 3289-6 = Prothrombin activity actual/normal in
+    # PPP by Coagulation assay (raportat în %). Emisiile Gemini variază mult:
+    "Prothrombin [Units/volume] in Coagulation plasma": "3289-6",
+    "Prothrombin [Units/volume] in Platelet poor plasma": "3289-6",
+    "Prothrombin [Ratio] in Coagulation plasma": "3289-6",
+    "Prothrombin activity [Units/volume] in Platelet poor plasma": "3289-6",
+
     # ----- Coagulation: Fibrinogen (Clauss / coagulometric = standard RO) -----
     "Fibrinogen [Mass/volume] in Platelet poor plasma by Coagulation assay": "3255-7",
     "Fibrinogen [Mass/volume] in Plasma": "3255-7",

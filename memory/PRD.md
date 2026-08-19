@@ -994,3 +994,12 @@ Remote-ul `github` este deja configurat ca `https://github.com/Pintilie58/Medica
 - `main.py`: `LoincResponse.axis_verdict`; C#: `LoincMatcherClient.MatcherResponse.AxisVerdict` → `KeyResult.LoincAxisVerdict` (`loinc_axis_verdict` în JSON) → ajunge automat în RawJsonResult și în atașamentul debug de pe email.
 - Teste: 90/90 PASS (dual-mode); demo verificat pe cele 3 drumuri.
 - PENDING de la user: „mai sunt câteva analize de același fel care nu au LOINC identic" — de diagnosticat cu verdictul pe axe când userul trimite JSON-urile noi.
+
+### 2026-06 — Anomalii VSH + Procente de protrombină rezolvate (diagnoză via Verdict pe axe)
+- VSH: emisiile „...in Blood" / „...by Microphotometric method" se unifică pe 30341-2 (umbrelă generică, politica RO; Westergren explicit rămâne 4537-7). Ancoră nouă + base-alias.
+- Procente de protrombină: 3 emisii diferite (Units/volume în Coagulation plasma / PPP, Ratio) unificate pe 3289-6 (confirmat loinc.org: Prothrombin activity actual/normal, %, PPP, Coag). 4 ancore noi.
+- **BUG component descoperit din verdict**: „Prothrombin ↔ Prothrombin Ab = 1.00" (token_set subset!) → guard Ab/Ag: `_ab_ag_mismatch()` token-based (folosind canon_key: antibody→ab, antigen→ag) aplicat în `_hard_reject_penalty` (×0.30) și în `_axis_component_sim` (cap 0.30). Testele Ab genuine (Thyroglobulin Ab, Prothrombin Ab exact-name) rămân neafectate.
+- Axa metodei cu context-fallback: când Gemini omite metoda dar PDF-ul o confirmă (`_METHOD_KEYWORDS` în source context), candidatul cu metoda potrivită urcă la 1.0 (DOAR upgrade, methodless rămâne 0.5 neutru — nu recreează bugul 718-7).
+- Chei noi: „fotometric/photometric" în _METHOD_KEYWORDS + grup axis („spectrofotometrie" NU conține substring-ul „fotometric" — verificat); sisteme noi: „Coagulation plasma"/„citrated plasma" → grup PPP.
+- Teste: 53 cazuri × 2 moduri = 106/106 PASS. Legacy ESR actualizat la 30341-2 (4537-7 era artefact de eșantion).
+- Clarificare pt user: unitățile NU erau cauza (mm/h, % compatibile cu ambele coduri) — cauzele: fragmentare pe metode + subset-match pe component.
