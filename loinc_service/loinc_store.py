@@ -110,6 +110,7 @@ class LoincStore:
         # (e.g. "Cholesterol in LDL [Mass/volume] in Serum or Plasma by
         # calculation") without going through the probabilistic pipeline.
         self.name_index: dict[str, int] = {}
+        self.names_norm: list[str] = []
 
     def load(self) -> None:
         if not EMBEDDINGS_FILE.exists() or not METADATA_FILE.exists():
@@ -161,6 +162,10 @@ class LoincStore:
                 "the long name for %d of %d entries (SQL seed lacks axis columns).",
                 enriched, len(self.metadata),
             )
+
+        # Lexical index for candidate-pool injection (see pipeline): plain
+        # lowercased long names, aligned with self.metadata indices.
+        self.names_norm = [(m.get("name") or "").lower() for m in self.metadata]
 
         # Build the code -> index map. We keep the FIRST occurrence of a code
         # (LOINC codes are unique by spec, but if the seed file accidentally

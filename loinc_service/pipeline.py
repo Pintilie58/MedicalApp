@@ -31,6 +31,7 @@ from typing import List, Optional
 
 import numpy as np
 from rapidfuzz import fuzz
+from rapidfuzz import process as rf_process
 from sentence_transformers import SentenceTransformer
 
 from config import (
@@ -41,7 +42,7 @@ from config import (
     SEM_WEIGHT,
     TOP_K,
 )
-from canonical_anchors import all_anchors, canon_key, lookup_anchor, lookup_anchor_stripped
+from canonical_anchors import all_anchors, apply_phrase_synonyms, canon_key, lookup_anchor, lookup_anchor_stripped
 from loinc_store import STORE, parse_loinc_axes
 
 log = logging.getLogger("loinc.pipeline")
@@ -490,7 +491,7 @@ _AXIS_METHOD_GROUPS = (
 def _axis_component_sim(q_comp: Optional[str], meta: dict) -> float:
     if not q_comp:
         return 0.5
-    qn = q_comp.replace(".", " ").lower().strip()
+    qn = apply_phrase_synonyms(q_comp.replace(".", " ").lower().strip())
     best = 0.0
     for cand in (meta.get("component"), meta.get("shortname")):
         if cand:
@@ -971,7 +972,7 @@ def _semantic_match(
     # 0. Normalize inputs + build the rules-layer context FIRST — the
     # deterministic layers below need raw_norm / source_context_norm for
     # their validation guards.
-    query_norm = _normalize(test_name)
+    query_norm = apply_phrase_synonyms(_normalize(test_name))
     # Etapa Python-2: pre-normalize the raw analyte name once for reuse
     # inside the per-candidate fuzzy loop below. None if not provided.
     raw_norm = _normalize(raw_parameter_name) if raw_parameter_name else None
@@ -1052,6 +1053,22 @@ def _semantic_match(
     else:
         top_idx = np.argpartition(-sims, k)[: k + 1]
         top_idx = top_idx[np.argsort(-sims[top_idx])]
+
+    # GENERAL FIX: the candidate pool must NOT depend on embeddings alone.
+    # Abbreviation/paraphrase drift ("International normalized ratio" vs
+    # "INR ...") can push the correct code out of the semantic top-K entirely,
+    # after which no downstream layer can recover it. Inject the best LEXICAL
+    # matches (token-set fuzzy over all long names) so the right candidate
+    # always gets a seat at the table.
+    if STORE.names_norm:
+        lexical = rf_process.extract(
+            query_norm, STORE.names_norm,
+            scorer=fuzz.token_set_ratio, limit=10, score_cutoff=70,
+        )
+        seen = {int(i) for i in top_idx}
+        extra = [idx for _txt, _score, idx in lexical if idx not in seen]
+        if extra:
+            top_idx = np.concatenate([top_idx, np.asarray(extra, dtype=top_idx.dtype)])
 
     # 2. For each top-K candidate, compute fuzzy and rules scores.
     candidates: List[tuple[float, MatchResult]] = []

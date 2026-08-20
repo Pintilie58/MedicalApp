@@ -307,14 +307,39 @@ _SYNONYM_PATTERNS = [
     (re.compile(r"\bantibody\b"), "ab"),
 ]
 
+# GENERAL: medical abbreviation ↔ expanded-form equivalences. Gemini
+# stochastically emits either form; LOINC names use the abbreviated one.
+# Applied on BOTH anchor keys and incoming queries (canon_key), and on the
+# query side of the fuzzy/axis layers. Longest patterns first.
+_PHRASE_SYNONYMS = [
+    (re.compile(r"\binternational normali[zs]ed ratio\s*\(inr\)"), "inr"),
+    (re.compile(r"\binternational normali[zs]ed ratio\b"), "inr"),
+    (re.compile(r"\bactivated partial thromboplastin time\s*\(aptt\)"), "aptt"),
+    (re.compile(r"\bactivated partial thromboplastin time\b"), "aptt"),
+    (re.compile(r"\bthyroid stimulating hormone\s*\(tsh\)"), "thyrotropin"),
+    (re.compile(r"\bthyroid stimulating hormone\b"), "thyrotropin"),
+]
+# Collapse duplicates left behind by parenthetical forms: "inr (inr)" -> "inr".
+_DUP_PAREN_RE = re.compile(r"\b([a-z0-9]+) \(\1\)")
+
+
+def apply_phrase_synonyms(s: str) -> str:
+    """Lowercase + abbreviation unification (importable by the pipeline for
+    query-side normalization in the fuzzy/axis layers)."""
+    n = s.lower()
+    for pat, rep in _PHRASE_SYNONYMS:
+        n = pat.sub(rep, n)
+    return _DUP_PAREN_RE.sub(r"\1", n)
+
 
 def canon_key(s: str) -> str:
     """Canonical anchor key: lowercase, collapsed whitespace, unified
-    prepositions (" of " ≡ " in ") and Ag/Ab abbreviations. Applied to BOTH
-    the curated anchor terms and the incoming Gemini emissions so cosmetic
-    drift ("Hematocrit ... in Blood" vs "... of Blood", "antigen" vs "Ag")
-    can no longer bypass the deterministic layer."""
+    prepositions (" of " ≡ " in "), medical abbreviations (INR, aPTT…) and
+    Ag/Ab forms. Applied to BOTH the curated anchor terms and the incoming
+    Gemini emissions so cosmetic drift can no longer bypass the deterministic
+    layer."""
     n = re.sub(r"\s+", " ", s.lower()).strip()
+    n = apply_phrase_synonyms(n)
     n = n.replace(" of ", " in ")
     for pat, rep in _SYNONYM_PATTERNS:
         n = pat.sub(rep, n)

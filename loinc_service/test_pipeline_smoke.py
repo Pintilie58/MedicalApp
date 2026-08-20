@@ -121,6 +121,11 @@ LOINC_SAMPLE = [
                 "Prothrombin activity", "ACnc", "PPP", "Coagulation assay"),
     ("3289-6",  "Prothrombin activity actual/normal in Platelet poor plasma by Coagulation assay",
                 "Prothrombin activity actual/normal", "RelTime", "PPP", "Coagulation assay"),
+    # --- Batch 5: INR (bug real: forma expandata scotea 6301-6 din top-K semantic) ---
+    ("6301-6",  "INR in Platelet poor plasma by Coagulation assay",
+                "INR", "RelTime", "PPP", "Coagulation assay"),
+    ("3200-3",  "Coagulation factor VII activity actual/normal [Molar ratio] in Platelet poor plasma by Coagulation assay",
+                "Coagulation factor VII activity actual/normal", "ArVRat", "PPP", "Coagulation assay"),
 ]
 
 
@@ -340,6 +345,24 @@ GOLDEN = [
          query="Prothrombin time (PT) actual/normal",
          unit="%", raw="Timp Quick", panel=None,
          expected="5894-1", expect_source="anchor"),
+
+    # ---- Batch 5 (emisii reale: INR) ----
+    dict(note="BUG INR: forma expandata 'International normalized ratio (INR)' NU mai are voie sa dea 3200-3 (factor VII)",
+         query="International normalized ratio (INR) in Platelet poor plasma",
+         unit=None, raw="INR", panel="Timp de protrombina QUICK | Plasma citrat / Metoda: coagulometrica",
+         expected="6301-6", expect_source="anchor"),
+
+    dict(note="INR: emisia scurta 'INR in Coagulation plasma' -> 6301-6",
+         query="INR in Coagulation plasma",
+         unit=None, raw="INR", panel="Hematologie | Timp de protrombina QUICK",
+         line="Plasma citrat / metoda coagulometrica",
+         expected="6301-6"),
+
+    dict(note="INR: forma expandata fara paranteze, sistem generic -> 6301-6",
+         query="International normalized ratio in Plasma",
+         unit=None, raw="INR", panel="Timp de protrombina QUICK",
+         line="Plasma citrat / metoda coagulometrica",
+         expected="6301-6"),
 ]
 
 

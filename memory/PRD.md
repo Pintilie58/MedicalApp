@@ -1003,3 +1003,10 @@ Remote-ul `github` este deja configurat ca `https://github.com/Pintilie58/Medica
 - Chei noi: „fotometric/photometric" în _METHOD_KEYWORDS + grup axis („spectrofotometrie" NU conține substring-ul „fotometric" — verificat); sisteme noi: „Coagulation plasma"/„citrated plasma" → grup PPP.
 - Teste: 53 cazuri × 2 moduri = 106/106 PASS. Legacy ESR actualizat la 30341-2 (4537-7 era artefact de eșantion).
 - Clarificare pt user: unitățile NU erau cauza (mm/h, % compatibile cu ambele coduri) — cauzele: fragmentare pe metode + subset-match pe component.
+
+### 2026-06 — INR rezolvat prin 2 corecții GENERALE (cerința userului: fără fix-uri particulare)
+- Diagnoză (via Verdict pe axe): emisia expandată „International normalized ratio (INR)..." scotea 6301-6 din top-25 semantic (MiniLM nu echivalează abrevierea) → câștiga 3200-3 (factor VII, comp 0.44).
+- Fix general #1 — `_PHRASE_SYNONYMS` + `apply_phrase_synonyms()` în canonical_anchors: echivalențe abreviere↔formă expandată (INR, aPTT, TSH→thyrotropin) + dedup „x (x)"→„x"; aplicate în canon_key (ancore + name_index + query determinist), pe query-ul fuzzy și pe componenta din axis layer.
+- Fix general #2 — injecție lexicală în bazinul de candidați: `rf_process.extract` (token_set_ratio, limit 10, cutoff 70) peste `STORE.names_norm` (listă nouă în load()); union cu top-K semantic — codul corect primește mereu „un loc la masă" chiar când embedding-ul ratează.
+- Teste: 56 cazuri × 2 moduri = 112/112 PASS (3 cazuri noi INR; ancora existentă 6301-6 acum accesibilă via base-alias + sinonime).
+- URMEAZĂ (aprobat de user): Sticky Mapping (C#: tabelă LoincMappingCache per clinică, amprentă = nume brut + UM + interval referință; supapă: ancorele corectează cache-ul semantic).
