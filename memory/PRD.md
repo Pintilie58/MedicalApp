@@ -1021,3 +1021,4 @@ Remote-ul `github` este deja configurat ca `https://github.com/Pintilie58/Medica
 - OBSERVAȚIE de raportat userului: emoji-ul 🔒 din titlul bannerului se randează ca pătrat gol (font fallback lipsă) — de decis dacă îl înlocuim cu text.
 - RĂMÂNE OPȚIONAL (varianta b discutată): pagină nouă în app care afișează raportul Demo pe ecran, cu butoane CTA. Momentan raportul se livrează DOAR pe email.
 - NEXT (aprobat anterior): Sticky Mapping (LoincMappingCache).
+- UPDATE link CTA: URL-ul butoanelor NU mai e hardcodat. `appsettings.json` → `"PdfCta": { "BuyCreditsUrl": "https://localhost:5001/Account/Dashboard" }`, citit în Program.cs în `PdfReportGenerator.BuyCreditsUrl`. La hosting se schimbă doar această linie din appsettings (fără rebuild de cod). Verificat: 3 hyperlink-uri = localhost:5001/Account/Dashboard.

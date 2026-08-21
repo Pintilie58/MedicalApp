@@ -78,6 +78,12 @@ builder.Services.AddScoped<IMedicalInterpretationProvider>(sp =>
 builder.Services.AddSingleton<PdfReportGenerator>();
 builder.Services.AddSingleton<EvolutionPdfGenerator>();
 
+// Where the in-PDF freemium "unlock for FREE" buttons point. Configurable so the
+// link can move from localhost to the public domain without touching code.
+var pdfCtaUrl = builder.Configuration["PdfCta:BuyCreditsUrl"];
+if (!string.IsNullOrWhiteSpace(pdfCtaUrl))
+    PdfReportGenerator.BuyCreditsUrl = pdfCtaUrl.Trim();
+
 // AI usage logger (writes to AiUsageLogs table, used by Admin "AI usage" widget).
 // Fail-safe: never throws back to the interpretation flow.
 builder.Services.AddScoped<IAiUsageLogger, AiUsageLogger>();

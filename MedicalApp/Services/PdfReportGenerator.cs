@@ -28,7 +28,13 @@ namespace MedicalApp.Services
 
         // Freemium call-to-action: clickable "unlock for FREE" buttons inside the PDF.
         private const string CtaOrange = "#e65100";
-        private const string BuyCreditsUrl = "https://www.mymedicalapp.net/Credits/Buy";
+
+        /// <summary>
+        /// Target of the in-PDF "unlock for FREE" buttons. Set once at startup from
+        /// configuration ("PdfCta:BuyCreditsUrl") — points at localhost while testing,
+        /// at the public domain after hosting. No rebuild of this file needed.
+        /// </summary>
+        public static string BuyCreditsUrl { get; set; } = "https://localhost:5001/Account/Dashboard";
 
         static PdfReportGenerator()
         {
