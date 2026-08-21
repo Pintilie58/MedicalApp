@@ -1022,3 +1022,12 @@ Remote-ul `github` este deja configurat ca `https://github.com/Pintilie58/Medica
 - RĂMÂNE OPȚIONAL (varianta b discutată): pagină nouă în app care afișează raportul Demo pe ecran, cu butoane CTA. Momentan raportul se livrează DOAR pe email.
 - NEXT (aprobat anterior): Sticky Mapping (LoincMappingCache).
 - UPDATE link CTA: URL-ul butoanelor NU mai e hardcodat. `appsettings.json` → `"PdfCta": { "BuyCreditsUrl": "https://localhost:5001/Account/Dashboard" }`, citit în Program.cs în `PdfReportGenerator.BuyCreditsUrl`. La hosting se schimbă doar această linie din appsettings (fără rebuild de cod). Verificat: 3 hyperlink-uri = localhost:5001/Account/Dashboard.
+
+### 2026-06 — Deblocare automată + anunțare user la PRIMA cumpărare (A + B, aprobat de user)
+- Link CTA din PDF setat pe `https://localhost:5001/Credits/Buy` (appsettings.json → PdfCta:BuyCreditsUrl).
+- CONSTATARE: deblocarea era DEJA automată — `ProfilesController.TryRegenerateReportPdfAsync` folosește `isFreemium = (user.Credite == 0)`, deci după cumpărare orice raport re-descărcat din Arhivă iese complet. Nu s-a scris logică de „deblocare", doar de LIVRARE + ANUNȚARE.
+- (A) `CreditsController.Checkout` POST: `isFirstPurchase` = `!Purchases.Any(p => p.UserEmail == ...)` evaluat ÎNAINTE de inserarea Purchase. Dacă e prima cumpărare ȘI userul NU e Clinic → `TrySendUnlockedDemoReportAsync(user)`: ia cea mai recentă interpretare (Status=success, RawJsonResult≠null), regenerează PDF-ul cu `isFreemium:false` în limba raportului (swap temporar de CurrentUICulture, ca în CamBatchService) și îl trimite pe email ca atașament. Dacă există mai multe rapoarte demo → doar cel recent atașat + nota „ai încă {0} rapoarte — vezi Arhiva" cu URL absolut (Url.Action + Request.Scheme). Try/catch total: eșecul emailului NU afectează plata.
+- (B) Banner verde pe `Views/Account/Dashboard.cshtml` (data-testid: demo-unlocked-banner / demo-unlocked-download-btn) cu buton „Descarcă raportul complet" → Profiles/DownloadReport?id=... TempData transmis ca STRING (numerele nu sunt type-stable prin serializatorul TempData).
+- CAM/Clinic: exclus explicit (nu există interpretare Demo la CAM).
+- Chei noi Loc.cs × 7 limbi: CreditsDemoUnlockedEmailSubject/EmailIntro/EmailArchiveFmt/BannerTitle/BannerBody/BannerOthersFmt/BannerButton.
+- Validare: `dotnet build` 0 erori / 0 warning-uri. E2E NEtestat local (necesită SQL Server + SMTP de pe mașina userului) → de testat de user: cumpărare primul pachet cu un cont care are cel puțin un raport Demo.

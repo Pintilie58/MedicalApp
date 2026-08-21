@@ -4,6 +4,8 @@ using MedicalApp.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using System.Globalization;
+using System.Text.Json;
 
 namespace MedicalApp.Controllers
 {
@@ -13,6 +15,7 @@ namespace MedicalApp.Controllers
         private readonly IEmailService _emailService;
         private readonly AdminSettings _adminSettings;
         private readonly ICamFileStore _camFileStore;
+        private readonly PdfReportGenerator _pdfGenerator;
         private readonly ILogger<CreditsController> _logger;
 
         public CreditsController(
@@ -20,12 +23,14 @@ namespace MedicalApp.Controllers
             IEmailService emailService,
             IOptions<AdminSettings> adminOptions,
             ICamFileStore camFileStore,
+            PdfReportGenerator pdfGenerator,
             ILogger<CreditsController> logger)
         {
             _db = db;
             _emailService = emailService;
             _adminSettings = adminOptions.Value;
             _camFileStore = camFileStore;
+            _pdfGenerator = pdfGenerator;
             _logger = logger;
         }
 
@@ -95,6 +100,10 @@ namespace MedicalApp.Controllers
                 return RedirectToAction("Index", "Home");
             }
 
+            // Evaluated BEFORE the Purchase row below is inserted: the freemium
+            // ("DEMO") report is unlocked+emailed only on the very FIRST purchase.
+            bool isFirstPurchase = !await _db.Purchases.AnyAsync(p => p.UserEmail == user.Email);
+
             // ---- SIMULATED PAYMENT (always succeeds) ----
             // TODO: replace with real payment provider (Netopia/Stripe/PayPal).
             user.Credite += selected.Credits;
@@ -147,6 +156,33 @@ namespace MedicalApp.Controllers
                 }
             }
 
+            // ---- FIRST-PURCHASE PERK: unlock the DEMO report and email it in full ----
+            // B2C only: CAM clinics never receive freemium reports, so there is
+            // nothing to unlock for them. Never blocks the purchase on failure.
+            if (isFirstPurchase &&
+                !string.Equals(user.UserType, "Clinic", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var unlocked = await TrySendUnlockedDemoReportAsync(user);
+                    if (unlocked != null)
+                    {
+                        TempData["DemoUnlockedHistoryId"] = unlocked.Value.historyId.ToString();
+                        TempData["DemoUnlockedOtherCount"] = unlocked.Value.otherUnlockedCount.ToString();
+                        _logger.LogInformation(
+                            "Demo unlock: emailed full report id={Id} to {Email} after first purchase ({Others} other reports unlocked).",
+                            unlocked.Value.historyId, user.Email, unlocked.Value.otherUnlockedCount);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex,
+                        "Demo unlock email failed after first purchase by {Email}. Purchase is safe; " +
+                        "the report is still downloadable unblurred from the archive.",
+                        user.Email);
+                }
+            }
+
             // ---- Notify all admins by email (non-blocking: failure does NOT break the purchase) ----
             try
             {
@@ -169,6 +205,95 @@ namespace MedicalApp.Controllers
                 return RedirectToAction("Index", "Dashboard", new { area = "CAM" });
 
             return RedirectToAction("Dashboard", "Account");
+        }
+
+        /// <summary>
+        /// First-purchase perk: regenerates the user's most recent freemium ("DEMO")
+        /// report WITHOUT blur and emails it as an attachment, so paying delivers the
+        /// full report immediately instead of making the user hunt for it. Older demo
+        /// reports are only mentioned (with an Archive link) — they are already
+        /// unblurred on download because the gate is <c>user.Credite == 0</c>.
+        /// Returns the unlocked report id + how many other reports got unlocked,
+        /// or <c>null</c> when there was nothing to unlock.
+        /// </summary>
+        private async Task<(int historyId, int otherUnlockedCount)?> TrySendUnlockedDemoReportAsync(User user)
+        {
+            var demoReports = await _db.InterpretationHistories.AsNoTracking()
+                .Where(h => h.UserEmail == user.Email
+                            && h.Status == "success"
+                            && h.RawJsonResult != null)
+                .OrderByDescending(h => h.CreatedAt)
+                .Select(h => new { h.Id, h.CreatedAt, h.Language, h.RawJsonResult })
+                .ToListAsync();
+
+            if (demoReports.Count == 0) return null;
+
+            var latest = demoReports[0];
+            var result = JsonSerializer.Deserialize<InterpretationResult>(latest.RawJsonResult!,
+                new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    AllowTrailingCommas = true,
+                    ReadCommentHandling = JsonCommentHandling.Skip
+                });
+            if (result == null) return null;
+
+            var lang = string.IsNullOrWhiteSpace(latest.Language)
+                ? CultureInfo.CurrentUICulture.TwoLetterISOLanguageName
+                : latest.Language.Split('-')[0].ToLowerInvariant();
+
+            // The report body was written in `lang`, so its PDF labels must match.
+            // ForCurrentUi() reads the ambient culture — swap it for this call only
+            // (same pattern as CamBatchService.RunAsync).
+            var previousUiCulture = CultureInfo.CurrentUICulture;
+            byte[] pdfBytes;
+            try
+            {
+                try
+                {
+                    CultureInfo.CurrentUICulture =
+                        new CultureInfo(SupportedLanguagesConfig.GetCultureCode(lang));
+                }
+                catch (CultureNotFoundException)
+                {
+                    // Culture not installed on this machine — Loc.T falls back to English.
+                }
+
+                pdfBytes = _pdfGenerator.Generate(result, LocalizedLabels.ForCurrentUi(), isFreemium: false);
+            }
+            finally
+            {
+                CultureInfo.CurrentUICulture = previousUiCulture;
+            }
+
+            var otherCount = demoReports.Count - 1;
+            var archiveUrl = Url.Action("Index", "Profiles", null, Request.Scheme) ?? "";
+            var intro = string.Format(Loc.T("CreditsDemoUnlockedEmailIntro", lang),
+                latest.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm"));
+            var archiveNote = otherCount > 0
+                ? $"<p>{string.Format(Loc.T("CreditsDemoUnlockedEmailArchiveFmt", lang), otherCount, archiveUrl)}</p>"
+                : "";
+
+            var htmlBody = $@"
+<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
+    <h2 style='color: #0d47a1;'>MyMedicalApp.NET</h2>
+    <p>{Loc.T("EmailGreeting", lang)}</p>
+    <p style='font-size: 1.05em;'>{intro}</p>
+    {archiveNote}
+    <p style='font-style: italic; color: #0d47a1;'>{Loc.T("Tagline", lang)}</p>
+    <hr style='border: none; border-top: 1px solid #dee2e6; margin: 20px 0;' />
+    <p style='color: #6c757d; font-size: 0.9em;'>{Loc.T("EmailRegards", lang)}</p>
+    <p style='color: #0d47a1; font-weight: bold;'>www.mymedicalapp.net</p>
+</div>";
+
+            await _emailService.SendEmailWithAttachmentAsync(
+                user.Email,
+                Loc.T("CreditsDemoUnlockedEmailSubject", lang),
+                htmlBody,
+                pdfBytes,
+                $"MedicalApp_{latest.CreatedAt:yyyyMMdd_HHmmss}_report.pdf");
+
+            return (latest.Id, otherCount);
         }
 
         /// <summary>
