@@ -26,6 +26,10 @@ namespace MedicalApp.Services
         private const string BlurRowBackground = "#f5f6f7"; // subtle background tint
         private const string WatermarkColor = "#eef0f2";   // very light gray "DEMO"
 
+        // Freemium call-to-action: clickable "unlock for FREE" buttons inside the PDF.
+        private const string CtaOrange = "#e65100";
+        private const string BuyCreditsUrl = "https://www.mymedicalapp.net/Credits/Buy";
+
         static PdfReportGenerator()
         {
             // QuestPDF Community license is free for personal use and companies
@@ -112,7 +116,17 @@ namespace MedicalApp.Services
                                 .FontSize(11).Bold().FontColor("#7A5700");
                             b.Item().PaddingTop(2).Text(labels.FreemiumBannerBody)
                                 .FontSize(9).FontColor("#7A5700");
+                            b.Item().PaddingTop(6).Text(t =>
+                            {
+                                t.Span(labels.FreemiumAttentionWord + " ")
+                                    .FontSize(11).Bold().FontColor(AccentRed);
+                                t.Span("- ").FontSize(10).FontColor("#7A5700");
+                                AppendHighlighted(t, labels.FreemiumAttentionLine,
+                                    labels.FreemiumFreeWord, 10, "#7A5700");
+                            });
                         });
+
+                    col.Item().Element(e => UnlockButton(e, labels));
                 }
 
                 // Opening tagline
@@ -163,6 +177,8 @@ namespace MedicalApp.Services
                 {
                     col.Item().Element(e => Section(e, labels.KeyResults));
                     col.Item().Element(e => KeyResultsTable(e, r.KeyResults, labels, isFreemium));
+                    if (isFreemium)
+                        col.Item().Element(e => UnlockButton(e, labels));
                 }
 
                 // Abnormal findings — list, intercalated blur in freemium
@@ -255,9 +271,11 @@ namespace MedicalApp.Services
                         .Padding(10).Column(b =>
                         {
                             b.Item().Text(labels.FreemiumCtaTitle)
-                                .FontSize(11).Bold().FontColor("#1B5E20");
-                            b.Item().PaddingTop(2).Text(labels.FreemiumCtaBody)
-                                .FontSize(9).FontColor("#1B5E20");
+                                .FontSize(12).Bold().FontColor("#1B5E20");
+                            b.Item().PaddingTop(3).Text(t =>
+                                AppendHighlighted(t, labels.FreemiumCtaBody,
+                                    labels.FreemiumFreeWord, 10, "#1B5E20"));
+                            b.Item().Element(e => UnlockButton(e, labels));
                         });
                 }
             });
@@ -293,6 +311,58 @@ namespace MedicalApp.Services
                         .FontSize(7).Italic().FontColor(MutedText);
                 }
             });
+        }
+
+        // -------------------- Freemium CTA helpers --------------------
+
+        /// <summary>
+        /// Clickable orange button that opens the credit-purchase page. Rendered
+        /// 3x in a freemium report (top, after the results table, bottom) so the
+        /// reader always has the "unlock for FREE" action one tap away.
+        /// </summary>
+        private static void UnlockButton(IContainer e, LocalizedLabels labels)
+        {
+            e.PaddingTop(8).AlignCenter()
+                .Hyperlink(BuyCreditsUrl)
+                .Background(CtaOrange)
+                .PaddingVertical(8).PaddingHorizontal(18)
+                .Text(labels.FreemiumUnlockButton)
+                .FontSize(11).Bold().FontColor(Colors.White);
+        }
+
+        /// <summary>
+        /// Writes <paramref name="text"/> into a text descriptor, painting every
+        /// occurrence of <paramref name="word"/> (e.g. "GRATUIT" / "FREE") in bold red.
+        /// </summary>
+        private static void AppendHighlighted(TextDescriptor t, string text, string word,
+            float fontSize, string baseColor)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return;
+
+            if (string.IsNullOrWhiteSpace(word))
+            {
+                t.Span(text).FontSize(fontSize).FontColor(baseColor);
+                return;
+            }
+
+            int cursor = 0;
+            while (cursor < text.Length)
+            {
+                int hit = text.IndexOf(word, cursor, StringComparison.OrdinalIgnoreCase);
+                if (hit < 0)
+                {
+                    t.Span(text[cursor..]).FontSize(fontSize).FontColor(baseColor);
+                    break;
+                }
+
+                if (hit > cursor)
+                    t.Span(text[cursor..hit]).FontSize(fontSize).FontColor(baseColor);
+
+                t.Span(text.Substring(hit, word.Length))
+                    .FontSize(fontSize).Bold().FontColor(AccentRed);
+
+                cursor = hit + word.Length;
+            }
         }
 
         // -------------------- Helper parts --------------------
@@ -642,6 +712,10 @@ namespace MedicalApp.Services
         public string FreemiumLockedLabel { get; set; } = "";
         public string FreemiumCtaTitle { get; set; } = "";
         public string FreemiumCtaBody { get; set; } = "";
+        public string FreemiumAttentionWord { get; set; } = "";
+        public string FreemiumAttentionLine { get; set; } = "";
+        public string FreemiumFreeWord { get; set; } = "";
+        public string FreemiumUnlockButton { get; set; } = "";
 
         public string ProcessingMode { get; set; } = "";
 
@@ -679,7 +753,11 @@ namespace MedicalApp.Services
             FreemiumWatermarkText = Loc.T("PdfFreemiumWatermark"),
             FreemiumLockedLabel = Loc.T("PdfFreemiumLockedLabel"),
             FreemiumCtaTitle = Loc.T("PdfFreemiumCtaTitle"),
-            FreemiumCtaBody = Loc.T("PdfFreemiumCtaBody")
+            FreemiumCtaBody = Loc.T("PdfFreemiumCtaBody"),
+            FreemiumAttentionWord = Loc.T("PdfFreemiumAttentionWord"),
+            FreemiumAttentionLine = Loc.T("PdfFreemiumAttentionLine"),
+            FreemiumFreeWord = Loc.T("PdfFreemiumFreeWord"),
+            FreemiumUnlockButton = Loc.T("PdfFreemiumUnlockButton")
         };
     }
 }

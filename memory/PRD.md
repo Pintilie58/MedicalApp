@@ -1010,3 +1010,14 @@ Remote-ul `github` este deja configurat ca `https://github.com/Pintilie58/Medica
 - Fix general #2 — injecție lexicală în bazinul de candidați: `rf_process.extract` (token_set_ratio, limit 10, cutoff 70) peste `STORE.names_norm` (listă nouă în load()); union cu top-K semantic — codul corect primește mereu „un loc la masă" chiar când embedding-ul ratează.
 - Teste: 56 cazuri × 2 moduri = 112/112 PASS (3 cazuri noi INR; ancora existentă 6301-6 acum accesibilă via base-alias + sinonime).
 - URMEAZĂ (aprobat de user): Sticky Mapping (C#: tabelă LoincMappingCache per clinică, amprentă = nume brut + UM + interval referință; supapă: ancorele corectează cache-ul semantic).
+
+### 2026-06 — Marketing în PDF-ul Demo: CTA „deblocare GRATUITĂ" (cerere user)
+- `PdfReportGenerator.cs`: sub bannerul cu lacătul, linie nouă „ATENȚIE! (roșu) - Cumpără orice pachet de credite pentru a debloca GRATUIT (roșu) raportul complet."
+- CTA final rescris: „Vrei raportul complet?" + „Chiar și cel mai mic pachet deblochează GRATUIT (roșu) toate secțiunile acestui raport!"
+- 3 butoane portocalii CLICABILE (hyperlink → https://www.mymedicalapp.net/Credits/Buy): sus (după banner), mijloc (după tabelul de rezultate), jos (în blocul CTA). Doar în modul freemium.
+- Helper nou `AppendHighlighted()` colorează în roșu-bold orice apariție a cuvântului „gratuit" localizat; `UnlockButton()` randează butonul.
+- Chei noi Loc.cs × 7 limbi: PdfFreemiumAttentionWord, PdfFreemiumAttentionLine, PdfFreemiumFreeWord, PdfFreemiumUnlockButton (+ PdfFreemiumCtaBody rescris).
+- Validare: `dotnet build` 0 erori / 0 warning-uri + PDF real generat și inspectat vizual pe 3 pagini; 3 hyperlink-uri confirmate în binarul PDF.
+- OBSERVAȚIE de raportat userului: emoji-ul 🔒 din titlul bannerului se randează ca pătrat gol (font fallback lipsă) — de decis dacă îl înlocuim cu text.
+- RĂMÂNE OPȚIONAL (varianta b discutată): pagină nouă în app care afișează raportul Demo pe ecran, cu butoane CTA. Momentan raportul se livrează DOAR pe email.
+- NEXT (aprobat anterior): Sticky Mapping (LoincMappingCache).
