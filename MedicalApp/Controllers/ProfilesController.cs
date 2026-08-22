@@ -185,9 +185,171 @@ namespace MedicalApp.Controllers
                 vm.IsInFreePeriod = ArchiveAccessService.IsInFreePeriod(user);
                 vm.FreeUntil = user.FreeArchiveUntil ?? user.DataC.Add(ArchiveAccessService.FreePeriod);
                 vm.FreeUsesLeftInBundle = ArchiveAccessService.FreeUsesLeftInBundle(user);
+                vm.IsFreemium = user.Credite == 0;
             }
 
             return View(vm);
+        }
+
+        // ====================================================================
+        // VIEW REPORT ON SCREEN — the in-app twin of the DEMO PDF. Keeps the
+        // freemium user inside the app (no detour through their inbox) and puts
+        // the "unlock for FREE" CTA one click away from the paywall.
+        // Paying users are redirected to the PDF: they have nothing to unlock.
+        // ====================================================================
+        [HttpGet]
+        public async Task<IActionResult> ViewReport(int id)
+        {
+            if (string.IsNullOrEmpty(CurrentEmail))
+                return RedirectToAction("Index", "Home");
+
+            var paidCredits = await _db.Users.AsNoTracking()
+                .Where(u => u.Email == CurrentEmail)
+                .Select(u => u.Credite)
+                .FirstOrDefaultAsync();
+            if (paidCredits > 0)
+                return RedirectToAction(nameof(DownloadReport), new { id });
+
+            var history = await _db.InterpretationHistories.AsNoTracking()
+                .FirstOrDefaultAsync(h => h.Id == id && h.UserEmail == CurrentEmail);
+
+            if (history == null || string.IsNullOrWhiteSpace(history.RawJsonResult))
+            {
+                TempData["ErrorMessage"] = Loc.T("ErrReportCannotBeReconstructed");
+                return RedirectToAction(nameof(Index));
+            }
+
+            InterpretationResult? result;
+            try
+            {
+                result = JsonSerializer.Deserialize<InterpretationResult>(history.RawJsonResult!,
+                    new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true,
+                        AllowTrailingCommas = true,
+                        ReadCommentHandling = JsonCommentHandling.Skip
+                    });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ViewReport: failed to deserialize RawJsonResult for history id={Id}", id);
+                TempData["ErrorMessage"] = Loc.T("ErrReportCannotBeReconstructed");
+                return RedirectToAction(nameof(Index));
+            }
+
+            if (result == null)
+            {
+                TempData["ErrorMessage"] = Loc.T("ErrReportCannotBeReconstructed");
+                return RedirectToAction(nameof(Index));
+            }
+
+            var profileName = history.ProfileId.HasValue
+                ? await _db.Profiles.AsNoTracking()
+                    .Where(p => p.Id == history.ProfileId.Value && p.UserEmail == CurrentEmail)
+                    .Select(p => p.Name)
+                    .FirstOrDefaultAsync()
+                : null;
+
+            return View(BuildReportScreen(history, result, profileName));
+        }
+
+        /// <summary>
+        /// Maps the stored interpretation onto the on-screen ViewModel, dropping the
+        /// text of every redacted item (see ReportScreenViewModel security note).
+        /// </summary>
+        private static ReportScreenViewModel BuildReportScreen(
+            InterpretationHistory history, InterpretationResult r, string? profileName)
+        {
+            var vm = new ReportScreenViewModel
+            {
+                HistoryId = history.Id,
+                ProfileId = history.ProfileId,
+                ProfileName = profileName,
+                CreatedAt = history.CreatedAt,
+                PatientInfo = r.PatientInfo,
+                Summary = r.Summary,
+                Disclaimer = r.Disclaimer
+            };
+
+            int locked = 0;
+
+            List<ReportScreenViewModel.LockableText> MapTexts(IEnumerable<string>? items)
+            {
+                var list = new List<ReportScreenViewModel.LockableText>();
+                if (items == null) return list;
+                int i = 0;
+                foreach (var raw in items.Where(x => !string.IsNullOrWhiteSpace(x)))
+                {
+                    bool isLocked = PdfReportGenerator.IsRedactedAt(i++);
+                    if (isLocked) locked++;
+                    list.Add(new ReportScreenViewModel.LockableText
+                    {
+                        Locked = isLocked,
+                        Text = isLocked ? null : raw
+                    });
+                }
+                return list;
+            }
+
+            vm.RiskFactors = MapTexts(r.RiskFactors);
+            vm.DoctorQuestions = MapTexts(r.DoctorQuestions);
+            vm.Correlations = MapTexts(SplitSentences(r.Correlations));
+            vm.Recommendations = MapTexts(SplitSentences(r.Recommendations));
+
+            if (r.KeyResults != null)
+            {
+                for (int i = 0; i < r.KeyResults.Count; i++)
+                {
+                    var k = r.KeyResults[i];
+                    bool isLocked = PdfReportGenerator.IsRedactedAt(i);
+                    if (isLocked) locked++;
+                    vm.KeyResults.Add(new ReportScreenViewModel.LockableRow
+                    {
+                        Locked = isLocked,
+                        // Panel headers are lab metadata (not PHI, no interpretive
+                        // value) — kept visible so the report keeps its structure.
+                        PanelHeader = string.IsNullOrWhiteSpace(k.PanelHeaderRaw) ? null : k.PanelHeaderRaw!.Trim(),
+                        Parameter = isLocked ? null : k.Parameter,
+                        Value = isLocked ? null : k.Value,
+                        Unit = isLocked ? null : k.Unit,
+                        ReferenceRange = isLocked ? null : k.ReferenceRange,
+                        Status = isLocked ? null : k.Status,
+                        Explanation = isLocked ? null : k.Explanation
+                    });
+                }
+            }
+
+            if (r.AbnormalFindings != null)
+            {
+                for (int i = 0; i < r.AbnormalFindings.Count; i++)
+                {
+                    var f = r.AbnormalFindings[i];
+                    bool isLocked = PdfReportGenerator.IsRedactedAt(i);
+                    if (isLocked) locked++;
+                    vm.AbnormalFindings.Add(new ReportScreenViewModel.LockableFinding
+                    {
+                        Locked = isLocked,
+                        Parameter = isLocked ? null : f.Parameter,
+                        Explanation = isLocked ? null : f.Explanation,
+                        Severity = isLocked ? null : f.Severity
+                    });
+                }
+            }
+
+            vm.LockedCount = locked;
+            return vm;
+        }
+
+        /// <summary>Splits a paragraph into sentences so they can be redacted one by
+        /// one — the same intercalated pattern the PDF uses for free text.</summary>
+        private static List<string> SplitSentences(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return new List<string>();
+            var parts = System.Text.RegularExpressions.Regex
+                .Split(text, @"(?<=[\.\!\?])\s+")
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .ToList();
+            return parts.Count == 0 ? new List<string> { text } : parts;
         }
 
         // ====================================================================

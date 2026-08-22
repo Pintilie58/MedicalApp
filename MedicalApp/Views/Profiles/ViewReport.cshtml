@@ -1,0 +1,430 @@
+@model MedicalApp.Models.ReportScreenViewModel
+@{
+    ViewData["Title"] = Loc.T("ScreenReportTitle");
+    var buyUrl = Url.Action("Buy", "Credits");
+    var freeWord = Loc.T("PdfFreemiumFreeWord");
+
+    // Highlights the localized "FREE" word in red inside an otherwise
+    // HTML-encoded string (same visual language as the DEMO PDF).
+    Func<string, string> hi = s =>
+    {
+        var enc = System.Net.WebUtility.HtmlEncode(s ?? "");
+        var encWord = System.Net.WebUtility.HtmlEncode(freeWord);
+        return string.IsNullOrWhiteSpace(freeWord)
+            ? enc
+            : enc.Replace(encWord, $"<span class=\"text-danger fw-bold\">{encWord}</span>");
+    };
+    var lockedLabel = Loc.T("PdfFreemiumLockedLabel");
+}
+
+<style>
+    .locked-bar {
+        height: .72rem;
+        border-radius: .35rem;
+        background: linear-gradient(90deg, #dfe3e8 0%, #eef1f4 100%);
+        margin: .3rem 0;
+    }
+    .locked-note {
+        font-size: .78rem;
+        color: #8a9099;
+        font-style: italic;
+    }
+    .report-section-title {
+        color: #0d47a1;
+        font-weight: 700;
+        border-bottom: 2px solid #0d47a1;
+        padding-bottom: .35rem;
+        margin: 2.2rem 0 1rem;
+        font-size: 1.1rem;
+        letter-spacing: .01em;
+    }
+    .cta-inline {
+        background: #e65100;
+        border-color: #e65100;
+        color: #fff;
+        font-weight: 700;
+        letter-spacing: .02em;
+        transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease;
+    }
+    .cta-inline:hover {
+        background: #ff6f00;
+        color: #fff;
+        transform: translateY(-2px);
+        box-shadow: 0 .5rem 1rem rgba(230, 81, 0, .3);
+    }
+    .demo-stamp {
+        letter-spacing: .35em;
+        font-weight: 800;
+        color: #e65100;
+    }
+    .report-sticky {
+        position: fixed;
+        left: 0; right: 0; bottom: 0;
+        z-index: 1030;
+        background: rgba(255, 255, 255, .97);
+        backdrop-filter: blur(8px);
+        border-top: 3px solid #e65100;
+        box-shadow: 0 -.5rem 1.25rem rgba(0, 0, 0, .12);
+    }
+</style>
+
+<div class="container py-4" style="padding-bottom:7.5rem !important;">
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
+
+            <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+                <h2 class="text-primary fw-bold mb-0" data-testid="report-screen-heading">
+                    @Loc.T("ScreenReportTitle")
+                </h2>
+                <span class="badge bg-warning text-dark demo-stamp" data-testid="report-screen-demo-badge">DEMO</span>
+                <span class="text-muted small ms-2">
+                    @Model.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")
+                    @if (!string.IsNullOrWhiteSpace(Model.ProfileName))
+                    {
+                        <text> &middot; @Model.ProfileName</text>
+                    }
+                </span>
+                @if (Model.ProfileId.HasValue)
+                {
+                    <a asp-action="History" asp-route-id="@Model.ProfileId.Value"
+                       class="btn btn-sm btn-outline-secondary ms-auto" data-testid="report-screen-back-btn">
+                        &larr; @Loc.T("ScreenReportBackToHistory")
+                    </a>
+                }
+            </div>
+
+            @* ---------- TOP: attention banner + CTA #1 ---------- *@
+            <div class="alert alert-warning border-start border-4 border-warning" data-testid="report-screen-attention">
+                <div class="fw-bold">@Loc.T("PdfFreemiumBannerTitle")</div>
+                <div class="small">@Loc.T("PdfFreemiumBannerBody")</div>
+                <div class="mt-2">
+                    <span class="text-danger fw-bold">@Loc.T("PdfFreemiumAttentionWord")</span>
+                    <span>- @Html.Raw(hi(Loc.T("PdfFreemiumAttentionLine")))</span>
+                </div>
+                <div class="small text-muted mt-2">@Loc.T("ScreenReportEmailedNote")</div>
+            </div>
+
+            <div class="text-center my-4">
+                <a href="@buyUrl" class="btn btn-lg cta-inline px-4" data-testid="report-cta-top">
+                    @Loc.T("PdfFreemiumUnlockButton")
+                </a>
+            </div>
+
+            @* ---------- Patient info (never hidden) ---------- *@
+            @if (Model.PatientInfo != null)
+            {
+                <div class="report-section-title">@Loc.T("PatientInfoSection")</div>
+                <div class="row g-2" data-testid="report-screen-patient-info">
+                    @if (!string.IsNullOrWhiteSpace(Model.PatientInfo.Name))
+                    {
+                        <div class="col-md-6"><span class="text-muted">@Loc.T("PatientName"):</span> <strong>@Model.PatientInfo.Name</strong></div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.PatientInfo.Age))
+                    {
+                        <div class="col-md-6"><span class="text-muted">@Loc.T("PatientAge"):</span> <strong>@Model.PatientInfo.Age</strong></div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.PatientInfo.Sex))
+                    {
+                        <div class="col-md-6"><span class="text-muted">@Loc.T("PatientSex"):</span> <strong>@Model.PatientInfo.Sex</strong></div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.PatientInfo.DateTaken))
+                    {
+                        <div class="col-md-6"><span class="text-muted">@Loc.T("DateTaken"):</span> <strong>@Model.PatientInfo.DateTaken</strong></div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.PatientInfo.Laboratory))
+                    {
+                        <div class="col-md-6"><span class="text-muted">@Loc.T("Laboratory"):</span> <strong>@Model.PatientInfo.Laboratory</strong></div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.PatientInfo.DoctorRequesting))
+                    {
+                        <div class="col-md-6"><span class="text-muted">@Loc.T("DoctorRequesting"):</span> <strong>@Model.PatientInfo.DoctorRequesting</strong></div>
+                    }
+                </div>
+            }
+
+            @* ---------- Summary: the teaser, always fully visible ---------- *@
+            @if (!string.IsNullOrWhiteSpace(Model.Summary))
+            {
+                <div class="report-section-title">@Loc.T("SummarySection")</div>
+                <p data-testid="report-screen-summary">@Model.Summary</p>
+            }
+
+            @* ---------- Risk factors ---------- *@
+            @if (Model.RiskFactors.Count > 0)
+            {
+                <div class="report-section-title">@Loc.T("RiskFactorsSection")</div>
+                <ul class="list-unstyled" data-testid="report-screen-risk-factors">
+                    @foreach (var rf in Model.RiskFactors)
+                    {
+                        <li class="mb-2 d-flex gap-2">
+                            <span class="@(rf.Locked ? "text-secondary" : "text-warning") fw-bold">&#9888;</span>
+                            <span class="flex-grow-1">
+                                @if (rf.Locked)
+                                {
+                                    <div class="locked-bar" style="width:88%"></div>
+                                    <div class="locked-bar" style="width:64%"></div>
+                                    <div class="locked-note">&#128274; @lockedLabel</div>
+                                }
+                                else
+                                {
+                                    @rf.Text
+                                }
+                            </span>
+                        </li>
+                    }
+                </ul>
+                <div class="alert alert-light border small fst-italic text-muted py-2">
+                    @Loc.T("RiskFactorsDisclaimer")
+                </div>
+            }
+
+            @* ---------- Key results table ---------- *@
+            @if (Model.KeyResults.Count > 0)
+            {
+                <div class="report-section-title">@Loc.T("KeyResultsSection")</div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle" data-testid="report-screen-results-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th>@Loc.T("Parameter")</th>
+                                <th class="text-end">@Loc.T("ValueLabel")</th>
+                                <th>@Loc.T("ReferenceRange")</th>
+                                <th class="text-center">@Loc.T("Status")</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{
+                                string? lastPanel = null;
+                            }
+                            @foreach (var row in Model.KeyResults)
+                            {
+                                if (!string.IsNullOrWhiteSpace(row.PanelHeader) && row.PanelHeader != lastPanel)
+                                {
+                                    lastPanel = row.PanelHeader;
+                                    <tr class="table-light">
+                                        <td colspan="4" class="fst-italic text-primary small">@row.PanelHeader</td>
+                                    </tr>
+                                }
+
+                                if (row.Locked)
+                                {
+                                    <tr data-testid="report-screen-row-locked">
+                                        <td>
+                                            <div class="locked-bar" style="width:75%"></div>
+                                            <div class="locked-note">&#128274; @lockedLabel</div>
+                                        </td>
+                                        <td><div class="locked-bar" style="width:70%"></div></td>
+                                        <td><div class="locked-bar" style="width:60%"></div></td>
+                                        <td class="text-center text-secondary">?</td>
+                                    </tr>
+                                }
+                                else
+                                {
+                                    var badge = row.Status switch
+                                    {
+                                        "high" => ("bg-danger", "&#8593;"),
+                                        "low" => ("bg-primary", "&#8595;"),
+                                        "borderline" => ("bg-warning text-dark", "&#8776;"),
+                                        _ => ("bg-success", "&#10003;")
+                                    };
+                                    <tr>
+                                        <td>
+                                            <div class="fw-semibold">@row.Parameter</div>
+                                            @if (!string.IsNullOrWhiteSpace(row.Explanation))
+                                            {
+                                                <div class="small text-muted">@row.Explanation</div>
+                                            }
+                                        </td>
+                                        <td class="text-end text-nowrap">
+                                            <strong>@row.Value</strong>
+                                            <span class="text-muted small">@row.Unit</span>
+                                        </td>
+                                        <td class="text-muted small">@row.ReferenceRange</td>
+                                        <td class="text-center">
+                                            <span class="badge @badge.Item1">@Html.Raw(badge.Item2)</span>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @* ---------- MIDDLE: CTA #2 ---------- *@
+                <div class="text-center my-4">
+                    <a href="@buyUrl" class="btn btn-lg cta-inline px-4" data-testid="report-cta-middle">
+                        @Loc.T("PdfFreemiumUnlockButton")
+                    </a>
+                </div>
+            }
+
+            @* ---------- Abnormal findings ---------- *@
+            @if (Model.AbnormalFindings.Count > 0)
+            {
+                <div class="report-section-title">@Loc.T("AbnormalFindingsSection")</div>
+                <div data-testid="report-screen-abnormal-findings">
+                    @foreach (var f in Model.AbnormalFindings)
+                    {
+                        var borderClass = f.Locked
+                            ? "border-secondary"
+                            : f.Severity switch
+                            {
+                                "severe" => "border-danger",
+                                "moderate" => "border-warning",
+                                _ => "border-info"
+                            };
+                        <div class="border-start border-4 @borderClass ps-3 mb-3">
+                            @if (f.Locked)
+                            {
+                                <div class="locked-bar" style="width:45%"></div>
+                                <div class="locked-bar" style="width:92%"></div>
+                                <div class="locked-note">&#128274; @lockedLabel</div>
+                            }
+                            else
+                            {
+                                <div class="fw-semibold text-primary">@f.Parameter</div>
+                                <div>@f.Explanation</div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ---------- Correlations ---------- *@
+            @if (Model.Correlations.Count > 0)
+            {
+                <div class="report-section-title">@Loc.T("CorrelationsSection")</div>
+                <div data-testid="report-screen-correlations">
+                    @foreach (var s in Model.Correlations)
+                    {
+                        if (s.Locked)
+                        {
+                            <div class="mb-2">
+                                <div class="locked-bar" style="width:96%"></div>
+                                <div class="locked-bar" style="width:78%"></div>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="mb-2">@s.Text</p>
+                        }
+                    }
+                    @if (Model.Correlations.Any(x => x.Locked))
+                    {
+                        <div class="locked-note">&#128274; @lockedLabel</div>
+                    }
+                </div>
+            }
+
+            @* ---------- Recommendations ---------- *@
+            @if (Model.Recommendations.Count > 0)
+            {
+                <div class="report-section-title">@Loc.T("RecommendationsSection")</div>
+                <div data-testid="report-screen-recommendations">
+                    @foreach (var s in Model.Recommendations)
+                    {
+                        if (s.Locked)
+                        {
+                            <div class="mb-2">
+                                <div class="locked-bar" style="width:96%"></div>
+                                <div class="locked-bar" style="width:70%"></div>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="mb-2">@s.Text</p>
+                        }
+                    }
+                    @if (Model.Recommendations.Any(x => x.Locked))
+                    {
+                        <div class="locked-note">&#128274; @lockedLabel</div>
+                    }
+                </div>
+            }
+
+            @* ---------- Doctor questions ---------- *@
+            @if (Model.DoctorQuestions.Count > 0)
+            {
+                <div class="report-section-title">@Loc.T("DoctorQuestionsSection")</div>
+                <div data-testid="report-screen-doctor-questions">
+                    @{ int qIndex = 0; }
+                    @foreach (var q in Model.DoctorQuestions)
+                    {
+                        qIndex++;
+                        <div class="mb-2 d-flex gap-2">
+                            <span class="@(q.Locked ? "text-secondary" : "text-warning") fw-bold">@(qIndex).</span>
+                            <span class="flex-grow-1">
+                                @if (q.Locked)
+                                {
+                                    <div class="locked-bar" style="width:85%"></div>
+                                    <div class="locked-bar" style="width:52%"></div>
+                                    <div class="locked-note">&#128274; @lockedLabel</div>
+                                }
+                                else
+                                {
+                                    @q.Text
+                                }
+                            </span>
+                        </div>
+                    }
+                </div>
+                <div class="alert alert-light border small fst-italic text-muted py-2">
+                    @Loc.T("DoctorQuestionsDisclaimer")
+                </div>
+            }
+
+            @* ---------- Disclaimer ---------- *@
+            @if (!string.IsNullOrWhiteSpace(Model.Disclaimer))
+            {
+                <div class="report-section-title">@Loc.T("DisclaimerSection")</div>
+                <p class="small fst-italic text-muted">@Model.Disclaimer</p>
+            }
+
+            @* ---------- BOTTOM: final CTA #3 ---------- *@
+            <div class="alert alert-success border-start border-4 border-success mt-5" data-testid="report-screen-final-cta">
+                <div class="fw-bold fs-5">@Loc.T("PdfFreemiumCtaTitle")</div>
+                <div class="mt-1">@Html.Raw(hi(Loc.T("PdfFreemiumCtaBody")))</div>
+                <div class="text-center mt-3">
+                    <a href="@buyUrl" class="btn btn-lg cta-inline px-4" data-testid="report-cta-bottom">
+                        @Loc.T("PdfFreemiumUnlockButton")
+                    </a>
+                </div>
+            </div>
+
+            <p class="text-center fst-italic text-primary mt-4">@Loc.T("Tagline")</p>
+        </div>
+    </div>
+</div>
+
+@* ---------- Sticky unlock bar: always one tap from the paywall ---------- *@
+<div class="report-sticky" data-testid="report-sticky-bar">
+    <div class="container py-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div class="small">
+            <span class="text-danger fw-bold">@Loc.T("PdfFreemiumAttentionWord")</span>
+            <span class="ms-1">@string.Format(Loc.T("ScreenReportLockedSectionsFmt"), Model.LockedCount)</span>
+        </div>
+        <a href="@buyUrl" class="btn cta-inline" data-testid="report-cta-sticky">
+            @Loc.T("PdfFreemiumUnlockButton")
+        </a>
+    </div>
+</div>
+
+@* Same finale jingle the Dashboard plays — the freemium user now lands here
+   instead, so the audio cue has to follow them. TempData is single-shot. *@
+@if (TempData["PlayInterpretationSuccessSound"] as string == "1")
+{
+    <script data-testid="interpretation-finish-sound-trigger">
+        (function () {
+            function fire() {
+                if (window.DoctorMascot && typeof window.DoctorMascot.playInterpretationFinishSound === 'function') {
+                    try { window.DoctorMascot.playInterpretationFinishSound(); } catch (e) { /* ignore */ }
+                }
+            }
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function () { setTimeout(fire, 200); });
+            } else {
+                setTimeout(fire, 200);
+            }
+        })();
+    </script>
+}

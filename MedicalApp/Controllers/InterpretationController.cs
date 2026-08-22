@@ -801,7 +801,7 @@ namespace MedicalApp.Controllers
             }
             await _db.SaveChangesAsync();
 
-            await SaveHistory(user.Email, originalFileName, languageCode, "success", null, 1, inputTokens, outputTokens, profile.Id, rawGptResponse, pdfHash,
+            var savedHistoryId = await SaveHistory(user.Email, originalFileName, languageCode, "success", null, 1, inputTokens, outputTokens, profile.Id, rawGptResponse, pdfHash,
                 modelUsed: useGemini ? (currentModelOverride ?? _geminiSettings.Model) : null);
 
             // OVERRIDE on force re-interpret: the user explicitly paid for a fresh
@@ -830,21 +830,30 @@ namespace MedicalApp.Controllers
                 }
             }
 
-            TempData["SuccessMessage"] = Loc.T("InterpretationEmailedSuccess");
-            // Signal to the Dashboard (redirect destination) that a B2C
-            // interpretation just finished successfully → the page will play
+            // Signal to the redirect destination (Dashboard or the on-screen report)
+            // that a B2C interpretation just finished successfully → the page plays
             // the longer ~2.5 s finale jingle via
-            // window.DoctorMascot.playInterpretationFinishSound(). Cleared
-            // after one page render because TempData is single-shot.
+            // window.DoctorMascot.playInterpretationFinishSound(). Cleared after one
+            // page render because TempData is single-shot.
             TempData["PlayInterpretationSuccessSound"] = "1";
+
+            // Freemium users land on the on-screen DEMO report instead of the
+            // Dashboard: they see the result immediately, inside the app, with the
+            // "unlock for FREE" CTAs one click from the paywall. The PDF email was
+            // already sent above, so nothing is lost. The report screen states that
+            // the email went out, so no extra SuccessMessage is needed here.
+            if (user.Credite == 0)
+                return RedirectToAction("ViewReport", "Profiles", new { id = savedHistoryId });
+
+            TempData["SuccessMessage"] = Loc.T("InterpretationEmailedSuccess");
             return RedirectToAction("Dashboard", "Account");
         }
 
-        private async Task SaveHistory(string email, string? file, string? lang, string status,
+        private async Task<int> SaveHistory(string email, string? file, string? lang, string status,
             string? errorMsg, int credits, int? inTok, int? outTok, int? profileId = null,
             string? rawJson = null, string? pdfSha256 = null, string? modelUsed = null)
         {
-            _db.InterpretationHistories.Add(new InterpretationHistory
+            var entity = new InterpretationHistory
             {
                 UserEmail = email,
                 OriginalFileName = file,
@@ -859,7 +868,8 @@ namespace MedicalApp.Controllers
                 PdfSha256 = pdfSha256,
                 ModelUsed = modelUsed,
                 CreatedAt = DateTime.UtcNow
-            });
+            };
+            _db.InterpretationHistories.Add(entity);
             await _db.SaveChangesAsync();
 
             // Also record into the dedicated AiUsageLogs table so the Admin
@@ -881,6 +891,8 @@ namespace MedicalApp.Controllers
                     status: status,
                     errorMessage: errorMsg);
             }
+
+            return entity.Id;
         }
 
         /// <summary>Returns the hex SHA-256 (64 lowercase chars) of the PDF bytes.</summary>

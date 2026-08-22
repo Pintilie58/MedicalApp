@@ -67,6 +67,11 @@ namespace MedicalApp.Models
         /// <summary>Remaining free uses in the current 3-use bundle (only meaningful when IsInFreePeriod == false).</summary>
         public int FreeUsesLeftInBundle { get; set; }
 
+        /// <summary>True while the user has never bought a paid pack — only then is
+        /// the on-screen ("Vezi pe ecran") DEMO report offered, since paying users
+        /// have nothing to unlock and get the full PDF directly.</summary>
+        public bool IsFreemium { get; set; }
+
         public class HistoryRow
         {
             public int Id { get; set; }

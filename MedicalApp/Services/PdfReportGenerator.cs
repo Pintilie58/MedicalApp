@@ -608,6 +608,13 @@ namespace MedicalApp.Services
         private static bool BlurAt(int index) => (index % 5) is 1 or 2 or 4;
 
         /// <summary>
+        /// Single source of truth for the freemium redaction pattern (~60% hidden),
+        /// exposed so the on-screen report (ReportScreenViewModel) hides exactly the
+        /// same items as the PDF and the two can never drift apart.
+        /// </summary>
+        public static bool IsRedactedAt(int index) => BlurAt(index);
+
+        /// <summary>
         /// Replaces visible text characters with the Unicode full block "█"
         /// using approximately the same width as the original, so the line
         /// still looks like a real text row.

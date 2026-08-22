@@ -1031,3 +1031,13 @@ Remote-ul `github` este deja configurat ca `https://github.com/Pintilie58/Medica
 - CAM/Clinic: exclus explicit (nu există interpretare Demo la CAM).
 - Chei noi Loc.cs × 7 limbi: CreditsDemoUnlockedEmailSubject/EmailIntro/EmailArchiveFmt/BannerTitle/BannerBody/BannerOthersFmt/BannerButton.
 - Validare: `dotnet build` 0 erori / 0 warning-uri. E2E NEtestat local (necesită SQL Server + SMTP de pe mașina userului) → de testat de user: cumpărare primul pachet cu un cont care are cel puțin un raport Demo.
+
+### 2026-06 — Ecran „Raportul tău" în aplicație (funnel in-app) — A+B+sticky, aprobat de user
+- NOU `Views/Profiles/ViewReport.cshtml` + acțiune `ProfilesController.ViewReport(int id)` + `Models/ReportScreenViewModel.cs`.
+- SECURITATE: redactarea se face SERVER-SIDE (textul blocat nu ajunge deloc în HTML) — fără CSS blur, deci nu poate fi citit cu F12/View Source. Pattern-ul de redactare e unul singur pentru PDF și ecran: `PdfReportGenerator.IsRedactedAt(index)` (expus public din BlurAt, `index % 5 is 1 or 2 or 4` = ~60%).
+- 4 CTA: sus (sub bannerul ATENȚIE), mijloc (după tabelul de rezultate), jos (blocul verde) + BARĂ STICKY permanentă jos cu „{N} elemente din acest raport sunt încă blocate" → toate spre `/Credits/Buy`.
+- Redirect după interpretare: freemium (`user.Credite == 0`) → `Profiles/ViewReport`; plătitor → Dashboard (neschimbat). Jingle-ul mascotei mutat să funcționeze pe ambele destinații. `SaveHistory` returnează acum `int` (Id) pentru redirect.
+- Arhivă (`Views/Profiles/History.cshtml`): buton nou „Vezi pe ecran" afișat DOAR pentru freemium (`ProfileHistoryViewModel.IsFreemium`). Plătitorii merg direct la PDF (și `ViewReport` îi redirectează la `DownloadReport` dacă au credite).
+- Chei noi Loc.cs × 7 limbi: ScreenReportTitle, ScreenReportEmailedNote, ScreenReportLockedSectionsFmt, ScreenReportBackToHistory, ScreenReportViewOnScreenBtn (restul refolosite din PdfFreemium*).
+- Validare: `dotnet build` 0 erori/0 warning-uri + pagina randată REAL într-un host de probă (/tmp/webprobe, ProjectReference la MedicalApp + reflection pe BuildReportScreen) și inspectată pe 3 screenshot-uri; corectate 2 probleme de layout (diacritice la titluri, marker-ul de listă la întrebările blocate).
+- data-testid: report-screen-heading, report-screen-demo-badge, report-cta-top/middle/bottom/sticky, report-screen-results-table, report-screen-row-locked, report-sticky-bar, btn-view-report-{id}.
