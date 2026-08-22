@@ -1041,3 +1041,15 @@ Remote-ul `github` este deja configurat ca `https://github.com/Pintilie58/Medica
 - Chei noi Loc.cs × 7 limbi: ScreenReportTitle, ScreenReportEmailedNote, ScreenReportLockedSectionsFmt, ScreenReportBackToHistory, ScreenReportViewOnScreenBtn (restul refolosite din PdfFreemium*).
 - Validare: `dotnet build` 0 erori/0 warning-uri + pagina randată REAL într-un host de probă (/tmp/webprobe, ProjectReference la MedicalApp + reflection pe BuildReportScreen) și inspectată pe 3 screenshot-uri; corectate 2 probleme de layout (diacritice la titluri, marker-ul de listă la întrebările blocate).
 - data-testid: report-screen-heading, report-screen-demo-badge, report-cta-top/middle/bottom/sticky, report-screen-results-table, report-screen-row-locked, report-sticky-bar, btn-view-report-{id}.
+
+### 2026-06 — Ecranul Demo „bibilit" (7 cerințe user, toate livrate)
+1. Paritate cu raportul de interpretare: ecranul refolosește paleta, săgețile și structura PDF-ului (StatusArrow → #c62828 high / #1565c0 low / #f9a825 borderline / #2e7d32 normal).
+2. Header de brand identic PDF-ului: „MyMedicalApp.NET" + Loc.T("BrandSubtitle") + www.mymedicalapp.net + linie albastră.
+3. Valoarea separată de intervalul de referință: `.col-value{padding-right:2.25rem}` + `.col-ref{padding-left:2.25rem}` (0.9rem pe mobil).
+4. Valoarea colorată: roșu peste interval, albastru sub, galben borderline, verde normal.
+5. `AnalyteLineRaw` (line-context: „-Ser - Metoda fotometrica (Cobas c501)") afișat italic sub numele analitei.
+6. Linie LOINC: cod + Long Common Name + punct colorat (anchor=verde/semantic=albastru, tooltip din LoincSourceBadge) + procent pentru semantic; legendă sub tabel.
+7. Extra „ochios": pagina arată ca un document (card alb cu umbră pe fundal gradient), watermark DEMO diagonal în CSS, card de progres „Vezi 3 din 6 rezultate" + bară verde, hover pe rânduri, antete de panel multi-nivel (split pe " | "), culori pe severitate la findings, footer cu tagline + URL.
+- Cheie nouă Loc.cs × 7 limbi: ScreenReportVisibleResultsFmt. VM extins: AnalyteLine, LoincCode/LongName/Source/Score, VisibleResultsCount, TotalResultsCount, HasLoincCodes.
+- Validare: aplicația a rulat în host-ul de probă (/tmp/webprobe) și pagina a fost inspectată pe 3 screenshot-uri cu date LOINC reale (718-7, 13457-7, 2498-4).
+- ATENȚIE fork viitor: SDK-ul .NET nu persistă în container (se șterge /opt și /tmp la restart) → reinstalare cu `curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 9.0 --install-dir /opt/dotnet` (~2 min) înainte de build/probe.

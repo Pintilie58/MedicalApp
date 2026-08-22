@@ -1,8 +1,10 @@
 @model MedicalApp.Models.ReportScreenViewModel
+@using MedicalApp.Services
 @{
     ViewData["Title"] = Loc.T("ScreenReportTitle");
     var buyUrl = Url.Action("Buy", "Credits");
     var freeWord = Loc.T("PdfFreemiumFreeWord");
+    var lockedLabel = Loc.T("PdfFreemiumLockedLabel");
 
     // Highlights the localized "FREE" word in red inside an otherwise
     // HTML-encoded string (same visual language as the DEMO PDF).
@@ -14,30 +16,115 @@
             ? enc
             : enc.Replace(encWord, $"<span class=\"text-danger fw-bold\">{encWord}</span>");
     };
-    var lockedLabel = Loc.T("PdfFreemiumLockedLabel");
+
+    // Same palette and arrows the PDF uses (PdfReportGenerator.StatusArrow),
+    // so the on-screen report and the PDF read as one single document.
+    Func<string?, (string Color, string Arrow, string Badge)> st = s => (s ?? "").ToLowerInvariant() switch
+    {
+        "high" => ("#c62828", "&#8593;", "bg-danger"),
+        "low" => ("#1565c0", "&#8595;", "bg-primary"),
+        "borderline" => ("#f9a825", "&#8776;", "bg-warning text-dark"),
+        _ => ("#2e7d32", "&#10003;", "bg-success")
+    };
+
+    var visiblePct = Model.TotalResultsCount > 0
+        ? (int)Math.Round(100.0 * Model.VisibleResultsCount / Model.TotalResultsCount)
+        : 0;
 }
 
 <style>
+    .report-stage {
+        background: linear-gradient(180deg, #eef1f5 0%, #e7ebf0 100%);
+        padding: 2.5rem 0 8rem;
+    }
+    .report-paper {
+        position: relative;
+        background: #fff;
+        border-radius: .75rem;
+        box-shadow: 0 1.5rem 3rem rgba(13, 71, 161, .10), 0 .25rem .5rem rgba(0, 0, 0, .05);
+        padding: 2.75rem 3rem 3rem;
+        overflow: hidden;
+    }
+    /* Faint diagonal DEMO watermark — mirrors the PDF page background. */
+    .report-paper::before {
+        content: "DEMO";
+        position: absolute;
+        top: 38%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-28deg);
+        font-size: 11rem;
+        font-weight: 800;
+        letter-spacing: .1em;
+        color: #eff1f4;
+        pointer-events: none;
+        user-select: none;
+        z-index: 0;
+    }
+    .report-paper > * { position: relative; z-index: 1; }
+
+    .brand-head { text-align: center; }
+    .brand-head .brand-name {
+        color: #0d47a1;
+        font-weight: 800;
+        font-size: 1.85rem;
+        letter-spacing: -.01em;
+    }
+    .brand-head .brand-sub { color: #6c757d; font-size: .95rem; }
+    .brand-head .brand-url { color: #0d47a1; font-size: .85rem; }
+    .brand-rule { height: 2px; background: #0d47a1; margin: .9rem 0 0; opacity: .85; }
+
+    .report-section-title {
+        color: #0d47a1;
+        font-weight: 700;
+        border-bottom: 2px solid #0d47a1;
+        padding-bottom: .35rem;
+        margin: 2.4rem 0 1rem;
+        font-size: 1.08rem;
+    }
+
+    .rt { width: 100%; border-collapse: collapse; }
+    .rt thead th {
+        color: #0d47a1;
+        font-weight: 700;
+        font-size: .84rem;
+        border-bottom: 2px solid #dfe4ea;
+        padding: .5rem .35rem;
+        text-transform: none;
+    }
+    .rt tbody td {
+        border-top: 1px solid #eceff3;
+        padding: .7rem .35rem;
+        vertical-align: middle;
+    }
+    .rt tbody tr:hover td { background: #f8fbff; }
+    .rt .col-value { text-align: right; white-space: nowrap; padding-right: 2.25rem !important; }
+    .rt .col-ref { text-align: left; white-space: nowrap; padding-left: 2.25rem !important; color: #6c757d; }
+    .rt .col-status { text-align: center; width: 4.5rem; }
+    .rt tr.panel-row td {
+        background: #f4f7fb;
+        color: #0d47a1;
+        font-style: italic;
+        font-weight: 600;
+        font-size: .84rem;
+        padding: .45rem .35rem;
+    }
+    .rt tr.locked-row td { background: #f7f8f9; }
+
+    .val { font-size: 1.18rem; font-weight: 700; }
+    .val-unit { font-size: .82rem; color: #6c757d; font-weight: 500; }
+    .analyte-line { font-size: .78rem; color: #6c757d; font-style: italic; }
+    .explain { font-size: .82rem; color: #5a6570; }
+    .loinc-line { font-size: .72rem; color: #8a9099; }
+    .loinc-dot { font-size: .8rem; line-height: 1; }
+
     .locked-bar {
         height: .72rem;
         border-radius: .35rem;
         background: linear-gradient(90deg, #dfe3e8 0%, #eef1f4 100%);
         margin: .3rem 0;
     }
-    .locked-note {
-        font-size: .78rem;
-        color: #8a9099;
-        font-style: italic;
-    }
-    .report-section-title {
-        color: #0d47a1;
-        font-weight: 700;
-        border-bottom: 2px solid #0d47a1;
-        padding-bottom: .35rem;
-        margin: 2.2rem 0 1rem;
-        font-size: 1.1rem;
-        letter-spacing: .01em;
-    }
+    .locked-note { font-size: .76rem; color: #8a9099; font-style: italic; }
+
     .cta-inline {
         background: #e65100;
         border-color: #e65100;
@@ -52,10 +139,12 @@
         transform: translateY(-2px);
         box-shadow: 0 .5rem 1rem rgba(230, 81, 0, .3);
     }
-    .demo-stamp {
-        letter-spacing: .35em;
-        font-weight: 800;
-        color: #e65100;
+    .demo-stamp { letter-spacing: .3em; font-weight: 800; }
+    .progress-card {
+        background: #fff8e1;
+        border: 1px solid #ffe082;
+        border-radius: .6rem;
+        padding: .85rem 1rem;
     }
     .report-sticky {
         position: fixed;
@@ -66,332 +155,410 @@
         border-top: 3px solid #e65100;
         box-shadow: 0 -.5rem 1.25rem rgba(0, 0, 0, .12);
     }
+    @@media (max-width: 767px) {
+        .report-paper { padding: 1.5rem 1.15rem 2rem; }
+        .report-paper::before { font-size: 5rem; }
+        .rt .col-value { padding-right: .9rem !important; }
+        .rt .col-ref { padding-left: .9rem !important; }
+    }
 </style>
 
-<div class="container py-4" style="padding-bottom:7.5rem !important;">
-    <div class="row justify-content-center">
-        <div class="col-lg-9">
+<div class="report-stage">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-xl-9 col-lg-10">
 
-            <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
-                <h2 class="text-primary fw-bold mb-0" data-testid="report-screen-heading">
-                    @Loc.T("ScreenReportTitle")
-                </h2>
-                <span class="badge bg-warning text-dark demo-stamp" data-testid="report-screen-demo-badge">DEMO</span>
-                <span class="text-muted small ms-2">
-                    @Model.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")
-                    @if (!string.IsNullOrWhiteSpace(Model.ProfileName))
+                <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+                    <span class="badge bg-warning text-dark demo-stamp" data-testid="report-screen-demo-badge">DEMO</span>
+                    <span class="text-secondary small">
+                        @Model.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")
+                        @if (!string.IsNullOrWhiteSpace(Model.ProfileName))
+                        {
+                            <text> &middot; <strong>@Model.ProfileName</strong></text>
+                        }
+                    </span>
+                    @if (Model.ProfileId.HasValue)
                     {
-                        <text> &middot; @Model.ProfileName</text>
-                    }
-                </span>
-                @if (Model.ProfileId.HasValue)
-                {
-                    <a asp-action="History" asp-route-id="@Model.ProfileId.Value"
-                       class="btn btn-sm btn-outline-secondary ms-auto" data-testid="report-screen-back-btn">
-                        &larr; @Loc.T("ScreenReportBackToHistory")
-                    </a>
-                }
-            </div>
-
-            @* ---------- TOP: attention banner + CTA #1 ---------- *@
-            <div class="alert alert-warning border-start border-4 border-warning" data-testid="report-screen-attention">
-                <div class="fw-bold">@Loc.T("PdfFreemiumBannerTitle")</div>
-                <div class="small">@Loc.T("PdfFreemiumBannerBody")</div>
-                <div class="mt-2">
-                    <span class="text-danger fw-bold">@Loc.T("PdfFreemiumAttentionWord")</span>
-                    <span>- @Html.Raw(hi(Loc.T("PdfFreemiumAttentionLine")))</span>
-                </div>
-                <div class="small text-muted mt-2">@Loc.T("ScreenReportEmailedNote")</div>
-            </div>
-
-            <div class="text-center my-4">
-                <a href="@buyUrl" class="btn btn-lg cta-inline px-4" data-testid="report-cta-top">
-                    @Loc.T("PdfFreemiumUnlockButton")
-                </a>
-            </div>
-
-            @* ---------- Patient info (never hidden) ---------- *@
-            @if (Model.PatientInfo != null)
-            {
-                <div class="report-section-title">@Loc.T("PatientInfoSection")</div>
-                <div class="row g-2" data-testid="report-screen-patient-info">
-                    @if (!string.IsNullOrWhiteSpace(Model.PatientInfo.Name))
-                    {
-                        <div class="col-md-6"><span class="text-muted">@Loc.T("PatientName"):</span> <strong>@Model.PatientInfo.Name</strong></div>
-                    }
-                    @if (!string.IsNullOrWhiteSpace(Model.PatientInfo.Age))
-                    {
-                        <div class="col-md-6"><span class="text-muted">@Loc.T("PatientAge"):</span> <strong>@Model.PatientInfo.Age</strong></div>
-                    }
-                    @if (!string.IsNullOrWhiteSpace(Model.PatientInfo.Sex))
-                    {
-                        <div class="col-md-6"><span class="text-muted">@Loc.T("PatientSex"):</span> <strong>@Model.PatientInfo.Sex</strong></div>
-                    }
-                    @if (!string.IsNullOrWhiteSpace(Model.PatientInfo.DateTaken))
-                    {
-                        <div class="col-md-6"><span class="text-muted">@Loc.T("DateTaken"):</span> <strong>@Model.PatientInfo.DateTaken</strong></div>
-                    }
-                    @if (!string.IsNullOrWhiteSpace(Model.PatientInfo.Laboratory))
-                    {
-                        <div class="col-md-6"><span class="text-muted">@Loc.T("Laboratory"):</span> <strong>@Model.PatientInfo.Laboratory</strong></div>
-                    }
-                    @if (!string.IsNullOrWhiteSpace(Model.PatientInfo.DoctorRequesting))
-                    {
-                        <div class="col-md-6"><span class="text-muted">@Loc.T("DoctorRequesting"):</span> <strong>@Model.PatientInfo.DoctorRequesting</strong></div>
+                        <a asp-action="History" asp-route-id="@Model.ProfileId.Value"
+                           class="btn btn-sm btn-outline-secondary ms-auto" data-testid="report-screen-back-btn">
+                            &larr; @Loc.T("ScreenReportBackToHistory")
+                        </a>
                     }
                 </div>
-            }
 
-            @* ---------- Summary: the teaser, always fully visible ---------- *@
-            @if (!string.IsNullOrWhiteSpace(Model.Summary))
-            {
-                <div class="report-section-title">@Loc.T("SummarySection")</div>
-                <p data-testid="report-screen-summary">@Model.Summary</p>
-            }
+                <div class="report-paper">
 
-            @* ---------- Risk factors ---------- *@
-            @if (Model.RiskFactors.Count > 0)
-            {
-                <div class="report-section-title">@Loc.T("RiskFactorsSection")</div>
-                <ul class="list-unstyled" data-testid="report-screen-risk-factors">
-                    @foreach (var rf in Model.RiskFactors)
+                    @* ---------- Branded header, identical to the PDF ---------- *@
+                    <div class="brand-head" data-testid="report-screen-brand-header">
+                        <div class="brand-name">MyMedicalApp.NET</div>
+                        <div class="brand-sub">@Loc.T("BrandSubtitle")</div>
+                        <div class="brand-url">www.mymedicalapp.net</div>
+                        <div class="brand-rule"></div>
+                    </div>
+
+                    <h1 class="h4 fw-bold text-primary mt-4 mb-3" data-testid="report-screen-heading">
+                        @Loc.T("ScreenReportTitle")
+                    </h1>
+
+                    @* ---------- TOP: attention banner + CTA #1 ---------- *@
+                    <div class="alert alert-warning border-start border-4 border-warning" data-testid="report-screen-attention">
+                        <div class="fw-bold">@Loc.T("PdfFreemiumBannerTitle")</div>
+                        <div class="small">@Loc.T("PdfFreemiumBannerBody")</div>
+                        <div class="mt-2">
+                            <span class="text-danger fw-bold">@Loc.T("PdfFreemiumAttentionWord")</span>
+                            <span>- @Html.Raw(hi(Loc.T("PdfFreemiumAttentionLine")))</span>
+                        </div>
+                        <div class="small text-muted mt-2">@Loc.T("ScreenReportEmailedNote")</div>
+                    </div>
+
+                    @if (Model.TotalResultsCount > 0)
                     {
-                        <li class="mb-2 d-flex gap-2">
-                            <span class="@(rf.Locked ? "text-secondary" : "text-warning") fw-bold">&#9888;</span>
-                            <span class="flex-grow-1">
-                                @if (rf.Locked)
-                                {
-                                    <div class="locked-bar" style="width:88%"></div>
-                                    <div class="locked-bar" style="width:64%"></div>
-                                    <div class="locked-note">&#128274; @lockedLabel</div>
-                                }
-                                else
-                                {
-                                    @rf.Text
-                                }
-                            </span>
-                        </li>
+                        <div class="progress-card mb-3" data-testid="report-screen-progress">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <span class="fw-semibold small">
+                                    @string.Format(Loc.T("ScreenReportVisibleResultsFmt"),
+                                        Model.VisibleResultsCount, Model.TotalResultsCount)
+                                </span>
+                                <span class="small text-muted">
+                                    @string.Format(Loc.T("ScreenReportLockedSectionsFmt"), Model.LockedCount)
+                                </span>
+                            </div>
+                            <div class="progress mt-2" style="height:.5rem;">
+                                <div class="progress-bar bg-success" role="progressbar"
+                                     style="width:@visiblePct%" aria-valuenow="@visiblePct"
+                                     aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                        </div>
                     }
-                </ul>
-                <div class="alert alert-light border small fst-italic text-muted py-2">
-                    @Loc.T("RiskFactorsDisclaimer")
-                </div>
-            }
 
-            @* ---------- Key results table ---------- *@
-            @if (Model.KeyResults.Count > 0)
-            {
-                <div class="report-section-title">@Loc.T("KeyResultsSection")</div>
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle" data-testid="report-screen-results-table">
-                        <thead class="table-light">
-                            <tr>
-                                <th>@Loc.T("Parameter")</th>
-                                <th class="text-end">@Loc.T("ValueLabel")</th>
-                                <th>@Loc.T("ReferenceRange")</th>
-                                <th class="text-center">@Loc.T("Status")</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @{
-                                string? lastPanel = null;
-                            }
-                            @foreach (var row in Model.KeyResults)
+                    <div class="text-center my-4">
+                        <a href="@buyUrl" class="btn btn-lg cta-inline px-4" data-testid="report-cta-top">
+                            @Loc.T("PdfFreemiumUnlockButton")
+                        </a>
+                    </div>
+
+                    @* ---------- Patient info (never hidden) ---------- *@
+                    @if (Model.PatientInfo != null)
+                    {
+                        <div class="report-section-title">@Loc.T("PatientInfoSection")</div>
+                        <div class="row g-2" data-testid="report-screen-patient-info">
+                            @if (!string.IsNullOrWhiteSpace(Model.PatientInfo.Name))
                             {
-                                if (!string.IsNullOrWhiteSpace(row.PanelHeader) && row.PanelHeader != lastPanel)
-                                {
-                                    lastPanel = row.PanelHeader;
-                                    <tr class="table-light">
-                                        <td colspan="4" class="fst-italic text-primary small">@row.PanelHeader</td>
-                                    </tr>
-                                }
+                                <div class="col-md-6"><span class="text-muted">@Loc.T("PatientName"):</span> <strong>@Model.PatientInfo.Name</strong></div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(Model.PatientInfo.Age))
+                            {
+                                <div class="col-md-6"><span class="text-muted">@Loc.T("PatientAge"):</span> <strong>@Model.PatientInfo.Age</strong></div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(Model.PatientInfo.Sex))
+                            {
+                                <div class="col-md-6"><span class="text-muted">@Loc.T("PatientSex"):</span> <strong>@Model.PatientInfo.Sex</strong></div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(Model.PatientInfo.DateTaken))
+                            {
+                                <div class="col-md-6"><span class="text-muted">@Loc.T("DateTaken"):</span> <strong>@Model.PatientInfo.DateTaken</strong></div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(Model.PatientInfo.Laboratory))
+                            {
+                                <div class="col-md-6"><span class="text-muted">@Loc.T("Laboratory"):</span> <strong>@Model.PatientInfo.Laboratory</strong></div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(Model.PatientInfo.DoctorRequesting))
+                            {
+                                <div class="col-md-6"><span class="text-muted">@Loc.T("DoctorRequesting"):</span> <strong>@Model.PatientInfo.DoctorRequesting</strong></div>
+                            }
+                        </div>
+                    }
 
-                                if (row.Locked)
-                                {
-                                    <tr data-testid="report-screen-row-locked">
-                                        <td>
-                                            <div class="locked-bar" style="width:75%"></div>
+                    @* ---------- Summary: the teaser, always fully visible ---------- *@
+                    @if (!string.IsNullOrWhiteSpace(Model.Summary))
+                    {
+                        <div class="report-section-title">@Loc.T("SummarySection")</div>
+                        <p class="mb-0" data-testid="report-screen-summary">@Model.Summary</p>
+                    }
+
+                    @* ---------- Risk factors ---------- *@
+                    @if (Model.RiskFactors.Count > 0)
+                    {
+                        <div class="report-section-title">@Loc.T("RiskFactorsSection")</div>
+                        <div data-testid="report-screen-risk-factors">
+                            @foreach (var rf in Model.RiskFactors)
+                            {
+                                <div class="mb-2 d-flex gap-2">
+                                    <span class="@(rf.Locked ? "text-secondary" : "text-warning") fw-bold">&#9888;</span>
+                                    <span class="flex-grow-1">
+                                        @if (rf.Locked)
+                                        {
+                                            <div class="locked-bar" style="width:88%"></div>
+                                            <div class="locked-bar" style="width:64%"></div>
                                             <div class="locked-note">&#128274; @lockedLabel</div>
-                                        </td>
-                                        <td><div class="locked-bar" style="width:70%"></div></td>
-                                        <td><div class="locked-bar" style="width:60%"></div></td>
-                                        <td class="text-center text-secondary">?</td>
+                                        }
+                                        else
+                                        {
+                                            @rf.Text
+                                        }
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                        <div class="alert alert-light border small fst-italic text-muted py-2 mt-3">
+                            @Loc.T("RiskFactorsDisclaimer")
+                        </div>
+                    }
+
+                    @* ---------- Key results table ---------- *@
+                    @if (Model.KeyResults.Count > 0)
+                    {
+                        <div class="report-section-title">@Loc.T("KeyResultsSection")</div>
+                        <div class="table-responsive">
+                            <table class="rt" data-testid="report-screen-results-table">
+                                <thead>
+                                    <tr>
+                                        <th>@Loc.T("Parameter")</th>
+                                        <th class="col-value">@Loc.T("ValueLabel")</th>
+                                        <th class="col-ref">@Loc.T("ReferenceRange")</th>
+                                        <th class="col-status">@Loc.T("Status")</th>
                                     </tr>
+                                </thead>
+                                <tbody>
+                                    @{
+                                        string? lastPanel = null;
+                                    }
+                                    @foreach (var row in Model.KeyResults)
+                                    {
+                                        if (!string.IsNullOrWhiteSpace(row.PanelHeader) && row.PanelHeader != lastPanel)
+                                        {
+                                            lastPanel = row.PanelHeader;
+                                            <tr class="panel-row">
+                                                <td colspan="4">
+                                                    @foreach (var lvl in row.PanelHeader!.Split(" | ", StringSplitOptions.RemoveEmptyEntries))
+                                                    {
+                                                        <div>@lvl.Trim()</div>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+
+                                        if (row.Locked)
+                                        {
+                                            <tr class="locked-row" data-testid="report-screen-row-locked">
+                                                <td>
+                                                    <div class="locked-bar" style="width:62%"></div>
+                                                    <div class="locked-bar" style="width:88%"></div>
+                                                    <div class="locked-note">&#128274; @lockedLabel</div>
+                                                </td>
+                                                <td class="col-value"><div class="locked-bar" style="width:100%"></div></td>
+                                                <td class="col-ref"><div class="locked-bar" style="width:100%"></div></td>
+                                                <td class="col-status text-secondary fw-bold">?</td>
+                                            </tr>
+                                        }
+                                        else
+                                        {
+                                            var s = st(row.Status);
+                                            <tr>
+                                                <td>
+                                                    <div class="fw-semibold">@row.Parameter</div>
+                                                    @if (!string.IsNullOrWhiteSpace(row.AnalyteLine))
+                                                    {
+                                                        <div class="analyte-line">@row.AnalyteLine</div>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(row.Explanation))
+                                                    {
+                                                        <div class="explain">@row.Explanation</div>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(row.LoincCode))
+                                                    {
+                                                        <div class="loinc-line">
+                                                            LOINC <strong>@row.LoincCode</strong>
+                                                            @if (!string.IsNullOrWhiteSpace(row.LoincLongName))
+                                                            {
+                                                                <text>&nbsp;&middot;&nbsp;@row.LoincLongName</text>
+                                                            }
+                                                            <span class="loinc-dot ms-1"
+                                                                  style="color:@LoincSourceBadge.GetDotColor(row.LoincSource)"
+                                                                  title="@LoincSourceBadge.GetTooltip(row.LoincSource)">&#9679;</span>
+                                                            @if (!LoincSourceBadge.IsVerified(row.LoincSource) && row.LoincScore.HasValue)
+                                                            {
+                                                                <text>@($" {(int)Math.Round(row.LoincScore.Value * 100)}%")</text>
+                                                            }
+                                                        </div>
+                                                    }
+                                                </td>
+                                                <td class="col-value">
+                                                    <span class="val" style="color:@s.Color">@row.Value</span>
+                                                    @if (!string.IsNullOrWhiteSpace(row.Unit))
+                                                    {
+                                                        <span class="val-unit">&nbsp;@row.Unit</span>
+                                                    }
+                                                </td>
+                                                <td class="col-ref">@row.ReferenceRange</td>
+                                                <td class="col-status">
+                                                    <span class="badge @s.Badge">@Html.Raw(s.Arrow)</span>
+                                                </td>
+                                            </tr>
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+                        @if (Model.HasLoincCodes)
+                        {
+                            <div class="loinc-line mt-2" data-testid="report-screen-loinc-legend">
+                                <span class="loinc-dot" style="color:@LoincSourceBadge.GetDotColor(LoincSourceBadge.AnchorSource)">&#9679;</span>
+                                @Loc.T("LoincSourceLegendVerified")
+                                <span class="mx-2">&middot;</span>
+                                <span class="loinc-dot" style="color:@LoincSourceBadge.GetDotColor(LoincSourceBadge.SemanticSource)">&#9679;</span>
+                                @Loc.T("LoincSourceLegendAuto")
+                            </div>
+                        }
+
+                        @* ---------- MIDDLE: CTA #2 ---------- *@
+                        <div class="text-center my-4">
+                            <a href="@buyUrl" class="btn btn-lg cta-inline px-4" data-testid="report-cta-middle">
+                                @Loc.T("PdfFreemiumUnlockButton")
+                            </a>
+                        </div>
+                    }
+
+                    @* ---------- Abnormal findings ---------- *@
+                    @if (Model.AbnormalFindings.Count > 0)
+                    {
+                        <div class="report-section-title">@Loc.T("AbnormalFindingsSection")</div>
+                        <div data-testid="report-screen-abnormal-findings">
+                            @foreach (var f in Model.AbnormalFindings)
+                            {
+                                var borderColor = f.Locked
+                                    ? "#dadce0"
+                                    : f.Severity switch
+                                    {
+                                        "severe" => "#c62828",
+                                        "moderate" => "#f9a825",
+                                        _ => "#1565c0"
+                                    };
+                                <div class="ps-3 mb-3" style="border-left:5px solid @borderColor;">
+                                    @if (f.Locked)
+                                    {
+                                        <div class="locked-bar" style="width:38%"></div>
+                                        <div class="locked-bar" style="width:92%"></div>
+                                        <div class="locked-note">&#128274; @lockedLabel</div>
+                                    }
+                                    else
+                                    {
+                                        <div class="fw-bold" style="color:@borderColor">@f.Parameter</div>
+                                        <div>@f.Explanation</div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    @* ---------- Correlations ---------- *@
+                    @if (Model.Correlations.Count > 0)
+                    {
+                        <div class="report-section-title">@Loc.T("CorrelationsSection")</div>
+                        <div data-testid="report-screen-correlations">
+                            @foreach (var s in Model.Correlations)
+                            {
+                                if (s.Locked)
+                                {
+                                    <div class="mb-2">
+                                        <div class="locked-bar" style="width:96%"></div>
+                                        <div class="locked-bar" style="width:78%"></div>
+                                    </div>
                                 }
                                 else
                                 {
-                                    var badge = row.Status switch
-                                    {
-                                        "high" => ("bg-danger", "&#8593;"),
-                                        "low" => ("bg-primary", "&#8595;"),
-                                        "borderline" => ("bg-warning text-dark", "&#8776;"),
-                                        _ => ("bg-success", "&#10003;")
-                                    };
-                                    <tr>
-                                        <td>
-                                            <div class="fw-semibold">@row.Parameter</div>
-                                            @if (!string.IsNullOrWhiteSpace(row.Explanation))
-                                            {
-                                                <div class="small text-muted">@row.Explanation</div>
-                                            }
-                                        </td>
-                                        <td class="text-end text-nowrap">
-                                            <strong>@row.Value</strong>
-                                            <span class="text-muted small">@row.Unit</span>
-                                        </td>
-                                        <td class="text-muted small">@row.ReferenceRange</td>
-                                        <td class="text-center">
-                                            <span class="badge @badge.Item1">@Html.Raw(badge.Item2)</span>
-                                        </td>
-                                    </tr>
+                                    <p class="mb-2">@s.Text</p>
                                 }
                             }
-                        </tbody>
-                    </table>
-                </div>
-
-                @* ---------- MIDDLE: CTA #2 ---------- *@
-                <div class="text-center my-4">
-                    <a href="@buyUrl" class="btn btn-lg cta-inline px-4" data-testid="report-cta-middle">
-                        @Loc.T("PdfFreemiumUnlockButton")
-                    </a>
-                </div>
-            }
-
-            @* ---------- Abnormal findings ---------- *@
-            @if (Model.AbnormalFindings.Count > 0)
-            {
-                <div class="report-section-title">@Loc.T("AbnormalFindingsSection")</div>
-                <div data-testid="report-screen-abnormal-findings">
-                    @foreach (var f in Model.AbnormalFindings)
-                    {
-                        var borderClass = f.Locked
-                            ? "border-secondary"
-                            : f.Severity switch
+                            @if (Model.Correlations.Any(x => x.Locked))
                             {
-                                "severe" => "border-danger",
-                                "moderate" => "border-warning",
-                                _ => "border-info"
-                            };
-                        <div class="border-start border-4 @borderClass ps-3 mb-3">
-                            @if (f.Locked)
-                            {
-                                <div class="locked-bar" style="width:45%"></div>
-                                <div class="locked-bar" style="width:92%"></div>
                                 <div class="locked-note">&#128274; @lockedLabel</div>
                             }
-                            else
-                            {
-                                <div class="fw-semibold text-primary">@f.Parameter</div>
-                                <div>@f.Explanation</div>
-                            }
                         </div>
                     }
-                </div>
-            }
 
-            @* ---------- Correlations ---------- *@
-            @if (Model.Correlations.Count > 0)
-            {
-                <div class="report-section-title">@Loc.T("CorrelationsSection")</div>
-                <div data-testid="report-screen-correlations">
-                    @foreach (var s in Model.Correlations)
+                    @* ---------- Recommendations ---------- *@
+                    @if (Model.Recommendations.Count > 0)
                     {
-                        if (s.Locked)
-                        {
-                            <div class="mb-2">
-                                <div class="locked-bar" style="width:96%"></div>
-                                <div class="locked-bar" style="width:78%"></div>
-                            </div>
-                        }
-                        else
-                        {
-                            <p class="mb-2">@s.Text</p>
-                        }
-                    }
-                    @if (Model.Correlations.Any(x => x.Locked))
-                    {
-                        <div class="locked-note">&#128274; @lockedLabel</div>
-                    }
-                </div>
-            }
-
-            @* ---------- Recommendations ---------- *@
-            @if (Model.Recommendations.Count > 0)
-            {
-                <div class="report-section-title">@Loc.T("RecommendationsSection")</div>
-                <div data-testid="report-screen-recommendations">
-                    @foreach (var s in Model.Recommendations)
-                    {
-                        if (s.Locked)
-                        {
-                            <div class="mb-2">
-                                <div class="locked-bar" style="width:96%"></div>
-                                <div class="locked-bar" style="width:70%"></div>
-                            </div>
-                        }
-                        else
-                        {
-                            <p class="mb-2">@s.Text</p>
-                        }
-                    }
-                    @if (Model.Recommendations.Any(x => x.Locked))
-                    {
-                        <div class="locked-note">&#128274; @lockedLabel</div>
-                    }
-                </div>
-            }
-
-            @* ---------- Doctor questions ---------- *@
-            @if (Model.DoctorQuestions.Count > 0)
-            {
-                <div class="report-section-title">@Loc.T("DoctorQuestionsSection")</div>
-                <div data-testid="report-screen-doctor-questions">
-                    @{ int qIndex = 0; }
-                    @foreach (var q in Model.DoctorQuestions)
-                    {
-                        qIndex++;
-                        <div class="mb-2 d-flex gap-2">
-                            <span class="@(q.Locked ? "text-secondary" : "text-warning") fw-bold">@(qIndex).</span>
-                            <span class="flex-grow-1">
-                                @if (q.Locked)
+                        <div class="report-section-title">@Loc.T("RecommendationsSection")</div>
+                        <div data-testid="report-screen-recommendations">
+                            @foreach (var s in Model.Recommendations)
+                            {
+                                if (s.Locked)
                                 {
-                                    <div class="locked-bar" style="width:85%"></div>
-                                    <div class="locked-bar" style="width:52%"></div>
-                                    <div class="locked-note">&#128274; @lockedLabel</div>
+                                    <div class="mb-2">
+                                        <div class="locked-bar" style="width:96%"></div>
+                                        <div class="locked-bar" style="width:70%"></div>
+                                    </div>
                                 }
                                 else
                                 {
-                                    @q.Text
+                                    <p class="mb-2">@s.Text</p>
                                 }
-                            </span>
+                            }
+                            @if (Model.Recommendations.Any(x => x.Locked))
+                            {
+                                <div class="locked-note">&#128274; @lockedLabel</div>
+                            }
                         </div>
                     }
-                </div>
-                <div class="alert alert-light border small fst-italic text-muted py-2">
-                    @Loc.T("DoctorQuestionsDisclaimer")
-                </div>
-            }
 
-            @* ---------- Disclaimer ---------- *@
-            @if (!string.IsNullOrWhiteSpace(Model.Disclaimer))
-            {
-                <div class="report-section-title">@Loc.T("DisclaimerSection")</div>
-                <p class="small fst-italic text-muted">@Model.Disclaimer</p>
-            }
+                    @* ---------- Doctor questions ---------- *@
+                    @if (Model.DoctorQuestions.Count > 0)
+                    {
+                        <div class="report-section-title">@Loc.T("DoctorQuestionsSection")</div>
+                        <div data-testid="report-screen-doctor-questions">
+                            @{ int qIndex = 0; }
+                            @foreach (var q in Model.DoctorQuestions)
+                            {
+                                qIndex++;
+                                <div class="mb-2 d-flex gap-2">
+                                    <span class="@(q.Locked ? "text-secondary" : "text-primary") fw-bold">@(qIndex).</span>
+                                    <span class="flex-grow-1">
+                                        @if (q.Locked)
+                                        {
+                                            <div class="locked-bar" style="width:85%"></div>
+                                            <div class="locked-bar" style="width:52%"></div>
+                                            <div class="locked-note">&#128274; @lockedLabel</div>
+                                        }
+                                        else
+                                        {
+                                            @q.Text
+                                        }
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                        <div class="alert alert-light border small fst-italic text-muted py-2 mt-3">
+                            @Loc.T("DoctorQuestionsDisclaimer")
+                        </div>
+                    }
 
-            @* ---------- BOTTOM: final CTA #3 ---------- *@
-            <div class="alert alert-success border-start border-4 border-success mt-5" data-testid="report-screen-final-cta">
-                <div class="fw-bold fs-5">@Loc.T("PdfFreemiumCtaTitle")</div>
-                <div class="mt-1">@Html.Raw(hi(Loc.T("PdfFreemiumCtaBody")))</div>
-                <div class="text-center mt-3">
-                    <a href="@buyUrl" class="btn btn-lg cta-inline px-4" data-testid="report-cta-bottom">
-                        @Loc.T("PdfFreemiumUnlockButton")
-                    </a>
+                    @* ---------- Disclaimer ---------- *@
+                    @if (!string.IsNullOrWhiteSpace(Model.Disclaimer))
+                    {
+                        <div class="report-section-title">@Loc.T("DisclaimerSection")</div>
+                        <p class="small fst-italic text-muted mb-0">@Model.Disclaimer</p>
+                    }
+
+                    @* ---------- BOTTOM: final CTA #3 ---------- *@
+                    <div class="alert alert-success border-start border-4 border-success mt-5" data-testid="report-screen-final-cta">
+                        <div class="fw-bold fs-5">@Loc.T("PdfFreemiumCtaTitle")</div>
+                        <div class="mt-1">@Html.Raw(hi(Loc.T("PdfFreemiumCtaBody")))</div>
+                        <div class="text-center mt-3">
+                            <a href="@buyUrl" class="btn btn-lg cta-inline px-4" data-testid="report-cta-bottom">
+                                @Loc.T("PdfFreemiumUnlockButton")
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="text-center mt-4">
+                        <div class="fst-italic text-primary">@Loc.T("Tagline")</div>
+                        <div class="small text-muted mt-1">www.mymedicalapp.net</div>
+                    </div>
                 </div>
             </div>
-
-            <p class="text-center fst-italic text-primary mt-4">@Loc.T("Tagline")</p>
         </div>
     </div>
 </div>

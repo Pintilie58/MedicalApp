@@ -32,6 +32,14 @@ namespace MedicalApp.Models
         /// <summary>Total number of hidden items — used in the CTA copy.</summary>
         public int LockedCount { get; set; }
 
+        /// <summary>Visible / total lab results — drives the "you see X of Y" progress card.</summary>
+        public int VisibleResultsCount { get; set; }
+        public int TotalResultsCount { get; set; }
+
+        /// <summary>True when at least one visible row carries a LOINC code, so the
+        /// legend explaining the colored dots is worth rendering.</summary>
+        public bool HasLoincCodes { get; set; }
+
         public class LockableText
         {
             /// <summary>Null when <see cref="Locked"/> is true.</summary>
@@ -50,6 +58,15 @@ namespace MedicalApp.Models
             public string? ReferenceRange { get; set; }
             public string? Status { get; set; }
             public string? Explanation { get; set; }
+
+            /// <summary>Verbatim per-row lab metadata: specimen, method, analyzer
+            /// (e.g. "-Ser - Turbidimetrie (ABX PENTRA C400 ISE)").</summary>
+            public string? AnalyteLine { get; set; }
+
+            public string? LoincCode { get; set; }
+            public string? LoincLongName { get; set; }
+            public string? LoincSource { get; set; }
+            public double? LoincScore { get; set; }
         }
 
         public class LockableFinding

@@ -314,9 +314,19 @@ namespace MedicalApp.Controllers
                         Unit = isLocked ? null : k.Unit,
                         ReferenceRange = isLocked ? null : k.ReferenceRange,
                         Status = isLocked ? null : k.Status,
-                        Explanation = isLocked ? null : k.Explanation
+                        Explanation = isLocked ? null : k.Explanation,
+                        AnalyteLine = isLocked || string.IsNullOrWhiteSpace(k.AnalyteLineRaw)
+                            ? null : k.AnalyteLineRaw!.Trim(),
+                        LoincCode = isLocked ? null : k.LoincCode,
+                        LoincLongName = isLocked ? null : k.LoincLongName,
+                        LoincSource = isLocked ? null : k.LoincSource,
+                        LoincScore = isLocked ? null : k.LoincScore
                     });
                 }
+
+                vm.TotalResultsCount = r.KeyResults.Count;
+                vm.VisibleResultsCount = vm.KeyResults.Count(x => !x.Locked);
+                vm.HasLoincCodes = vm.KeyResults.Any(x => !string.IsNullOrWhiteSpace(x.LoincCode));
             }
 
             if (r.AbnormalFindings != null)
