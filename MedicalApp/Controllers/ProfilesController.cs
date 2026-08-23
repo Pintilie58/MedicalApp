@@ -17,6 +17,7 @@ namespace MedicalApp.Controllers
         private readonly PdfReportGenerator _pdfGenerator;
         private readonly EvolutionPdfGenerator _evolutionPdf;
         private readonly ProfileComparePdfGenerator _comparePdf;
+        private readonly MedicalDossierPdfGenerator _dossierPdf;
         private readonly ArchiveAccessService _archiveAccess;
         private readonly IEmailService _emailService;
         private readonly ILogger<ProfilesController> _logger;
@@ -26,6 +27,7 @@ namespace MedicalApp.Controllers
             PdfReportGenerator pdfGenerator,
             EvolutionPdfGenerator evolutionPdf,
             ProfileComparePdfGenerator comparePdf,
+            MedicalDossierPdfGenerator dossierPdf,
             ArchiveAccessService archiveAccess,
             IEmailService emailService,
             ILogger<ProfilesController> logger)
@@ -34,6 +36,7 @@ namespace MedicalApp.Controllers
             _pdfGenerator = pdfGenerator;
             _evolutionPdf = evolutionPdf;
             _comparePdf = comparePdf;
+            _dossierPdf = dossierPdf;
             _archiveAccess = archiveAccess;
             _emailService = emailService;
             _logger = logger;
@@ -1114,6 +1117,324 @@ namespace MedicalApp.Controllers
                 out var v)
                 ? (v, true)
                 : (0, false);
+        }
+
+        // ====================================================================
+        // MEDICAL DOSSIER (B2C) — every out-of-range result the profile ever had,
+        // pulled from ALL archived interpretations, grouped by medical specialty
+        // then by analyte, each analyte showing its own timeline. This is the
+        // page the patient prints for the doctor.
+        // Billing: 1 archive-premium use, exactly like Compare and Evolution.
+        // ====================================================================
+        public async Task<IActionResult> Dossier(int profileId)
+        {
+            if (string.IsNullOrEmpty(CurrentEmail))
+                return RedirectToAction("Index", "Home");
+
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == CurrentEmail);
+            if (user == null)
+            {
+                HttpContext.Session.Clear();
+                return RedirectToAction("Index", "Home");
+            }
+
+            var profile = await _db.Profiles.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == profileId && p.UserEmail == CurrentEmail);
+            if (profile == null)
+            {
+                TempData["ErrorMessage"] = Loc.T("ErrProfileNotFound");
+                return RedirectToAction(nameof(Index));
+            }
+
+            var check = _archiveAccess.TryConsume(user, "dossier");
+            if (!check.Allowed)
+            {
+                TempData["ErrorMessage"] = Loc.T("ErrNoCreditsForCompare");
+                return RedirectToAction("Buy", "Credits");
+            }
+            await _db.SaveChangesAsync();
+
+            var vm = await BuildDossierAsync(profile);
+            vm.CreditConsumed = check.CreditConsumed;
+            return View(vm);
+        }
+
+        public class DossierExportRequest
+        {
+            public int ProfileId { get; set; }
+            /// <summary>"download" or "email".</summary>
+            public string Mode { get; set; } = "download";
+        }
+
+        // ====================================================================
+        // DOSSIER EXPORT — same dossier as a PDF, streamed or emailed. Does NOT
+        // consume a credit: the user already paid when opening the view.
+        // ====================================================================
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DossierExport([FromForm] DossierExportRequest req)
+        {
+            if (string.IsNullOrEmpty(CurrentEmail))
+                return Unauthorized();
+
+            var profile = await _db.Profiles.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == req.ProfileId && p.UserEmail == CurrentEmail);
+            if (profile == null)
+                return NotFound(Loc.T("ErrProfileNotFound"));
+
+            var vm = await BuildDossierAsync(profile);
+
+            byte[] pdfBytes;
+            try
+            {
+                pdfBytes = _dossierPdf.Generate(vm);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "DossierExport: PDF generation failed for profile {ProfileId}.", profile.Id);
+                return StatusCode(500, Loc.T("ErrPdfGenerationFailedSeeLog"));
+            }
+
+            var fileName = $"DosarMedical_{Sanitize(profile.Name)}_{DateTime.Now:yyyyMMdd_HHmm}.pdf";
+
+            if (string.Equals(req.Mode, "email", StringComparison.OrdinalIgnoreCase))
+            {
+                var lang = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+                var safeName = System.Net.WebUtility.HtmlEncode(profile.Name);
+                var html =
+                    $"<p>{Loc.T("EmailGreeting", lang)}</p>" +
+                    $"<p>{string.Format(Loc.T("DossierEmailBodyFmt", lang), safeName, vm.AbnormalAnalyteCount, vm.SourceReportsCount)}</p>" +
+                    $"<p>{Loc.T("EmailGoodDay", lang)}<br/>— MyMedicalApp.NET</p>";
+                try
+                {
+                    await _emailService.SendEmailWithAttachmentAsync(
+                        CurrentEmail,
+                        string.Format(Loc.T("DossierEmailSubjectFmt", lang), profile.Name),
+                        html,
+                        pdfBytes,
+                        fileName);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "DossierExport: email send failed.");
+                    TempData["ErrorMessage"] = Loc.T("EmailSendFailedTryDownload");
+                    return RedirectToAction(nameof(Dossier), new { profileId = profile.Id });
+                }
+
+                TempData["SuccessMessage"] = string.Format(Loc.T("DossierEmailSentFmt"), CurrentEmail);
+                return RedirectToAction(nameof(Dossier), new { profileId = profile.Id });
+            }
+
+            return File(pdfBytes, "application/pdf", fileName);
+        }
+
+        /// <summary>
+        /// Collects every abnormal result across the profile's archive and shapes it
+        /// into the dossier. Reads only stored RawJsonResult — no LLM call, no cost.
+        /// </summary>
+        private async Task<MedicalDossierViewModel> BuildDossierAsync(Profile profile)
+        {
+            var histories = await _db.InterpretationHistories.AsNoTracking()
+                .Where(h => h.UserEmail == CurrentEmail
+                            && h.ProfileId == profile.Id
+                            && h.Status == "success"
+                            && h.RawJsonResult != null)
+                .ToListAsync();
+
+            return BuildDossier(profile, histories);
+        }
+
+        /// <summary>Pure aggregation step, split out so it can be exercised without a database.</summary>
+        private static MedicalDossierViewModel BuildDossier(Profile profile, List<InterpretationHistory> histories)
+        {            var vm = new MedicalDossierViewModel
+            {
+                ProfileId = profile.Id,
+                ProfileName = profile.Name,
+                Gender = profile.Gender,
+                BirthYear = profile.BirthYear,
+                Age = profile.BirthYear.HasValue && profile.BirthYear > 1900
+                    ? DateTime.UtcNow.Year - profile.BirthYear.Value
+                    : null,
+                MedicalHistory = string.IsNullOrWhiteSpace(profile.Notes) ? null : profile.Notes!.Trim(),
+                SourceReportsCount = histories.Count
+            };
+
+            // groupKey -> analyte bucket (+ the class code we will sort it by)
+            var buckets = new Dictionary<string, (MedicalDossierViewModel.AnalyteGroup Group, string? ClassCode)>(
+                StringComparer.OrdinalIgnoreCase);
+            // Guards against the same result being listed twice when the user
+            // uploaded the same lab report more than once.
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var h in histories)
+            {
+                var r = DeserializeSafe(h.RawJsonResult);
+                if (r?.KeyResults == null) continue;
+
+                var effDate = ParseSamplingDate(r.PatientInfo?.DateTaken);
+                var lab = r.PatientInfo?.Laboratory;
+
+                foreach (var kr in r.KeyResults)
+                {
+                    if (string.IsNullOrWhiteSpace(kr.Parameter)) continue;
+
+                    var status = ClassifyAbnormal(kr);
+                    if (status == null) continue;
+
+                    var key = !string.IsNullOrWhiteSpace(kr.LoincCode)
+                        ? "loinc:" + kr.LoincCode.Trim()
+                        : "name:" + kr.Parameter.Trim().ToLowerInvariant();
+
+                    var date = effDate ?? h.CreatedAt;
+
+                    // Same analyte, same day, same value => duplicate upload.
+                    var dedupKey = $"{key}|{date:yyyyMMdd}|{kr.Value?.Trim()}";
+                    if (!seen.Add(dedupKey)) continue;
+
+                    if (!buckets.TryGetValue(key, out var bucket))
+                    {
+                        bucket = (new MedicalDossierViewModel.AnalyteGroup(), null);
+                        buckets[key] = bucket;
+                    }
+
+                    var entry = new MedicalDossierViewModel.Entry
+                    {
+                        HistoryId = h.Id,
+                        Date = date,
+                        DateIsSampling = effDate.HasValue,
+                        InterpretedAt = h.CreatedAt,
+                        Laboratory = string.IsNullOrWhiteSpace(lab) ? null : lab!.Trim(),
+                        Value = kr.Value,
+                        Unit = kr.Unit,
+                        ReferenceRange = kr.ReferenceRange,
+                        Status = status
+                    };
+                    bucket.Group.Entries.Add(entry);
+
+                    // Newest report wins for the display name / LOINC identity.
+                    var isNewest = bucket.Group.Entries.Count == 1 ||
+                                   date >= bucket.Group.Entries.Max(e => e.Date);
+                    if (isNewest)
+                    {
+                        bucket.Group.Parameter = kr.Parameter.Trim();
+                        if (!string.IsNullOrWhiteSpace(kr.LoincCode))
+                        {
+                            bucket.Group.LoincCode = kr.LoincCode.Trim();
+                            bucket.Group.LoincLongName = kr.LoincLongName;
+                            bucket.Group.LoincSource = kr.LoincSource;
+                        }
+                    }
+
+                    // Keep the first class we can determine — from the official
+                    // LOINC CLASS when present, otherwise inferred from the lab's
+                    // own panel header so code-less analytes still land in their
+                    // specialty instead of a generic bucket.
+                    if (string.IsNullOrWhiteSpace(bucket.ClassCode))
+                    {
+                        var cls = !string.IsNullOrWhiteSpace(kr.LoincClass)
+                            ? kr.LoincClass
+                            : InferClassFromPanel(kr.PanelHeaderRaw, kr.AnalyteLineRaw);
+                        buckets[key] = (bucket.Group, cls);
+                    }
+                }
+            }
+
+            // Timeline order + trend versus the previous entry.
+            foreach (var (_, bucket) in buckets)
+            {
+                var ordered = bucket.Group.Entries.OrderBy(e => e.Date).ToList();
+                for (int i = 1; i < ordered.Count; i++)
+                {
+                    var (prev, prevOk) = ParseNumeric(ordered[i - 1].Value);
+                    var (cur, curOk) = ParseNumeric(ordered[i].Value);
+                    if (!prevOk || !curOk) continue;
+                    ordered[i].Trend = cur > prev ? "up" : cur < prev ? "down" : "same";
+                }
+                bucket.Group.Entries = ordered;
+            }
+
+            vm.Groups = buckets.Values
+                .GroupBy(b => Services.LoincClassDisplay.GetLabel(b.ClassCode), StringComparer.Ordinal)
+                .Select(g => new MedicalDossierViewModel.ClassGroup
+                {
+                    Label = g.Key,
+                    Priority = g.Min(b => Services.LoincClassDisplay.GetPriority(b.ClassCode)),
+                    Analytes = g.Select(b => b.Group)
+                        .OrderBy(a => a.LoincCode ?? "zzz", StringComparer.Ordinal)
+                        .ThenBy(a => a.Parameter, StringComparer.OrdinalIgnoreCase)
+                        .ToList()
+                })
+                .OrderBy(g => g.Priority)
+                .ThenBy(g => g.Label, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            vm.AbnormalAnalyteCount = buckets.Count;
+            vm.AbnormalEntryCount = buckets.Values.Sum(b => b.Group.Entries.Count);
+            var allDates = buckets.Values.SelectMany(b => b.Group.Entries).Select(e => e.Date).ToList();
+            if (allDates.Count > 0)
+            {
+                vm.FirstDate = allDates.Min();
+                vm.LastDate = allDates.Max();
+            }
+
+            return vm;
+        }
+
+        /// <summary>
+        /// Returns "high" / "low" / "borderline" / "positive" when the result belongs
+        /// in the dossier, or null when it is a normal finding. Text-positive results
+        /// (Ag HBs, antibodies) often arrive with no numeric status, so the value text
+        /// is inspected too — negations are checked FIRST so "nereactiv" is not read
+        /// as "reactiv".
+        /// </summary>
+        private static string? ClassifyAbnormal(KeyResult kr)
+        {
+            var status = (kr.Status ?? "").Trim().ToLowerInvariant();
+            if (status is "high" or "low" or "borderline") return status;
+
+            var value = (kr.Value ?? "").Trim().ToLowerInvariant();
+            if (value.Length == 0) return null;
+
+            string[] negations =
+            {
+                "negativ", "negative", "negativo", "nereactiv", "non-reactiv", "non reactiv",
+                "nonreactive", "non-reactive", "nedetectabil", "not detected", "undetectable",
+                "absent", "abwesend", "ausente", "assente"
+            };
+            if (negations.Any(n => value.Contains(n, StringComparison.Ordinal))) return null;
+
+            string[] positives =
+            {
+                "pozitiv", "positive", "positiv", "positivo", "positif", "positivo",
+                "reactiv", "reactive", "reagent", "detectabil", "detected", "detectat",
+                "prezent", "present", "presente", "vorhanden"
+            };
+            return positives.Any(p => value.Contains(p, StringComparison.Ordinal)) ? "positive" : null;
+        }
+
+        /// <summary>
+        /// Best-effort specialty for analytes the matcher could not code: reads the
+        /// lab's own panel header / method line and maps it to a LOINC CLASS code.
+        /// </summary>
+        private static string? InferClassFromPanel(string? panelHeader, string? analyteLine)
+        {
+            var text = ((panelHeader ?? "") + " " + (analyteLine ?? "")).ToLowerInvariant();
+            if (text.Trim().Length == 0) return null;
+
+            if (text.Contains("hematolog") || text.Contains("hemoleucogram") ||
+                text.Contains("hemogram") || text.Contains("haematolog")) return "HEM";
+            if (text.Contains("coagul") || text.Contains("hemostaz")) return "COAG";
+            if (text.Contains("hormon") || text.Contains("endocrin") || text.Contains("tiroid")) return "HORMONE";
+            if (text.Contains("marker tumoral") || text.Contains("tumor")) return "TUMOR MARKERS";
+            if (text.Contains("serolog") || text.Contains("imunolog") || text.Contains("immunolog") ||
+                text.Contains("anticorp") || text.Contains("antibod")) return "SERO";
+            if (text.Contains("alergolog") || text.Contains("allerg")) return "ALLERGY";
+            if (text.Contains("urin") || text.Contains("sumar de urina")) return "UA";
+            if (text.Contains("microbiolog") || text.Contains("cultur") || text.Contains("bacterio")) return "MICRO";
+            if (text.Contains("parazit") || text.Contains("parasit")) return "PARASITE";
+            if (text.Contains("toxicolog") || text.Contains("drog")) return "TOX";
+            if (text.Contains("biochim") || text.Contains("chemistry") || text.Contains("chimie")) return "CHEM";
+            return null;
         }
 
         // ====================================================================

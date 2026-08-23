@@ -105,7 +105,15 @@
                            is NOT disabled and carries the title itself — that span catches
                            the hover and shows the explanatory tooltip while the button
                            stays visually disabled. *@
-                        <span class="ms-auto d-inline-block"
+                        <span class="ms-auto d-inline-block" data-testid="dossier-btn-wrap">
+                            <a asp-action="Dossier" asp-route-profileId="@Model.ProfileId"
+                               class="btn btn-success btn-sm fw-semibold"
+                               title="@Loc.T("DossierBtnHint")"
+                               data-testid="btn-open-dossier">
+                                &#128203; @Loc.T("DossierTitle")
+                            </a>
+                        </span>
+                        <span class="d-inline-block"
                               title="@lockReason"
                               tabindex="0"
                               data-testid="evolution-btn-wrap">

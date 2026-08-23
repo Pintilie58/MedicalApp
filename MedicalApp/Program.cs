@@ -107,6 +107,7 @@ builder.Services.AddScoped<CamBatchService>();
 builder.Services.AddScoped<CamRetentionService>();
 builder.Services.AddScoped<CamComparePdfGenerator>();
 builder.Services.AddScoped<ProfileComparePdfGenerator>();
+builder.Services.AddScoped<MedicalDossierPdfGenerator>();
 builder.Services.AddScoped<CamBatchSumarPdfGenerator>();
 
 // LOINC matcher microservice client (Python FastAPI).

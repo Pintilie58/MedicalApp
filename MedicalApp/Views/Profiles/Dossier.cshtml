@@ -1,0 +1,270 @@
+@model MedicalApp.Models.MedicalDossierViewModel
+@{
+    ViewData["Title"] = Loc.T("DossierTitle");
+
+    Func<string, (string Color, string Label)> st = s => s switch
+    {
+        "high" => ("#c62828", Loc.T("EvolutionPageStatusHigh")),
+        "positive" => ("#c62828", Loc.T("DossierStatusPositive")),
+        "low" => ("#1565c0", Loc.T("EvolutionPageStatusLow")),
+        "borderline" => ("#f9a825", Loc.T("EvolutionPageStatusBorderline")),
+        _ => ("#2e7d32", s)
+    };
+}
+
+<style>
+    .dossier-stage { background: linear-gradient(180deg, #eef1f5 0%, #e7ebf0 100%); padding: 2rem 0 3rem; }
+    .dossier-paper {
+        background: #fff;
+        border-radius: .75rem;
+        box-shadow: 0 1.5rem 3rem rgba(13, 71, 161, .10), 0 .25rem .5rem rgba(0, 0, 0, .05);
+        padding: 2.5rem 2.75rem 3rem;
+    }
+    .brand-head { text-align: center; }
+    .brand-head .brand-name { color: #0d47a1; font-weight: 800; font-size: 1.85rem; }
+    .brand-head .brand-sub { color: #6c757d; font-size: .95rem; }
+    .brand-head .brand-url { color: #0d47a1; font-size: .85rem; }
+    .brand-rule { height: 2px; background: #0d47a1; margin: .9rem 0 0; opacity: .85; }
+
+    .dossier-section-title {
+        color: #0d47a1; font-weight: 700; font-size: 1.05rem;
+        border-bottom: 2px solid #0d47a1; padding-bottom: .3rem; margin: 1.8rem 0 .8rem;
+    }
+    .class-head {
+        background: #0d47a1; color: #fff; font-weight: 700; letter-spacing: .01em;
+        padding: .45rem .85rem; border-radius: .4rem; margin: 1.9rem 0 .9rem;
+    }
+    .analyte-card {
+        border: 1px solid #e3e8ee; border-radius: .55rem; padding: .85rem 1rem; margin-bottom: 1rem;
+        transition: box-shadow .15s ease, border-color .15s ease;
+    }
+    .analyte-card:hover { border-color: #c8d6e5; box-shadow: 0 .35rem .9rem rgba(13, 71, 161, .07); }
+    .analyte-name { font-size: 1.05rem; font-weight: 700; color: #0d47a1; }
+    .loinc-line { font-size: .74rem; color: #8a9099; }
+    .tl { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .tl thead th {
+        font-size: .74rem; font-weight: 700; color: #0d47a1; text-align: left;
+        border-bottom: 1px solid #dfe4ea; padding: .3rem .4rem;
+    }
+    .tl tbody td { font-size: .84rem; padding: .4rem; border-bottom: 1px solid #f1f4f7; vertical-align: top; overflow-wrap: anywhere; }
+    .tl tbody tr:last-child td { border-bottom: none; }
+    .tl .v { font-size: 1rem; font-weight: 700; }
+    .summary-card { background: #f4f7fb; border: 1px solid #dbe4ef; border-radius: .5rem; padding: .8rem 1rem; }
+</style>
+
+<div class="dossier-stage">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-xl-10">
+
+                <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+                    <a asp-action="History" asp-route-id="@Model.ProfileId"
+                       class="btn btn-sm btn-outline-secondary" data-testid="dossier-back-btn">
+                        &larr; @Loc.T("CompareViewBackToArchive")
+                    </a>
+                    <div class="ms-auto d-flex gap-2">
+                        <form asp-action="DossierExport" method="post" class="d-inline">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="ProfileId" value="@Model.ProfileId" />
+                            <input type="hidden" name="Mode" value="download" />
+                            <button type="submit" class="btn btn-sm btn-primary" data-testid="dossier-download-btn">
+                                &#11015; @Loc.T("CompareViewDownloadPdf")
+                            </button>
+                        </form>
+                        <form asp-action="DossierExport" method="post" class="d-inline">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="ProfileId" value="@Model.ProfileId" />
+                            <input type="hidden" name="Mode" value="email" />
+                            <button type="submit" class="btn btn-sm btn-outline-primary" data-testid="dossier-email-btn">
+                                &#9993; @Loc.T("CompareViewSendEmail")
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                @if (Model.CreditConsumed)
+                {
+                    <div class="alert alert-warning py-2 small" data-testid="dossier-credit-consumed">
+                        @Loc.T("CompareViewCreditConsumed")
+                    </div>
+                }
+
+                <div class="dossier-paper">
+                    <div class="brand-head">
+                        <div class="brand-name">MyMedicalApp.NET</div>
+                        <div class="brand-sub">@Loc.T("BrandSubtitle")</div>
+                        <div class="brand-url">www.mymedicalapp.net</div>
+                        <div class="brand-rule"></div>
+                    </div>
+
+                    <h1 class="h4 fw-bold text-primary mt-4 mb-1" data-testid="dossier-heading">
+                        @Loc.T("DossierTitle")
+                    </h1>
+                    <p class="text-muted small">@Loc.T("DossierIntro")</p>
+
+                    @* ---------- Patient ---------- *@
+                    <div class="dossier-section-title">@Loc.T("PatientInfoSection")</div>
+                    <div class="row g-2" data-testid="dossier-patient-info">
+                        <div class="col-md-4">
+                            <span class="text-muted">@Loc.T("PatientName"):</span> <strong>@Model.ProfileName</strong>
+                        </div>
+                        @if (Model.Age.HasValue)
+                        {
+                            <div class="col-md-4">
+                                <span class="text-muted">@Loc.T("PatientAge"):</span> <strong>@Model.Age</strong>
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.Gender))
+                        {
+                            <div class="col-md-4">
+                                <span class="text-muted">@Loc.T("PatientSex"):</span> <strong>@Model.Gender</strong>
+                            </div>
+                        }
+                    </div>
+
+                    @* ---------- Medical history (Profile.Notes) ---------- *@
+                    <div class="dossier-section-title">@Loc.T("DossierMedicalHistory")</div>
+                    @if (string.IsNullOrWhiteSpace(Model.MedicalHistory))
+                    {
+                        <p class="text-muted fst-italic small mb-0" data-testid="dossier-no-notes">
+                            @Loc.T("DossierNoNotes")
+                        </p>
+                    }
+                    else
+                    {
+                        <p class="mb-0" style="white-space:pre-line" data-testid="dossier-medical-history">@Model.MedicalHistory</p>
+                    }
+
+                    @* ---------- Summary ---------- *@
+                    <div class="summary-card mt-4" data-testid="dossier-summary">
+                        @if (Model.FirstDate.HasValue && Model.LastDate.HasValue &&
+                             Model.FirstDate.Value.Date != Model.LastDate.Value.Date)
+                        {
+                            <span class="fw-semibold text-primary">
+                                @string.Format(Loc.T("DossierSummaryFmt"),
+                                    Model.AbnormalAnalyteCount, Model.SourceReportsCount,
+                                    Model.FirstDate.Value.ToLocalTime().ToString("dd.MM.yyyy"),
+                                    Model.LastDate.Value.ToLocalTime().ToString("dd.MM.yyyy"))
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="fw-semibold text-primary">
+                                @string.Format(Loc.T("DossierSummaryShortFmt"),
+                                    Model.AbnormalAnalyteCount, Model.SourceReportsCount)
+                            </span>
+                        }
+                    </div>
+
+                    @if (Model.AbnormalAnalyteCount == 0)
+                    {
+                        <div class="alert alert-success mt-4" data-testid="dossier-empty">
+                            <div class="fw-bold fs-5">&#10003; @Loc.T("DossierEmptyTitle")</div>
+                            <div class="mt-1">@string.Format(Loc.T("DossierEmptyBody"), Model.SourceReportsCount)</div>
+                        </div>
+                    }
+                    else
+                    {
+                        foreach (var group in Model.Groups)
+                        {
+                            <div class="class-head" data-testid="dossier-class-head">@group.Label</div>
+
+                            foreach (var a in group.Analytes)
+                            {
+                                <div class="analyte-card" data-testid="dossier-analyte">
+                                    <div class="d-flex flex-wrap align-items-baseline gap-2">
+                                        <span class="analyte-name">@a.Parameter</span>
+                                        @if (!string.IsNullOrWhiteSpace(a.LoincCode))
+                                        {
+                                            <span class="badge bg-light text-primary border">LOINC @a.LoincCode</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-light text-muted border fst-italic">@Loc.T("DossierNoLoincCode")</span>
+                                        }
+                                        <span class="badge bg-secondary-subtle text-secondary">
+                                            @(a.Entries.Count == 1
+                                                ? Loc.T("DossierEntriesOne")
+                                                : string.Format(Loc.T("DossierEntriesFmt"), a.Entries.Count))
+                                        </span>
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(a.LoincLongName))
+                                    {
+                                        <div class="loinc-line mt-1">@a.LoincLongName</div>
+                                    }
+
+                                    <table class="tl mt-2">
+                                        <colgroup>
+                                            <col style="width:15%" />
+                                            <col style="width:24%" />
+                                            <col style="width:16%" />
+                                            <col style="width:22%" />
+                                            <col style="width:11%" />
+                                            <col style="width:12%" />
+                                        </colgroup>
+                                        <thead>
+                                            <tr>
+                                                <th>@Loc.T("DossierColDate")</th>
+                                                <th>@Loc.T("DossierColLab")</th>
+                                                <th>@Loc.T("ValueLabel")</th>
+                                                <th>@Loc.T("ReferenceRange")</th>
+                                                <th>@Loc.T("Status")</th>
+                                                <th>@Loc.T("DossierColTrend")</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var e in a.Entries)
+                                            {
+                                                var s = st(e.Status);
+                                                <tr>
+                                                    <td>
+                                                        <strong>@e.Date.ToLocalTime().ToString("dd.MM.yyyy")</strong>
+                                                        @if (!e.DateIsSampling)
+                                                        {
+                                                            <div class="loinc-line">@Loc.T("DossierDateFromInterpretation")</div>
+                                                        }
+                                                    </td>
+                                                    <td class="text-muted">@(string.IsNullOrWhiteSpace(e.Laboratory) ? "—" : e.Laboratory)</td>
+                                                    <td>
+                                                        <span class="v" style="color:@s.Color">@e.Value</span>
+                                                        <span class="text-muted small">@e.Unit</span>
+                                                    </td>
+                                                    <td class="text-muted">@(string.IsNullOrWhiteSpace(e.ReferenceRange) ? "—" : e.ReferenceRange)</td>
+                                                    <td><span class="fw-bold" style="color:@s.Color">@s.Label</span></td>
+                                                    <td>
+                                                        @if (e.Trend == "up")
+                                                        {
+                                                            <span style="color:#c62828">&#8593; @Loc.T("DossierTrendUp")</span>
+                                                        }
+                                                        else if (e.Trend == "down")
+                                                        {
+                                                            <span style="color:#1565c0">&#8595; @Loc.T("DossierTrendDown")</span>
+                                                        }
+                                                        else if (e.Trend == "same")
+                                                        {
+                                                            <span class="text-muted">= @Loc.T("DossierTrendSame")</span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="text-muted">—</span>
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        }
+                    }
+
+                    <p class="small fst-italic text-muted mt-4 mb-0">@Loc.T("DossierDisclaimer")</p>
+                    <div class="text-center mt-4">
+                        <div class="fst-italic text-primary">@Loc.T("Tagline")</div>
+                        <div class="small text-muted mt-1">www.mymedicalapp.net</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
