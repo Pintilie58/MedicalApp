@@ -82,7 +82,7 @@
         font-size: 1.08rem;
     }
 
-    .rt { width: 100%; border-collapse: collapse; }
+    .rt { width: 100%; border-collapse: collapse; table-layout: fixed; }
     .rt thead th {
         color: #0d47a1;
         font-weight: 700;
@@ -94,12 +94,15 @@
     .rt tbody td {
         border-top: 1px solid #eceff3;
         padding: .7rem .35rem;
-        vertical-align: middle;
+        /* Top-aligned so value / reference / status stay on the same line as the
+           analyte name even when the explanation runs for many lines. */
+        vertical-align: top;
+        word-break: break-word;
     }
     .rt tbody tr:hover td { background: #f8fbff; }
-    .rt .col-value { text-align: right; white-space: nowrap; padding-right: 2.25rem !important; }
-    .rt .col-ref { text-align: left; white-space: nowrap; padding-left: 2.25rem !important; color: #6c757d; }
-    .rt .col-status { text-align: center; width: 4.5rem; }
+    .rt .col-value { text-align: right; white-space: nowrap; padding-right: 1.75rem !important; }
+    .rt .col-ref { text-align: left; white-space: nowrap; padding-left: 1.75rem !important; color: #6c757d; }
+    .rt .col-status { text-align: center; }
     .rt tr.panel-row td {
         background: #f4f7fb;
         color: #0d47a1;
@@ -110,6 +113,19 @@
     }
     .rt tr.locked-row td { background: #f7f8f9; }
 
+    .status-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.9rem;
+        height: 1.9rem;
+        border-radius: 50%;
+        color: #fff;
+        font-size: 1.02rem;
+        font-weight: 800;
+        line-height: 1;
+        box-shadow: 0 .15rem .35rem rgba(0, 0, 0, .12);
+    }
     .val { font-size: 1.18rem; font-weight: 700; }
     .val-unit { font-size: .82rem; color: #6c757d; font-weight: 500; }
     .analyte-line { font-size: .78rem; color: #6c757d; font-style: italic; }
@@ -158,8 +174,9 @@
     @@media (max-width: 767px) {
         .report-paper { padding: 1.5rem 1.15rem 2rem; }
         .report-paper::before { font-size: 5rem; }
-        .rt .col-value { padding-right: .9rem !important; }
-        .rt .col-ref { padding-left: .9rem !important; }
+        .rt { min-width: 34rem; }
+        .rt .col-value { padding-right: .6rem !important; }
+        .rt .col-ref { padding-left: .6rem !important; }
     }
 </style>
 
@@ -311,6 +328,15 @@
                         <div class="report-section-title">@Loc.T("KeyResultsSection")</div>
                         <div class="table-responsive">
                             <table class="rt" data-testid="report-screen-results-table">
+                                @* Fixed widths: the analyte + explanation column gets the
+                                   bulk of the row, while value / reference / status stay
+                                   pinned to the right and can never be squeezed out. *@
+                                <colgroup>
+                                    <col style="width:54%" />
+                                    <col style="width:14%" />
+                                    <col style="width:19%" />
+                                    <col style="width:13%" />
+                                </colgroup>
                                 <thead>
                                     <tr>
                                         <th>@Loc.T("Parameter")</th>
@@ -392,7 +418,8 @@
                                                 </td>
                                                 <td class="col-ref">@row.ReferenceRange</td>
                                                 <td class="col-status">
-                                                    <span class="badge @s.Badge">@Html.Raw(s.Arrow)</span>
+                                                    <span class="status-chip" style="background:@s.Color"
+                                                          title="@row.Status">@Html.Raw(s.Arrow)</span>
                                                 </td>
                                             </tr>
                                         }
