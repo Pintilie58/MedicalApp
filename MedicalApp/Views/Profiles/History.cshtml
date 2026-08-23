@@ -236,14 +236,11 @@
                                     <td class="text-end">
                                         @if (h.HasRawJson)
                                         {
-                                            @if (Model.IsFreemium)
-                                            {
-                                                <a asp-action="ViewReport" asp-route-id="@h.Id"
-                                                   class="btn btn-sm btn-warning fw-semibold"
-                                                   data-testid="btn-view-report-@h.Id">
-                                                    &#128065; @Loc.T("ScreenReportViewOnScreenBtn")
-                                                </a>
-                                            }
+                                            <a asp-action="ViewReport" asp-route-id="@h.Id"
+                                               class="btn btn-sm btn-warning fw-semibold"
+                                               data-testid="btn-view-report-@h.Id">
+                                                &#128065; @Loc.T("ScreenReportViewOnScreenBtn")
+                                            </a>
                                             <a asp-action="DownloadReport" asp-route-id="@h.Id"
                                                class="btn btn-sm btn-primary"
                                                data-testid="btn-download-report-@h.Id">

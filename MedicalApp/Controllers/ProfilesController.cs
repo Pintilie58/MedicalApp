@@ -192,10 +192,10 @@ namespace MedicalApp.Controllers
         }
 
         // ====================================================================
-        // VIEW REPORT ON SCREEN — the in-app twin of the DEMO PDF. Keeps the
-        // freemium user inside the app (no detour through their inbox) and puts
-        // the "unlock for FREE" CTA one click away from the paywall.
-        // Paying users are redirected to the PDF: they have nothing to unlock.
+        // VIEW REPORT ON SCREEN — the in-app twin of the PDF. For freemium users
+        // it is the DEMO report (server-side redacted + unlock CTAs) and keeps
+        // them inside the app, one click from the paywall. For paying users it
+        // renders the COMPLETE report with no CTAs — they already paid.
         // ====================================================================
         [HttpGet]
         public async Task<IActionResult> ViewReport(int id)
@@ -207,8 +207,7 @@ namespace MedicalApp.Controllers
                 .Where(u => u.Email == CurrentEmail)
                 .Select(u => u.Credite)
                 .FirstOrDefaultAsync();
-            if (paidCredits > 0)
-                return RedirectToAction(nameof(DownloadReport), new { id });
+            bool isFreemium = paidCredits == 0;
 
             var history = await _db.InterpretationHistories.AsNoTracking()
                 .FirstOrDefaultAsync(h => h.Id == id && h.UserEmail == CurrentEmail);
@@ -250,15 +249,17 @@ namespace MedicalApp.Controllers
                     .FirstOrDefaultAsync()
                 : null;
 
-            return View(BuildReportScreen(history, result, profileName));
+            return View(BuildReportScreen(history, result, profileName, isFreemium));
         }
 
         /// <summary>
         /// Maps the stored interpretation onto the on-screen ViewModel, dropping the
         /// text of every redacted item (see ReportScreenViewModel security note).
+        /// Nothing is redacted when <paramref name="isFreemium"/> is false.
         /// </summary>
         private static ReportScreenViewModel BuildReportScreen(
-            InterpretationHistory history, InterpretationResult r, string? profileName)
+            InterpretationHistory history, InterpretationResult r, string? profileName,
+            bool isFreemium = true)
         {
             var vm = new ReportScreenViewModel
             {
@@ -267,6 +268,7 @@ namespace MedicalApp.Controllers
                 ProfileName = profileName,
                 CreatedAt = history.CreatedAt,
                 PatientInfo = r.PatientInfo,
+                IsFreemium = isFreemium,
                 Summary = r.Summary,
                 Disclaimer = r.Disclaimer
             };
@@ -280,7 +282,7 @@ namespace MedicalApp.Controllers
                 int i = 0;
                 foreach (var raw in items.Where(x => !string.IsNullOrWhiteSpace(x)))
                 {
-                    bool isLocked = PdfReportGenerator.IsRedactedAt(i++);
+                    bool isLocked = isFreemium && PdfReportGenerator.IsRedactedAt(i++);
                     if (isLocked) locked++;
                     list.Add(new ReportScreenViewModel.LockableText
                     {
@@ -301,7 +303,7 @@ namespace MedicalApp.Controllers
                 for (int i = 0; i < r.KeyResults.Count; i++)
                 {
                     var k = r.KeyResults[i];
-                    bool isLocked = PdfReportGenerator.IsRedactedAt(i);
+                    bool isLocked = isFreemium && PdfReportGenerator.IsRedactedAt(i);
                     if (isLocked) locked++;
                     vm.KeyResults.Add(new ReportScreenViewModel.LockableRow
                     {
@@ -334,7 +336,7 @@ namespace MedicalApp.Controllers
                 for (int i = 0; i < r.AbnormalFindings.Count; i++)
                 {
                     var f = r.AbnormalFindings[i];
-                    bool isLocked = PdfReportGenerator.IsRedactedAt(i);
+                    bool isLocked = isFreemium && PdfReportGenerator.IsRedactedAt(i);
                     if (isLocked) locked++;
                     vm.AbnormalFindings.Add(new ReportScreenViewModel.LockableFinding
                     {

@@ -45,8 +45,8 @@
         padding: 2.75rem 3rem 3rem;
         overflow: hidden;
     }
-    /* Faint diagonal DEMO watermark — mirrors the PDF page background. */
-    .report-paper::before {
+    /* Faint diagonal DEMO watermark — only on the freemium version, mirrors the PDF. */
+    .report-paper.demo-paper::before {
         content: "DEMO";
         position: absolute;
         top: 38%;
@@ -100,9 +100,12 @@
         word-break: break-word;
     }
     .rt tbody tr:hover td { background: #f8fbff; }
-    .rt .col-value { text-align: right; white-space: nowrap; padding-right: 1.75rem !important; }
-    .rt .col-ref { text-align: left; white-space: nowrap; padding-left: 1.75rem !important; color: #6c757d; }
+    .rt .col-value { text-align: right; white-space: nowrap; padding-right: 1.5rem !important; }
+    /* Reference ranges can be descriptive ("100-125: Glicemie bazala modificata"),
+       so they must wrap inside their own column instead of spilling over Status. */
+    .rt .col-ref { text-align: left; padding-left: 1.5rem !important; color: #6c757d; overflow-wrap: anywhere; }
     .rt .col-status { text-align: center; }
+    .param-name { font-size: 1.05rem; font-weight: 700; line-height: 1.3; }
     .rt tr.panel-row td {
         background: #f4f7fb;
         color: #0d47a1;
@@ -173,20 +176,23 @@
     }
     @@media (max-width: 767px) {
         .report-paper { padding: 1.5rem 1.15rem 2rem; }
-        .report-paper::before { font-size: 5rem; }
+        .report-paper.demo-paper::before { font-size: 5rem; }
         .rt { min-width: 34rem; }
         .rt .col-value { padding-right: .6rem !important; }
         .rt .col-ref { padding-left: .6rem !important; }
     }
 </style>
 
-<div class="report-stage">
+<div class="report-stage @(Model.IsFreemium ? "" : "pb-5")">
     <div class="container">
         <div class="row justify-content-center">
             <div class="col-xl-9 col-lg-10">
 
                 <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
-                    <span class="badge bg-warning text-dark demo-stamp" data-testid="report-screen-demo-badge">DEMO</span>
+                    @if (Model.IsFreemium)
+                    {
+                        <span class="badge bg-warning text-dark demo-stamp" data-testid="report-screen-demo-badge">DEMO</span>
+                    }
                     <span class="text-secondary small">
                         @Model.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")
                         @if (!string.IsNullOrWhiteSpace(Model.ProfileName))
@@ -194,16 +200,22 @@
                             <text> &middot; <strong>@Model.ProfileName</strong></text>
                         }
                     </span>
-                    @if (Model.ProfileId.HasValue)
-                    {
-                        <a asp-action="History" asp-route-id="@Model.ProfileId.Value"
-                           class="btn btn-sm btn-outline-secondary ms-auto" data-testid="report-screen-back-btn">
-                            &larr; @Loc.T("ScreenReportBackToHistory")
+                    <div class="ms-auto d-flex gap-2">
+                        <a asp-action="DownloadReport" asp-route-id="@Model.HistoryId"
+                           class="btn btn-sm btn-primary" data-testid="report-screen-download-btn">
+                            &#11015; @Loc.T("HistoryBtnDownloadPdf")
                         </a>
-                    }
+                        @if (Model.ProfileId.HasValue)
+                        {
+                            <a asp-action="History" asp-route-id="@Model.ProfileId.Value"
+                               class="btn btn-sm btn-outline-secondary" data-testid="report-screen-back-btn">
+                                &larr; @Loc.T("ScreenReportBackToHistory")
+                            </a>
+                        }
+                    </div>
                 </div>
 
-                <div class="report-paper">
+                <div class="report-paper @(Model.IsFreemium ? "demo-paper" : "")">
 
                     @* ---------- Branded header, identical to the PDF ---------- *@
                     <div class="brand-head" data-testid="report-screen-brand-header">
@@ -217,42 +229,45 @@
                         @Loc.T("ScreenReportTitle")
                     </h1>
 
-                    @* ---------- TOP: attention banner + CTA #1 ---------- *@
-                    <div class="alert alert-warning border-start border-4 border-warning" data-testid="report-screen-attention">
-                        <div class="fw-bold">@Loc.T("PdfFreemiumBannerTitle")</div>
-                        <div class="small">@Loc.T("PdfFreemiumBannerBody")</div>
-                        <div class="mt-2">
-                            <span class="text-danger fw-bold">@Loc.T("PdfFreemiumAttentionWord")</span>
-                            <span>- @Html.Raw(hi(Loc.T("PdfFreemiumAttentionLine")))</span>
-                        </div>
-                        <div class="small text-muted mt-2">@Loc.T("ScreenReportEmailedNote")</div>
-                    </div>
-
-                    @if (Model.TotalResultsCount > 0)
+                    @* ---------- TOP: attention banner + CTA #1 (freemium only) ---------- *@
+                    @if (Model.IsFreemium)
                     {
-                        <div class="progress-card mb-3" data-testid="report-screen-progress">
-                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                                <span class="fw-semibold small">
-                                    @string.Format(Loc.T("ScreenReportVisibleResultsFmt"),
-                                        Model.VisibleResultsCount, Model.TotalResultsCount)
-                                </span>
-                                <span class="small text-muted">
-                                    @string.Format(Loc.T("ScreenReportLockedSectionsFmt"), Model.LockedCount)
-                                </span>
+                        <div class="alert alert-warning border-start border-4 border-warning" data-testid="report-screen-attention">
+                            <div class="fw-bold">@Loc.T("PdfFreemiumBannerTitle")</div>
+                            <div class="small">@Loc.T("PdfFreemiumBannerBody")</div>
+                            <div class="mt-2">
+                                <span class="text-danger fw-bold">@Loc.T("PdfFreemiumAttentionWord")</span>
+                                <span>- @Html.Raw(hi(Loc.T("PdfFreemiumAttentionLine")))</span>
                             </div>
-                            <div class="progress mt-2" style="height:.5rem;">
-                                <div class="progress-bar bg-success" role="progressbar"
-                                     style="width:@visiblePct%" aria-valuenow="@visiblePct"
-                                     aria-valuemin="0" aria-valuemax="100"></div>
+                            <div class="small text-muted mt-2">@Loc.T("ScreenReportEmailedNote")</div>
+                        </div>
+
+                        @if (Model.TotalResultsCount > 0)
+                        {
+                            <div class="progress-card mb-3" data-testid="report-screen-progress">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                    <span class="fw-semibold small">
+                                        @string.Format(Loc.T("ScreenReportVisibleResultsFmt"),
+                                            Model.VisibleResultsCount, Model.TotalResultsCount)
+                                    </span>
+                                    <span class="small text-muted">
+                                        @string.Format(Loc.T("ScreenReportLockedSectionsFmt"), Model.LockedCount)
+                                    </span>
+                                </div>
+                                <div class="progress mt-2" style="height:.5rem;">
+                                    <div class="progress-bar bg-success" role="progressbar"
+                                         style="width:@visiblePct%" aria-valuenow="@visiblePct"
+                                         aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
                             </div>
+                        }
+
+                        <div class="text-center my-4">
+                            <a href="@buyUrl" class="btn btn-lg cta-inline px-4" data-testid="report-cta-top">
+                                @Loc.T("PdfFreemiumUnlockButton")
+                            </a>
                         </div>
                     }
-
-                    <div class="text-center my-4">
-                        <a href="@buyUrl" class="btn btn-lg cta-inline px-4" data-testid="report-cta-top">
-                            @Loc.T("PdfFreemiumUnlockButton")
-                        </a>
-                    </div>
 
                     @* ---------- Patient info (never hidden) ---------- *@
                     @if (Model.PatientInfo != null)
@@ -332,9 +347,9 @@
                                    bulk of the row, while value / reference / status stay
                                    pinned to the right and can never be squeezed out. *@
                                 <colgroup>
-                                    <col style="width:54%" />
-                                    <col style="width:14%" />
-                                    <col style="width:19%" />
+                                    <col style="width:50%" />
+                                    <col style="width:13%" />
+                                    <col style="width:24%" />
                                     <col style="width:13%" />
                                 </colgroup>
                                 <thead>
@@ -382,7 +397,7 @@
                                             var s = st(row.Status);
                                             <tr>
                                                 <td>
-                                                    <div class="fw-semibold">@row.Parameter</div>
+                                                    <div class="param-name" style="color:@s.Color">@row.Parameter</div>
                                                     @if (!string.IsNullOrWhiteSpace(row.AnalyteLine))
                                                     {
                                                         <div class="analyte-line">@row.AnalyteLine</div>
@@ -439,12 +454,15 @@
                             </div>
                         }
 
-                        @* ---------- MIDDLE: CTA #2 ---------- *@
-                        <div class="text-center my-4">
-                            <a href="@buyUrl" class="btn btn-lg cta-inline px-4" data-testid="report-cta-middle">
-                                @Loc.T("PdfFreemiumUnlockButton")
-                            </a>
-                        </div>
+                        @* ---------- MIDDLE: CTA #2 (freemium only) ---------- *@
+                        @if (Model.IsFreemium)
+                        {
+                            <div class="text-center my-4">
+                                <a href="@buyUrl" class="btn btn-lg cta-inline px-4" data-testid="report-cta-middle">
+                                    @Loc.T("PdfFreemiumUnlockButton")
+                                </a>
+                            </div>
+                        }
                     }
 
                     @* ---------- Abnormal findings ---------- *@
@@ -569,16 +587,19 @@
                         <p class="small fst-italic text-muted mb-0">@Model.Disclaimer</p>
                     }
 
-                    @* ---------- BOTTOM: final CTA #3 ---------- *@
-                    <div class="alert alert-success border-start border-4 border-success mt-5" data-testid="report-screen-final-cta">
-                        <div class="fw-bold fs-5">@Loc.T("PdfFreemiumCtaTitle")</div>
-                        <div class="mt-1">@Html.Raw(hi(Loc.T("PdfFreemiumCtaBody")))</div>
-                        <div class="text-center mt-3">
-                            <a href="@buyUrl" class="btn btn-lg cta-inline px-4" data-testid="report-cta-bottom">
-                                @Loc.T("PdfFreemiumUnlockButton")
-                            </a>
+                    @* ---------- BOTTOM: final CTA #3 (freemium only) ---------- *@
+                    @if (Model.IsFreemium)
+                    {
+                        <div class="alert alert-success border-start border-4 border-success mt-5" data-testid="report-screen-final-cta">
+                            <div class="fw-bold fs-5">@Loc.T("PdfFreemiumCtaTitle")</div>
+                            <div class="mt-1">@Html.Raw(hi(Loc.T("PdfFreemiumCtaBody")))</div>
+                            <div class="text-center mt-3">
+                                <a href="@buyUrl" class="btn btn-lg cta-inline px-4" data-testid="report-cta-bottom">
+                                    @Loc.T("PdfFreemiumUnlockButton")
+                                </a>
+                            </div>
                         </div>
-                    </div>
+                    }
 
                     <div class="text-center mt-4">
                         <div class="fst-italic text-primary">@Loc.T("Tagline")</div>
@@ -590,18 +611,21 @@
     </div>
 </div>
 
-@* ---------- Sticky unlock bar: always one tap from the paywall ---------- *@
-<div class="report-sticky" data-testid="report-sticky-bar">
-    <div class="container py-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
-        <div class="small">
-            <span class="text-danger fw-bold">@Loc.T("PdfFreemiumAttentionWord")</span>
-            <span class="ms-1">@string.Format(Loc.T("ScreenReportLockedSectionsFmt"), Model.LockedCount)</span>
+@* ---------- Sticky unlock bar: always one tap from the paywall (freemium only) ---------- *@
+@if (Model.IsFreemium)
+{
+    <div class="report-sticky" data-testid="report-sticky-bar">
+        <div class="container py-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="small">
+                <span class="text-danger fw-bold">@Loc.T("PdfFreemiumAttentionWord")</span>
+                <span class="ms-1">@string.Format(Loc.T("ScreenReportLockedSectionsFmt"), Model.LockedCount)</span>
+            </div>
+            <a href="@buyUrl" class="btn cta-inline" data-testid="report-cta-sticky">
+                @Loc.T("PdfFreemiumUnlockButton")
+            </a>
         </div>
-        <a href="@buyUrl" class="btn cta-inline" data-testid="report-cta-sticky">
-            @Loc.T("PdfFreemiumUnlockButton")
-        </a>
     </div>
-</div>
+}
 
 @* Same finale jingle the Dashboard plays — the freemium user now lands here
    instead, so the audio cue has to follow them. TempData is single-shot. *@

@@ -18,6 +18,10 @@ namespace MedicalApp.Models
 
         public PatientInfo? PatientInfo { get; set; }
 
+        /// <summary>False for users who bought credits: nothing is redacted and the
+        /// upgrade CTAs are hidden — they already paid, there is nothing to sell.</summary>
+        public bool IsFreemium { get; set; } = true;
+
         /// <summary>Never redacted — this is the teaser that sells the upgrade.</summary>
         public string? Summary { get; set; }
         public string? Disclaimer { get; set; }
