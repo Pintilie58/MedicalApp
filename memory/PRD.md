@@ -1069,3 +1069,25 @@ Concept (idee user): din toate buletinele din arhiva unui profil se extrag TOATE
 - Empty state: mesaj verde „Felicitări! Toate analizele tale sunt în intervalul normal".
 - 24 chei noi Loc.cs × 7 limbi (Dossier*).
 - Validare: build 0 erori/0 warning-uri; logica de agregare rulată REAL prin reflection pe `BuildDossier` cu 4 buletine sintetice (inclusiv un duplicat, un „Negativ" și un „POZITIV") → 7 analize / 4 grupuri corecte, dedup OK, trend OK; pagina inspectată pe 3 screenshot-uri; PDF generat (144 KB, 1 pagină) și inspectat vizual.
+
+### 2026-08-24 23:48 — PUNCT DE ÎNTOARCERE declarat de user
+Userul a cerut explicit să reținem acest moment ca checkpoint de rollback înainte de lucrările de performanță. Tot ce e livrat până aici (Demo PDF cu CTA, deblocare la prima cumpărare, ecran „Raportul tău", Dosar medical) este testat și acceptat de user.
+
+### 2026-08 — AUDIT PERFORMANȚĂ + Pasul 1 și 2 (instrumentare + LOINC batch)
+CONTEXT: user raporta interpretări de 2-4 minute + coduri LOINC diferite la aceeași analiză. A propus Med-Gemini; am verificat prin web search și am arătat că NU e o soluție (Med-Gemini nu are API; MedLM oprit în sept 2025; MedGemma e model open care cere GPU self-hosted, slab pe multilingv, mai LENT). User a acceptat.
+AUDIT (cauze găsite în cod):
+- Prompt de sistem = 44.730 caractere ≈ 11.000 tokeni, trimis la fiecare apel, amestecând 5 sarcini diferite.
+- `MaxOutputTokens: 65000` + instrucțiunea „DETAILED (not a short one)" → 4.000-9.000 tokeni de ieșire = 60-120 s (latența LLM vine din generare, nu din citire).
+- Retry-uri: transient 5/15/30/60 s; audit/JSON eșuat → RE-interpretare completă (până la 3 apeluri) → cazurile de 4 minute.
+- `LoincMatcherClient.MatchAllAsync`: buclă SECVENȚIALĂ, 1 HTTP POST per analiză → 30-40 round-trips = 15-120 s.
+- Zero instrumentare (niciun Stopwatch) → nimeni nu știa unde se duce timpul.
+LIVRAT ACUM:
+1. `Services/StageTimer.cs` — cronometru per etapă (acumulează la retry), serializat JSON.
+2. `InterpretationHistory`: coloane noi `DurationMs` (int?) + `StageTimingsJson` (string, 1000). Migrație EF: `20260824205604_AddInterpretationStageTimings` (atinge DOAR aceste 2 coloane). **USERUL TREBUIE SĂ RULEZE Update-Database.**
+3. `InterpretationController`: cronometrare pe pdf_extract, ai_calls (+ai_attempts), loinc_match, pdf_report, email; log „Interpretation TIMING ..." + salvare pe rândul de istoric.
+4. `loinc_service/main.py`: endpoint NOU `POST /loinc/match-batch` — tot buletinul într-un singur apel, ThreadPoolExecutor (max 8 workers), rezultate aliniate pozițional, `null` pentru nepotriviri. Testat cu FastAPI TestClient (3 in → 3 out, 200 OK).
+5. `LoincMatcherClient`: calea rapidă folosește batch-ul; helper `ApplyMatch` partajat; FALLBACK automat pe bucla veche dacă endpoint-ul lipsește (404/405) → versiune veche de Python = doar mai lent, nu rupt. **USERUL TREBUIE SĂ REPORNEASCĂ serviciul Python** ca să încarce endpoint-ul nou.
+6. Prompt Gemini rescris (decizia userului): explicații de 1-2 propoziții la analizele NORMALE, minimum 3 propoziții + cele 4 puncte doar la high/low/borderline/pozitiv. Estimare: -40% tokeni de ieșire.
+7. Admin: acțiune nouă `AdminController.Performance(take=20)` + `Views/Admin/Performance.cshtml` + `Models/InterpretationPerformanceViewModel.cs` + buton „Performanță" în Admin Index. Tabel cu timpi per etapă, medii, heat-map (roșu >20s, galben >5s), badge „N apeluri" când au fost retry-uri AI.
+VALIDARE: build 0 erori/0 warning-uri; endpoint batch testat real; panoul Admin randat real și inspectat (screenshot).
+URMEAZĂ (aprobat conceptual): Pasul 3 Sticky Mapping (cache determinist LOINC per profil) + Pasul 4 împărțirea apelului Gemini în EXTRACTOR (temperatură 0, doar tabel) + INTERPRETOR (proză), cu LOINC matching rulat în PARALEL cu proza, totul în spatele unui feature flag.

@@ -1,0 +1,113 @@
+@model MedicalApp.Models.InterpretationPerformanceViewModel
+@{
+    ViewData["Title"] = "Performanță interpretări";
+
+    Func<long, string> ms = v => v >= 1000 ? $"{v / 1000.0:0.0} s" : $"{v} ms";
+    // Anything over 20 s in a single stage is what we are hunting.
+    Func<long, string> heat = v => v >= 20000 ? "text-danger fw-bold"
+        : v >= 5000 ? "text-warning fw-semibold"
+        : "text-muted";
+}
+
+<div class="container py-4">
+    <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+        <h2 class="text-primary fw-bold mb-0">Performanță interpretări</h2>
+        <a asp-action="Index" class="btn btn-sm btn-outline-secondary ms-auto" data-testid="perf-back-btn">
+            &larr; Admin Dashboard
+        </a>
+    </div>
+
+    <p class="text-muted">
+        Timpii măsurați pe fiecare etapă a fluxului de interpretare, pentru ultimele
+        @Model.Rows.Count interpretări. Roșu = peste 20 s, galben = peste 5 s.
+    </p>
+
+    @if (Model.Rows.Count == 0)
+    {
+        <div class="alert alert-info" data-testid="perf-empty">
+            Nu există încă interpretări cu timpi măsurați. Fă o interpretare nouă și revino aici.
+        </div>
+    }
+    else
+    {
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title text-primary">Medii pe etapă</h5>
+                <div class="row g-3">
+                    @foreach (var stage in Model.StageOrder)
+                    {
+                        var avg = Model.AverageByStage.TryGetValue(stage, out var v) ? v : 0;
+                        var pct = Model.AverageTotalMs > 0 ? (int)(100.0 * avg / Model.AverageTotalMs) : 0;
+                        <div class="col-md-4 col-lg-2">
+                            <div class="border rounded p-2 h-100" data-testid="perf-avg-@stage">
+                                <div class="small text-muted">@Model.StageLabels[stage]</div>
+                                <div class="fs-5 @heat(avg)">@ms(avg)</div>
+                                <div class="progress mt-1" style="height:.35rem;">
+                                    <div class="progress-bar @(pct >= 40 ? "bg-danger" : pct >= 15 ? "bg-warning" : "bg-success")"
+                                         style="width:@pct%"></div>
+                                </div>
+                                <div class="small text-muted">@pct% din total</div>
+                            </div>
+                        </div>
+                    }
+                    <div class="col-md-4 col-lg-2">
+                        <div class="border rounded p-2 h-100 bg-light" data-testid="perf-avg-total">
+                            <div class="small text-muted">TOTAL mediu</div>
+                            <div class="fs-5 fw-bold text-primary">@ms(Model.AverageTotalMs)</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle" data-testid="perf-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Data</th>
+                        <th>User / fișier</th>
+                        <th>Model</th>
+                        @foreach (var stage in Model.StageOrder)
+                        {
+                            <th class="text-end">@Model.StageLabels[stage]</th>
+                        }
+                        <th class="text-end">Restul</th>
+                        <th class="text-end">TOTAL</th>
+                        <th class="text-end">Tokeni out</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Model.Rows)
+                    {
+                        <tr data-testid="perf-row-@r.HistoryId">
+                            <td class="text-muted">@r.HistoryId</td>
+                            <td class="small text-nowrap">@r.CreatedAt.ToLocalTime().ToString("dd.MM HH:mm")</td>
+                            <td class="small">
+                                <div>@r.UserEmail</div>
+                                <div class="text-muted">@r.FileName</div>
+                            </td>
+                            <td class="small">
+                                @r.ModelUsed
+                                @if (r.AiAttempts > 1)
+                                {
+                                    <span class="badge bg-danger" title="Câte apeluri AI au fost necesare">
+                                        @r.AiAttempts apeluri
+                                    </span>
+                                }
+                            </td>
+                            @foreach (var stage in Model.StageOrder)
+                            {
+                                var v = r.Stages.TryGetValue(stage, out var sv) ? sv : 0;
+                                <td class="text-end @heat(v)">@(v > 0 ? ms(v) : "—")</td>
+                            }
+                            <td class="text-end text-muted">@ms(r.OtherMs)</td>
+                            <td class="text-end fw-bold @heat(r.TotalMs)">@ms(r.TotalMs)</td>
+                            <td class="text-end small text-muted">@r.OutputTokens</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

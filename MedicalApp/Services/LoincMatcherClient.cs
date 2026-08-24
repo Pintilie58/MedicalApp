@@ -65,6 +65,39 @@ namespace MedicalApp.Services
             if (result.KeyResults == null || result.KeyResults.Count == 0)
                 return stats;
 
+            // Fast path: resolve the WHOLE report in ONE request. The old
+            // per-analyte loop meant 30-40 sequential HTTP round-trips (the
+            // single biggest chunk of interpretation latency after Gemini).
+            // If the batch endpoint is unavailable (older Python service still
+            // running) we fall back to the per-analyte loop below, so a version
+            // mismatch degrades speed instead of breaking interpretations.
+            var pending = result.KeyResults
+                .Where(kr => !string.IsNullOrWhiteSpace(kr.ParameterNormalizedEn))
+                .ToList();
+            stats.Total = result.KeyResults.Count;
+            stats.NoNormalizedTerm = stats.Total - pending.Count;
+
+            if (pending.Count == 0)
+                return stats;
+
+            var batch = await MatchBatchAsync(pending, ct);
+            if (batch != null)
+            {
+                for (int i = 0; i < pending.Count; i++)
+                {
+                    ApplyMatch(pending[i], i < batch.Count ? batch[i] : null, stats);
+                }
+
+                _logger.LogInformation(
+                    "LoincMatcher summary (BATCH): total={Total} matched={Matched} below_threshold={Low} no_match={None} no_normalized_term={Skip}.",
+                    stats.Total, stats.Matched, stats.BelowThreshold, stats.NoMatch, stats.NoNormalizedTerm);
+                return stats;
+            }
+
+            _logger.LogWarning(
+                "LoincMatcher: batch endpoint unavailable — falling back to the sequential per-analyte path (slower).");
+            stats = new MatcherStats();
+
             foreach (var kr in result.KeyResults)
             {
                 stats.Total++;
@@ -120,6 +153,87 @@ namespace MedicalApp.Services
                 stats.Total, stats.Matched, stats.BelowThreshold, stats.NoMatch, stats.NoNormalizedTerm);
 
             return stats;
+        }
+
+        /// <summary>
+        /// Applies one matcher response to one analyte, enforcing the score
+        /// threshold. Shared by the batch and the legacy sequential paths so the
+        /// two can never diverge.
+        /// </summary>
+        private void ApplyMatch(KeyResult kr, MatcherResponse? match, MatcherStats stats)
+        {
+            if (match == null)
+            {
+                stats.NoMatch++;
+                return;
+            }
+
+            if (match.Score < _settings.MinScore)
+            {
+                _logger.LogInformation(
+                    "LoincMatcher: parameter \"{Param}\" -> code {Code} score {Score:F2} BELOW threshold {Min:F2}. Discarding.",
+                    kr.Parameter, match.Loinc, match.Score, _settings.MinScore);
+                stats.BelowThreshold++;
+                return;
+            }
+
+            kr.LoincCode = match.Loinc;
+            kr.LoincLongName = match.Name;
+            kr.LoincClass = match.LoincClass;
+            kr.LoincSource = match.LoincSource;
+            kr.LoincScore = match.Score;
+            kr.LoincAxisVerdict = match.AxisVerdict;
+            kr.LoincConfidence = match.Score switch
+            {
+                >= 0.85 => "high",
+                >= 0.65 => "medium",
+                _ => "low"
+            };
+            stats.Matched++;
+        }
+
+        /// <summary>
+        /// One HTTP call for the whole report. Returns null when the endpoint is
+        /// missing/unreachable so the caller can fall back to the old loop.
+        /// The timeout scales with the number of analytes.
+        /// </summary>
+        private async Task<List<MatcherResponse?>?> MatchBatchAsync(
+            List<KeyResult> items, CancellationToken ct)
+        {
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                cts.CancelAfter(TimeSpan.FromSeconds(
+                    Math.Max(_settings.TimeoutSeconds * 3, 10 + items.Count)));
+
+                var payload = items.Select(kr => new MatcherRequest
+                {
+                    TestName = kr.ParameterNormalizedEn!,
+                    Unit = kr.Unit,
+                    RawParameterName = kr.Parameter,
+                    PanelHeaderRaw = kr.PanelHeaderRaw,
+                    AnalyteLineRaw = kr.AnalyteLineRaw
+                }).ToList();
+
+                var resp = await _http.PostAsJsonAsync("/loinc/match-batch", payload, cts.Token);
+
+                if (resp.StatusCode == System.Net.HttpStatusCode.NotFound ||
+                    resp.StatusCode == System.Net.HttpStatusCode.MethodNotAllowed)
+                    return null; // older Python service without the batch endpoint
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("LoincMatcher batch returned {Status}.", (int)resp.StatusCode);
+                    return null;
+                }
+
+                return await resp.Content.ReadFromJsonAsync<List<MatcherResponse?>>(cancellationToken: cts.Token);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "LoincMatcher batch call failed.");
+                return null;
+            }
         }
 
         private async Task<MatcherResponse?> MatchOneAsync(

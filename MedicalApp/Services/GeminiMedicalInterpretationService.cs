@@ -799,7 +799,8 @@ STRICT RULES - you MUST follow ALL of them:
 5. You do NOT invent values - if a parameter is missing from the input, do NOT include it.
 6. Use an empathetic, professional, CALM tone - never alarming.
 7. Use SIMPLE language, accessible to a non-medical reader.
-8. Provide a DETAILED interpretation (not a short one) - include thorough explanations.
+8. Provide a DETAILED interpretation where it matters: long explanations for values
+   OUTSIDE the reference range, short (1-2 sentence) explanations for normal values.
 9. NEVER emit LOINC numeric codes. The ""key_results"" objects must NOT contain
    ""loinc_code"", ""loinc_long_name"" or ""loinc_confidence"" fields. Instead, you
    provide a clean standardized English term in ""parameter_normalized_en"".
@@ -990,24 +991,33 @@ If the PDF is NOT a medical analysis (wrong document type, empty, unintelligible
 
 CONTENT GUIDELINES:
 - ""summary"": 2-3 sentences overviewing what was analyzed.
-- ""key_results"": THE COMPLETE LIST of all measured parameters. EACH ENTRY's ""explanation""
-  field MUST be **AT LEAST 3 FULL SENTENCES, written in clear lay-person language**, AND it
-  MUST be filled with substantive content REGARDLESS of whether the value is normal or abnormal.
-  Concretely, every ""explanation"" must include all four of the following:
+- ""key_results"": THE COMPLETE LIST of all measured parameters. The DEPTH of each
+  ""explanation"" depends on the status — spend the words where the reader actually
+  needs them, and keep the response fast:
+
+  * status = ""normal"" (value inside the reference range) -> **EXACTLY 1-2 SHORT
+    SENTENCES**: what the parameter measures, plus a clear reassurance that the value
+    is inside the range. Nothing more. Example:
+      ""Hemoglobina transportă oxigenul în sânge. Valoarea ta este în intervalul normal,
+       ceea ce este un semn bun.""
+    Do NOT add clinical background, follow-up advice or comparisons for normal values.
+
+  * status = ""high"", ""low"" or ""borderline"" (or a positive/reactive qualitative
+    result) -> **AT LEAST 3 FULL SENTENCES**, in clear lay-person language, covering
+    all four points below.
+
+  For the abnormal / borderline entries, every ""explanation"" must include:
     (1) WHAT this parameter measures and where in the body / which system it relates to
         (e.g. ""Hemoglobina este proteina din globulele roșii care transportă oxigenul de la
          plămâni către țesuturi"").
     (2) WHY this measurement matters clinically (what doctors look for when they see it).
-    (3) HOW this specific value compares with the reference range (whether it falls inside or
-        outside, and how close to the limits it is). For normal values, reassure clearly;
-        for abnormal values, mention what high or low typically points to in plain terms,
-        WITHOUT giving a diagnosis.
+    (3) HOW this specific value compares with the reference range (how far outside it is,
+        or how close to the limits), mentioning what high or low typically points to in
+        plain terms, WITHOUT giving a diagnosis.
     (4) A short suggestion of what kind of follow-up or context the patient should consider
-        (e.g. ""Dacă valoarea rămâne stabilă la analize repetate, e un semn liniștitor"" or
-         ""Discutați cu medicul împreună cu valorile XYZ pentru o imagine completă"").
-  AVOID one-line stubs like ""Valoarea este în limite normale"" or ""Procentul este în
-  limite normale"". Such terse explanations are NOT acceptable - if you find yourself writing
-  one, expand it with the four points above.
+        (e.g. ""Discutați cu medicul împreună cu valorile XYZ pentru o imagine completă"").
+  Never leave an ABNORMAL entry with a one-line stub. Never inflate a NORMAL entry
+  beyond two sentences.
 - ""abnormal_findings"": EVERY value outside the normal range, with educational explanations
   of possible causes (multi-sentence, even more detailed than the key_results explanation
   for the same parameter).

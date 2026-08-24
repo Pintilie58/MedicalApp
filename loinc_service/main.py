@@ -8,6 +8,7 @@ Endpoints
 GET  /health       -> liveness probe (no LOINC data needed)
 GET  /ready        -> readiness probe (returns 503 until LoincStore is loaded)
 POST /loinc/match  -> resolve a LOINC code for an English medical term
+POST /loinc/match-batch -> resolve a whole lab report in ONE call (parallel)
 
 Run (development):
     uvicorn main:app --host 127.0.0.1 --port 8000 --reload
@@ -19,6 +20,8 @@ Run (production-like, single worker):
 from __future__ import annotations
 
 import logging
+import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, status
@@ -173,6 +176,57 @@ def match(req: LoincRequest):
     if result is None:
         raise HTTPException(status_code=404, detail="No LOINC match found.")
     return LoincResponse(**result.to_dict())
+
+
+@app.post("/loinc/match-batch")
+def match_batch(reqs: list[LoincRequest]):
+    """Resolve MANY analytes in ONE request.
+
+    The C# side used to issue one HTTP POST per analyte, sequentially — a
+    40-parameter lab report meant 40 round-trips (15-120 s). Here the whole
+    report is matched in a single call, with the CPU-bound matching spread
+    over a thread pool.
+
+    Returns a list positionally aligned with the input; entries the matcher
+    could not resolve come back as ``null`` instead of a 404, so one bad
+    analyte never fails the whole report.
+    """
+    if STORE.embeddings is None or not STORE.metadata:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="LOINC store is not loaded. Run seed_embeddings.py first.",
+        )
+
+    if not reqs:
+        return []
+
+    def one(req: LoincRequest):
+        try:
+            result = find_loinc(
+                req.test_name,
+                unit=req.unit,
+                raw_parameter_name=req.raw_parameter_name,
+                panel_header_raw=req.panel_header_raw,
+                analyte_line_raw=req.analyte_line_raw,
+            )
+        except Exception:
+            log.exception("find_loinc failed for input: %r (unit=%r)", req.test_name, req.unit)
+            return None
+        return result.to_dict() if result is not None else None
+
+    t0 = time.perf_counter()
+    # Matching is numpy/CPU bound and releases the GIL inside numpy, so a
+    # modest pool gives a real speed-up without thrashing a small container.
+    workers = min(8, max(1, len(reqs)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        results = list(pool.map(one, reqs))
+
+    matched = sum(1 for r in results if r is not None)
+    log.info(
+        "/loinc/match-batch | %d analytes, %d matched, %.0f ms (%d workers)",
+        len(reqs), matched, (time.perf_counter() - t0) * 1000, workers,
+    )
+    return results
 
 
 @app.get("/loinc/anchors")

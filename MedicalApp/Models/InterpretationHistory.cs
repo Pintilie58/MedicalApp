@@ -53,6 +53,22 @@ namespace MedicalApp.Models
         public string? PdfSha256 { get; set; }
 
         /// <summary>
+        /// Wall-clock duration of the whole interpretation, in milliseconds:
+        /// from "file received" to "email sent". NULL for rows created before
+        /// instrumentation was added.
+        /// </summary>
+        public int? DurationMs { get; set; }
+
+        /// <summary>
+        /// Per-stage timings as compact JSON, e.g.
+        /// <c>{"pdf_extract":1204,"gemini":78210,"loinc":2140,"pdf_report":870,"email":1980,"total":84610}</c>.
+        /// This is the raw material for the Admin performance panel — it is the
+        /// only way to know WHICH stage made an interpretation slow.
+        /// </summary>
+        [StringLength(1000)]
+        public string? StageTimingsJson { get; set; }
+
+        /// <summary>
         /// Gemini model that actually produced the successful response
         /// (e.g. <c>gemini-2.5-flash</c> or <c>gemini-2.5-pro</c>). When the
         /// controller fell back from Flash to Pro because of repeated 503s,

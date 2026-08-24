@@ -475,6 +475,69 @@ namespace MedicalApp.Controllers
         }
 
         // =====================================================================
+        //  Performance panel — where do the minutes of an interpretation go?
+        //  Reads the per-stage timings persisted by StageTimer on each history
+        //  row. Purely diagnostic: no writes, no side effects.
+        // =====================================================================
+        [HttpGet]
+        public async Task<IActionResult> Performance(int take = 20)
+        {
+            take = Math.Clamp(take, 5, 100);
+
+            var rows = await _db.InterpretationHistories.AsNoTracking()
+                .Where(h => h.StageTimingsJson != null)
+                .OrderByDescending(h => h.Id)
+                .Take(take)
+                .Select(h => new
+                {
+                    h.Id,
+                    h.CreatedAt,
+                    h.UserEmail,
+                    h.OriginalFileName,
+                    h.Status,
+                    h.ModelUsed,
+                    h.DurationMs,
+                    h.StageTimingsJson,
+                    h.InputTokens,
+                    h.OutputTokens
+                })
+                .ToListAsync();
+
+            var vm = new InterpretationPerformanceViewModel
+            {
+                Rows = rows.Select(r => new InterpretationPerformanceViewModel.Row
+                {
+                    HistoryId = r.Id,
+                    CreatedAt = r.CreatedAt,
+                    UserEmail = r.UserEmail,
+                    FileName = r.OriginalFileName,
+                    Status = r.Status,
+                    ModelUsed = r.ModelUsed,
+                    TotalMs = r.DurationMs ?? 0,
+                    InputTokens = r.InputTokens,
+                    OutputTokens = r.OutputTokens,
+                    Stages = StageTimer.Parse(r.StageTimingsJson)
+                }).ToList()
+            };
+
+            if (vm.Rows.Count > 0)
+            {
+                foreach (var stage in vm.StageOrder)
+                {
+                    var vals = vm.Rows
+                        .Where(r => r.Stages.ContainsKey(stage))
+                        .Select(r => r.Stages[stage])
+                        .ToList();
+                    if (vals.Count > 0)
+                        vm.AverageByStage[stage] = (long)vals.Average();
+                }
+                vm.AverageTotalMs = (long)vm.Rows.Average(r => r.TotalMs);
+            }
+
+            return View(vm);
+        }
+
+        // =====================================================================
         //  Users list + search
         // =====================================================================
         [HttpGet]

@@ -206,6 +206,10 @@ namespace MedicalApp.Controllers
                 }
             }
 
+            // Instrumentation: one timer per interpretation. Persisted on the
+            // history row so the Admin panel can show exactly where the minutes go.
+            var timer = new StageTimer();
+
             var languageCode = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
             var providerName = (_interpretationSettings.Provider ?? "Gemini").Trim();
             var useGemini = !string.Equals(providerName, "OpenAI", StringComparison.OrdinalIgnoreCase);
@@ -256,6 +260,7 @@ namespace MedicalApp.Controllers
             // For the OpenAI path we also need a text extraction.
             // For the Gemini path we still extract text - purely as a DEBUG attachment.
             string extractedText;
+            var extractSw = System.Diagnostics.Stopwatch.StartNew();
             try
             {
                 using var ms = new MemoryStream(pdfBytes);
@@ -275,6 +280,7 @@ namespace MedicalApp.Controllers
                 _logger.LogWarning(ex, "PdfTextExtractor failed (Gemini path - non-fatal). Continuing without DEBUG text.");
                 extractedText = "(text extraction failed - Gemini reads the PDF directly)";
             }
+            timer.Add("pdf_extract", extractSw.ElapsedMilliseconds);
 
             if (!useGemini && (string.IsNullOrWhiteSpace(extractedText) || extractedText.Length < 50))
             {
@@ -356,6 +362,7 @@ namespace MedicalApp.Controllers
             while (true)
             {
                 attempt++;
+                var aiSw = System.Diagnostics.Stopwatch.StartNew();
                 try
                 {
                     if (useGemini)
@@ -389,11 +396,15 @@ namespace MedicalApp.Controllers
                         (result, inputTokens, outputTokens, rawGptResponse) =
                             await _ai.InterpretAsync(extractedText, languageCode);
                     }
+                    timer.Add("ai_calls", aiSw.ElapsedMilliseconds);
+                    timer.Add("ai_attempts", 1);
                     break; // success
                 }
                 catch (GeminiTransientException ex) when (transientAttempts + 1 < maxAttemptsTransient)
                 {
                     transientAttempts++;
+                    timer.Add("ai_calls", aiSw.ElapsedMilliseconds);
+                    timer.Add("ai_attempts", 1);
 
                     // Log the failed transient call BEFORE we decide on tier promotion
                     // so the Reliability widget sees the model that actually hiccupped
@@ -698,7 +709,9 @@ namespace MedicalApp.Controllers
             // rest of the pipeline (PDF, email, Compare) continues normally.
             try
             {
+                var loincSw = System.Diagnostics.Stopwatch.StartNew();
                 var matcherStats = await _loincMatcher.MatchAllAsync(result, HttpContext.RequestAborted);
+                timer.Add("loinc_match", loincSw.ElapsedMilliseconds);
                 // Any code populated by the matcher must trigger re-serialization
                 // so the DB-persisted RawJsonResult reflects the assigned codes
                 // (used by PDF regeneration, archive and Compare-by-LOINC view).
@@ -745,7 +758,9 @@ namespace MedicalApp.Controllers
                 // on promo bonus credits — both of those produce blurred PDFs to
                 // motivate the upgrade.
                 bool isFreemium = user.Credite == 0;
+                var pdfSw = System.Diagnostics.Stopwatch.StartNew();
                 reportPdfBytes = _pdfGenerator.Generate(result, labels, isFreemium);
+                timer.Add("pdf_report", pdfSw.ElapsedMilliseconds);
             }
             catch (Exception ex)
             {
@@ -765,6 +780,7 @@ namespace MedicalApp.Controllers
                 var subject = $"[{profile.Name}] " + Loc.T("ResultEmailSubject", languageCode);
                 var htmlBody = BuildEmailBody(originalFileName, profile.Name, languageCode);
                 var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                var emailSw = System.Diagnostics.Stopwatch.StartNew();
 
                 var attachments = new List<(byte[] Bytes, string FileName, string MimeType)>
                 {
@@ -780,6 +796,7 @@ namespace MedicalApp.Controllers
 
                 await _emailService.SendEmailWithAttachmentsAsync(
                     user.Email, subject, htmlBody, attachments);
+                timer.Add("email", emailSw.ElapsedMilliseconds);
             }
             catch (Exception ex)
             {
@@ -802,7 +819,12 @@ namespace MedicalApp.Controllers
             await _db.SaveChangesAsync();
 
             var savedHistoryId = await SaveHistory(user.Email, originalFileName, languageCode, "success", null, 1, inputTokens, outputTokens, profile.Id, rawGptResponse, pdfHash,
-                modelUsed: useGemini ? (currentModelOverride ?? _geminiSettings.Model) : null);
+                modelUsed: useGemini ? (currentModelOverride ?? _geminiSettings.Model) : null,
+                timer: timer);
+
+            _logger.LogInformation(
+                "Interpretation TIMING (history {Id}, file {File}): {Timings}",
+                savedHistoryId, originalFileName, timer.ToString());
 
             // OVERRIDE on force re-interpret: the user explicitly paid for a fresh
             // run, and we want a single canonical row per (user, profile, pdfHash)
@@ -851,7 +873,8 @@ namespace MedicalApp.Controllers
 
         private async Task<int> SaveHistory(string email, string? file, string? lang, string status,
             string? errorMsg, int credits, int? inTok, int? outTok, int? profileId = null,
-            string? rawJson = null, string? pdfSha256 = null, string? modelUsed = null)
+            string? rawJson = null, string? pdfSha256 = null, string? modelUsed = null,
+            StageTimer? timer = null)
         {
             var entity = new InterpretationHistory
             {
@@ -867,6 +890,8 @@ namespace MedicalApp.Controllers
                 RawJsonResult = rawJson,
                 PdfSha256 = pdfSha256,
                 ModelUsed = modelUsed,
+                DurationMs = timer != null ? (int)Math.Min(int.MaxValue, timer.TotalMs) : null,
+                StageTimingsJson = timer?.ToJson(),
                 CreatedAt = DateTime.UtcNow
             };
             _db.InterpretationHistories.Add(entity);
