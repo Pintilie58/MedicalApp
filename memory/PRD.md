@@ -1104,3 +1104,10 @@ LIVRAT:
 ATENȚIE calitate (comunicat userului): thinking-ul contează la CORELAȚII (raționament între analize) și la completitudinea JSON pe buletine lungi. Protocol de test dat: același PDF cu -1 vs 0, comparat pe timp + număr de analize extrase + calitatea secțiunii „Corelații posibile". Dacă scade calitatea → 1024 sau 2048 ca variantă de mijloc.
 NU necesită migrație (nicio schimbare de schemă).
 URMEAZĂ: Soluția 2 (limite dure pe lungimea explicațiilor — user vrea pas cu pas, după validarea Soluției 1), apoi Soluția 3 (împărțire în apeluri paralele: extractor + loturi de explicații + narativ), apoi plafon MaxOutputTokens 24.000 + procesare în fundal (risc de timeout la 100-120 s pe proxy în producție).
+
+### 2026-08-25 — CORECȚIE DE PLAN (observație justă a userului)
+Userul a semnalat că thinking-ul este necesar la: 1. Factori de risc, 2. Corelații posibile, 3. Recomandări, 4. Întrebări pentru medic, 5. Completitudine. CORECT — iar `thinkingBudget` se aplică PE APEL, nu pe secțiune. Deci într-un apel monolitic nu poți avea 0 pentru tabel și buget generos pentru raționament.
+DECIZII:
+- `appsettings.json` → `"ThinkingBudget": -1` (comportament neschimbat, ZERO risc de calitate). Măsurarea `thoughtsTokenCount` funcționează și pe -1, deci aflăm cât thinking se consumă fără a sacrifica nimic.
+- Ordinea soluțiilor se INVERSEAZĂ: Soluția 2 (limite dure de lungime DOAR pe explicațiile per analiză) devine următorul pas, fiind singura care taie timp fără să atingă niciuna din cele 5 secțiuni de raționament.
+- Soluția 3 (împărțirea apelului) capătă o cerință suplimentară de arhitectură: apelul EXTRACTOR + apelurile de EXPLICAȚII rulează cu `thinkingBudget: 0`, iar apelul NARATIV (factori de risc, corelații, recomandări, întrebări) + auditul de completitudine rulează cu buget GENEROS (4096+), eventual pe un model mai puternic. Astfel calitatea crește exact unde contează, iar viteza vine din restul.
