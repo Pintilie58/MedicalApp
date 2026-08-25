@@ -1091,3 +1091,16 @@ LIVRAT ACUM:
 7. Admin: acțiune nouă `AdminController.Performance(take=20)` + `Views/Admin/Performance.cshtml` + `Models/InterpretationPerformanceViewModel.cs` + buton „Performanță" în Admin Index. Tabel cu timpi per etapă, medii, heat-map (roșu >20s, galben >5s), badge „N apeluri" când au fost retry-uri AI.
 VALIDARE: build 0 erori/0 warning-uri; endpoint batch testat real; panoul Admin randat real și inspectat (screenshot).
 URMEAZĂ (aprobat conceptual): Pasul 3 Sticky Mapping (cache determinist LOINC per profil) + Pasul 4 împărțirea apelului Gemini în EXTRACTOR (temperatură 0, doar tabel) + INTERPRETOR (proză), cu LOINC matching rulat în PARALEL cu proza, totul în spatele unui feature flag.
+
+### 2026-08-25 — Soluția 1: thinkingConfig ca buton reglabil (nu decizie irevocabilă)
+DATE REALE de la user (4 interpretări, după pasul 1+2): total mediu 110,9 s din care Gemini 102,4 s (92%), LOINC 5,7 s (5% — reparat, era estimat 15-120 s), extracție 955 ms, PDF 292 ms, email 1,5 s. Tokeni de ieșire 10.220 / 14.599 / 18.168 / 19.972 → timp 81,7 / 88,7 / 107,5 / 131,9 s. RELAȚIE LINIARĂ: ~150 tokeni/secundă. Zero retry-uri. Concluzie: latența = volum de ieșire, nimic altceva.
+CAUZĂ NOUĂ GĂSITĂ: codul NU trimitea `thinkingConfig`, deci gemini-2.5-flash rula cu thinking dinamic implicit, iar tokenii de gândire se generează ca output = timp.
+LIVRAT:
+- `GeminiSettings.ThinkingBudget` (int, default -1). `-1` = cheia NU se trimite (comportament identic celui anterior, regresie zero); `0` = thinking oprit; `256..24576` = plafonat.
+- `BuildRequestBody` trimite `thinkingConfig` doar când budget >= 0. VERIFICAT prin probe cu reflection: -1 → fără cheie, 0 → `"thinkingConfig":{"thinkingBudget":0}`, 1024 → idem cu 1024.
+- Se citește `usageMetadata.thoughtsTokenCount` → log dedicat + salvat în StageTimingsJson ca `ai_thinking_tokens` → coloană nouă „din care thinking" în Admin → Performanță (roșu peste 2000).
+- `appsettings.json`: `"ThinkingBudget": 0` (userul poate reveni instant punând -1, doar restart, fără rebuild de cod).
+- Fix: `OtherMs` din panoul Admin exclude contoarele (`ai_attempts`, `ai_thinking_tokens`) ca să nu le scadă ca milisecunde.
+ATENȚIE calitate (comunicat userului): thinking-ul contează la CORELAȚII (raționament între analize) și la completitudinea JSON pe buletine lungi. Protocol de test dat: același PDF cu -1 vs 0, comparat pe timp + număr de analize extrase + calitatea secțiunii „Corelații posibile". Dacă scade calitatea → 1024 sau 2048 ca variantă de mijloc.
+NU necesită migrație (nicio schimbare de schemă).
+URMEAZĂ: Soluția 2 (limite dure pe lungimea explicațiilor — user vrea pas cu pas, după validarea Soluției 1), apoi Soluția 3 (împărțire în apeluri paralele: extractor + loturi de explicații + narativ), apoi plafon MaxOutputTokens 24.000 + procesare în fundal (risc de timeout la 100-120 s pe proxy în producție).

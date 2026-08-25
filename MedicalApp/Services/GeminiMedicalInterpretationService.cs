@@ -24,6 +24,13 @@ namespace MedicalApp.Services
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger<GeminiMedicalInterpretationService> _logger;
 
+        /// <summary>
+        /// Thought tokens reported by the last completed call. Surfaced so the
+        /// controller can persist it next to the stage timings and the Admin
+        /// panel can show whether "thinking" is where the seconds go.
+        /// </summary>
+        public int LastThoughtsTokenCount { get; private set; }
+
         private const string EndpointFormat =
             "https://generativelanguage.googleapis.com/v1beta/models/{0}:generateContent?key={1}";
 
@@ -252,6 +259,24 @@ namespace MedicalApp.Services
                         inputTokens = pt.GetInt32();
                     if (usage.TryGetProperty("candidatesTokenCount", out var ct2))
                         outputTokens = ct2.GetInt32();
+
+                    // How many of those output tokens were spent "thinking" rather
+                    // than writing the answer. This is the number that tells us
+                    // whether thinkingBudget is worth tuning — logged so the effect
+                    // can be compared across runs on the same file.
+                    if (usage.TryGetProperty("thoughtsTokenCount", out var th))
+                    {
+                        var thoughts = th.GetInt32();
+                        LastThoughtsTokenCount = thoughts;
+                        _logger.LogInformation(
+                            "Gemini tokens: prompt={In} output={Out} of which thinking={Think} " +
+                            "(thinkingBudget setting = {Budget}).",
+                            inputTokens, outputTokens, thoughts, _settings.ThinkingBudget);
+                    }
+                    else
+                    {
+                        LastThoughtsTokenCount = 0;
+                    }
                 }
             }
             catch (InvalidOperationException) { throw; }
@@ -504,12 +529,26 @@ namespace MedicalApp.Services
                         parts = userParts
                     }
                 },
-                generationConfig = new
-                {
-                    temperature = _settings.Temperature,
-                    maxOutputTokens = _settings.MaxOutputTokens,
-                    responseMimeType = "application/json"
-                }
+                generationConfig = _settings.ThinkingBudget >= 0
+                    ? new
+                    {
+                        temperature = _settings.Temperature,
+                        maxOutputTokens = _settings.MaxOutputTokens,
+                        responseMimeType = "application/json",
+                        // Gemini 2.5 Flash thinks by default ("dynamic thinking") and
+                        // those thought tokens are billed AND generated as output —
+                        // i.e. they cost wall-clock time. 0 disables thinking, a small
+                        // budget keeps some reasoning for the correlations section.
+                        // Negative value (default) omits the key entirely, preserving
+                        // the previous behaviour exactly.
+                        thinkingConfig = new { thinkingBudget = _settings.ThinkingBudget }
+                    }
+                    : (object)new
+                    {
+                        temperature = _settings.Temperature,
+                        maxOutputTokens = _settings.MaxOutputTokens,
+                        responseMimeType = "application/json"
+                    }
             };
 
             return JsonSerializer.Serialize(payload);

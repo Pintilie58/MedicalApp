@@ -75,6 +75,7 @@
                         <th class="text-end">Restul</th>
                         <th class="text-end">TOTAL</th>
                         <th class="text-end">Tokeni out</th>
+                        <th class="text-end">din care<br />„thinking"</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -104,6 +105,9 @@
                             <td class="text-end text-muted">@ms(r.OtherMs)</td>
                             <td class="text-end fw-bold @heat(r.TotalMs)">@ms(r.TotalMs)</td>
                             <td class="text-end small text-muted">@r.OutputTokens</td>
+                            <td class="text-end small @(r.ThinkingTokens > 2000 ? "text-danger fw-semibold" : "text-muted")">
+                                @(r.ThinkingTokens > 0 ? r.ThinkingTokens.ToString() : "0")
+                            </td>
                         </tr>
                     }
                 </tbody>

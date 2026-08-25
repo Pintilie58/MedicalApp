@@ -41,6 +41,9 @@ namespace MedicalApp.Models
             /// <summary>How many AI calls this interpretation needed (retries included).</summary>
             public long AiAttempts => Stages.TryGetValue("ai_attempts", out var v) ? v : 1;
 
+            /// <summary>Output tokens the model spent "thinking" instead of answering.</summary>
+            public long ThinkingTokens => Stages.TryGetValue("ai_thinking_tokens", out var v) ? v : 0;
+
             /// <summary>Time not attributed to any measured stage (DB, validation, overhead).</summary>
             public long OtherMs
             {
@@ -48,7 +51,12 @@ namespace MedicalApp.Models
                 {
                     long measured = 0;
                     foreach (var kv in Stages)
-                        if (kv.Key != "total" && kv.Key != "ai_attempts") measured += kv.Value;
+                    {
+                        // "total" is the sum itself; the other two are counters,
+                        // not milliseconds — they must never be subtracted here.
+                        if (kv.Key is "total" or "ai_attempts" or "ai_thinking_tokens") continue;
+                        measured += kv.Value;
+                    }
                     return Math.Max(0, TotalMs - measured);
                 }
             }

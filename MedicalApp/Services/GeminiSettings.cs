@@ -32,6 +32,24 @@ namespace MedicalApp.Services
         public string? FallbackModel { get; set; } = "gemini-2.5-pro";
 
         /// <summary>
+        /// Token budget Gemini may spend "thinking" before it starts writing.
+        /// Those thought tokens are generated like any other output token, so they
+        /// are paid in wall-clock time — on a 20.000-token report they can be a
+        /// large slice of the ~150 tokens/second generation speed.
+        /// <list type="bullet">
+        ///   <item><c>-1</c> (default): key is NOT sent — Gemini's own dynamic
+        ///     thinking, i.e. exactly the behaviour before this setting existed.</item>
+        ///   <item><c>0</c>: thinking disabled (fastest; 2.5 Flash/Flash-Lite only,
+        ///     2.5 Pro cannot disable it).</item>
+        ///   <item><c>256..24576</c>: capped thinking — keeps some reasoning for the
+        ///     correlations section while bounding the latency.</item>
+        /// </list>
+        /// Measure before choosing: the actual thought tokens per call are logged
+        /// and shown in the Admin performance panel.
+        /// </summary>
+        public int ThinkingBudget { get; set; } = -1;
+
+        /// <summary>
         /// SECOND-tier fallback used only when both the primary AND the first
         /// fallback have exhausted their retry budgets. This is a "safety net"
         /// (e.g. <c>gemini-3.1-pro-preview</c>, Google's recommended preview as
