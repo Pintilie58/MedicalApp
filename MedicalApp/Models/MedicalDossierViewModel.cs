@@ -50,6 +50,12 @@ namespace MedicalApp.Models
             public string? LoincCode { get; set; }
             public string? LoincLongName { get; set; }
             public string? LoincSource { get; set; }
+            /// <summary>
+            /// "unit" / "range" / "both" when this analyte could NOT be unified
+            /// with an identically named one because a report was missing its
+            /// unit or reference range. Null when nothing was blocked.
+            /// </summary>
+            public string? MissingAxis { get; set; }
             /// <summary>Oldest → newest.</summary>
             public List<Entry> Entries { get; set; } = new();
         }

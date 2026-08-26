@@ -835,10 +835,32 @@ namespace MedicalApp.Controllers
             static string NameKey(string param) =>
                 "name:" + (param ?? string.Empty).Trim().ToLowerInvariant();
 
-            static string KeyFor(KeyResult kr) =>
+            // ----------------------------------------------------------------
+            // Retroactive LOINC unification (display-only, no DB write).
+            // Same name + same unit + same reference range => same analyte, so
+            // the codes Gemini's wording variability split apart collapse onto
+            // ONE row here. Incomplete signatures are never merged; they get a
+            // discreet "!" instead (MissingAxis below).
+            // ----------------------------------------------------------------
+            var uni = Services.LoincUnifier.Analyze(
+                sortedOldestFirst.SelectMany(t => t.r.KeyResults ?? new()));
+
+            string? UnifiedCode(KeyResult kr) =>
+                Services.LoincUnifier.Unify(kr.LoincCode, uni.CodeMap)?.Trim();
+
+            string KeyFor(KeyResult kr) =>
                 !string.IsNullOrWhiteSpace(kr.LoincCode)
-                    ? "loinc:" + kr.LoincCode.Trim()
+                    ? "loinc:" + UnifiedCode(kr)
                     : NameKey(kr.Parameter);
+
+            // Representative KeyResult per SURVIVING code, so the row shows the
+            // long name / source / score of the winning code, not of a loser.
+            var identityByCode = new Dictionary<string, KeyResult>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (_, r) in sortedOldestFirst) // oldest first => newest wins
+                foreach (var kr in r.KeyResults ?? new())
+                    if (!string.IsNullOrWhiteSpace(kr.LoincCode) &&
+                        string.Equals(kr.LoincCode.Trim(), UnifiedCode(kr), StringComparison.OrdinalIgnoreCase))
+                        identityByCode[kr.LoincCode.Trim()] = kr;
 
             int n = sortedOldestFirst.Count;
 
@@ -928,7 +950,9 @@ namespace MedicalApp.Controllers
                         set = new HashSet<string>(StringComparer.Ordinal);
                         codesByNormName[nname] = set;
                     }
-                    set.Add(kr.LoincCode.Trim());
+                    // Post-unification codes only — a drift that we already
+                    // resolved must not raise a warning any more.
+                    set.Add(UnifiedCode(kr)!);
                 }
             }
 
@@ -947,6 +971,13 @@ namespace MedicalApp.Controllers
                 var rowClass = classByKey[k];
                 var classLabel = Services.LoincClassDisplay.GetLabel(rowClass);
 
+                // Identity of the row: the unified code (from the row key) plus
+                // the metadata of the KeyResult that actually carries it.
+                var unifiedCode = k.StartsWith("loinc:") ? k.Substring("loinc:".Length) : null;
+                var identity = unifiedCode != null && identityByCode.TryGetValue(unifiedCode, out var idn)
+                    ? idn
+                    : meta;
+
                 var row = new CompareInterpretationsViewModel.ComparisonRow
                 {
                     Parameter = meta?.Parameter ?? k,
@@ -954,10 +985,10 @@ namespace MedicalApp.Controllers
                     ReferenceRange = meta?.ReferenceRange,
                     // Surface the LOINC identity on LOINC-grouped rows so the
                     // view can show a tooltip / badge. Null on name-fallback rows.
-                    LoincCode = k.StartsWith("loinc:") ? meta?.LoincCode : null,
-                    LoincLongName = k.StartsWith("loinc:") ? meta?.LoincLongName : null,
-                    LoincSource = k.StartsWith("loinc:") ? meta?.LoincSource : null,
-                    LoincScore = k.StartsWith("loinc:") ? meta?.LoincScore : null,
+                    LoincCode = unifiedCode,
+                    LoincLongName = unifiedCode != null ? identity?.LoincLongName : null,
+                    LoincSource = unifiedCode != null ? identity?.LoincSource : null,
+                    LoincScore = unifiedCode != null ? identity?.LoincScore : null,
                     LoincClass = rowClass,
                     ClassDisplayLabel = classLabel,
                     // First row in each class group triggers a section header
@@ -967,6 +998,10 @@ namespace MedicalApp.Controllers
                     IsFirstInClass = !string.Equals(classLabel, previousClassLabel, StringComparison.Ordinal),
                 };
                 previousClassLabel = classLabel;
+
+                // PRUDENT unification: the same name still carries two codes
+                // because a report did not print its unit / reference range.
+                row.MissingAxis = uni.MissingAxisFor(meta?.Parameter);
 
                 // Apply LOINC-drift warning when this row's parameter name
                 // (case-insensitive) was mapped to MORE than one LOINC code
@@ -1266,23 +1301,34 @@ namespace MedicalApp.Controllers
             // uploaded the same lab report more than once.
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var h in histories)
+            // Parse once — the unifier needs the whole archive up front.
+            var parsed = histories
+                .Select(h => (h, r: DeserializeSafe(h.RawJsonResult)))
+                .Where(t => t.r?.KeyResults != null)
+                .ToList();
+
+            // Retroactive LOINC unification (display-only): identical name +
+            // unit + reference range means one analyte, one timeline.
+            var uni = Services.LoincUnifier.Analyze(parsed.SelectMany(t => t.r!.KeyResults!));
+
+            foreach (var (h, rr) in parsed)
             {
-                var r = DeserializeSafe(h.RawJsonResult);
-                if (r?.KeyResults == null) continue;
+                var r = rr!;
 
                 var effDate = ParseSamplingDate(r.PatientInfo?.DateTaken);
                 var lab = r.PatientInfo?.Laboratory;
 
-                foreach (var kr in r.KeyResults)
+                foreach (var kr in r.KeyResults!)
                 {
                     if (string.IsNullOrWhiteSpace(kr.Parameter)) continue;
 
                     var status = ClassifyAbnormal(kr);
                     if (status == null) continue;
 
-                    var key = !string.IsNullOrWhiteSpace(kr.LoincCode)
-                        ? "loinc:" + kr.LoincCode.Trim()
+                    var unifiedCode = Services.LoincUnifier.Unify(kr.LoincCode, uni.CodeMap)?.Trim();
+
+                    var key = !string.IsNullOrWhiteSpace(unifiedCode)
+                        ? "loinc:" + unifiedCode
                         : "name:" + kr.Parameter.Trim().ToLowerInvariant();
 
                     var date = effDate ?? h.CreatedAt;
@@ -1317,11 +1363,17 @@ namespace MedicalApp.Controllers
                     if (isNewest)
                     {
                         bucket.Group.Parameter = kr.Parameter.Trim();
-                        if (!string.IsNullOrWhiteSpace(kr.LoincCode))
+                        bucket.Group.MissingAxis = uni.MissingAxisFor(kr.Parameter);
+                        if (!string.IsNullOrWhiteSpace(unifiedCode))
                         {
-                            bucket.Group.LoincCode = kr.LoincCode.Trim();
-                            bucket.Group.LoincLongName = kr.LoincLongName;
-                            bucket.Group.LoincSource = kr.LoincSource;
+                            bucket.Group.LoincCode = unifiedCode;
+                            // Only trust the long name when it belongs to the
+                            // surviving code (it can come from a merged loser).
+                            if (string.Equals(kr.LoincCode?.Trim(), unifiedCode, StringComparison.OrdinalIgnoreCase))
+                            {
+                                bucket.Group.LoincLongName = kr.LoincLongName;
+                                bucket.Group.LoincSource = kr.LoincSource;
+                            }
                         }
                     }
 
@@ -1624,23 +1676,39 @@ namespace MedicalApp.Controllers
             // against white background and against each other.
             var palette = new[] { "#0d6efd", "#dc3545", "#198754", "#fd7e14", "#6f42c1" };
 
+            // Retroactive LOINC unification: parse once, collapse the codes that
+            // Gemini's wording variability split, then resolve the codes the
+            // user pasted through the same map so an old code still charts.
+            var parsed = histories
+                .Select(h => (h, r: DeserializeSafe(h.RawJsonResult)))
+                .Where(t => t.r?.KeyResults != null)
+                .ToList();
+
+            var uni = Services.LoincUnifier.Analyze(parsed.SelectMany(t => t.r!.KeyResults!));
+
+            codes = codes
+                .Select(c => Services.LoincUnifier.Unify(c, uni.CodeMap)!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            vm.RequestedCodes = codes;
+
             // Build one series per requested code.
             var codeSet = new HashSet<string>(codes, StringComparer.OrdinalIgnoreCase);
             var seriesByCode = new Dictionary<string, EvolutionViewModel.EvolutionSeries>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var h in histories)
+            foreach (var (h, rr) in parsed)
             {
-                var r = DeserializeSafe(h.RawJsonResult);
-                if (r?.KeyResults == null) continue;
+                var r = rr!;
 
                 var eff = ParseSamplingDate(r.PatientInfo?.DateTaken) ?? h.CreatedAt;
 
-                foreach (var kr in r.KeyResults)
+                foreach (var kr in r.KeyResults!)
                 {
                     if (string.IsNullOrWhiteSpace(kr.LoincCode)) continue;
-                    if (!codeSet.Contains(kr.LoincCode.Trim())) continue;
 
-                    var code = kr.LoincCode.Trim();
+                    var code = Services.LoincUnifier.Unify(kr.LoincCode, uni.CodeMap)!.Trim();
+                    if (!codeSet.Contains(code)) continue;
+
                     if (!seriesByCode.TryGetValue(code, out var s))
                     {
                         s = new EvolutionViewModel.EvolutionSeries

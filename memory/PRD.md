@@ -36,6 +36,15 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 - **LoincDictionary** *(new — LOINC step 1)*: LoincCode (PK string), LongCommonName (indexed), OrderObs, AliasesJson, TranslationsJson, ImportedAt
 
 ## Implemented (changelog)
+
+- ✅ **2026-06 — Unificare retroactivă a codurilor LOINC la afișare (Dosar medical, Comparații, Grafice)**:
+  - **Problema:** matcher-ul semantic + variabilitatea de formulare a Gemini produc coduri LOINC diferite pentru ACEEAșI analiză în buletine diferite (ex. Colesterol total `2093-3` vs `14647-2`), deci istoricul se rupea în două rânduri/carduri/serii.
+  - **`Services/LoincUnifier.cs`**: `Analyze(allResults)` construiește (a) `CodeMap` (cod vechi -> cod unificat) doar când **Nume + Unitate de măsură + Interval de referință** coincid după normalizare (lowercase, fără diacritice/punctuație; unități canonice µL/uL, 10^3; intervale comparate NUMERIC) și (b) `MissingAxisByName` ("unit"/"range"/"both") pentru cazurile pe care am REFUZAT să le unificăm. Cod câștigător: ancoră (verified) > scor semantic > număr apariții > cod stabil.
+  - **`ProfilesController`**: `BuildComparison`, `BuildDossier` și `BuildEvolutionAsync` aplică harta înainte de grupare; în Evoluție se unifică și codurile lipite de utilizator (un cod vechi continuă să deseneze seria). Drift warning-ul `⚠` din Compare se calculează acum pe codurile POST-unificare, deci nu mai alarmează pentru ce am rezolvat.
+  - **Regula de prudență (cerută de user):** dacă pe un buletin lipsește UM sau intervalul, NU se unifică; rândul/cardul rămâne dublu și primește un **`!` gri discret** cu tooltip localizat în 7 limbi (`LoincUnifyMissingUnitTip` / `...RangeTip` / `...BothTip`).
+  - **Bug prins de teste:** `NormalizeRange` interpreta `-` din "0-200" ca semn minus (rezulta `[0, -200]` vs `[0, 200]` pentru "0 - 200"), deci NIMIC nu se unifica niciodată. Cratimele/dash-urile sunt acum separatori.
+  - **Zero migrații EF** — schimbare exclusiv la nivel de afișare, schema DB neatinsă. Build: 0 erori / 0 warning-uri (inclusiv CS0414 din `AdminController` nu mai apare).
+  - Validare: `/app/test_reports/iteration_11.json` — 40/40 verificări PASS (probe .NET console pe codul real: LoincUnifier + BuildComparison + BuildDossier prin reflecție + paritatea celor 21 de chei Loc).
 - ✅ **2026-02 — Migrare SMTP: Gmail → Brevo relay (contact@mymedicalapp.net)**:
   - **Context:** user a cumpărat domeniul `mymedicalapp.net` (GoDaddy), a creat contul Microsoft 365 `contact@mymedicalapp.net`, l-a înregistrat pe Brevo (SPF+DKIM configurate în DNS-ul GoDaddy). Toate emailurile tranzacționale merg acum prin Brevo relay pentru deliverability profesional.
   - **`appsettings.json` — EmailSettings**: `SmtpServer=smtp-relay.brevo.com`, `SmtpPort=587`, `SenderEmail=contact@mymedicalapp.net` (afișat în „From"), `SenderName=MyMedicalApp.NET`, `Username=b1b34c001@smtp-brevo.com` (credential relay Brevo), `Password=<Brevo SMTP key>`. Codul din `EmailService.cs` deja distingea `SenderEmail` de `Username` — zero cod C# modificat.

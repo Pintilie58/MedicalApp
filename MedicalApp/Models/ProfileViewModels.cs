@@ -227,6 +227,14 @@ namespace MedicalApp.Models
             /// </summary>
             public List<string> DriftLoincCodes { get; set; } = new();
 
+            /// <summary>
+            /// "unit" / "range" / "both" when this analyte is still split across
+            /// two rows because a report did not print its unit of measure or
+            /// its reference range, so unification would have been a guess.
+            /// Null when nothing was blocked. Rendered as a discreet grey "!".
+            /// </summary>
+            public string? MissingAxis { get; set; }
+
             /// <summary>One cell per Column (same length and order as <see cref="Columns"/>).</summary>
             public List<Cell> Cells { get; set; } = new();
 

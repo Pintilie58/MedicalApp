@@ -176,6 +176,13 @@
                                     @row.Parameter
                                     @if (!string.IsNullOrWhiteSpace(row.Unit))
                                     { <span class="small text-muted">(@row.Unit)</span> }
+                                    @if (!string.IsNullOrEmpty(row.MissingAxis))
+                                    {
+                                        <span class="ms-1 text-muted"
+                                              style="cursor:help;font-weight:700;"
+                                              title="@Loc.T(row.MissingAxis == "both" ? "LoincUnifyMissingBothTip" : row.MissingAxis == "unit" ? "LoincUnifyMissingUnitTip" : "LoincUnifyMissingRangeTip")"
+                                              data-testid="compare-row-unify-warning">!</span>
+                                    }
                                     @if (row.HasLoincDrift)
                                     {
                                         <span class="ms-1"

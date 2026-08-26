@@ -174,6 +174,13 @@
                                 <div class="analyte-card" data-testid="dossier-analyte">
                                     <div class="d-flex flex-wrap align-items-baseline gap-2">
                                         <span class="analyte-name">@a.Parameter</span>
+                                        @if (!string.IsNullOrEmpty(a.MissingAxis))
+                                        {
+                                            <span class="text-muted"
+                                                  style="cursor:help;font-weight:700;"
+                                                  title="@Loc.T(a.MissingAxis == "both" ? "LoincUnifyMissingBothTip" : a.MissingAxis == "unit" ? "LoincUnifyMissingUnitTip" : "LoincUnifyMissingRangeTip")"
+                                                  data-testid="dossier-analyte-unify-warning">!</span>
+                                        }
                                         @if (!string.IsNullOrWhiteSpace(a.LoincCode))
                                         {
                                             <span class="badge bg-light text-primary border">LOINC @a.LoincCode</span>

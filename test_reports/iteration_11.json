@@ -1,0 +1,30 @@
+{
+  "iteration": 11,
+  "date": "2026-06",
+  "feature": "Retroactive LOINC unification at display time (Dosar medical, Comparatii, Grafice/Evolutie)",
+  "test_type": "static + .NET console probe (/tmp/uniprobe) against real code paths",
+  "build": "dotnet build MedicalApp.csproj => Build succeeded, 0 Warning(s), 0 Error(s)",
+  "checks_total": 40,
+  "checks_passed": 40,
+  "checks": [
+    "LoincUnifier.Analyze remaps 2093-3 -> 14647-2 when name+unit+range identical (anchor beats semantic)",
+    "Ferritin with missing unit on one report is NOT merged (prudent rule) and is flagged MissingAxis=unit",
+    "Limfocite % (736-9) vs absolute (731-0) never merged (unit+range differ) and NO warning raised",
+    "Compare: unified analyte collapses from 2 rows to 1, both cells present, long name follows the winning code, drift warning gone",
+    "Compare: non-unifiable rows keep 2 rows + MissingAxis=unit",
+    "Dossier: unified analyte becomes ONE card with a 2-entry timeline and trend=up on the newer entry",
+    "Dossier: non-unifiable analyte keeps 2 cards flagged MissingAxis=unit",
+    "Loc.cs: LoincUnifyMissingUnitTip / RangeTip / BothTip present and non-empty in all 7 languages (21 keys)"
+  ],
+  "bug_found_and_fixed": "LoincUnifier.NormalizeRange treated the range separator '-' as a minus sign, so \"0-200\" produced [0,-200] and \"0 - 200\" produced [0,200] => identical ranges never matched and NOTHING was ever unified. Dashes are now stripped as separators before number extraction.",
+  "not_covered_by_automated_test": "BuildEvolutionAsync (requires a live SQL Server); it uses the same LoincUnifier.Unify map (verified in isolation) to resolve both the stored codes and the codes the user pastes.",
+  "files_changed": [
+    "Services/LoincUnifier.cs (Analyze + UnificationResult + NormalizeRange fix)",
+    "Controllers/ProfilesController.cs (BuildComparison, BuildDossier, BuildEvolutionAsync)",
+    "Models/ProfileViewModels.cs (ComparisonRow.MissingAxis)",
+    "Models/MedicalDossierViewModel.cs (AnalyteGroup.MissingAxis)",
+    "Views/Profiles/Compare.cshtml, Views/Profiles/Dossier.cshtml (discreet grey '!' badge)",
+    "Services/Loc.cs (+21 keys)"
+  ],
+  "db_migrations": "none - display-only change, DB schema untouched"
+}
