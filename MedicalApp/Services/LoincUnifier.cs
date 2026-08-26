@@ -14,9 +14,11 @@ namespace MedicalApp.Services
     /// "Limfocit (%)" 736-9 and "Limfocit (mii/µL)" 731-0 differ on unit and
     /// range, so they are never merged.
     ///
-    /// PRUDENT mode (user-specified): when one report is missing the unit or the
-    /// range, nothing is merged; the caller can tell the user exactly which axis
-    /// was missing instead of guessing.
+    /// PRUDENT mode (user-specified): when one report states the unit or the
+    /// range and another does NOT, nothing is merged; the caller can tell the
+    /// user exactly which axis was inconsistent instead of guessing. An axis
+    /// that is missing on EVERY report (INR and other dimensionless analytes)
+    /// is not a doubt — those rows unify normally.
     /// </summary>
     public static class LoincUnifier
     {
@@ -35,55 +37,7 @@ namespace MedicalApp.Services
         /// the map. Never merges across different units or ranges.
         /// </summary>
         public static Dictionary<string, string> BuildCodeMap(IEnumerable<KeyResult> allResults)
-        {
-            var bySignature = new Dictionary<string, Dictionary<string, Candidate>>(StringComparer.Ordinal);
-
-            foreach (var kr in allResults)
-            {
-                if (string.IsNullOrWhiteSpace(kr?.LoincCode) || string.IsNullOrWhiteSpace(kr.Parameter))
-                    continue;
-
-                // PRUDENT: an incomplete signature can never drive a merge.
-                if (string.IsNullOrWhiteSpace(kr.Unit) || string.IsNullOrWhiteSpace(kr.ReferenceRange))
-                    continue;
-
-                var sig = Signature(kr.Parameter, kr.Unit, kr.ReferenceRange);
-                if (!bySignature.TryGetValue(sig, out var codes))
-                    bySignature[sig] = codes = new Dictionary<string, Candidate>(StringComparer.OrdinalIgnoreCase);
-
-                var code = kr.LoincCode!.Trim();
-                if (!codes.TryGetValue(code, out var cand))
-                    codes[code] = cand = new Candidate { Code = code };
-
-                cand.Occurrences++;
-                if (LoincSourceBadge.IsVerified(kr.LoincSource)) cand.IsVerified = true;
-                if (kr.LoincScore.HasValue && kr.LoincScore.Value > cand.BestScore)
-                    cand.BestScore = kr.LoincScore.Value;
-            }
-
-            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var (_, codes) in bySignature)
-            {
-                if (codes.Count < 2) continue; // nothing to unify
-
-                // Best code: verified beats guessed, then score, then how many
-                // reports used it (the majority is usually right), then the code
-                // itself so the outcome is stable across runs.
-                var winner = codes.Values
-                    .OrderByDescending(c => c.IsVerified)
-                    .ThenByDescending(c => c.BestScore)
-                    .ThenByDescending(c => c.Occurrences)
-                    .ThenBy(c => c.Code, StringComparer.Ordinal)
-                    .First();
-
-                foreach (var c in codes.Values)
-                    if (!string.Equals(c.Code, winner.Code, StringComparison.OrdinalIgnoreCase))
-                        map[c.Code] = winner.Code;
-            }
-
-            return map;
-        }
+            => Analyze(allResults).CodeMap;
 
         /// <summary>
         /// Outcome of a whole-archive analysis: the code map plus the analytes
@@ -108,39 +62,78 @@ namespace MedicalApp.Services
 
         /// <summary>
         /// Builds the code map AND reports the analytes left duplicated because
-        /// their signature was incomplete on at least one report.
+        /// an axis was present on one report and missing on another.
+        ///
+        /// A missing axis only blocks the merge when it is INCONSISTENT across
+        /// the reports. An analyte that is dimensionless everywhere (INR, raport
+        /// albumine/globuline, indici) has no unit on ANY report — that is not
+        /// uncertainty, it is the nature of the analyte, so it unifies normally.
         /// </summary>
         public static UnificationResult Analyze(IEnumerable<KeyResult> allResults)
         {
-            var all = allResults.Where(k => k != null && !string.IsNullOrWhiteSpace(k.Parameter)).ToList();
-            var map = BuildCodeMap(all);
+            var all = allResults
+                .Where(k => k != null
+                            && !string.IsNullOrWhiteSpace(k.Parameter)
+                            && !string.IsNullOrWhiteSpace(k.LoincCode))
+                .ToList();
 
-            var codesByName = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
-            var missingUnit = new HashSet<string>(StringComparer.Ordinal);
-            var missingRange = new HashSet<string>(StringComparer.Ordinal);
-
-            foreach (var kr in all)
-            {
-                if (string.IsNullOrWhiteSpace(kr.LoincCode)) continue;
-
-                var name = Normalize(kr.Parameter);
-                if (!codesByName.TryGetValue(name, out var set))
-                    codesByName[name] = set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                set.Add(Unify(kr.LoincCode, map)!.Trim());
-
-                if (string.IsNullOrWhiteSpace(kr.Unit)) missingUnit.Add(name);
-                if (string.IsNullOrWhiteSpace(kr.ReferenceRange)) missingRange.Add(name);
-            }
-
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var axes = new Dictionary<string, string>(StringComparer.Ordinal);
-            foreach (var (name, codes) in codesByName)
+
+            foreach (var byName in all.GroupBy(k => Normalize(k.Parameter)))
             {
-                if (codes.Count < 2) continue; // unified (or never split) — nothing to explain
-                bool noUnit = missingUnit.Contains(name);
-                bool noRange = missingRange.Contains(name);
-                if (noUnit && noRange) axes[name] = "both";
-                else if (noUnit) axes[name] = "unit";
-                else if (noRange) axes[name] = "range";
+                bool unitMixed = byName.Any(k => string.IsNullOrWhiteSpace(k.Unit))
+                                 && byName.Any(k => !string.IsNullOrWhiteSpace(k.Unit));
+                bool rangeMixed = byName.Any(k => string.IsNullOrWhiteSpace(k.ReferenceRange))
+                                  && byName.Any(k => !string.IsNullOrWhiteSpace(k.ReferenceRange));
+
+                if (unitMixed || rangeMixed)
+                {
+                    // PRUDENT: one report states the axis, another does not — we
+                    // cannot tell whether it is the same analyte, so we leave the
+                    // rows apart and explain why (only worth saying when the
+                    // codes actually disagree).
+                    bool split = byName.Select(k => k.LoincCode!.Trim())
+                                       .Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1;
+                    if (split)
+                        axes[byName.Key] = unitMixed && rangeMixed ? "both" : unitMixed ? "unit" : "range";
+                    continue;
+                }
+
+                // Axes are consistent (present everywhere, or absent everywhere):
+                // group by the full signature and collapse the codes inside it.
+                foreach (var bySig in byName.GroupBy(k =>
+                             Signature(k.Parameter, k.Unit ?? "", k.ReferenceRange ?? "")))
+                {
+                    var codes = new Dictionary<string, Candidate>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var kr in bySig)
+                    {
+                        var code = kr.LoincCode!.Trim();
+                        if (!codes.TryGetValue(code, out var cand))
+                            codes[code] = cand = new Candidate { Code = code };
+
+                        cand.Occurrences++;
+                        if (LoincSourceBadge.IsVerified(kr.LoincSource)) cand.IsVerified = true;
+                        if (kr.LoincScore.HasValue && kr.LoincScore.Value > cand.BestScore)
+                            cand.BestScore = kr.LoincScore.Value;
+                    }
+
+                    if (codes.Count < 2) continue; // nothing to unify
+
+                    // Best code: verified beats guessed, then score, then how many
+                    // reports used it (the majority is usually right), then the
+                    // code itself so the outcome is stable across runs.
+                    var winner = codes.Values
+                        .OrderByDescending(c => c.IsVerified)
+                        .ThenByDescending(c => c.BestScore)
+                        .ThenByDescending(c => c.Occurrences)
+                        .ThenBy(c => c.Code, StringComparer.Ordinal)
+                        .First();
+
+                    foreach (var c in codes.Values)
+                        if (!string.Equals(c.Code, winner.Code, StringComparison.OrdinalIgnoreCase))
+                            map[c.Code] = winner.Code;
+                }
             }
 
             return new UnificationResult { CodeMap = map, MissingAxisByName = axes };
