@@ -46,6 +46,7 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
   - **thinkingLevel vs thinkingBudget:** Gemini 3.x folosește `thinkingLevel` (minimal/low/medium/high), 2.5 rămâne pe `thinkingBudget`; se trimite exact unul, niciodată ambele.
   - **Admin → Performanță:** tabel nou „Pipeline pe 3 apeluri” cu durata, tokenii, tokenii de thinking și **costul estimat în USD pe fiecare etapă** + total (tarife separate pentru flash-lite / 3.x flash / pro).
   - **CAM/B2B rămâne pe apelul monolitic** (trimite mereu un model de tier explicit; split-ul se activează doar când nu e forțat un model).
+  - **2026-06 (la cererea userului):** `appsettings.json` are acum `"PipelineMode": "split"` PORNIT pentru testare, plus chei `_README_*` cu instrucțiuni inline (cum se revine la `monolithic`, ce face fiecare model, ce e ExplainBatchSize, unde se văd rezultatele în /Admin/Performance). Cheile `_README_*` sunt ignorate de binder.
   - Validare: `/app/test_reports/iteration_14.json` — **34/34 PASS end-to-end** cu un server Gemini fals local (paralelism real B‖C verificat pe timestamps, mapare explicații pe index, retry de lot, fallback monolitic, mod monolitic neatins, tarife). Build: 0 erori / 0 warning-uri. Fără migrații EF.
 
 - ✅ **2026-06 — Același cod LOINC cu unități diferite = rânduri separate (cazul Fibrinogen g/L vs mg/dL)**:
