@@ -148,6 +148,68 @@ namespace MedicalApp.Services
         private static string Signature(string name, string unit, string range) =>
             $"{Normalize(name)}|{NormalizeUnit(unit)}|{NormalizeRange(range)}";
 
+        /// <summary>
+        /// Same LOINC code, DIFFERENT units of measure (Fibrinogen reported as
+        /// g/L by one lab and mg/dL by another both map to 3255-7). Grouping by
+        /// code alone would put 4.32 g/L and 516 mg/dL on the same row with a
+        /// single reference range — medically wrong. This tells the callers to
+        /// keep those measurements apart.
+        /// </summary>
+        public sealed class UnitScope
+        {
+            private readonly Dictionary<string, string> _majorityUnitByCode = new(StringComparer.OrdinalIgnoreCase);
+
+            /// <summary>Codes measured in more than one unit across the archive.</summary>
+            public static UnitScope Build(IEnumerable<KeyResult> allResults, Dictionary<string, string> codeMap)
+            {
+                var counts = new Dictionary<string, Dictionary<string, int>>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var kr in allResults)
+                {
+                    if (kr == null || string.IsNullOrWhiteSpace(kr.LoincCode) || string.IsNullOrWhiteSpace(kr.Unit))
+                        continue;
+
+                    var code = Unify(kr.LoincCode, codeMap)!.Trim();
+                    var unit = NormalizeUnit(kr.Unit!);
+                    if (unit.Length == 0) continue;
+
+                    if (!counts.TryGetValue(code, out var perUnit))
+                        counts[code] = perUnit = new Dictionary<string, int>(StringComparer.Ordinal);
+                    perUnit[unit] = perUnit.TryGetValue(unit, out var c) ? c + 1 : 1;
+                }
+
+                var scope = new UnitScope();
+                foreach (var (code, perUnit) in counts)
+                {
+                    if (perUnit.Count < 2) continue; // single unit — nothing to split
+                    scope._majorityUnitByCode[code] = perUnit
+                        .OrderByDescending(kv => kv.Value)
+                        .ThenBy(kv => kv.Key, StringComparer.Ordinal)
+                        .First().Key;
+                }
+                return scope;
+            }
+
+            /// <summary>True when this code was reported in several units.</summary>
+            public bool IsSplit(string? code) =>
+                !string.IsNullOrWhiteSpace(code) && _majorityUnitByCode.ContainsKey(code!.Trim());
+
+            /// <summary>
+            /// Group-key suffix: empty for the usual single-unit code, otherwise
+            /// "|u=&lt;unit&gt;". A measurement with no unit joins the unit used by
+            /// most reports instead of creating a third, meaningless bucket.
+            /// </summary>
+            public string Suffix(string? code, string? unit)
+            {
+                if (string.IsNullOrWhiteSpace(code) ||
+                    !_majorityUnitByCode.TryGetValue(code!.Trim(), out var majority))
+                    return string.Empty;
+
+                var u = string.IsNullOrWhiteSpace(unit) ? "" : NormalizeUnit(unit!);
+                return "|u=" + (u.Length == 0 ? majority : u);
+            }
+        }
+
         /// <summary>Lowercase, diacritic-free, punctuation-free: "I.N.R." == "inr".</summary>
         internal static string Normalize(string s)
         {

@@ -37,6 +37,12 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 
 ## Implemented (changelog)
 
+- ✅ **2026-06 — Același cod LOINC cu unități diferite = rânduri separate (cazul Fibrinogen g/L vs mg/dL)**:
+  - **Cauza (nu era unificatorul):** gruparea în Comparații / Dosar / Grafice se făcea DOAR pe codul LOINC. Ambele Fibrinogen au primit corect același cod `3255-7`, dar unul raportat în g/L (4.32, ref 2-4) și altul în mg/dL (516, ref 200-400) — deci cădeau pe același rând, cu un singur interval de referință și două scale incomparabile.
+  - **`LoincUnifier.UnitScope`** (nou): numără unitățile normalizate per cod în toată arhiva; dacă un cod a fost raportat în >1 unitate, cheia de grupare primește sufixul `|u=<unitate>` → fiecare scală are rândul/cardul/seria proprie. Măsurătorile FĂRĂ unitate intră în bucketul majoritar (nu creează un al treilea rând). Codurile cu o singură unitate păstrează cheia identică → zero regresie.
+  - Cablat în `BuildComparison`, `BuildDossier` și `BuildEvolutionAsync` (un cod „split” produce mai multe serii, cea mai frecventă prima; `CodesNotFound` recalculat pe cod).
+  - Validare: `/app/test_reports/iteration_13.json` — 24/24 PASS, inclusiv regresia pe unificarea LOINC (colesterol, INR, feritină). Build: 0 erori / 0 warning-uri. Fără migrații EF.
+
 - ✅ **2026-06 — Eliminarea markerilor de rutare ai laboratorului din denumirea analizei („LLIS”, „#LC”)**:
   - **Problema (foto user):** unele laboratoare tipăresc în marginea din stânga un cod intern (care aparat / partener a lucrat proba). În modul TEXT, PdfPig pune marginea și denumirea pe aceeași linie, deci apărea „LLIS Amilaza serica” / „LLIS Trigliceride” în raport și în numele trimis matcher-ului LOINC.
   - **`Services/LabMarkerSanitizer.cs`** (nou, ~140 linii, determinist, FĂRĂ listă de acronime ca mecanism): un token de 2-6 majuscule (opțional prefixat cu `#`/`*`) e eliminat DOAR dacă deschide ≥ 3 parametri DISTINCŢI din același buletin (markerii de margine se repetă; prefixele medicale reale nu) și dacă restul rămâne un nume valid (≥ 3 caractere, cu litere mici). Curăță și `parameter_normalized_en` (deci matcher-ul LOINC primește nume curate) și redenumeste `abnormal_findings` în sincron.

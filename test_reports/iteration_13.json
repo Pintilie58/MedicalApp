@@ -1,0 +1,23 @@
+{
+  "iteration": 13,
+  "date": "2026-06",
+  "feature": "Same LOINC code + different units of measure must not share a row (Fibrinogen g/L vs mg/dL)",
+  "root_cause": "Compare / Dossier / Evolution group measurements by LOINC code alone. Both Fibrinogen results were matched to the SAME code 3255-7 (correct - it is the same analyte), one reported in g/L (4.32, ref 2-4) and one in mg/dL (516, ref 200-400), so they collapsed onto one row showing two incomparable scales under a single reference range. Not caused by the LOINC unifier (it requires identical units to merge codes).",
+  "fix": "New LoincUnifier.UnitScope: for every unified code it counts the normalized units seen across the archive. If a code was reported in more than one unit, the group key gets a '|u=<unit>' suffix, so each scale gets its own row / card / chart series. Measurements with NO unit join the majority-unit bucket instead of creating a third empty bucket. Codes with a single unit keep the exact previous key => zero behaviour change everywhere else.",
+  "wiring": [
+    "BuildComparison: KeyFor() adds the unit suffix; the displayed code is parsed from the key before the '|'",
+    "BuildDossier: bucket key adds the unit suffix",
+    "BuildEvolutionAsync: series key adds the unit suffix; CodesNotFound and series ordering now work on the code (a split code yields several series, most-reported first)"
+  ],
+  "test_type": ".NET console probe (/app/memory/probes/LoincUnifierProbe.cs.txt) against the real code paths + full build",
+  "build": "Build succeeded, 0 Warning(s), 0 Error(s)",
+  "checks_total": 24,
+  "checks_passed": 24,
+  "checks": [
+    "UnitScope marks 3255-7 as split, leaves single-unit codes untouched, gives g/L and mg/dL different suffixes, sends a unit-less measurement to the majority bucket",
+    "Compare: Fibrinogen now on TWO rows - 4.32 g/L with ref '2 - 4' and 516 mg/dL with ref '200 - 400' - each with exactly ONE measurement, both keeping code 3255-7",
+    "Dossier: Fibrinogen on two cards, one entry each, units g/L and mg/dL",
+    "REGRESSION (iteration 11/12 features): cholesterol still unified to one row/card, INR still unified (unit absent on both reports), ferritin still split with the '!' unit warning"
+  ],
+  "db_migrations": "none - display-only"
+}

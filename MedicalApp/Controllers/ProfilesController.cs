@@ -848,9 +848,14 @@ namespace MedicalApp.Controllers
             string? UnifiedCode(KeyResult kr) =>
                 Services.LoincUnifier.Unify(kr.LoincCode, uni.CodeMap)?.Trim();
 
+            // Same code, different units (Fibrinogen g/L vs mg/dL) must NOT
+            // share a row — the values live on different scales.
+            var unitScope = Services.LoincUnifier.UnitScope.Build(
+                sortedOldestFirst.SelectMany(t => t.r.KeyResults ?? new()), uni.CodeMap);
+
             string KeyFor(KeyResult kr) =>
                 !string.IsNullOrWhiteSpace(kr.LoincCode)
-                    ? "loinc:" + UnifiedCode(kr)
+                    ? "loinc:" + UnifiedCode(kr) + unitScope.Suffix(UnifiedCode(kr), kr.Unit)
                     : NameKey(kr.Parameter);
 
             // Representative KeyResult per SURVIVING code, so the row shows the
@@ -973,7 +978,9 @@ namespace MedicalApp.Controllers
 
                 // Identity of the row: the unified code (from the row key) plus
                 // the metadata of the KeyResult that actually carries it.
-                var unifiedCode = k.StartsWith("loinc:") ? k.Substring("loinc:".Length) : null;
+                var unifiedCode = k.StartsWith("loinc:")
+                    ? k.Substring("loinc:".Length).Split('|')[0]
+                    : null;
                 var identity = unifiedCode != null && identityByCode.TryGetValue(unifiedCode, out var idn)
                     ? idn
                     : meta;
@@ -1310,6 +1317,8 @@ namespace MedicalApp.Controllers
             // Retroactive LOINC unification (display-only): identical name +
             // unit + reference range means one analyte, one timeline.
             var uni = Services.LoincUnifier.Analyze(parsed.SelectMany(t => t.r!.KeyResults!));
+            var unitScope = Services.LoincUnifier.UnitScope.Build(
+                parsed.SelectMany(t => t.r!.KeyResults!), uni.CodeMap);
 
             foreach (var (h, rr) in parsed)
             {
@@ -1328,7 +1337,7 @@ namespace MedicalApp.Controllers
                     var unifiedCode = Services.LoincUnifier.Unify(kr.LoincCode, uni.CodeMap)?.Trim();
 
                     var key = !string.IsNullOrWhiteSpace(unifiedCode)
-                        ? "loinc:" + unifiedCode
+                        ? "loinc:" + unifiedCode + unitScope.Suffix(unifiedCode, kr.Unit)
                         : "name:" + kr.Parameter.Trim().ToLowerInvariant();
 
                     var date = effDate ?? h.CreatedAt;
@@ -1692,8 +1701,12 @@ namespace MedicalApp.Controllers
                 .ToList();
             vm.RequestedCodes = codes;
 
-            // Build one series per requested code.
+            // Build one series per requested code — but split by unit when the
+            // same code was reported on different scales (Fibrinogen g/L vs
+            // mg/dL), otherwise the chart would mix incomparable values.
             var codeSet = new HashSet<string>(codes, StringComparer.OrdinalIgnoreCase);
+            var unitScope = Services.LoincUnifier.UnitScope.Build(
+                parsed.SelectMany(t => t.r!.KeyResults!), uni.CodeMap);
             var seriesByCode = new Dictionary<string, EvolutionViewModel.EvolutionSeries>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var (h, rr) in parsed)
@@ -1709,14 +1722,15 @@ namespace MedicalApp.Controllers
                     var code = Services.LoincUnifier.Unify(kr.LoincCode, uni.CodeMap)!.Trim();
                     if (!codeSet.Contains(code)) continue;
 
-                    if (!seriesByCode.TryGetValue(code, out var s))
+                    var seriesKey = code + unitScope.Suffix(code, kr.Unit);
+                    if (!seriesByCode.TryGetValue(seriesKey, out var s))
                     {
                         s = new EvolutionViewModel.EvolutionSeries
                         {
                             LoincCode = code,
                             ColorHex = palette[seriesByCode.Count % palette.Length],
                         };
-                        seriesByCode[code] = s;
+                        seriesByCode[seriesKey] = s;
                     }
 
                     var (val, ok) = ParseNumeric(kr.Value);
@@ -1755,13 +1769,19 @@ namespace MedicalApp.Controllers
                 s.Points = s.Points.OrderBy(p => p.EffectiveDate).ToList();
 
             // Codes the user asked for but never appeared in any interpretation.
-            vm.CodesNotFound = codes.Where(c => !seriesByCode.ContainsKey(c)).ToList();
+            var foundCodes = seriesByCode.Values
+                .Select(s => s.LoincCode)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            vm.CodesNotFound = codes.Where(c => !foundCodes.Contains(c)).ToList();
 
             // Series ordering: in the order the user typed the codes (so the
             // first one keeps its primary color and appears first in the legend).
+            // A code split by unit yields several series, the most reported first.
             vm.Series = codes
-                .Where(c => seriesByCode.ContainsKey(c))
-                .Select(c => seriesByCode[c])
+                .SelectMany(c => seriesByCode.Values
+                    .Where(s => string.Equals(s.LoincCode, c, StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(s => s.Points.Count)
+                    .ThenBy(s => s.Unit, StringComparer.Ordinal))
                 .ToList();
 
             // Reassign palette colors in the user-typed order (palette index
