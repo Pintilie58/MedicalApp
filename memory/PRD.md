@@ -37,6 +37,14 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 
 ## Implemented (changelog)
 
+- ✅ **2026-06 — Eliminarea markerilor de rutare ai laboratorului din denumirea analizei („LLIS”, „#LC”)**:
+  - **Problema (foto user):** unele laboratoare tipăresc în marginea din stânga un cod intern (care aparat / partener a lucrat proba). În modul TEXT, PdfPig pune marginea și denumirea pe aceeași linie, deci apărea „LLIS Amilaza serica” / „LLIS Trigliceride” în raport și în numele trimis matcher-ului LOINC.
+  - **`Services/LabMarkerSanitizer.cs`** (nou, ~140 linii, determinist, FĂRĂ listă de acronime ca mecanism): un token de 2-6 majuscule (opțional prefixat cu `#`/`*`) e eliminat DOAR dacă deschide ≥ 3 parametri DISTINCŢI din același buletin (markerii de margine se repetă; prefixele medicale reale nu) și dacă restul rămâne un nume valid (≥ 3 caractere, cu litere mici). Curăță și `parameter_normalized_en` (deci matcher-ul LOINC primește nume curate) și redenumeste `abnormal_findings` în sincron.
+  - **Plasă anti-regresie:** allow-list de abrevieri care pot deschide legitim un nume (LDL, HDL, VLDL, AC, IgG/IgA/IgM, TSH, FT3/FT4, PSA, CEA, CA, INR, VSH, GGT, ALT/AST, LDH, MCV/MCH/MCHC, PH, PT/APTT, ...) — niciodată eliminate, indiferent de frecvență.
+  - **Cablare:** `InterpretationController` (B2C) și `CamBatchService` (B2B/CAM), imediat după Gemini și îNAINTE de StatusValidator + matcher-ul LOINC, în try/catch (pas cosmetic, nu poate rupe fluxul). Plus **Layer 1**: regulă generică nouă în promptul Gemini („LAB ROUTING CODES ARE NOT PART OF THE NAME”) ca markerul să nu intre deloc.
+  - **Decizie user:** se aplică doar interpretărilor NOI; arhiva existentă rămâne cu numele vechi. Fără loguri. Fără migrații EF.
+  - Validare: `/app/test_reports/iteration_12.json` — 18/18 verificări PASS (inclusiv cazul real din buletin, `#LC`, prefixe medicale intacte, prag de frecvență, idempotență). Build: 0 erori / 0 warning-uri. Proba păstrată la `/app/memory/probes/LabMarkerSanitizerProbe.cs.txt`.
+
 - ✅ **2026-06 — Unificare retroactivă a codurilor LOINC la afișare (Dosar medical, Comparații, Grafice)**:
   - **Problema:** matcher-ul semantic + variabilitatea de formulare a Gemini produc coduri LOINC diferite pentru ACEEAșI analiză în buletine diferite (ex. Colesterol total `2093-3` vs `14647-2`), deci istoricul se rupea în două rânduri/carduri/serii.
   - **`Services/LoincUnifier.cs`**: `Analyze(allResults)` construiește (a) `CodeMap` (cod vechi -> cod unificat) doar când **Nume + Unitate de măsură + Interval de referință** coincid după normalizare (lowercase, fără diacritice/punctuație; unități canonice µL/uL, 10^3; intervale comparate NUMERIC) și (b) `MissingAxisByName` ("unit"/"range"/"both") pentru cazurile pe care am REFUZAT să le unificăm. Cod câștigător: ancoră (verified) > scor semantic > număr apariții > cod stabil.

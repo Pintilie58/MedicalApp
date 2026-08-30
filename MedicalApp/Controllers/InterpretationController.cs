@@ -686,6 +686,19 @@ namespace MedicalApp.Controllers
             // text ranges) are SKIPPED and the model's status is preserved. The
             // call is wrapped in try/catch so a validator bug NEVER breaks the flow.
             bool resultMutated = false;
+
+            // 3.4) Strip the lab's internal routing markers ("LLIS", "#LC", ...)
+            // that the text layer glues in front of the analyte name. Runs
+            // BEFORE the LOINC matcher so the matcher receives clean names.
+            try
+            {
+                if (LabMarkerSanitizer.Clean(result) > 0) resultMutated = true;
+            }
+            catch
+            {
+                // Cosmetic step — never break the interpretation flow.
+            }
+
             try
             {
                 var stats = StatusValidator.Validate(result, _logger);

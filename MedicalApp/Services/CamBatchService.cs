@@ -336,6 +336,18 @@ namespace MedicalApp.Services
                 return;
             }
 
+            // 3b. Strip the lab's internal routing markers ("LLIS", "#LC", ...)
+            // glued in front of the analyte names by the PDF text layer. Runs
+            // before the LOINC matcher so it receives clean names.
+            try
+            {
+                LabMarkerSanitizer.Clean(result);
+            }
+            catch
+            {
+                // Cosmetic step — never break a batch.
+            }
+
             // 3c. CAM now uses the SAME LOINC matcher as the B2C interpretation
             // path (Python service: 128 canonical anchors + semantic embeddings).
             // Without this step the Compare PDF cannot group rows by LOINC class

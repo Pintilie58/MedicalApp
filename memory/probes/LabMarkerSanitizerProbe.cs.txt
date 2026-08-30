@@ -1,0 +1,79 @@
+using MedicalApp.Models;
+using MedicalApp.Services;
+
+int fails = 0;
+void Check(string label, bool ok, string detail = "")
+{
+    Console.WriteLine((ok ? "PASS  " : "FAIL  ") + label + (detail.Length > 0 ? "  ->  " + detail : ""));
+    if (!ok) fails++;
+}
+
+static KeyResult K(string p, string? en = null) => new KeyResult
+{
+    Parameter = p, Value = "1", Unit = "U/L", ReferenceRange = "0-10",
+    Status = "normal", ParameterNormalizedEn = en
+};
+
+static InterpretationResult R(params KeyResult[] krs) => new InterpretationResult
+{
+    IsMedicalAnalysis = true, KeyResults = krs.ToList()
+};
+
+// ---- 1. Real case from the user's report: LLIS in front of 3+ analytes ----
+var r1 = R(
+    K("LLIS Amilaza serica", "LLIS Amylase [Enzymatic activity/volume] in Serum or Plasma"),
+    K("LLIS Alaninaminotransferaza (GPT/ALAT/ALT)"),
+    K("LLIS Aspartataminotransferaza (GOT/ASAT/AST)"),
+    K("LLIS Trigliceride"),
+    K("Colesterol total"));
+r1.AbnormalFindings = new List<AbnormalFinding> { new AbnormalFinding { Parameter = "LLIS Trigliceride", Severity = "mild" } };
+
+int changed = LabMarkerSanitizer.Clean(r1);
+Check("LLIS: 4 parameters cleaned", changed == 4, "changed=" + changed);
+Check("LLIS: name is 'Amilaza serica'", r1.KeyResults![0].Parameter == "Amilaza serica", r1.KeyResults[0].Parameter);
+Check("LLIS: name is 'Trigliceride'", r1.KeyResults[3].Parameter == "Trigliceride", r1.KeyResults[3].Parameter);
+Check("LLIS: normalized_en cleaned too",
+    r1.KeyResults[0].ParameterNormalizedEn == "Amylase [Enzymatic activity/volume] in Serum or Plasma",
+    r1.KeyResults[0].ParameterNormalizedEn ?? "null");
+Check("LLIS: untouched analyte stays", r1.KeyResults[4].Parameter == "Colesterol total", r1.KeyResults[4].Parameter);
+Check("LLIS: abnormal finding renamed in sync",
+    r1.AbnormalFindings![0].Parameter == "Trigliceride", r1.AbnormalFindings[0].Parameter);
+
+// ---- 2. #-prefixed marker ----
+var r2 = R(K("#LC Glucoza"), K("#LC Uree serica"), K("#LC Creatinina serica"), K("Sodiu"));
+Check("#LC: 3 cleaned", LabMarkerSanitizer.Clean(r2) == 3);
+Check("#LC: 'Glucoza'", r2.KeyResults![0].Parameter == "Glucoza", r2.KeyResults[0].Parameter);
+
+// ---- 3. ANTI-REGRESSION: medical prefixes must survive even at 3+ occurrences ----
+var r3 = R(K("LDL colesterol"), K("LDL colesterol calculat"), K("LDL colesterol direct"),
+           K("HDL colesterol"), K("AC anti-HBs"), K("AC anti-HCV"), K("AC anti-HIV 1/2"),
+           K("IgG seric"), K("IgA serica"), K("IgM serica"));
+Check("Medical prefixes untouched (LDL/AC/Ig)", LabMarkerSanitizer.Clean(r3) == 0);
+Check("LDL colesterol intact", r3.KeyResults![0].Parameter == "LDL colesterol", r3.KeyResults[0].Parameter);
+Check("AC anti-HBs intact", r3.KeyResults[4].Parameter == "AC anti-HBs", r3.KeyResults[4].Parameter);
+
+// ---- 4. Frequency threshold: 2 occurrences are not enough ----
+var r4 = R(K("XYZ Ceva serica"), K("XYZ Altceva serica"), K("Fier seric"));
+Check("Threshold: token seen twice is NOT removed", LabMarkerSanitizer.Clean(r4) == 0,
+    r4.KeyResults![0].Parameter);
+
+// ---- 5. All-caps remainder is never touched (no lowercase left behind) ----
+var r5 = R(K("ABC TSH REFLEX"), K("ABC FT4 TOTAL"), K("ABC CA 19-9"));
+Check("All-caps remainder untouched", LabMarkerSanitizer.Clean(r5) == 0, r5.KeyResults![0].Parameter);
+
+// ---- 6. Single-word parameters and empty input are safe ----
+var r6 = R(K("LLIS"), K("VSH"), K("INR"));
+Check("Single-word parameters untouched", LabMarkerSanitizer.Clean(r6) == 0);
+Check("Null result safe", LabMarkerSanitizer.Clean(null) == 0);
+Check("Empty key_results safe", LabMarkerSanitizer.Clean(new InterpretationResult()) == 0);
+
+// ---- 7. Long words are not markers (7+ letters) ----
+var r7 = R(K("HEMATOLOGIE Leucocite"), K("HEMATOLOGIE Trombocite"), K("HEMATOLOGIE Eritrocite"));
+Check("7+ letter token is not treated as a margin code", LabMarkerSanitizer.Clean(r7) == 0,
+    r7.KeyResults![0].Parameter);
+
+// ---- 8. Idempotent: running twice changes nothing more ----
+Check("Idempotent", LabMarkerSanitizer.Clean(r1) == 0 && r1.KeyResults![0].Parameter == "Amilaza serica");
+
+Console.WriteLine(fails == 0 ? "\nALL CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
+return fails == 0 ? 0 : 1;

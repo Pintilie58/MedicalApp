@@ -1,0 +1,30 @@
+{
+  "iteration": 12,
+  "date": "2026-06",
+  "feature": "Lab routing markers ('LLIS', '#LC', ...) removed from analyte names - generic, frequency-based",
+  "test_type": ".NET console probe (/tmp/sanprobe) against the real LabMarkerSanitizer + full solution build",
+  "build": "dotnet build MedicalApp.csproj => Build succeeded, 0 Warning(s), 0 Error(s)",
+  "checks_total": 18,
+  "checks_passed": 18,
+  "mechanism": "A leading token of 2-6 uppercase letters (optionally prefixed with # or *) is removed ONLY when it opens >= 3 DISTINCT parameters of the same report; the remainder must be >= 3 chars and contain a lowercase letter. A small allow-list (LDL, HDL, AC, IgG, TSH, INR, VSH, CA, PSA, ...) is never removed whatever the frequency. Also cleans parameter_normalized_en (so the LOINC matcher gets clean names) and renames abnormal_findings in sync.",
+  "checks": [
+    "User's real case: 'LLIS Amilaza serica' / 'LLIS Trigliceride' -> clean names, 4 parameters cleaned, untouched analyte preserved",
+    "parameter_normalized_en cleaned as well (LOINC matcher receives 'Amylase [Enzymatic activity/volume] in Serum or Plasma')",
+    "abnormal_findings renamed in sync with key_results",
+    "'#LC' style markers handled",
+    "ANTI-REGRESSION: 'LDL colesterol' x3, 'AC anti-HBs/HCV/HIV', 'IgG/IgA/IgM seric' untouched",
+    "Frequency threshold respected: a token seen only twice is NOT removed",
+    "All-caps remainder never stripped ('ABC TSH REFLEX' untouched)",
+    "Single-word parameters, null result and empty key_results are safe",
+    "7+ letter tokens ('HEMATOLOGIE Leucocite') are not treated as margin codes",
+    "Idempotent: a second pass changes nothing"
+  ],
+  "wiring": [
+    "InterpretationController (B2C): runs after Gemini, BEFORE StatusValidator and the LOINC matcher; try/catch so it can never break the flow",
+    "CamBatchService (B2B/CAM): same position, before the LOINC matcher",
+    "GeminiMedicalInterpretationService: new generic prompt rule 'LAB ROUTING CODES ARE NOT PART OF THE NAME' (layer 1 prevention)"
+  ],
+  "scope_decision_by_user": "Applied to NEW interpretations only (B2C + CAM). Already archived interpretations keep 'LLIS Amilaza serica'.",
+  "logging": "none (user asked for no logs)",
+  "db_migrations": "none"
+}

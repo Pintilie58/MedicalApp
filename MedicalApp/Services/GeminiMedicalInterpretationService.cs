@@ -924,6 +924,17 @@ IT MEANS ""THE COMPLETE LIST OF EVERY SINGLE LAB RESULT FOUND IN THE PDF"".
   ⚠️ EXCEPTION: The descriptive words inside the `reference` field are subject to
   the REFERENCE-RANGE LOCALIZATION rule above — translate them to {LANGUAGE_NAME}.
   Numbers, units and acronyms inside the reference stay verbatim.
+- LAB ROUTING CODES ARE NOT PART OF THE NAME: many labs print a short internal
+  code in the LEFT MARGIN of the row, before the analyte name, to record which
+  machine, department or partner laboratory processed the sample (typically 2-6
+  uppercase letters, sometimes prefixed with # or *). The text layer often glues
+  it to the analyte name on the same line. That code is administrative metadata
+  with no medical meaning: NEVER include it in `parameter` or in
+  `parameter_normalized_en`. Emit the analyte name alone. How to recognize it:
+  the SAME short code appears in front of many different analytes of the report,
+  and removing it still leaves a complete analyte name. Do NOT strip a genuine
+  part of the name that happens to be uppercase (LDL, HDL, TSH, AC anti-..., IgG,
+  CA 19-9, INR, VSH, GGT, ...) — those are the analyte itself, not a margin code.
 - Pay SPECIAL ATTENTION to: Imunochimie / hormones (TSH, FT3, FT4), tumor markers (PSA, CEA, AFP, CA125, CA15-3, CA19-9), vitamins (D, B12, folate, ferritin), iron panel (Fer, Transferrine, CTFF, CST). These are often in separate sub-sections and frequently forgotten.
 - FIRST DATA ROW IN A TABLE — CRITICAL: The first analyte row that appears
   immediately under a section title (e.g. ""HEMATOLOGY"", ""BIOCHEMISTRY"",
