@@ -25,6 +25,14 @@ namespace MedicalApp.Models
         public Dictionary<string, long> AverageByStage { get; set; } = new();
         public long AverageTotalMs { get; set; }
 
+        /// <summary>True when at least one row was produced by the 3-call split pipeline.</summary>
+        public bool AnySplit => Rows.Any(r => r.IsSplit);
+
+        /// <summary>Models configured per split stage (for the cost breakdown header).</summary>
+        public string SplitModelA { get; set; } = "";
+        public string SplitModelB { get; set; } = "";
+        public string SplitModelC { get; set; } = "";
+
         public class Row
         {
             public int HistoryId { get; set; }
@@ -52,14 +60,41 @@ namespace MedicalApp.Models
                     long measured = 0;
                     foreach (var kv in Stages)
                     {
-                        // "total" is the sum itself; the other two are counters,
-                        // not milliseconds — they must never be subtracted here.
+                        // "total" is the sum itself; the counters below are not
+                        // milliseconds — they must never be subtracted here.
                         if (kv.Key is "total" or "ai_attempts" or "ai_thinking_tokens") continue;
+                        if (kv.Key.StartsWith("ai_a_") || kv.Key.StartsWith("ai_b_")
+                            || kv.Key.StartsWith("ai_c_") || kv.Key is "ai_bc_ms" or "ai_pipeline") continue;
                         measured += kv.Value;
                     }
                     return Math.Max(0, TotalMs - measured);
                 }
             }
+
+            // ---------------- Split pipeline (3 calls) breakdown ----------------
+            private long S(string key) => Stages.TryGetValue(key, out var v) ? v : 0;
+
+            /// <summary>This interpretation was produced by the A/B/C split pipeline.</summary>
+            public bool IsSplit => S("ai_pipeline") == 1;
+
+            public long StageAMs => S("ai_a_ms");
+            /// <summary>Wall clock of stages B and C, which run concurrently.</summary>
+            public long StageBcMs => S("ai_bc_ms");
+            public long StageABatches => S("ai_b_batches");
+
+            public int StageAIn => (int)S("ai_a_in");
+            public int StageAOut => (int)S("ai_a_out");
+            public int StageBIn => (int)S("ai_b_in");
+            public int StageBOut => (int)S("ai_b_out");
+            public int StageCIn => (int)S("ai_c_in");
+            public int StageCOut => (int)S("ai_c_out");
+            public long StageCThinking => S("ai_c_think");
+
+            /// <summary>Estimated USD per stage, filled by the controller from GeminiPricing.</summary>
+            public decimal CostAUsd { get; set; }
+            public decimal CostBUsd { get; set; }
+            public decimal CostCUsd { get; set; }
+            public decimal CostTotalUsd => CostAUsd + CostBUsd + CostCUsd;
         }
     }
 }

@@ -15,6 +15,7 @@ namespace MedicalApp.Controllers
         private readonly IEmailService _emailService;
         private readonly DailySummaryService _dailySummaryService;
         private readonly GeminiPricing _pricing;
+        private readonly GeminiSettings _geminiSettings;
         private readonly LoincMatcherSettings _loincSettings;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger<AdminController> _logger;
@@ -24,6 +25,7 @@ namespace MedicalApp.Controllers
             IEmailService emailService,
             DailySummaryService dailySummaryService,
             IOptions<GeminiPricing> pricing,
+            IOptions<GeminiSettings> geminiSettings,
             IOptions<LoincMatcherSettings> loincSettings,
             IHttpClientFactory httpClientFactory,
             ILogger<AdminController> logger)
@@ -32,6 +34,7 @@ namespace MedicalApp.Controllers
             _emailService = emailService;
             _dailySummaryService = dailySummaryService;
             _pricing = pricing.Value;
+            _geminiSettings = geminiSettings.Value;
             _loincSettings = loincSettings.Value;
             _httpClientFactory = httpClientFactory;
             _logger = logger;
@@ -532,6 +535,23 @@ namespace MedicalApp.Controllers
                         vm.AverageByStage[stage] = (long)vals.Average();
                 }
                 vm.AverageTotalMs = (long)vm.Rows.Average(r => r.TotalMs);
+            }
+
+            // Split-pipeline cost breakdown: each stage runs on its own model, so
+            // each stage is priced with its own tariff.
+            vm.SplitModelA = _geminiSettings.ExtractorModel;
+            vm.SplitModelB = _geminiSettings.ExplainModel;
+            vm.SplitModelC = _geminiSettings.NarrativeModel;
+
+            var priceA = _pricing.Resolve(vm.SplitModelA);
+            var priceB = _pricing.Resolve(vm.SplitModelB);
+            var priceC = _pricing.Resolve(vm.SplitModelC);
+
+            foreach (var r in vm.Rows.Where(r => r.IsSplit))
+            {
+                r.CostAUsd = priceA.ComputeCost(r.StageAIn, r.StageAOut);
+                r.CostBUsd = priceB.ComputeCost(r.StageBIn, r.StageBOut);
+                r.CostCUsd = priceC.ComputeCost(r.StageCIn, r.StageCOut);
             }
 
             return View(vm);

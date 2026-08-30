@@ -1,0 +1,38 @@
+{
+  "iteration": 14,
+  "date": "2026-06",
+  "feature": "Gemini split pipeline: 3 calls (A extraction / B parallel explanation batches / C clinical narrative) instead of one monolithic call",
+  "goal": "Cut the ~100s Gemini stage to A + max(B, C) (~35-45s expected) without losing reasoning quality on correlations/recommendations.",
+  "design": {
+    "stage_A": "Table extraction only. Model gemini-3.5-flash, thinkingLevel=low. Reuses the FULL system prompt + an output-contract addendum (explanation forced to empty, narrative fields empty), so every extraction rule (completeness, first/last row, LOINC normalized_en, panel/analyte raw, lab routing codes, self-audit) stays in force.",
+    "stage_B": "Per-analyte explanations, batches of 12 running in PARALLEL. Model gemini-3.1-flash-lite, thinkingLevel=minimal. Receives only the extracted table, never the PDF. Explanation depth policy unchanged (user asked to keep it as-is).",
+    "stage_C": "summary / abnormal_findings / correlations / recommendations / disclaimer / risk_factors / doctor_questions. Model gemini-3.1-pro, thinkingLevel=medium. Runs CONCURRENTLY with B.",
+    "assembly": "C# merges into the same InterpretationResult, so UI, PDFs, LOINC matching, dossier and archive are untouched.",
+    "cascades": "Per stage: a failed B batch retries on the same model, then on the narrative model, and if it still fails only those analytes lose their explanation; stage C retries on a second model; ANY unrecoverable split failure falls back to the historical monolithic call, so a user always gets a full report.",
+    "flag": "Gemini:PipelineMode = 'monolithic' (default, unchanged behaviour) | 'split' — per the user's decision to test it manually first.",
+    "thinking": "Gemini 3.x uses thinkingLevel (minimal|low|medium|high); 2.5 keeps the numeric thinkingBudget. Exactly one is ever sent (sending both confuses 3.x)."
+  },
+  "test_type": "END-TO-END probe against a LOCAL fake Gemini server (HttpListener) driving the real service (/app/memory/probes/GeminiSplitPipelineProbe.cs.txt)",
+  "build": "Build succeeded, 0 Warning(s), 0 Error(s)",
+  "checks_total": 34,
+  "checks_passed": 34,
+  "checks": [
+    "Split: A called once, 3 batches for 25 analytes, C called once, no monolithic fallback",
+    "Split: every analyte receives its OWN explanation (index mapping verified on analyte 7)",
+    "Split: narrative fields, abnormal_findings, risk factors and doctor questions merged from stage C; extraction fields preserved from stage A",
+    "Split: tokens summed across all 5 successful calls; merged raw JSON contains both stage-A and stage-C content",
+    "Split: stages B and C genuinely OVERLAP in time, and the 3 B batches overlap with each other",
+    "Split: each stage used its configured model and the right thinkingLevel (low / minimal / medium), with NO thinkingBudget sent to 3.x models",
+    "Split: a failed batch is retried on the same model first and the report stays complete",
+    "Split: Admin stage timings recorded (ai_pipeline, ai_a_ms, ai_a_in/out, ai_b_in/out, ai_b_batches, ai_c_in/out, ai_c_think, ai_bc_ms)",
+    "Fallback: stage C failing on both models triggers the monolithic call; the user still gets a COMPLETE report and the split telemetry is cleared",
+    "Monolithic mode: exactly ONE call, historical model, NO thinking key sent, result complete, no split telemetry — zero regression",
+    "Pricing: flash-lite / gemini-3.x flash / pro / legacy 2.5-flash each resolve to their own tariff"
+  ],
+  "admin_panel": "New 'Pipeline pe 3 apeluri (A/B/C)' table on /Admin/Performance showing per-stage duration, tokens, thinking tokens and ESTIMATED USD per stage plus the total, using the per-stage model tariffs.",
+  "notes": [
+    "CAM/B2B keeps the monolithic call: it always passes an explicit tier model, and the split path only engages when no model override is forced.",
+    "GeminiSettings.BaseUrl was added so the pipeline can be driven against a local stub in tests; production default unchanged."
+  ],
+  "db_migrations": "none"
+}

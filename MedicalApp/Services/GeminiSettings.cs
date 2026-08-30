@@ -15,6 +15,12 @@ namespace MedicalApp.Services
         public string Model { get; set; } = "gemini-2.5-flash";
 
         /// <summary>
+        /// Base of the Gemini REST API. Only ever changed to point the app at a
+        /// local stub in tests; production keeps the default.
+        /// </summary>
+        public string BaseUrl { get; set; } = "https://generativelanguage.googleapis.com/v1beta";
+
+        /// <summary>
         /// Optional fallback model used by the controller AFTER the primary
         /// <see cref="Model"/> has produced repeated HTTP 503 (server overload)
         /// errors. The fallback model should be a LESS-USED variant that is
@@ -48,6 +54,37 @@ namespace MedicalApp.Services
         /// and shown in the Admin performance panel.
         /// </summary>
         public int ThinkingBudget { get; set; } = -1;
+
+        // =====================================================================
+        //  SPLIT PIPELINE (3 parallel-ish calls instead of one monolithic one)
+        // =====================================================================
+        /// <summary>
+        /// "monolithic" (default, the historical single-call behaviour) or
+        /// "split": stage A extracts the table, then stage B (per-analyte
+        /// explanations, in parallel batches) and stage C (clinical narrative,
+        /// with real thinking) run CONCURRENTLY. Total time becomes
+        /// A + max(B, C) instead of the sum of everything.
+        /// Any failure of the split path silently falls back to the monolithic
+        /// call, so switching this on can never leave a user without a report.
+        /// </summary>
+        public string PipelineMode { get; set; } = "monolithic";
+
+        /// <summary>Stage A — table extraction. Speed + reading accuracy, no reasoning needed.</summary>
+        public string ExtractorModel { get; set; } = "gemini-3.5-flash";
+
+        /// <summary>Stage B — per-analyte explanations. High volume of short texts.</summary>
+        public string ExplainModel { get; set; } = "gemini-3.1-flash-lite";
+
+        /// <summary>Stage C — narrative, correlations, recommendations. Real reasoning; tiny input.</summary>
+        public string NarrativeModel { get; set; } = "gemini-3.1-pro";
+
+        /// <summary>thinkingLevel for Gemini 3.x: minimal | low | medium | high.</summary>
+        public string ExtractorThinkingLevel { get; set; } = "low";
+        public string ExplainThinkingLevel { get; set; } = "minimal";
+        public string NarrativeThinkingLevel { get; set; } = "medium";
+
+        /// <summary>How many analytes one stage-B call explains. Batches run in parallel.</summary>
+        public int ExplainBatchSize { get; set; } = 12;
 
         /// <summary>
         /// SECOND-tier fallback used only when both the primary AND the first

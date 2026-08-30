@@ -113,5 +113,62 @@
                 </tbody>
             </table>
         </div>
+
+        @if (Model.AnySplit)
+        {
+            <div class="card mb-4" data-testid="perf-split-card">
+                <div class="card-body">
+                    <h5 class="card-title text-primary mb-1">Pipeline pe 3 apeluri (A / B / C)</h5>
+                    <p class="text-muted small mb-3">
+                        A = extragere tabel (@Model.SplitModelA) &middot;
+                        B = explicații pe loturi paralele (@Model.SplitModelB) &middot;
+                        C = narativ + corelații + recomandări (@Model.SplitModelC).
+                        B și C rulează simultan, deci timpul total este A + max(B, C).
+                        Costul este estimat din tokenii raportați de Google și tarifele din appsettings.
+                    </p>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0" data-testid="perf-split-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th class="text-end">A — extragere</th>
+                                    <th class="text-end">A cost</th>
+                                    <th class="text-end">B — explicații</th>
+                                    <th class="text-end">B cost</th>
+                                    <th class="text-end">C — narativ</th>
+                                    <th class="text-end">C cost</th>
+                                    <th class="text-end">B+C (paralel)</th>
+                                    <th class="text-end">Cost total AI</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var r in Model.Rows.Where(x => x.IsSplit))
+                                {
+                                    <tr data-testid="perf-split-row-@r.HistoryId">
+                                        <td class="small text-muted">@r.HistoryId</td>
+                                        <td class="text-end @heat(r.StageAMs)">@ms(r.StageAMs)</td>
+                                        <td class="text-end small text-muted">$@r.CostAUsd.ToString("0.00000")</td>
+                                        <td class="text-end small text-muted">
+                                            @r.StageBOut tok / @r.StageABatches loturi
+                                        </td>
+                                        <td class="text-end small text-muted">$@r.CostBUsd.ToString("0.00000")</td>
+                                        <td class="text-end small text-muted">
+                                            @r.StageCOut tok
+                                            @if (r.StageCThinking > 0)
+                                            {
+                                                <span class="text-warning">(@r.StageCThinking thinking)</span>
+                                            }
+                                        </td>
+                                        <td class="text-end small text-muted">$@r.CostCUsd.ToString("0.00000")</td>
+                                        <td class="text-end @heat(r.StageBcMs)">@ms(r.StageBcMs)</td>
+                                        <td class="text-end fw-semibold">$@r.CostTotalUsd.ToString("0.00000")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
     }
 </div>

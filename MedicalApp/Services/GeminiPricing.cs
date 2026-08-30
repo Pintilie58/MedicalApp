@@ -27,6 +27,20 @@ namespace MedicalApp.Services
             OutputPerMillionUsd = 10.00m,
         };
 
+        /// <summary>Gemini 3.x Flash tier (e.g. gemini-3.5-flash), June 2026 pricing.</summary>
+        public ModelPrice Flash3 { get; set; } = new ModelPrice
+        {
+            InputPerMillionUsd = 1.50m,
+            OutputPerMillionUsd = 9.00m,
+        };
+
+        /// <summary>Gemini Flash-Lite tier (e.g. gemini-3.1-flash-lite).</summary>
+        public ModelPrice FlashLite { get; set; } = new ModelPrice
+        {
+            InputPerMillionUsd = 0.25m,
+            OutputPerMillionUsd = 1.50m,
+        };
+
         /// <summary>
         /// Resolves a Gemini model name (e.g. <c>"gemini-2.5-flash"</c>,
         /// <c>"gemini-2.5-pro"</c>) to its price entry. Any model whose name
@@ -37,9 +51,12 @@ namespace MedicalApp.Services
         public ModelPrice Resolve(string? modelName)
         {
             if (string.IsNullOrWhiteSpace(modelName)) return Flash;
-            return modelName.Contains("pro", System.StringComparison.OrdinalIgnoreCase)
-                ? Pro
-                : Flash;
+            if (modelName.Contains("lite", System.StringComparison.OrdinalIgnoreCase)) return FlashLite;
+            if (modelName.Contains("pro", System.StringComparison.OrdinalIgnoreCase)) return Pro;
+            // Gemini 3.x Flash costs ~5x the 2.5 Flash it replaced — do not
+            // bill it at the old price or the cost panel lies.
+            if (modelName.StartsWith("gemini-3", System.StringComparison.OrdinalIgnoreCase)) return Flash3;
+            return Flash;
         }
 
         public class ModelPrice

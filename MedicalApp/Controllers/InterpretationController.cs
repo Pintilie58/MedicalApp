@@ -399,7 +399,13 @@ namespace MedicalApp.Controllers
                     timer.Add("ai_calls", aiSw.ElapsedMilliseconds);
                     timer.Add("ai_attempts", 1);
                     if (_ai is GeminiMedicalInterpretationService gem)
+                    {
                         timer.Add("ai_thinking_tokens", gem.LastThoughtsTokenCount);
+                        // Split pipeline: per-stage milliseconds and tokens, so the
+                        // Admin performance panel can show A / B / C separately.
+                        foreach (var kv in gem.LastStageTimings)
+                            timer.Add(kv.Key, kv.Value);
+                    }
                     break; // success
                 }
                 catch (GeminiTransientException ex) when (transientAttempts + 1 < maxAttemptsTransient)

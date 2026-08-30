@@ -1,4 +1,4 @@
-using MedicalApp.Models;
+﻿using MedicalApp.Models;
 using Microsoft.Extensions.Options;
 using System.Text;
 using System.Text.Json;
@@ -18,7 +18,7 @@ namespace MedicalApp.Services
     ///   ~$0.30 / 1M input tokens, ~$2.50 / 1M output tokens
     ///   (free tier covers typical MedicalApp volumes).
     /// </summary>
-    public class GeminiMedicalInterpretationService : IMedicalInterpretationProvider
+    public partial class GeminiMedicalInterpretationService : IMedicalInterpretationProvider
     {
         private readonly GeminiSettings _settings;
         private readonly IHttpClientFactory _httpClientFactory;
@@ -32,7 +32,7 @@ namespace MedicalApp.Services
         public int LastThoughtsTokenCount { get; private set; }
 
         private const string EndpointFormat =
-            "https://generativelanguage.googleapis.com/v1beta/models/{0}:generateContent?key={1}";
+            "{2}/models/{0}:generateContent?key={1}";
 
         // NOTE: LanguageNames used to be a private hardcoded dict here — it
         // is now sourced from SupportedLanguagesConfig.GetLangName() so
@@ -126,10 +126,40 @@ namespace MedicalApp.Services
             string languageCode, string fileName, PatientContext? patientContext,
             string? pdfBase64, int pdfBytesLength,
             string? extractedText, CancellationToken ct,
-            string? modelOverride = null)
+            string? modelOverride = null,
+            string? userPromptAddendum = null,
+            string? thinkingLevelOverride = null,
+            bool allowSplitPipeline = true)
         {
             // Source of truth: SupportedLanguagesConfig.
             var languageName = SupportedLanguagesConfig.GetLangName(languageCode);
+
+            // SPLIT PIPELINE (opt-in via Gemini:PipelineMode). Only on the happy
+            // path: once the controller has escalated to a fallback model we stay
+            // on the proven monolithic call.
+            if (allowSplitPipeline
+                && modelOverride == null
+                && string.Equals(_settings.PipelineMode, "split", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    return await RunSplitPipelineAsync(
+                        languageCode, languageName, fileName, patientContext,
+                        pdfBase64, pdfBytesLength, extractedText, ct);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw; // the user navigated away — do not burn a second pipeline
+                }
+                catch (Exception splitEx)
+                {
+                    // Do not leave half-filled split telemetry on the row — the
+                    // report about to be produced comes from the monolithic call.
+                    LastStageTimings.Clear();
+                    _logger.LogWarning(splitEx,
+                        "Split pipeline failed — falling back to the monolithic Gemini call for this interpretation.");
+                }
+            }
 
             // Pick the model to call: explicit override (controller's fallback path)
             // wins over the configured default. This is the ONLY behavioural difference
@@ -139,7 +169,7 @@ namespace MedicalApp.Services
                 ? modelOverride!
                 : _settings.Model;
 
-            // 2) Build the request body
+            // 2) Build the prompts.
             // We replace the `{LANGUAGE_NAME}` placeholder in the system prompt with the
             // actual target language name (e.g. "Romanian"). Flash usually figures out
             // the placeholder from context, but Gemini 2.5 Pro and Gemini 3 are more
@@ -150,154 +180,33 @@ namespace MedicalApp.Services
             var userPrompt = BuildUserPrompt(languageName, languageCode, fileName, patientContext,
                                              hasInlinePdf: pdfBase64 != null,
                                              extractedText: extractedText);
-            var requestBody = BuildRequestBody(systemPrompt, userPrompt, pdfBase64);
 
-            var url = string.Format(EndpointFormat, modelName, _settings.ApiKey);
+            // Stage-specific output contract (split pipeline). Empty on the
+            // monolithic path, so the prompt is byte-for-byte the historical one.
+            if (!string.IsNullOrWhiteSpace(userPromptAddendum))
+                userPrompt += "\n\n" + userPromptAddendum;
 
-            // 3) Send request
-            using var http = _httpClientFactory.CreateClient();
-            http.Timeout = TimeSpan.FromSeconds(_settings.TimeoutSeconds);
+            // 3) Send the request. PostAsync is the shared low-level call (HTTP,
+            // error taxonomy, wrapper parsing, token accounting) reused by the
+            // split pipeline's stages.
+            var raw = await PostAsync(
+                systemPrompt: systemPrompt,
+                userPrompt: userPrompt,
+                pdfBase64: pdfBase64,
+                modelName: modelName,
+                thinkingBudget: _settings.ThinkingBudget,
+                thinkingLevel: thinkingLevelOverride,
+                logContext: pdfBase64 != null
+                    ? $"VISION mode, PDF bytes {pdfBytesLength}"
+                    : $"TEXT mode, {extractedText?.Length ?? 0} chars",
+                languageCode: languageCode,
+                ct: ct);
 
-            using var content = new StringContent(requestBody, Encoding.UTF8, "application/json");
+            var modelText = raw.Text;
+            var finishReason = raw.FinishReason;
+            int inputTokens = raw.InputTokens;
+            int outputTokens = raw.OutputTokens;
 
-            if (pdfBase64 != null)
-            {
-                _logger.LogInformation(
-                    "Calling Gemini {Model} for {Language} (VISION mode). PDF bytes: {Bytes}, base64 length: {B64}",
-                    modelName, languageCode, pdfBytesLength, pdfBase64.Length);
-            }
-            else
-            {
-                _logger.LogInformation(
-                    "Calling Gemini {Model} for {Language} (TEXT mode). Extracted text chars: {Chars}",
-                    modelName, languageCode, extractedText?.Length ?? 0);
-            }
-
-            using var response = await http.PostAsync(url, content, ct);
-            var responseString = await response.Content.ReadAsStringAsync(ct);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogError("Gemini returned {Status}. Body: {Body}",
-                    (int)response.StatusCode, Truncate(responseString, 2000));
-
-                // 429 (rate-limit) and 503 (server overload) are TRANSIENT.
-                // Throw a typed exception so the controller can apply a longer backoff
-                // and a higher attempt count for them.
-                var statusInt = (int)response.StatusCode;
-                if (statusInt == 429 || statusInt == 503)
-                {
-                    throw new GeminiTransientException(statusInt,
-                        $"Gemini API transient error {statusInt}: {Truncate(responseString, 300)}");
-                }
-
-                // 404 + "no longer available" / "NOT_FOUND" means Google retired the
-                // model id (e.g. gemini-3-pro-preview -> gemini-3.1-pro-preview).
-                // No amount of retry will fix this — surface a dedicated exception so
-                // the CAM tier loop can fall through to the next tier IMMEDIATELY
-                // (or mark the file as NotSends if this was the last tier) and so
-                // the operator log is clear about WHY: "model retired by Google,
-                // update appsettings.json:Gemini:<tier>Model".
-                if (statusInt == 404
-                    && (responseString.Contains("no longer available", System.StringComparison.OrdinalIgnoreCase)
-                        || responseString.Contains("NOT_FOUND", System.StringComparison.Ordinal)))
-                {
-                    _logger.LogError(
-                        "Gemini model '{Model}' has been retired by Google. Update appsettings.json " +
-                        "(see https://ai.google.dev/gemini-api/docs/models for the current list).",
-                        modelName);
-                    throw new GeminiModelRetiredException(modelName,
-                        $"Gemini model '{modelName}' was retired by Google and is no longer available. " +
-                        $"Update the configured model id in appsettings.json.");
-                }
-
-                throw new InvalidOperationException(
-                    $"Gemini API error {statusInt}: {Truncate(responseString, 500)}");
-            }
-
-            // 4) Parse the wrapper to extract the JSON the model produced
-            string modelText;
-            string finishReason = "";
-            int inputTokens = 0, outputTokens = 0;
-            try
-            {
-                using var doc = JsonDocument.Parse(responseString);
-                var root = doc.RootElement;
-
-                // Validate candidates exist (Gemini may block content with safety filters)
-                if (!root.TryGetProperty("candidates", out var candidates) || candidates.GetArrayLength() == 0)
-                {
-                    var promptFeedback = root.TryGetProperty("promptFeedback", out var pf)
-                        ? pf.ToString() : "(no feedback)";
-                    _logger.LogError("Gemini returned no candidates. promptFeedback: {Feedback}. Body: {Body}",
-                        promptFeedback, Truncate(responseString, 1000));
-                    throw new InvalidOperationException(
-                        "Gemini returned no candidates (possibly blocked by safety filters).");
-                }
-
-                var candidate = candidates[0];
-                if (candidate.TryGetProperty("finishReason", out var fr))
-                    finishReason = fr.GetString() ?? "";
-
-                // candidates[0].content.parts[0].text  -> the JSON string we asked the model to produce
-                if (!candidate.TryGetProperty("content", out var contentEl)
-                    || !contentEl.TryGetProperty("parts", out var parts)
-                    || parts.GetArrayLength() == 0
-                    || !parts[0].TryGetProperty("text", out var textEl))
-                {
-                    _logger.LogError("Gemini candidate has no text part. finishReason={Finish}. Body: {Body}",
-                        finishReason, Truncate(responseString, 1500));
-                    throw new InvalidOperationException(
-                        $"Gemini returned an empty response (finishReason={finishReason}).");
-                }
-
-                modelText = textEl.GetString() ?? string.Empty;
-
-                if (root.TryGetProperty("usageMetadata", out var usage))
-                {
-                    if (usage.TryGetProperty("promptTokenCount", out var pt))
-                        inputTokens = pt.GetInt32();
-                    if (usage.TryGetProperty("candidatesTokenCount", out var ct2))
-                        outputTokens = ct2.GetInt32();
-
-                    // How many of those output tokens were spent "thinking" rather
-                    // than writing the answer. This is the number that tells us
-                    // whether thinkingBudget is worth tuning — logged so the effect
-                    // can be compared across runs on the same file.
-                    if (usage.TryGetProperty("thoughtsTokenCount", out var th))
-                    {
-                        var thoughts = th.GetInt32();
-                        LastThoughtsTokenCount = thoughts;
-                        _logger.LogInformation(
-                            "Gemini tokens: prompt={In} output={Out} of which thinking={Think} " +
-                            "(thinkingBudget setting = {Budget}).",
-                            inputTokens, outputTokens, thoughts, _settings.ThinkingBudget);
-                    }
-                    else
-                    {
-                        LastThoughtsTokenCount = 0;
-                    }
-                }
-            }
-            catch (InvalidOperationException) { throw; }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Could not parse Gemini wrapper response. Body: {Body}",
-                    Truncate(responseString, 2000));
-                throw new InvalidOperationException("Gemini returned an unrecognized response shape.", ex);
-            }
-
-            _logger.LogInformation(
-                "Gemini response received. Tokens in={In} out={Out}. FinishReason={Finish}. TextLen={Len}",
-                inputTokens, outputTokens, finishReason, modelText.Length);
-
-            // Truncated output -> JSON will be invalid. Fail fast with a clear message
-            // so the auto-retry in the controller kicks in.
-            if (string.Equals(finishReason, "MAX_TOKENS", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidOperationException(
-                    $"Gemini hit MaxOutputTokens ({_settings.MaxOutputTokens}). Response was truncated.");
-            }
 
             // 5) Strip any accidental markdown fences and extract JSON, then parse
             var cleaned = ExtractJsonObject(modelText);
@@ -484,7 +393,8 @@ namespace MedicalApp.Services
         // =========================================================================
         // Request body construction
         // =========================================================================
-        private string BuildRequestBody(string systemPrompt, string userPrompt, string? pdfBase64)
+        private string BuildRequestBody(string systemPrompt, string userPrompt, string? pdfBase64,
+                                       string modelName, int thinkingBudget, string? thinkingLevel)
         {
             // We rely on responseMimeType=application/json (Gemini's "JSON mode") plus a
             // detailed schema described in the prompt. Gemini also supports responseSchema,
@@ -529,29 +439,76 @@ namespace MedicalApp.Services
                         parts = userParts
                     }
                 },
-                generationConfig = _settings.ThinkingBudget >= 0
-                    ? new
-                    {
-                        temperature = _settings.Temperature,
-                        maxOutputTokens = _settings.MaxOutputTokens,
-                        responseMimeType = "application/json",
-                        // Gemini 2.5 Flash thinks by default ("dynamic thinking") and
-                        // those thought tokens are billed AND generated as output —
-                        // i.e. they cost wall-clock time. 0 disables thinking, a small
-                        // budget keeps some reasoning for the correlations section.
-                        // Negative value (default) omits the key entirely, preserving
-                        // the previous behaviour exactly.
-                        thinkingConfig = new { thinkingBudget = _settings.ThinkingBudget }
-                    }
-                    : (object)new
-                    {
-                        temperature = _settings.Temperature,
-                        maxOutputTokens = _settings.MaxOutputTokens,
-                        responseMimeType = "application/json"
-                    }
+                generationConfig = BuildGenerationConfig(modelName, thinkingBudget, thinkingLevel)
             };
 
             return JsonSerializer.Serialize(payload);
+        }
+
+        /// <summary>
+        /// generationConfig, including the thinking control that matches the model
+        /// generation: Gemini 3.x wants <c>thinkingLevel</c> (minimal|low|medium|high),
+        /// Gemini 2.5 wants a numeric <c>thinkingBudget</c>. Sending both confuses
+        /// the 3.x models, so exactly one is emitted — or neither, which keeps
+        /// Google's own dynamic thinking (the historical default).
+        /// </summary>
+        private object BuildGenerationConfig(string modelName, int thinkingBudget, string? thinkingLevel)
+        {
+            var level = ResolveThinkingLevel(modelName, thinkingBudget, thinkingLevel);
+
+            if (level != null)
+            {
+                return new
+                {
+                    temperature = _settings.Temperature,
+                    maxOutputTokens = _settings.MaxOutputTokens,
+                    responseMimeType = "application/json",
+                    thinkingConfig = new { thinkingLevel = level }
+                };
+            }
+
+            if (thinkingBudget >= 0)
+            {
+                return new
+                {
+                    temperature = _settings.Temperature,
+                    maxOutputTokens = _settings.MaxOutputTokens,
+                    responseMimeType = "application/json",
+                    // Thought tokens are generated like any other output token, so
+                    // they cost wall-clock time. 0 disables thinking (2.5 Flash),
+                    // a small budget keeps some reasoning for the correlations.
+                    thinkingConfig = new { thinkingBudget }
+                };
+            }
+
+            return new
+            {
+                temperature = _settings.Temperature,
+                maxOutputTokens = _settings.MaxOutputTokens,
+                responseMimeType = "application/json"
+            };
+        }
+
+        /// <summary>
+        /// Explicit level wins. Otherwise, on Gemini 3.x only, a legacy numeric
+        /// budget is translated to the equivalent level (Google's own mapping).
+        /// Returns null when no level should be sent.
+        /// </summary>
+        private static string? ResolveThinkingLevel(string modelName, int thinkingBudget, string? thinkingLevel)
+        {
+            if (!string.IsNullOrWhiteSpace(thinkingLevel))
+                return thinkingLevel!.Trim().ToLowerInvariant();
+
+            bool isGemini3 = modelName.StartsWith("gemini-3", StringComparison.OrdinalIgnoreCase);
+            if (!isGemini3 || thinkingBudget < 0) return null;
+
+            return thinkingBudget switch
+            {
+                0 => "minimal",
+                <= 2048 => "low",
+                <= 8192 => "medium",
+                _ => "high"
+            };
         }
 
         // =========================================================================
@@ -1556,6 +1513,60 @@ OUTPUT FORMAT (CRITICAL):
         {
             // Build the patient-context block. If we know nothing, omit it entirely
             // so the model falls back to its general multi-threshold rule.
+            // Patient context (age, gender, declared cardiovascular risk). Shared
+            // with the split pipeline's explanation and narrative stages.
+            string patientBlock = BuildPatientContextBlock(ctx);
+
+            // Source-modality block: either tell the model the PDF is attached
+            // visually, or embed the literally extracted text so the model never
+            // has to OCR the digits itself (this is the key anti-hallucination move).
+            string sourceBlock;
+            string sourceInstruction;
+            if (hasInlinePdf)
+            {
+                sourceBlock = $"The patient's medical PDF is attached as inline data (file name: {fileName}).";
+                sourceInstruction = "Read the PDF visually and identify every section header it contains";
+            }
+            else
+            {
+                // Trim text to avoid blowing past Gemini's context budget on absurdly long PDFs.
+                // 200_000 chars ~ 50k tokens, which is well within Gemini's 1M-token context.
+                var text = extractedText ?? "";
+                if (text.Length > 200_000) text = text[..200_000] + "\n...[truncated]";
+                sourceBlock =
+                    $"The patient's medical PDF has been parsed by a layout-aware text extractor (file name: {fileName})."
+                    + " The extracted text is provided verbatim below between the <PDF_TEXT> tags."
+                    + " VALUES, UNITS AND REFERENCE RANGES ARE LITERAL - DO NOT RE-READ OR SECOND-GUESS THEM."
+                    + " If a digit looks unusual, TRUST IT - it is what the lab printed."
+                    + " The extractor preserves visual row-and-column order, so each lab row appears as a sequence"
+                    + " of tokens like: \"Parameter name <spaces> value <spaces> unit <spaces> reference range\"."
+                    + "\n\n<PDF_TEXT>\n" + text + "\n</PDF_TEXT>";
+                sourceInstruction =
+                    "Read the extracted text above carefully and identify every section header it contains";
+            }
+
+            return $@"RESPONSE LANGUAGE: {languageName} (code: {languageCode})
+
+{sourceBlock}
+{patientBlock}
+Task:
+1. {sourceInstruction} (Hematology, Biochemistry, Immunochemistry, Lipid panel, Coagulation, ESR/VSH, Urinalysis, Hormones, Tumor markers, Vitamins, etc.).
+2. For each section, extract EVERY measured parameter with its value, unit and reference range exactly as printed. Pay extra attention to Immunochemistry (hormones, tumor markers, vitamins) which is often forgotten.
+3. Apply the value-vs-reference pairing rules from the system instructions (WBC differential, age-dependent ranges, dual-unit rows, mismatched magnitudes).
+4. Determine each parameter's status (normal/high/low/borderline).
+5. If a cardiovascular-risk category was declared above, USE THE PROVIDED LIPID TARGETS for LDL-C, non-HDL and Triglycerides INSTEAD OF the multi-threshold rule, and explicitly mention the declared risk category in 'summary', 'explanation' for those parameters, and 'recommendations'.
+6. For EVERY parameter in 'key_results', also emit the field 'parameter_normalized_en' as described in the system instructions: a clean standardized English medical term for the analyte (with explicit specimen). Example: parameter=""Glicemie"" -> ""parameter_normalized_en"": ""Glucose [Mass/volume] in Serum or Plasma"". Do NOT emit ""loinc_code"", ""loinc_long_name"" or ""loinc_confidence"" — those are resolved downstream. Also emit the TWO source-context fields: 'panel_header_raw' (the section/panel header text from the PDF — SEMANTICALLY strip administrative annotations that identify validators / approvers / signatories in ANY language, including person names, medical/professional titles and signature markers; when an analyte lives under NESTED headers, CONCATENATE all levels from outermost to innermost with "" | "" separator per FIELD 1 rule 3; null only if all levels collapse) AND 'analyte_line_raw' (the specimen/method/analyzer metadata printed INLINE on ONE analyte row only, excluding the row number, analyte name, value, unit and range; do NOT put SUB-PANEL headers here — those belong in panel_header_raw; null if the row has no inline per-row metadata). Copy verbatim — do NOT translate or paraphrase.
+7. Produce the structured JSON object exactly per the schema in the system instructions, written entirely in {languageName}. Do NOT wrap it in markdown fences.";
+        }
+
+        /// <summary>
+        /// The PATIENT CONTEXT block of the user prompt (age, gender, declared
+        /// cardiovascular risk and the lipid targets it implies). Extracted so the
+        /// split pipeline can hand the very same context to the explanation and
+        /// narrative stages, which never see the PDF.
+        /// </summary>
+        private static string BuildPatientContextBlock(PatientContext? ctx)
+        {
             string patientBlock = "";
             if (ctx != null && (ctx.CardiovascularRisk != null || ctx.AgeYears.HasValue || !string.IsNullOrWhiteSpace(ctx.Gender)))
             {
@@ -1607,47 +1618,7 @@ OUTPUT FORMAT (CRITICAL):
                     patientBlock += "    * Do NOT apply the multi-threshold-strictest-satisfied rule for these three parameters when a CV-risk category is declared — the category alone selects the target.\n";
                 }
             }
-
-            // Source-modality block: either tell the model the PDF is attached
-            // visually, or embed the literally extracted text so the model never
-            // has to OCR the digits itself (this is the key anti-hallucination move).
-            string sourceBlock;
-            string sourceInstruction;
-            if (hasInlinePdf)
-            {
-                sourceBlock = $"The patient's medical PDF is attached as inline data (file name: {fileName}).";
-                sourceInstruction = "Read the PDF visually and identify every section header it contains";
-            }
-            else
-            {
-                // Trim text to avoid blowing past Gemini's context budget on absurdly long PDFs.
-                // 200_000 chars ~ 50k tokens, which is well within Gemini's 1M-token context.
-                var text = extractedText ?? "";
-                if (text.Length > 200_000) text = text[..200_000] + "\n...[truncated]";
-                sourceBlock =
-                    $"The patient's medical PDF has been parsed by a layout-aware text extractor (file name: {fileName})."
-                    + " The extracted text is provided verbatim below between the <PDF_TEXT> tags."
-                    + " VALUES, UNITS AND REFERENCE RANGES ARE LITERAL - DO NOT RE-READ OR SECOND-GUESS THEM."
-                    + " If a digit looks unusual, TRUST IT - it is what the lab printed."
-                    + " The extractor preserves visual row-and-column order, so each lab row appears as a sequence"
-                    + " of tokens like: \"Parameter name <spaces> value <spaces> unit <spaces> reference range\"."
-                    + "\n\n<PDF_TEXT>\n" + text + "\n</PDF_TEXT>";
-                sourceInstruction =
-                    "Read the extracted text above carefully and identify every section header it contains";
-            }
-
-            return $@"RESPONSE LANGUAGE: {languageName} (code: {languageCode})
-
-{sourceBlock}
-{patientBlock}
-Task:
-1. {sourceInstruction} (Hematology, Biochemistry, Immunochemistry, Lipid panel, Coagulation, ESR/VSH, Urinalysis, Hormones, Tumor markers, Vitamins, etc.).
-2. For each section, extract EVERY measured parameter with its value, unit and reference range exactly as printed. Pay extra attention to Immunochemistry (hormones, tumor markers, vitamins) which is often forgotten.
-3. Apply the value-vs-reference pairing rules from the system instructions (WBC differential, age-dependent ranges, dual-unit rows, mismatched magnitudes).
-4. Determine each parameter's status (normal/high/low/borderline).
-5. If a cardiovascular-risk category was declared above, USE THE PROVIDED LIPID TARGETS for LDL-C, non-HDL and Triglycerides INSTEAD OF the multi-threshold rule, and explicitly mention the declared risk category in 'summary', 'explanation' for those parameters, and 'recommendations'.
-6. For EVERY parameter in 'key_results', also emit the field 'parameter_normalized_en' as described in the system instructions: a clean standardized English medical term for the analyte (with explicit specimen). Example: parameter=""Glicemie"" -> ""parameter_normalized_en"": ""Glucose [Mass/volume] in Serum or Plasma"". Do NOT emit ""loinc_code"", ""loinc_long_name"" or ""loinc_confidence"" — those are resolved downstream. Also emit the TWO source-context fields: 'panel_header_raw' (the section/panel header text from the PDF — SEMANTICALLY strip administrative annotations that identify validators / approvers / signatories in ANY language, including person names, medical/professional titles and signature markers; when an analyte lives under NESTED headers, CONCATENATE all levels from outermost to innermost with "" | "" separator per FIELD 1 rule 3; null only if all levels collapse) AND 'analyte_line_raw' (the specimen/method/analyzer metadata printed INLINE on ONE analyte row only, excluding the row number, analyte name, value, unit and range; do NOT put SUB-PANEL headers here — those belong in panel_header_raw; null if the row has no inline per-row metadata). Copy verbatim — do NOT translate or paraphrase.
-7. Produce the structured JSON object exactly per the schema in the system instructions, written entirely in {languageName}. Do NOT wrap it in markdown fences.";
+            return patientBlock;
         }
     }
 }

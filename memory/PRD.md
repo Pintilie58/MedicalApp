@@ -37,6 +37,17 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 
 ## Implemented (changelog)
 
+- ✅ **2026-06 — Optimizare Gemini: pipeline pe 3 apeluri (A / B / C) în loc de un apel monolitic**:
+  - **Etapa A — EXTRAGERE** (`gemini-3.5-flash`, thinkingLevel=low): doar tabelul, fără proză. Refolosește promptul de sistem INTEGRAL + un addendum care suprascrie doar contractul de ieșire, deci toate regulile de extragere (completitudine, primul/ultimul rând, `parameter_normalized_en`, panel/analyte raw, markeri de laborator, self-audit) rămân în vigoare.
+  - **Etapa B — EXPLICAŢII** (`gemini-3.1-flash-lite`, thinkingLevel=minimal): loturi de 12 analize care pleacă în PARALEL; primește doar tabelul, nu PDF-ul. Adâncimea explicațiilor a rămas cea de azi (decizia userului).
+  - **Etapa C — NARATIV** (`gemini-3.1-pro`, thinkingLevel=medium): summary, abnormal_findings, corelații, recomandări, risc, întrebări pentru medic. Rulează SIMULTAN cu B → timpul devine A + max(B, C).
+  - **Cascade per etapă:** lot B picat → retry pe același model, apoi pe modelul narativ, iar dacă tot pică doar acele analize rămân fără explicație; etapa C → retry pe al doilea model; orice eșec nerecuperabil → **fallback automat la apelul monolitic de azi**, deci utilizatorul primește întotdeauna raport complet.
+  - **Flag:** `Gemini:PipelineMode` = `monolithic` (implicit, comportament neschimbat) | `split`. Modelele, nivelurile de thinking și dimensiunea lotului sunt toate în `appsettings.json`.
+  - **thinkingLevel vs thinkingBudget:** Gemini 3.x folosește `thinkingLevel` (minimal/low/medium/high), 2.5 rămâne pe `thinkingBudget`; se trimite exact unul, niciodată ambele.
+  - **Admin → Performanță:** tabel nou „Pipeline pe 3 apeluri” cu durata, tokenii, tokenii de thinking și **costul estimat în USD pe fiecare etapă** + total (tarife separate pentru flash-lite / 3.x flash / pro).
+  - **CAM/B2B rămâne pe apelul monolitic** (trimite mereu un model de tier explicit; split-ul se activează doar când nu e forțat un model).
+  - Validare: `/app/test_reports/iteration_14.json` — **34/34 PASS end-to-end** cu un server Gemini fals local (paralelism real B‖C verificat pe timestamps, mapare explicații pe index, retry de lot, fallback monolitic, mod monolitic neatins, tarife). Build: 0 erori / 0 warning-uri. Fără migrații EF.
+
 - ✅ **2026-06 — Același cod LOINC cu unități diferite = rânduri separate (cazul Fibrinogen g/L vs mg/dL)**:
   - **Cauza (nu era unificatorul):** gruparea în Comparații / Dosar / Grafice se făcea DOAR pe codul LOINC. Ambele Fibrinogen au primit corect același cod `3255-7`, dar unul raportat în g/L (4.32, ref 2-4) și altul în mg/dL (516, ref 200-400) — deci cădeau pe același rând, cu un singur interval de referință și două scale incomparabile.
   - **`LoincUnifier.UnitScope`** (nou): numără unitățile normalizate per cod în toată arhiva; dacă un cod a fost raportat în >1 unitate, cheia de grupare primește sufixul `|u=<unitate>` → fiecare scală are rândul/cardul/seria proprie. Măsurătorile FĂRĂ unitate intră în bucketul majoritar (nu creează un al treilea rând). Codurile cu o singură unitate păstrează cheia identică → zero regresie.
