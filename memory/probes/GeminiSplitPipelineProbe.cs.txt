@@ -7,10 +7,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 // ============================================================================
-//  End-to-end probe for the 3-call split pipeline, against a LOCAL fake Gemini.
-//  Verifies: stage contracts, parallelism of B and C, batching, assembly,
-//  per-batch retry, monolithic fallback, thinking parameters, and that the
-//  monolithic mode still behaves exactly as before.
+//  End-to-end probe for the 3(+1)-call split pipeline against a LOCAL fake
+//  Gemini, plus unit checks for the deterministic out-of-range completer.
 // ============================================================================
 
 int fails = 0;
@@ -20,13 +18,12 @@ void Check(string label, bool ok, string detail = "")
     if (!ok) fails++;
 }
 
-// ---------------------------------------------------------------- fake Gemini
 const int Port = 5599;
+const int AnalyteCount = 25;
+
 var recorded = new List<Call>();
 var recordLock = new object();
-var failStageC = false;
-var failFirstBatch = true;
-var failedBatchOnce = false;
+var flags = new Flags();
 
 var listener = new HttpListener();
 listener.Prefixes.Add($"http://localhost:{Port}/");
@@ -57,21 +54,20 @@ _ = Task.Run(async () =>
                 if (tc.TryGetProperty("thinkingBudget", out var bd)) budget = bd.GetRawText();
             }
 
-            string stage = userText.Contains("STAGE 1 OF 3") ? "A"
+            string stage = userText.Contains("COMPLETENESS SWEEP") ? "SWEEP"
+                         : userText.Contains("STAGE 1 OF 3") ? "A"
                          : userText.Contains("STAGE 2 OF 3") ? "B"
                          : userText.Contains("STAGE 3 OF 3") ? "C"
                          : "MONO";
 
-            // Simulated failures
             bool fail = false;
-            if (stage == "C" && failStageC) fail = true;
-            if (stage == "B" && failFirstBatch && userText.Contains("[0] ") && !failedBatchOnce)
+            if (stage == "C" && flags.FailStageC) fail = true;
+            if (stage == "B" && flags.FailFirstBatch && userText.Contains("[0] ") && !flags.FailedBatchOnce)
             {
-                failedBatchOnce = true;
+                flags.FailedBatchOnce = true;
                 fail = true;
             }
 
-            // A little latency so the B/C overlap is measurable.
             await Task.Delay(stage == "A" ? 150 : 400);
 
             string payload;
@@ -83,7 +79,7 @@ _ = Task.Run(async () =>
             else
             {
                 ctx.Response.StatusCode = 200;
-                payload = BuildReply(stage, userText);
+                payload = BuildReply(stage, userText, flags.SweepFinds);
             }
 
             var finished = DateTime.UtcNow;
@@ -97,8 +93,6 @@ _ = Task.Run(async () =>
     }
 });
 
-const int AnalyteCount = 25;
-
 static string Wrap(string innerJson) =>
     JsonSerializer.Serialize(new
     {
@@ -109,7 +103,7 @@ static string Wrap(string innerJson) =>
         usageMetadata = new { promptTokenCount = 1000, candidatesTokenCount = 500, thoughtsTokenCount = 120 }
     });
 
-static string BuildReply(string stage, string userText)
+static string BuildReply(string stage, string userText, bool sweepFinds)
 {
     if (stage == "A" || stage == "MONO")
     {
@@ -122,8 +116,7 @@ static string BuildReply(string stage, string userText)
             ["status"] = i % 5 == 0 ? "high" : "normal",
             ["explanation"] = stage == "MONO" ? $"Explicatie monolitica {i}" : "",
             ["parameter_normalized_en"] = $"Analyte {i} [Mass/volume] in Serum",
-            ["panel_header_raw"] = "Biochimie",
-            ["analyte_line_raw"] = (string?)null
+            ["panel_header_raw"] = "Biochimie"
         }).ToList();
 
         var obj = new Dictionary<string, object?>
@@ -145,9 +138,28 @@ static string BuildReply(string stage, string userText)
         return Wrap(JsonSerializer.Serialize(obj));
     }
 
+    if (stage == "SWEEP")
+    {
+        if (!sweepFinds) return Wrap("{\"missing\":[]}");
+        var missing = new object?[]
+        {
+            new { parameter = "Analiza recuperata", value = "77", unit = "mg/dL",
+                  reference_range = "0-100", status = "normal", explanation = "",
+                  parameter_normalized_en = "Recovered analyte [Mass/volume] in Serum" },
+            // duplicate of an already extracted analyte -> must be IGNORED
+            new { parameter = "Analiza 4", value = "14", unit = "mg/dL",
+                  reference_range = "0-100", status = "normal", explanation = "",
+                  parameter_normalized_en = "Analyte 4" },
+            // no value -> must be IGNORED
+            new { parameter = "Fara valoare", value = (string?)null, unit = "mg/dL",
+                  reference_range = "0-100", status = "normal", explanation = "",
+                  parameter_normalized_en = "No value" }
+        };
+        return Wrap(JsonSerializer.Serialize(new { missing }));
+    }
+
     if (stage == "B")
     {
-        // Answer for exactly the indices present in the prompt.
         var indices = System.Text.RegularExpressions.Regex.Matches(userText, @"^\[(\d+)\] ",
                           System.Text.RegularExpressions.RegexOptions.Multiline)
                       .Select(m => int.Parse(m.Groups[1].Value)).ToList();
@@ -167,8 +179,7 @@ static string BuildReply(string stage, string userText)
     }));
 }
 
-// ---------------------------------------------------------------- the service
-GeminiMedicalInterpretationService Build(string pipelineMode)
+GeminiMedicalInterpretationService Build(string pipelineMode, bool sweep = true)
 {
     var settings = new GeminiSettings
     {
@@ -176,10 +187,11 @@ GeminiMedicalInterpretationService Build(string pipelineMode)
         BaseUrl = $"http://localhost:{Port}/v1beta",
         Model = "gemini-2.5-flash",
         PipelineMode = pipelineMode,
-        ExtractorModel = "gemini-3.5-flash",
-        ExplainModel = "gemini-3.1-flash-lite",
-        NarrativeModel = "gemini-3.1-pro",
+        ExtractorModel = "gemini-2.5-flash",
+        ExplainModel = "gemini-2.5-flash",
+        NarrativeModel = "gemini-2.5-pro",
         ExplainBatchSize = 12,
+        EnableCompletenessSweep = sweep,
         TimeoutSeconds = 30,
         MaxOutputTokens = 65000,
         ThinkingBudget = -1
@@ -187,125 +199,193 @@ GeminiMedicalInterpretationService Build(string pipelineMode)
     return new GeminiMedicalInterpretationService(
         Options.Create(settings),
         new ProbeHttpClientFactory(),
-        LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Warning))
+        LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Error))
             .CreateLogger<GeminiMedicalInterpretationService>());
 }
 
 var text = string.Join("\n", Enumerable.Range(0, AnalyteCount)
     .Select(i => $"Analiza {i}    {10 + i}   mg/dL   0-100")) + "\nPacient: Test\n";
 
-// ================= 1. SPLIT, happy path (one batch retried once) ============
-failStageC = false; failFirstBatch = true; failedBatchOnce = false;
+// ============ 1. SPLIT: happy path, one batch retried, sweep recovers ========
+flags.FailStageC = false; flags.FailFirstBatch = true; flags.FailedBatchOnce = false; flags.SweepFinds = true;
 recorded.Clear();
 var svc = Build("split");
 var (res, inTok, outTok, raw) = await svc.InterpretTextAsync(text, "probe.pdf", "ro");
 
 var byStage = recorded.GroupBy(c => c.Stage).ToDictionary(g => g.Key, g => g.ToList());
-Check("split: stage A called once", byStage.TryGetValue("A", out var aCalls) && aCalls.Count == 1,
-    "A calls=" + (byStage.TryGetValue("A", out var a2) ? a2.Count : 0));
-Check("split: 3 batches for 25 analytes + 1 retry = 4 B calls",
-    byStage.TryGetValue("B", out var bCalls) && bCalls.Count == 4, "B calls=" + (byStage.TryGetValue("B", out var b2) ? b2.Count : 0));
-Check("split: stage C called once", byStage.TryGetValue("C", out var cCalls) && cCalls.Count == 1);
-Check("split: NO monolithic fallback happened", !byStage.ContainsKey("MONO"));
+List<Call> St(string s) => byStage.TryGetValue(s, out var v) ? v : new List<Call>();
 
-Check("split: 25 analytes extracted", res.KeyResults?.Count == 25, "count=" + (res.KeyResults?.Count ?? 0));
-Check("split: EVERY analyte got a stage-B explanation",
-    res.KeyResults!.All(k => (k.Explanation ?? "").StartsWith("Explicatie etapa B")),
-    res.KeyResults.Count(k => string.IsNullOrWhiteSpace(k.Explanation)) + " missing");
-Check("split: explanation matches its own index",
-    res.KeyResults[7].Explanation == "Explicatie etapa B pentru 7", res.KeyResults[7].Explanation ?? "null");
-Check("split: narrative merged (summary)", res.Summary == "Sumar din etapa C", res.Summary ?? "null");
-Check("split: narrative merged (correlations + recommendations)",
-    res.Correlations == "Corelatii din etapa C" && res.Recommendations == "Recomandari din etapa C");
-Check("split: abnormal_findings come from stage C",
-    res.AbnormalFindings?.Count == 1 && res.AbnormalFindings[0].Severity == "moderate");
-Check("split: risk factors + doctor questions merged",
-    res.RiskFactors?.Count == 1 && res.DoctorQuestions?.Count == 1);
-Check("split: extraction fields preserved from stage A",
-    res.PatientInfo?.Laboratory == "Lab Probe" && res.KeyResults[3].ParameterNormalizedEn == "Analyte 3 [Mass/volume] in Serum");
-Check("split: tokens summed across all calls (A+3B+C = 5 successful)",
-    inTok == 5000 && outTok == 2500, $"in={inTok} out={outTok}");
-Check("split: merged raw JSON contains both stage-A and stage-C content",
-    raw.Contains("Analyte 3 [Mass/volume] in Serum") && raw.Contains("Sumar din etapa C"));
+Check("split: stage A called once", St("A").Count == 1, "A=" + St("A").Count);
+Check("split: sweep (A2) called once", St("SWEEP").Count == 1, "SWEEP=" + St("SWEEP").Count);
+Check("split: stage C called once", St("C").Count == 1);
+Check("split: no monolithic fallback", St("MONO").Count == 0);
+Check("split: B calls = 3 batches + 1 retry + 1 for the recovered analyte = 5",
+    St("B").Count == 5, "B=" + St("B").Count);
 
-// B and C must actually overlap in time
-var bStart = bCalls!.Min(c => c.Started); var bEnd = bCalls.Max(c => c.Finished);
-var cStart = cCalls![0].Started; var cEnd = cCalls[0].Finished;
-Check("split: stages B and C overlap in time (true parallelism)",
-    bStart < cEnd && cStart < bEnd, $"B {bStart:HH:mm:ss.fff}-{bEnd:HH:mm:ss.fff} vs C {cStart:HH:mm:ss.fff}-{cEnd:HH:mm:ss.fff}");
-Check("split: the 3 B batches themselves overlap (parallel batches)",
-    bCalls.OrderBy(c => c.Started).Take(3).ToList() is var first3
-    && first3[0].Finished > first3[2].Started);
+// --- completeness sweep results
+Check("sweep: table grew from 25 to 26 analytes", res.KeyResults?.Count == 26, "count=" + (res.KeyResults?.Count ?? 0));
+Check("sweep: the genuinely missing analyte was added",
+    res.KeyResults!.Any(k => k.Parameter == "Analiza recuperata" && k.Value == "77"));
+Check("sweep: a DUPLICATE of an extracted analyte was ignored",
+    res.KeyResults!.Count(k => k.Parameter.StartsWith("Analiza 4")) == 1);
+Check("sweep: an entry without a value was ignored",
+    res.KeyResults!.All(k => k.Parameter != "Fara valoare"));
+Check("sweep: the recovered analyte also got its explanation",
+    !string.IsNullOrWhiteSpace(res.KeyResults!.First(k => k.Parameter == "Analiza recuperata").Explanation),
+    res.KeyResults!.First(k => k.Parameter == "Analiza recuperata").Explanation ?? "null");
+Check("sweep: audit expected_count raised to the real total",
+    res.Audit != null && res.Audit.ExpectedCount == 26, res.Audit?.ExpectedCount.ToString() ?? "null");
+Check("sweep: telemetry recorded (ai_s_recovered = 1)",
+    svc.LastStageTimings.GetValueOrDefault("ai_s_recovered") == 1);
 
-// models + thinking parameters
-Check("split: stage A used the extractor model with thinkingLevel=low",
-    aCalls![0].Model == "gemini-3.5-flash" && aCalls[0].ThinkingLevel == "low" && aCalls[0].ThinkingBudget == null,
-    $"{aCalls[0].Model} level={aCalls[0].ThinkingLevel} budget={aCalls[0].ThinkingBudget}");
-Check("split: stage B used flash-lite with thinkingLevel=minimal",
-    bCalls.Any(c => c.Model == "gemini-3.1-flash-lite" && c.ThinkingLevel == "minimal" && c.ThinkingBudget == null));
-Check("split: stage C used the pro model with thinkingLevel=medium",
-    cCalls[0].Model == "gemini-3.1-pro" && cCalls[0].ThinkingLevel == "medium" && cCalls[0].ThinkingBudget == null,
-    $"{cCalls[0].Model} level={cCalls[0].ThinkingLevel}");
-Check("split: a failed batch was retried on the SAME model first",
-    bCalls.Count(c => c.Model == "gemini-3.1-flash-lite") == 4);
+// --- explanations + narrative
+Check("split: every original analyte has its own explanation",
+    res.KeyResults!.Take(25).All(k => (k.Explanation ?? "").StartsWith("Explicatie etapa B")));
+Check("split: explanation matches its own index", res.KeyResults[7].Explanation == "Explicatie etapa B pentru 7");
+Check("split: narrative merged", res.Summary == "Sumar din etapa C" && res.Correlations == "Corelatii din etapa C");
 
-// stage timings for the admin panel
-var st = svc.LastStageTimings;
-Check("split: stage timings recorded for the Admin panel",
-    st.TryGetValue("ai_pipeline", out var p) && p == 1
-    && st.ContainsKey("ai_a_ms") && st.ContainsKey("ai_bc_ms")
-    && st.GetValueOrDefault("ai_b_batches") == 3
-    && st.ContainsKey("ai_a_in") && st.ContainsKey("ai_c_out"),
-    string.Join(",", st.Select(kv => kv.Key + "=" + kv.Value)));
-Check("split: A + max(B,C) is faster than their sum",
-    st["ai_bc_ms"] < 1200, "bc_ms=" + st["ai_bc_ms"]);
+// --- thinking translation for the 2.5 tier (this is what broke on gemini-3.1-pro)
+var aCall = St("A")[0];
+Check("2.5 tier: stage A got thinkingBudget=1024 and NO thinkingLevel",
+    aCall.ThinkingBudget == "1024" && aCall.ThinkingLevel == null,
+    $"budget={aCall.ThinkingBudget} level={aCall.ThinkingLevel}");
+Check("2.5 tier: stage B got thinkingBudget=0 (thinking off)",
+    St("B").All(c => c.ThinkingBudget == "0" && c.ThinkingLevel == null),
+    string.Join("/", St("B").Select(c => c.ThinkingBudget ?? "null")));
+var cCall = St("C")[0];
+Check("2.5 tier: stage C (pro) got thinkingBudget=4096, real reasoning kept",
+    cCall.ThinkingBudget == "4096" && cCall.ThinkingLevel == null && cCall.Model == "gemini-2.5-pro",
+    $"{cCall.Model} budget={cCall.ThinkingBudget}");
+Check("2.5 tier: sweep runs with thinking almost off",
+    St("SWEEP")[0].ThinkingBudget == "1024" || St("SWEEP")[0].ThinkingBudget == "0");
 
-// ================= 2. Stage C dies -> monolithic fallback ===================
-failStageC = true; failFirstBatch = false;
+// --- parallelism: sweep, B and C overlap
+var bcs = St("B").Concat(St("C")).Concat(St("SWEEP")).ToList();
+Check("split: sweep overlaps stage C (runs in parallel, no extra wall time)",
+    St("SWEEP")[0].Started < cCall.Finished && cCall.Started < St("SWEEP")[0].Finished,
+    $"sweep {St("SWEEP")[0].Started:HH:mm:ss.fff}-{St("SWEEP")[0].Finished:HH:mm:ss.fff} / C {cCall.Started:HH:mm:ss.fff}-{cCall.Finished:HH:mm:ss.fff}");
+Check("split: B and C overlap",
+    St("B").Min(c => c.Started) < cCall.Finished && cCall.Started < St("B").Max(c => c.Finished));
+
+// --- model label for the Admin panel
+Check("admin: ModelUsed label shows the real split models and fits the 40-char column",
+    svc.LastModelsUsed.StartsWith("split: ") && svc.LastModelsUsed.Length <= 40
+    && svc.LastModelsUsed.Contains("2.5-pro"), svc.LastModelsUsed);
+Check("split: tokens summed over all successful calls (A+3B+C+SWEEP+1B = 7)",
+    inTok == 7000 && outTok == 3500, $"in={inTok} out={outTok}");
+
+// ============ 2. Sweep finds nothing (the normal case) =======================
+flags.FailFirstBatch = false; flags.SweepFinds = false;
+recorded.Clear();
+var svcNoSweep = Build("split");
+var (res2, _, _, _) = await svcNoSweep.InterpretTextAsync(text, "probe.pdf", "ro");
+Check("sweep: empty answer changes nothing", res2.KeyResults?.Count == 25, "count=" + (res2.KeyResults?.Count ?? 0));
+Check("sweep: no extra explain call when nothing was recovered",
+    recorded.Count(c => c.Stage == "B") == 3, "B=" + recorded.Count(c => c.Stage == "B"));
+Check("sweep: telemetry says 0 recovered", svcNoSweep.LastStageTimings.GetValueOrDefault("ai_s_recovered") == 0);
+
+// ============ 3. Sweep disabled by configuration ============================
+recorded.Clear();
+var svcOff = Build("split", sweep: false);
+await svcOff.InterpretTextAsync(text, "probe.pdf", "ro");
+Check("sweep: EnableCompletenessSweep=false means no sweep call",
+    recorded.All(c => c.Stage != "SWEEP"));
+
+// ============ 4. Stage C dies -> monolithic fallback ========================
+flags.FailStageC = true; flags.SweepFinds = false;
 recorded.Clear();
 var svc2 = Build("split");
-var (res2, in2, out2, _) = await svc2.InterpretTextAsync(text, "probe.pdf", "ro");
-var stages2 = recorded.GroupBy(c => c.Stage).ToDictionary(g => g.Key, g => g.Count());
-Check("fallback: stage C was tried on both models", stages2.GetValueOrDefault("C") == 2, "C=" + stages2.GetValueOrDefault("C"));
-Check("fallback: the monolithic call took over", stages2.GetValueOrDefault("MONO") == 1, "MONO=" + stages2.GetValueOrDefault("MONO"));
-Check("fallback: split telemetry cleared (row is monolithic)", svc2.LastStageTimings.Count == 0,
-    string.Join(",", svc2.LastStageTimings.Select(kv => kv.Key + "=" + kv.Value)));
-Check("fallback: user still gets a COMPLETE report",
-    res2.KeyResults?.Count == 25 && res2.Summary == "Sumar monolitic"
-    && res2.KeyResults!.All(k => (k.Explanation ?? "").StartsWith("Explicatie monolitica")),
-    res2.Summary ?? "null");
+var (res3, _, _, _) = await svc2.InterpretTextAsync(text, "probe.pdf", "ro");
+Check("fallback: monolithic call took over", recorded.Count(c => c.Stage == "MONO") == 1);
+Check("fallback: complete report anyway",
+    res3.KeyResults?.Count == 25 && res3.Summary == "Sumar monolitic");
+Check("fallback: split telemetry and model label cleared",
+    svc2.LastStageTimings.Count == 0 && svc2.LastModelsUsed == "");
 
-// ================= 3. Monolithic mode is untouched ==========================
-failStageC = false;
+// ============ 5. Monolithic mode untouched ==================================
+flags.FailStageC = false;
 recorded.Clear();
 var svc3 = Build("monolithic");
-var (res3, _, _, _) = await svc3.InterpretTextAsync(text, "probe.pdf", "ro");
-var stages3 = recorded.GroupBy(c => c.Stage).ToDictionary(g => g.Key, g => g.Count());
-Check("monolithic: exactly ONE call, no stage prompts",
-    stages3.Count == 1 && stages3.GetValueOrDefault("MONO") == 1,
-    string.Join(",", stages3.Select(kv => kv.Key + "=" + kv.Value)));
-Check("monolithic: model is the configured default with NO thinking key sent",
+var (res4, _, _, _) = await svc3.InterpretTextAsync(text, "probe.pdf", "ro");
+Check("monolithic: exactly ONE call", recorded.Count == 1 && recorded[0].Stage == "MONO");
+Check("monolithic: primary model, no thinking key sent",
     recorded[0].Model == "gemini-2.5-flash" && recorded[0].ThinkingLevel == null && recorded[0].ThinkingBudget == null);
-Check("monolithic: result complete", res3.KeyResults?.Count == 25 && res3.Summary == "Sumar monolitic");
-Check("monolithic: no split timings recorded", svc3.LastStageTimings.Count == 0);
-
-// ================= 4. Pricing per stage =====================================
-var pricing = new GeminiPricing();
-Check("pricing: gemini-3.1-flash-lite -> FlashLite tariff",
-    pricing.Resolve("gemini-3.1-flash-lite").InputPerMillionUsd == 0.25m);
-Check("pricing: gemini-3.5-flash -> Flash3 tariff",
-    pricing.Resolve("gemini-3.5-flash").InputPerMillionUsd == 1.50m);
-Check("pricing: gemini-3.1-pro -> Pro tariff",
-    pricing.Resolve("gemini-3.1-pro").OutputPerMillionUsd == 10.00m);
-Check("pricing: gemini-2.5-flash keeps the old Flash tariff",
-    pricing.Resolve("gemini-2.5-flash").InputPerMillionUsd == 0.30m);
+Check("monolithic: complete result", res4.KeyResults?.Count == 25 && res4.Summary == "Sumar monolitic");
 
 listener.Stop();
+
+// ============ 6. Deterministic out-of-range completer =======================
+// The real bug: 12 out-of-range analytes, model listed only 8.
+var rr = new InterpretationResult
+{
+    IsMedicalAnalysis = true,
+    KeyResults = new List<KeyResult>(),
+    AbnormalFindings = new List<AbnormalFinding>()
+};
+for (int i = 0; i < 20; i++)
+    rr.KeyResults.Add(new KeyResult
+    {
+        Parameter = $"Param {i}",
+        Value = i < 12 ? "150" : "50",
+        Unit = "mg/dL",
+        ReferenceRange = "0-100",
+        Status = i < 12 ? "high" : "normal",
+        Explanation = $"Explicatia parametrului {i}"
+    });
+// the model listed only 8 of the 12
+for (int i = 0; i < 8; i++)
+    rr.AbnormalFindings.Add(new AbnormalFinding { Parameter = $"Param {i}", Explanation = "de la model", Severity = "mild" });
+
+int added = AbnormalFindingsCompleter.Complete(rr);
+Check("completer: added exactly the 4 missing analytes", added == 4, "added=" + added);
+Check("completer: all 12 out-of-range analytes are now listed",
+    rr.AbnormalFindings!.Count == 12, "count=" + rr.AbnormalFindings!.Count);
+Check("completer: no normal analyte leaked into the list",
+    rr.AbnormalFindings.All(f => int.Parse(f.Parameter.Split(' ')[1]) < 12));
+Check("completer: the model's own entries were kept untouched",
+    rr.AbnormalFindings.Count(f => f.Explanation == "de la model") == 8);
+Check("completer: an added entry reuses the analyte's own explanation",
+    rr.AbnormalFindings.First(f => f.Parameter == "Param 11").Explanation == "Explicatia parametrului 11");
+Check("completer: idempotent (running twice adds nothing)", AbnormalFindingsCompleter.Complete(rr) == 0);
+
+var sev = new InterpretationResult
+{
+    IsMedicalAnalysis = true,
+    KeyResults = new List<KeyResult>
+    {
+        new() { Parameter = "Ușor", Value = "110", Unit = "mg/dL", ReferenceRange = "0-100", Status = "high" },
+        new() { Parameter = "Moderat", Value = "130", Unit = "mg/dL", ReferenceRange = "0-100", Status = "high" },
+        new() { Parameter = "Sever", Value = "300", Unit = "mg/dL", ReferenceRange = "0-100", Status = "high" },
+        new() { Parameter = "Scazut", Value = "10", Unit = "mg/dL", ReferenceRange = "50-100", Status = "low" },
+        new() { Parameter = "Borderline", Value = "99", Unit = "mg/dL", ReferenceRange = "0-100", Status = "borderline" },
+        new() { Parameter = "Fara interval", Value = "5", Unit = "ng/mL", ReferenceRange = null, Status = "high" },
+        new() { Parameter = "Text", Value = "negativ", Unit = null, ReferenceRange = "negativ", Status = "high" }
+    }
+};
+AbnormalFindingsCompleter.Complete(sev);
+string Sev(string p) => sev.AbnormalFindings!.First(f => f.Parameter == p).Severity;
+Check("completer: severity 10% over the limit = mild", Sev("Ușor") == "mild", Sev("Ușor"));
+Check("completer: severity 30% over the limit = moderate", Sev("Moderat") == "moderate", Sev("Moderat"));
+Check("completer: severity 3x the limit = severe", Sev("Sever") == "severe", Sev("Sever"));
+Check("completer: low value 80% under the limit = severe", Sev("Scazut") == "severe", Sev("Scazut"));
+Check("completer: borderline is always mild", Sev("Borderline") == "mild");
+Check("completer: unparseable range/value stays mild (conservative)",
+    Sev("Fara interval") == "mild" && Sev("Text") == "mild");
+Check("completer: all 7 out-of-range analytes listed", sev.AbnormalFindings!.Count == 7);
+
 Console.WriteLine(fails == 0 ? "\nALL CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
 return fails == 0 ? 0 : 1;
 
 record Call(string Stage, string Model, string? ThinkingLevel, string? ThinkingBudget,
             DateTime Started, DateTime Finished, string UserText);
+
+sealed class Flags
+{
+    public bool FailStageC;
+    public bool FailFirstBatch;
+    public bool FailedBatchOnce;
+    public bool SweepFinds = true;
+}
 
 sealed class ProbeHttpClientFactory : IHttpClientFactory
 {

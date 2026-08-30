@@ -1,0 +1,39 @@
+{
+  "iteration": 15,
+  "date": "2026-06",
+  "context": "User's first real run with PipelineMode=split. Log proved the split DID run but stage C got a 404 on 'models/gemini-3.1-pro' (not available on his API key) and had to fall back to the extractor model, so the gain was only 19s. He also reported: only 8 of 12 out-of-range analytes listed, and 83 of 84 analytes extracted (both pre-existing problems, not caused by the split).",
+  "fixes": [
+    {
+      "id": "1. Models switched to the 2.5 tier + correct thinking parameter",
+      "detail": "appsettings now uses gemini-2.5-flash for A and B and gemini-2.5-pro for C (confirmed available on the user's key). Root cause of a second, hidden bug: Gemini 2.5 does NOT accept thinkingLevel, so the split levels would have been rejected. BuildGenerationConfig now translates level -> numeric budget for non-3.x models (minimal=0, low=1024, medium=4096, high=16384; on 2.5-pro minimal becomes 128 because thinking cannot be disabled there)."
+    },
+    {
+      "id": "2. Out-of-range section guaranteed complete (12 of 12)",
+      "detail": "New Services/AbnormalFindingsCompleter.cs, wired in InterpretationController AFTER StatusValidator so it works on final statuses: every key_result with status high/low/borderline that the model omitted from abnormal_findings is added deterministically, reusing the analyte's own explanation and computing severity from the relative distance to the breached bound (<20% mild, <50% moderate, else severe; borderline always mild; unparseable stays mild). Entries written by the model are never modified or removed. Works in BOTH pipelines (monolithic included)."
+    },
+    {
+      "id": "3. Completeness sweep (stage A2) for the missed analyte",
+      "detail": "New second reading pass that runs IN PARALLEL with B and C: it receives the report plus the list of already-extracted names and returns ONLY what stage A missed. Recovered analytes are appended, get their explanations in one extra small call, and raise _extraction_audit.expected_count. Hard guards: duplicates (normalized name) ignored, entries without a value ignored, max 15 recovered per report, failure is silent (keeps stage A's table). Toggle: Gemini:EnableCompletenessSweep."
+    },
+    {
+      "id": "4. Admin panel no longer misleads",
+      "detail": "ModelUsed now stores the real models of the run ('split: 2.5-flash|2.5-flash|2.5-pro', capped to the 40-char column) instead of the configured primary model; each row shows a green 'split' or grey 'monolitic' badge; the A/B/C table gained a 'Măturare (A2)' column showing how many analytes the sweep recovered."
+    }
+  ],
+  "test_type": "END-TO-END probe against a local fake Gemini (HttpListener) driving the real service + unit checks on the completer (/app/memory/probes/GeminiSplitPipelineProbe.cs.txt)",
+  "build": "Build succeeded, 0 Warning(s), 0 Error(s)",
+  "checks_total": 46,
+  "checks_passed": 46,
+  "checks": [
+    "Split: A once, sweep once, C once, 3 explanation batches + 1 retry + 1 for the recovered analyte, no monolithic fallback",
+    "Sweep: table grows 25 -> 26; duplicate of an extracted analyte ignored; entry without a value ignored; recovered analyte gets its explanation; audit expected_count raised; ai_s_recovered telemetry = 1",
+    "Sweep: empty answer changes nothing and triggers no extra call; EnableCompletenessSweep=false disables the stage entirely",
+    "2.5 tier: A got thinkingBudget=1024, B got 0, C (pro) got 4096, and thinkingLevel was NEVER sent to a 2.5 model",
+    "Parallelism: sweep overlaps stage C, and B overlaps C (no extra wall time for the sweep)",
+    "Admin: ModelUsed = 'split: 2.5-flash|2.5-flash|2.5-pro' and fits the 40-char DB column",
+    "Fallback: stage C failing on both models still yields a complete monolithic report, with split telemetry and model label cleared",
+    "Monolithic mode: exactly one call, no thinking key, complete result — zero regression",
+    "Completer: 8 listed of 12 becomes 12 of 12; no normal analyte leaks in; model entries untouched; idempotent; severity thresholds mild/moderate/severe verified including a low value and unparseable ranges"
+  ],
+  "db_migrations": "none"
+}

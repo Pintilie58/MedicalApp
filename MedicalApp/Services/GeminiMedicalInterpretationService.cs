@@ -156,6 +156,7 @@ namespace MedicalApp.Services
                     // Do not leave half-filled split telemetry on the row — the
                     // report about to be produced comes from the monolithic call.
                     LastStageTimings.Clear();
+                    LastModelsUsed = "";
                     _logger.LogWarning(splitEx,
                         "Split pipeline failed — falling back to the monolithic Gemini call for this interpretation.");
                 }
@@ -454,9 +455,11 @@ namespace MedicalApp.Services
         /// </summary>
         private object BuildGenerationConfig(string modelName, int thinkingBudget, string? thinkingLevel)
         {
+            bool isGemini3 = modelName.StartsWith("gemini-3", StringComparison.OrdinalIgnoreCase);
             var level = ResolveThinkingLevel(modelName, thinkingBudget, thinkingLevel);
 
-            if (level != null)
+            // Gemini 3.x understands thinkingLevel...
+            if (isGemini3 && level != null)
             {
                 return new
                 {
@@ -467,7 +470,14 @@ namespace MedicalApp.Services
                 };
             }
 
-            if (thinkingBudget >= 0)
+            // ...while Gemini 2.5 only understands a numeric budget, so a level
+            // asked for by the split pipeline is translated instead of being sent
+            // as an unknown field (which the 2.5 endpoint rejects).
+            int budget = thinkingBudget;
+            if (!isGemini3 && !string.IsNullOrWhiteSpace(thinkingLevel))
+                budget = MapLevelToBudget(thinkingLevel!, modelName);
+
+            if (budget >= 0)
             {
                 return new
                 {
@@ -477,7 +487,7 @@ namespace MedicalApp.Services
                     // Thought tokens are generated like any other output token, so
                     // they cost wall-clock time. 0 disables thinking (2.5 Flash),
                     // a small budget keeps some reasoning for the correlations.
-                    thinkingConfig = new { thinkingBudget }
+                    thinkingConfig = new { thinkingBudget = budget }
                 };
             }
 
@@ -486,6 +496,24 @@ namespace MedicalApp.Services
                 temperature = _settings.Temperature,
                 maxOutputTokens = _settings.MaxOutputTokens,
                 responseMimeType = "application/json"
+            };
+        }
+
+        /// <summary>
+        /// minimal|low|medium|high -> a Gemini 2.5 thinkingBudget. Note that
+        /// 2.5 Pro cannot disable thinking (minimum 128), so "minimal" becomes
+        /// 128 there instead of 0.
+        /// </summary>
+        private static int MapLevelToBudget(string level, string modelName)
+        {
+            bool isPro = modelName.Contains("pro", StringComparison.OrdinalIgnoreCase);
+            return level.Trim().ToLowerInvariant() switch
+            {
+                "minimal" => isPro ? 128 : 0,
+                "low" => 1024,
+                "medium" => 4096,
+                "high" => 16384,
+                _ => -1
             };
         }
 

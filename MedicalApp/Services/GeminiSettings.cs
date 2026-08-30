@@ -70,13 +70,13 @@ namespace MedicalApp.Services
         public string PipelineMode { get; set; } = "monolithic";
 
         /// <summary>Stage A — table extraction. Speed + reading accuracy, no reasoning needed.</summary>
-        public string ExtractorModel { get; set; } = "gemini-3.5-flash";
+        public string ExtractorModel { get; set; } = "gemini-2.5-flash";
 
         /// <summary>Stage B — per-analyte explanations. High volume of short texts.</summary>
-        public string ExplainModel { get; set; } = "gemini-3.1-flash-lite";
+        public string ExplainModel { get; set; } = "gemini-2.5-flash";
 
         /// <summary>Stage C — narrative, correlations, recommendations. Real reasoning; tiny input.</summary>
-        public string NarrativeModel { get; set; } = "gemini-3.1-pro";
+        public string NarrativeModel { get; set; } = "gemini-2.5-pro";
 
         /// <summary>thinkingLevel for Gemini 3.x: minimal | low | medium | high.</summary>
         public string ExtractorThinkingLevel { get; set; } = "low";
@@ -85,6 +85,14 @@ namespace MedicalApp.Services
 
         /// <summary>How many analytes one stage-B call explains. Batches run in parallel.</summary>
         public int ExplainBatchSize { get; set; } = 12;
+
+        /// <summary>
+        /// Stage A2 — completeness sweep. A second reading pass that runs IN
+        /// PARALLEL with B and C: it receives the report plus the list of names
+        /// already extracted and returns ONLY what stage A missed. Costs almost
+        /// no wall-clock time and fixes the historical "83 of 84 analytes" loss.
+        /// </summary>
+        public bool EnableCompletenessSweep { get; set; } = true;
 
         /// <summary>
         /// SECOND-tier fallback used only when both the primary AND the first

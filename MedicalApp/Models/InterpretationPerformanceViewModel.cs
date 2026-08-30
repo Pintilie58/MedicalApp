@@ -82,6 +82,11 @@ namespace MedicalApp.Models
             public long StageBcMs => S("ai_bc_ms");
             public long StageABatches => S("ai_b_batches");
 
+            /// <summary>Analytes recovered by the parallel completeness sweep (stage A2).</summary>
+            public long SweepRecovered => S("ai_s_recovered");
+            public int SweepIn => (int)S("ai_s_in");
+            public int SweepOut => (int)S("ai_s_out");
+
             public int StageAIn => (int)S("ai_a_in");
             public int StageAOut => (int)S("ai_a_out");
             public int StageBIn => (int)S("ai_b_in");

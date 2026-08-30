@@ -1,4 +1,4 @@
-using MedicalApp.Data;
+﻿using MedicalApp.Data;
 using MedicalApp.Models;
 using MedicalApp.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -357,6 +357,10 @@ namespace MedicalApp.Controllers
             int transientAttempts = 0;
             int modelAttempts = 0;
             string? currentModelOverride = null;
+            // What actually produced the report. On the split pipeline this is
+            // "split: A=..., B=..., C=..." instead of the configured primary
+            // model, so the Admin panel never misleads us again.
+            string? modelsUsedLabel = null;
             Exception? lastException = null;
 
             while (true)
@@ -401,6 +405,8 @@ namespace MedicalApp.Controllers
                     if (_ai is GeminiMedicalInterpretationService gem)
                     {
                         timer.Add("ai_thinking_tokens", gem.LastThoughtsTokenCount);
+                        if (!string.IsNullOrWhiteSpace(gem.LastModelsUsed))
+                            modelsUsedLabel = gem.LastModelsUsed;
                         // Split pipeline: per-stage milliseconds and tokens, so the
                         // Admin performance panel can show A / B / C separately.
                         foreach (var kv in gem.LastStageTimings)
@@ -677,7 +683,7 @@ namespace MedicalApp.Controllers
             if (!result.IsMedicalAnalysis)
             {
                 await SaveHistory(user.Email, originalFileName, languageCode, "rejected", result.RejectionReason, 0, inputTokens, outputTokens, profile.Id, rawGptResponse, pdfHash,
-                    modelUsed: useGemini ? (currentModelOverride ?? _geminiSettings.Model) : null);
+                    modelUsed: useGemini ? (modelsUsedLabel ?? currentModelOverride ?? _geminiSettings.Model) : null);
                 TempData["ErrorMessage"] = string.Format(Loc.T("NotMedicalAnalysisMessage"),
                     result.RejectionReason ?? Loc.T("UnknownReason"));
                 return RedirectToAction(nameof(Upload));
@@ -718,6 +724,26 @@ namespace MedicalApp.Controllers
                 // Validator must NEVER break the user's interpretation flow.
                 _logger.LogWarning(valEx,
                     "StatusValidator threw an unexpected exception. Continuing with the model's original statuses.");
+            }
+
+            // 3.5) Guarantee the "out of range" section is COMPLETE. The model
+            // writes abnormal_findings itself and drops entries on dense reports
+            // (observed 8 listed out of 12 actual). Runs AFTER StatusValidator so
+            // it works on the final, C#-verified statuses.
+            try
+            {
+                var addedFindings = AbnormalFindingsCompleter.Complete(result);
+                if (addedFindings > 0)
+                {
+                    resultMutated = true;
+                    _logger.LogInformation(
+                        "AbnormalFindingsCompleter: added {Added} out-of-range analyte(s) the model had omitted.",
+                        addedFindings);
+                }
+            }
+            catch (Exception afEx)
+            {
+                _logger.LogWarning(afEx, "AbnormalFindingsCompleter threw. Keeping the model's list as is.");
             }
 
             // 3.6) POST-LLM LOINC matcher (new pipeline, Faza C v4).
@@ -840,7 +866,7 @@ namespace MedicalApp.Controllers
             await _db.SaveChangesAsync();
 
             var savedHistoryId = await SaveHistory(user.Email, originalFileName, languageCode, "success", null, 1, inputTokens, outputTokens, profile.Id, rawGptResponse, pdfHash,
-                modelUsed: useGemini ? (currentModelOverride ?? _geminiSettings.Model) : null,
+                modelUsed: useGemini ? (modelsUsedLabel ?? currentModelOverride ?? _geminiSettings.Model) : null,
                 timer: timer);
 
             _logger.LogInformation(

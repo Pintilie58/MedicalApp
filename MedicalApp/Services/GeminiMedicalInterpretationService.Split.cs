@@ -28,6 +28,25 @@ namespace MedicalApp.Services
         /// </summary>
         public Dictionary<string, long> LastStageTimings { get; } = new();
 
+        /// <summary>
+        /// Human-readable list of the models that actually produced the last
+        /// interpretation. Empty on the monolithic path (the caller already knows
+        /// the model there). Persisted so the Admin panel stops showing the
+        /// configured primary model for a run made by three other models.
+        /// </summary>
+        public string LastModelsUsed { get; private set; } = "";
+
+        /// <summary>
+        /// "split: 2.5-flash|2.5-flash|2.5-pro" — the three stage models without
+        /// the "gemini-" noise, capped at the 40 characters of the DB column.
+        /// </summary>
+        private string ShortModels()
+        {
+            static string S(string m) => m.Replace("gemini-", "", StringComparison.OrdinalIgnoreCase);
+            var label = $"split: {S(_settings.ExtractorModel)}|{S(_settings.ExplainModel)}|{S(_settings.NarrativeModel)}";
+            return label.Length <= 40 ? label : label[..40];
+        }
+
         private sealed record GeminiRaw(
             string Text, string FinishReason, int InputTokens, int OutputTokens, int ThoughtTokens);
 
@@ -41,6 +60,7 @@ namespace MedicalApp.Services
         {
             LastStageTimings.Clear();
             LastStageTimings["ai_pipeline"] = 1;
+            LastModelsUsed = "";
 
             // ---------- Stage A: extraction ----------
             var swA = System.Diagnostics.Stopwatch.StartNew();
@@ -61,6 +81,7 @@ namespace MedicalApp.Services
             {
                 // Rejected document: nothing to explain, nothing to narrate.
                 _logger.LogInformation("Split pipeline: stage A rejected the document — stages B and C skipped.");
+                LastModelsUsed = ShortModels();
                 return (result, inA, outA, rawA);
             }
 
@@ -70,15 +91,20 @@ namespace MedicalApp.Services
 
             var patientBlock = BuildPatientContextBlock(patientContext);
 
-            // ---------- Stages B and C, concurrently ----------
+            // ---------- Stages B, C and A2 concurrently ----------
             var swBC = System.Diagnostics.Stopwatch.StartNew();
             var explainTask = RunExplanationStageAsync(analytes, languageCode, languageName, patientBlock, ct);
             var narrativeTask = RunNarrativeStageAsync(analytes, languageCode, languageName, patientBlock, ct);
-            await Task.WhenAll(explainTask, narrativeTask);
+            var sweepTask = _settings.EnableCompletenessSweep
+                ? RunCompletenessSweepAsync(analytes, languageCode, fileName, patientContext,
+                                            pdfBase64, pdfBytesLength, extractedText, ct)
+                : Task.FromResult((new List<KeyResult>(), 0, 0));
+            await Task.WhenAll(explainTask, narrativeTask, sweepTask);
             swBC.Stop();
 
             var (explanations, inB, outB, batches) = explainTask.Result;
             var (narrative, inC, outC, thoughtsC) = narrativeTask.Result;
+            var (recovered, inS, outS) = sweepTask.Result;
 
             LastStageTimings["ai_b_in"] = inB;
             LastStageTimings["ai_b_out"] = outB;
@@ -87,11 +113,40 @@ namespace MedicalApp.Services
             LastStageTimings["ai_c_out"] = outC;
             LastStageTimings["ai_c_think"] = thoughtsC;
             LastStageTimings["ai_bc_ms"] = swBC.ElapsedMilliseconds;
+            LastStageTimings["ai_s_in"] = inS;
+            LastStageTimings["ai_s_out"] = outS;
+            LastStageTimings["ai_s_recovered"] = recovered.Count;
 
             // ---------- Assembly ----------
             for (int i = 0; i < analytes.Count; i++)
                 if (explanations.TryGetValue(i, out var text) && !string.IsNullOrWhiteSpace(text))
                     analytes[i].Explanation = text;
+
+            // Analytes recovered by the sweep join the table and get their own
+            // explanations in one extra small call (only when something was found).
+            int inR = 0, outR = 0;
+            if (recovered.Count > 0)
+            {
+                int firstNew = analytes.Count;
+                analytes.AddRange(recovered);
+
+                var newIndices = Enumerable.Range(firstNew, recovered.Count).ToList();
+                var (recoveredExplanations, inRx, outRx) = await ExplainBatchAsync(
+                    analytes, newIndices,
+                    BuildSystemPrompt().Replace("{LANGUAGE_NAME}", languageName),
+                    languageCode, languageName, patientBlock, ct);
+                inR = inRx; outR = outRx;
+
+                foreach (var kv in recoveredExplanations)
+                    analytes[kv.Key].Explanation = kv.Value;
+
+                if (result.Audit != null)
+                    result.Audit.ExpectedCount = Math.Max(result.Audit.ExpectedCount, analytes.Count);
+
+                _logger.LogWarning(
+                    "Split pipeline: completeness sweep recovered {Count} analyte(s) missed by stage A: {Names}.",
+                    recovered.Count, string.Join(", ", recovered.Select(r => r.Parameter)));
+            }
 
             if (narrative != null)
             {
@@ -116,11 +171,133 @@ namespace MedicalApp.Services
             });
 
             _logger.LogInformation(
-                "Split pipeline done: A={A}ms, B+C={BC}ms (B batches={Batches}), tokens in={In} out={Out}.",
-                swA.ElapsedMilliseconds, swBC.ElapsedMilliseconds, batches,
-                inA + inB + inC, outA + outB + outC);
+                "Split pipeline done: A={A}ms, B+C(+sweep)={BC}ms (B batches={Batches}, recovered={Recovered}), " +
+                "tokens in={In} out={Out}.",
+                swA.ElapsedMilliseconds, swBC.ElapsedMilliseconds, batches, recovered.Count,
+                inA + inB + inC + inS + inR, outA + outB + outC + outS + outR);
 
-            return (result, inA + inB + inC, outA + outB + outC, merged);
+            LastModelsUsed = ShortModels();
+
+            return (result,
+                    inA + inB + inC + inS + inR,
+                    outA + outB + outC + outS + outR,
+                    merged);
+        }
+
+        // =====================================================================
+        //  Stage A2 — completeness sweep (runs in parallel with B and C)
+        // =====================================================================
+        private async Task<(List<KeyResult> Recovered, int InputTokens, int OutputTokens)>
+            RunCompletenessSweepAsync(
+                List<KeyResult> extracted, string languageCode, string fileName, PatientContext? patientContext,
+                string? pdfBase64, int pdfBytesLength, string? extractedText, CancellationToken ct)
+        {
+            var languageName = SupportedLanguagesConfig.GetLangName(languageCode);
+            var systemPrompt = BuildSystemPrompt().Replace("{LANGUAGE_NAME}", languageName);
+            var userPrompt = BuildUserPrompt(languageName, languageCode, fileName, patientContext,
+                                             hasInlinePdf: pdfBase64 != null,
+                                             extractedText: extractedText)
+                             + "\n\n" + BuildSweepContract(extracted);
+
+            try
+            {
+                var raw = await PostAsync(
+                    systemPrompt: systemPrompt,
+                    userPrompt: userPrompt,
+                    pdfBase64: pdfBase64,
+                    modelName: _settings.ExtractorModel,
+                    thinkingBudget: 0,
+                    thinkingLevel: _settings.ExtractorThinkingLevel,
+                    logContext: $"STAGE A2 sweep, {extracted.Count} already extracted",
+                    languageCode: languageCode,
+                    ct: ct);
+
+                var missing = ParseSweep(raw.Text, extracted);
+                return (missing, raw.InputTokens, raw.OutputTokens);
+            }
+            catch (Exception ex)
+            {
+                // Purely additive stage: if it fails, we keep stage A's table.
+                _logger.LogWarning(ex, "Split pipeline: completeness sweep failed — keeping stage A's table as is.");
+                return (new List<KeyResult>(), 0, 0);
+            }
+        }
+
+        /// <summary>
+        /// Keeps only entries that are genuinely new (normalized name unknown) and
+        /// that carry a value — a sweep must never duplicate or invent rows.
+        /// </summary>
+        private List<KeyResult> ParseSweep(string modelText, List<KeyResult> extracted)
+        {
+            var known = extracted
+                .Where(k => !string.IsNullOrWhiteSpace(k.Parameter))
+                .Select(k => NormalizeName(k.Parameter))
+                .ToHashSet(StringComparer.Ordinal);
+
+            var recovered = new List<KeyResult>();
+
+            var parsed = JsonSerializer.Deserialize<SweepResponse>(
+                ExtractJsonObject(modelText),
+                new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    AllowTrailingCommas = true,
+                    ReadCommentHandling = JsonCommentHandling.Skip
+                });
+
+            foreach (var kr in parsed?.Missing ?? new List<KeyResult>())
+            {
+                if (string.IsNullOrWhiteSpace(kr.Parameter) || string.IsNullOrWhiteSpace(kr.Value)) continue;
+                if (!known.Add(NormalizeName(kr.Parameter))) continue;
+                recovered.Add(kr);
+
+                // Hard cap: a confused model must not be able to duplicate the
+                // whole report through this door.
+                if (recovered.Count >= 15) break;
+            }
+
+            return recovered;
+        }
+
+        private static string NormalizeName(string name) =>
+            System.Text.RegularExpressions.Regex.Replace(
+                name.Trim().ToLowerInvariant(), @"[\s\.\-_/]+", "");
+
+        private sealed class SweepResponse
+        {
+            [System.Text.Json.Serialization.JsonPropertyName("missing")]
+            public List<KeyResult>? Missing { get; set; }
+        }
+
+        private static string BuildSweepContract(List<KeyResult> extracted)
+        {
+            var sb = new StringBuilder();
+            sb.Append(@"=========================================================
+COMPLETENESS SWEEP — SECOND READING PASS (output-contract override)
+=========================================================
+A first pass has already extracted the analytes listed below. Your ONLY job now
+is to find what that pass MISSED. Read every section, table, page and footer of
+the report again, line by line, including the last row of each section.
+
+Output STRICT JSON, no markdown fences, exactly this shape:
+{""missing"":[ <same object shape as one entry of ""key_results"", with ""explanation"":"""" > ]}
+
+RULES:
+- Include an analyte ONLY if it is measured in the report AND its name is absent
+  from the list below. Match on meaning, not spelling: a different wording of an
+  analyte already listed is NOT missing.
+- NEVER invent an analyte, a value, a unit or a reference range. If nothing was
+  missed, return {""missing"":[]} — that is the expected, normal answer.
+- Do not include comments, methods, sample types, headers or panel titles: only
+  measured parameters with a value.
+- Leave ""explanation"" empty; another stage writes it.
+
+ALREADY EXTRACTED (");
+            sb.Append(extracted.Count);
+            sb.Append(" analytes):\n");
+            foreach (var kr in extracted)
+                sb.Append("- ").Append(kr.Parameter).Append('\n');
+            return sb.ToString();
         }
 
         // =====================================================================

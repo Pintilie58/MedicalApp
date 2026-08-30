@@ -90,6 +90,16 @@
                             </td>
                             <td class="small">
                                 @r.ModelUsed
+                                @if (r.IsSplit)
+                                {
+                                    <span class="badge bg-success" data-testid="perf-split-badge"
+                                          title="Interpretare produsă de pipeline-ul pe 3 apeluri (A/B/C)">split</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary" data-testid="perf-mono-badge"
+                                          title="Interpretare produsă de apelul monolitic clasic">monolitic</span>
+                                }
                                 @if (r.AiAttempts > 1)
                                 {
                                     <span class="badge bg-danger" title="Câte apeluri AI au fost necesare">
@@ -137,6 +147,7 @@
                                     <th class="text-end">B cost</th>
                                     <th class="text-end">C — narativ</th>
                                     <th class="text-end">C cost</th>
+                                    <th class="text-end">Măturare (A2)</th>
                                     <th class="text-end">B+C (paralel)</th>
                                     <th class="text-end">Cost total AI</th>
                                 </tr>
@@ -160,6 +171,16 @@
                                             }
                                         </td>
                                         <td class="text-end small text-muted">$@r.CostCUsd.ToString("0.00000")</td>
+                                        <td class="text-end small">
+                                            @if (r.SweepRecovered > 0)
+                                            {
+                                                <span class="text-success fw-semibold">+@r.SweepRecovered recuperate</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">0</span>
+                                            }
+                                        </td>
                                         <td class="text-end @heat(r.StageBcMs)">@ms(r.StageBcMs)</td>
                                         <td class="text-end fw-semibold">$@r.CostTotalUsd.ToString("0.00000")</td>
                                     </tr>

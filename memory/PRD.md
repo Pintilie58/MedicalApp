@@ -37,6 +37,14 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 
 ## Implemented (changelog)
 
+- ✅ **2026-06 — Corecții după primul test real cu `split` (feedback user)**:
+  - **Cauza câștigului mic (19s):** logul a arătat `404 models/gemini-3.1-pro is not found` — modelele 3.x nu sunt disponibile pe cheia userului, deci etapa C a căzut pe modelul de rezervă. Trecut pe **`gemini-2.5-flash` (A, B) și `gemini-2.5-pro` (C)**.
+  - **Bug ascuns găsit și reparat:** Gemini 2.5 NU acceptă `thinkingLevel`. `BuildGenerationConfig` traduce acum nivelul în `thinkingBudget` pentru modelele non-3.x (minimal=0, low=1024, medium=4096, high=16384; la 2.5-pro minimal devine 128 pentru că acolo gândirea nu se poate opri).
+  - **„Analize în afara intervalului” 8 din 12 → 12 din 12 GARANTAT:** `Services/AbnormalFindingsCompleter.cs`, rulat în controller DUPĂ `StatusValidator`. Orice analiză high/low/borderline omisă de model e adăugată determinist, cu explicația ei și severitate calculată din depășirea relativă a limitei (<20% mild, <50% moderate, restul severe; borderline mereu mild). Intrările scrise de model nu se modifică niciodată. Funcționează și pe fluxul monolitic.
+  - **„83 din 84 analize” → etapa A2 de măturare:** un al doilea apel de citire care rulează în PARALEL cu B și C, primește lista deja extrasă și returnează DOAR ce lipsește; analizele recuperate primesc explicație într-un apel mic suplimentar și ridică `expected_count`. Protecții: duplicate ignorate, intrări fără valoare ignorate, maxim 15 recuperări, eșec silențios. Comutator: `Gemini:EnableCompletenessSweep`.
+  - **Admin nu mai induce în eroare:** `ModelUsed` stochează modelele reale (`split: 2.5-flash|2.5-flash|2.5-pro`), fiecare rând are badge **split** / **monolitic**, iar tabelul A/B/C are coloana „Măturare (A2)” cu numărul de analize recuperate.
+  - Validare: `/app/test_reports/iteration_15.json` — **46/46 PASS** (e2e cu Gemini fals local + teste unitare pe completer). Build: 0 erori / 0 warning-uri. Fără migrații EF.
+
 - ✅ **2026-06 — Optimizare Gemini: pipeline pe 3 apeluri (A / B / C) în loc de un apel monolitic**:
   - **Etapa A — EXTRAGERE** (`gemini-3.5-flash`, thinkingLevel=low): doar tabelul, fără proză. Refolosește promptul de sistem INTEGRAL + un addendum care suprascrie doar contractul de ieșire, deci toate regulile de extragere (completitudine, primul/ultimul rând, `parameter_normalized_en`, panel/analyte raw, markeri de laborator, self-audit) rămân în vigoare.
   - **Etapa B — EXPLICAŢII** (`gemini-3.1-flash-lite`, thinkingLevel=minimal): loturi de 12 analize care pleacă în PARALEL; primește doar tabelul, nu PDF-ul. Adâncimea explicațiilor a rămas cea de azi (decizia userului).
