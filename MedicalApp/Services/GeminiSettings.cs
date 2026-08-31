@@ -76,12 +76,22 @@ namespace MedicalApp.Services
         public string ExplainModel { get; set; } = "gemini-2.5-flash";
 
         /// <summary>Stage C — narrative, correlations, recommendations. Real reasoning; tiny input.</summary>
-        public string NarrativeModel { get; set; } = "gemini-2.5-pro";
+        public string NarrativeModel { get; set; } = "gemini-2.5-flash";
 
         /// <summary>thinkingLevel for Gemini 3.x: minimal | low | medium | high.</summary>
         public string ExtractorThinkingLevel { get; set; } = "low";
         public string ExplainThinkingLevel { get; set; } = "minimal";
-        public string NarrativeThinkingLevel { get; set; } = "medium";
+        public string NarrativeThinkingLevel { get; set; } = "high";
+
+        /// <summary>
+        /// How many parallel calls stage A is split into (TEXT mode only). The
+        /// extraction is the single biggest block of generated tokens, so cutting
+        /// the report text in two and reading both halves at once is what really
+        /// moves the total time. 1 disables the split. Any failure falls back to
+        /// one normal full-text extraction, and the completeness sweep covers a
+        /// row that might straddle the cut.
+        /// </summary>
+        public int ExtractorChunks { get; set; } = 2;
 
         /// <summary>How many analytes one stage-B call explains. Batches run in parallel.</summary>
         public int ExplainBatchSize { get; set; } = 12;

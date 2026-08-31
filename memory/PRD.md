@@ -37,6 +37,16 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 
 ## Implemented (changelog)
 
+- ✅ **2026-06 — A doua rundă de optimizare Gemini (după măsurătorile reale ale userului)**:
+  - **Diagnostic real (buletin 84 analize):** A = 55,5s / ~13.500 tokeni (~245 tok/s), B = 7.700 tokeni pe 7 loturi paralele (~15s), C pe `2.5-pro` = 3.221 tokeni din care 2.898 thinking în ~85s (**~38 tok/s**). Concluzie: bottleneckul nu e thinking-ul, e **volumul de tokeni generați secvențial**; 2.5-pro generează de 6 ori mai încet decât 2.5-flash; extragerea rămăsese singurul apel monolitic.
+  - **Fix 1:** etapa C mutată de pe `2.5-pro` pe **`2.5-flash` cu thinking `high` (buget 16.384)** — mai MULT raționament decât înainte, pe un motor de 6x mai rapid. Estimat 85s → ~18s.
+  - **Fix 2:** etapa A rulează pe **2 apeluri PARALELE** în modul TEXT (`Gemini:ExtractorChunks`). Textul se taie pe granițe de linii, fiecare felie păstrează antetul buletinului, feliile se suprapun 4 linii; tabelele se lipesc cu dedupe pe nume normalizat + valoare, `patient_info` se completează din felia care o are. Orice eroare → reluare automată ca o extragere normală pe tot textul; măturarea A2 e a doua plasă. Estimat 55s → ~28s.
+  - **Fix 3:** prompt de sistem **scurt dedicat pentru etapa B** — politica de adâncime a explicațiilor și regula multi-threshold sunt **decupate VERBATIM** din promptul mare (nu rescrise, deci nu pot devia), restul e eliminat: **5.856 vs 45.300 caractere (-87%)**, iar promptul ăsta se plătește de 7 ori per buletin. Etapa C păstrează promptul integral (un singur apel, calitatea pe primul loc).
+  - **Fix 4:** etapa A nu mai emite `_extraction_audit.parameter_names` (lista duplicată a celor 84 de nume) — măturarea A2 face acum acea verificare.
+  - **Admin:** rândurile monolitice sunt și ele evaluate financiar din tokenii lor → coloană nouă **„Cost AI”** pentru comparație bani-lângă-timp; tabelul A/B/C arată câte felii a folosit extragerea, iar costul măturării intră în totalul AI.
+  - **Estimări (NE-măsurate încă pe API-ul real):** apel AI ~144s → ~45-55s, cost ~$0,142 → ~$0,07-0,08 (sub monoliticul de azi).
+  - Validare: `/app/test_reports/iteration_16.json` — **37/37 PASS** (e2e cu Gemini fals local: paralelismul feliilor pe timestamps, dedupe la suprapunere, zero analize pierdute la tăietură, fallback pe felie picată, prompt scurt verificat pe conținut, modul monolitic neatins). Build: 0 erori / 0 warning-uri. Fără migrații EF.
+
 - ✅ **2026-06 — Corecții după primul test real cu `split` (feedback user)**:
   - **Cauza câștigului mic (19s):** logul a arătat `404 models/gemini-3.1-pro is not found` — modelele 3.x nu sunt disponibile pe cheia userului, deci etapa C a căzut pe modelul de rezervă. Trecut pe **`gemini-2.5-flash` (A, B) și `gemini-2.5-pro` (C)**.
   - **Bug ascuns găsit și reparat:** Gemini 2.5 NU acceptă `thinkingLevel`. `BuildGenerationConfig` traduce acum nivelul în `thinkingBudget` pentru modelele non-3.x (minimal=0, low=1024, medium=4096, high=16384; la 2.5-pro minimal devine 128 pentru că acolo gândirea nu se poate opri).

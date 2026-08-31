@@ -64,12 +64,45 @@ namespace MedicalApp.Services
 
             // ---------- Stage A: extraction ----------
             var swA = System.Diagnostics.Stopwatch.StartNew();
-            var (result, inA, outA, rawA) = await CallGeminiAsync(
+
+            // The extraction is the single biggest block of generated tokens
+            // (measured: 13.5k tokens / 55s on an 84-analyte report), so in TEXT
+            // mode we read two halves of the report AT THE SAME TIME.
+            var chunks = pdfBase64 == null && _settings.ExtractorChunks > 1
+                ? SplitTextForExtraction(extractedText, _settings.ExtractorChunks)
+                : null;
+
+            InterpretationResult result;
+            int inA, outA;
+            string rawA;
+
+            Task<(InterpretationResult, int, int, string)> SingleExtraction() => CallGeminiAsync(
                 languageCode, fileName, patientContext, pdfBase64, pdfBytesLength, extractedText, ct,
                 modelOverride: _settings.ExtractorModel,
                 userPromptAddendum: StageAContract,
                 thinkingLevelOverride: _settings.ExtractorThinkingLevel,
                 allowSplitPipeline: false);
+
+            if (chunks != null && chunks.Count > 1)
+            {
+                try
+                {
+                    (result, inA, outA, rawA) = await RunChunkedExtractionAsync(
+                        chunks, languageCode, fileName, patientContext, ct);
+                }
+                catch (Exception chunkEx)
+                {
+                    _logger.LogWarning(chunkEx,
+                        "Split pipeline: chunked extraction failed — retrying as ONE full-text extraction.");
+                    (result, inA, outA, rawA) = await SingleExtraction();
+                    LastStageTimings["ai_a_chunks"] = 1;
+                }
+            }
+            else
+            {
+                (result, inA, outA, rawA) = await SingleExtraction();
+                LastStageTimings["ai_a_chunks"] = 1;
+            }
             swA.Stop();
 
             LastStageTimings["ai_a_ms"] = swA.ElapsedMilliseconds;
@@ -133,7 +166,7 @@ namespace MedicalApp.Services
                 var newIndices = Enumerable.Range(firstNew, recovered.Count).ToList();
                 var (recoveredExplanations, inRx, outRx) = await ExplainBatchAsync(
                     analytes, newIndices,
-                    BuildSystemPrompt().Replace("{LANGUAGE_NAME}", languageName),
+                    BuildExplainSystemPrompt(languageName),
                     languageCode, languageName, patientBlock, ct);
                 inR = inRx; outR = outRx;
 
@@ -301,6 +334,140 @@ ALREADY EXTRACTED (");
         }
 
         // =====================================================================
+        //  Stage A in parallel halves (TEXT mode)
+        // =====================================================================
+
+        /// <summary>
+        /// Cuts the report text into <paramref name="count"/> pieces on line
+        /// boundaries. Every piece keeps the report HEADER (patient data, column
+        /// titles) so the model still understands the table, and the pieces
+        /// overlap by a few lines so a row sitting exactly on the cut appears
+        /// whole in at least one of them. Returns null when the text is too
+        /// short to be worth splitting.
+        /// </summary>
+        private static List<string>? SplitTextForExtraction(string? text, int count)
+        {
+            if (string.IsNullOrWhiteSpace(text) || text.Length < 4000) return null;
+
+            var lines = text.Replace("\r\n", "\n").Split('\n');
+            if (lines.Length < 40) return null;
+
+            const int headerLines = 12;
+            const int overlap = 4;
+
+            var header = string.Join("\n", lines.Take(headerLines));
+            var body = lines.Skip(headerLines).ToArray();
+
+            var pieces = new List<string>();
+            int per = (int)Math.Ceiling(body.Length / (double)count);
+
+            for (int i = 0; i < count; i++)
+            {
+                int start = Math.Max(0, i * per - (i > 0 ? overlap : 0));
+                if (start >= body.Length) break;
+                int len = Math.Min(per + (i > 0 ? overlap : 0), body.Length - start);
+                pieces.Add(header + "\n" + string.Join("\n", body.Skip(start).Take(len)));
+            }
+
+            return pieces.Count > 1 ? pieces : null;
+        }
+
+        /// <summary>
+        /// Runs one extraction call per piece, simultaneously, then stitches the
+        /// tables back together. Duplicates created by the overlap (same name AND
+        /// same value) are dropped; a genuinely repeated measurement survives.
+        /// </summary>
+        private async Task<(InterpretationResult Result, int In, int Out, string Raw)> RunChunkedExtractionAsync(
+            List<string> chunks, string languageCode, string fileName, PatientContext? patientContext,
+            CancellationToken ct)
+        {
+            var tasks = chunks.Select((chunk, i) => CallGeminiAsync(
+                languageCode, fileName, patientContext, null, 0, chunk, ct,
+                modelOverride: _settings.ExtractorModel,
+                userPromptAddendum: StageAContract + ChunkNote(i + 1, chunks.Count),
+                thinkingLevelOverride: _settings.ExtractorThinkingLevel,
+                allowSplitPipeline: false)).ToList();
+
+            var parts = await Task.WhenAll(tasks);
+
+            // The richest piece becomes the base (it also carries the narrative
+            // placeholders and the patient info in the usual case).
+            var ordered = parts
+                .Select((p, i) => (p, i))
+                .OrderByDescending(t => t.p.Result.KeyResults?.Count ?? 0)
+                .ToList();
+
+            var baseResult = ordered[0].p.Result;
+            baseResult.KeyResults ??= new List<KeyResult>();
+
+            var seen = baseResult.KeyResults
+                .Where(k => !string.IsNullOrWhiteSpace(k.Parameter))
+                .Select(k => NormalizeName(k.Parameter) + "|" + (k.Value ?? "").Trim())
+                .ToHashSet(StringComparer.Ordinal);
+
+            int totalIn = 0, totalOut = 0, appended = 0;
+            foreach (var (part, _) in ordered)
+            {
+                totalIn += part.InputTokens;
+                totalOut += part.OutputTokens;
+            }
+
+            foreach (var (part, _) in ordered.Skip(1))
+            {
+                foreach (var kr in part.Result.KeyResults ?? new List<KeyResult>())
+                {
+                    if (string.IsNullOrWhiteSpace(kr.Parameter)) continue;
+                    if (!seen.Add(NormalizeName(kr.Parameter) + "|" + (kr.Value ?? "").Trim())) continue;
+                    baseResult.KeyResults.Add(kr);
+                    appended++;
+                }
+
+                // Patient data may only be printed on the first page.
+                if (part.Result.PatientInfo != null)
+                {
+                    baseResult.PatientInfo ??= part.Result.PatientInfo;
+                    if (string.IsNullOrWhiteSpace(baseResult.PatientInfo.Name))
+                        baseResult.PatientInfo.Name = part.Result.PatientInfo.Name;
+                    if (string.IsNullOrWhiteSpace(baseResult.PatientInfo.DateTaken))
+                        baseResult.PatientInfo.DateTaken = part.Result.PatientInfo.DateTaken;
+                    if (string.IsNullOrWhiteSpace(baseResult.PatientInfo.Laboratory))
+                        baseResult.PatientInfo.Laboratory = part.Result.PatientInfo.Laboratory;
+                }
+
+                if (part.Result.IsMedicalAnalysis) baseResult.IsMedicalAnalysis = true;
+            }
+
+            if (baseResult.Audit != null)
+            {
+                baseResult.Audit.ExpectedCount = baseResult.KeyResults.Count;
+                baseResult.Audit.ParameterNames = null;
+            }
+
+            LastStageTimings["ai_a_chunks"] = chunks.Count;
+
+            _logger.LogInformation(
+                "Split pipeline: chunked extraction over {Chunks} parallel calls -> {Total} analytes " +
+                "({Base} from the richest piece + {Appended} stitched).",
+                chunks.Count, baseResult.KeyResults.Count, baseResult.KeyResults.Count - appended, appended);
+
+            return (baseResult, totalIn, totalOut, ordered[0].p.RawResponse);
+        }
+
+        private static string ChunkNote(int index, int total) => $@"
+
+FRAGMENT {index} OF {total} OF THE SAME REPORT
+The text above is only a PART of the report (the header is repeated in every
+part so you can read the table). Another call handles the other part.
+- Extract ONLY the analytes present in the text above. Do not guess what might
+  be in the other part and do not complain that something is missing.
+- This IS a medical report: set ""is_medical_analysis"": true even if this
+  fragment happens to contain few analytes.
+- Fill ""patient_info"" only with what appears in this fragment; leave the rest empty.
+- The neighbouring parts overlap by a few lines: extract a row you can read in
+  full, even if it may also appear in the other part. Duplicates are removed
+  afterwards, a missing row is not.";
+
+        // =====================================================================
         //  Stage B — per-analyte explanations, parallel batches
         // =====================================================================
         private async Task<(Dictionary<int, string> Explanations, int InputTokens, int OutputTokens, int Batches)>
@@ -308,7 +475,7 @@ ALREADY EXTRACTED (");
                                      string patientBlock, CancellationToken ct)
         {
             var batchSize = Math.Max(4, _settings.ExplainBatchSize);
-            var systemPrompt = BuildSystemPrompt().Replace("{LANGUAGE_NAME}", languageName);
+            var systemPrompt = BuildExplainSystemPrompt(languageName);
 
             var batches = new List<List<int>>();
             for (int i = 0; i < analytes.Count; i += batchSize)
@@ -476,6 +643,56 @@ ALREADY EXTRACTED (");
         //  Stage prompts (output-contract overrides on top of the SAME system
         //  prompt, so every extraction / explanation / safety rule stays in force)
         // =====================================================================
+
+        /// <summary>
+        /// A compact system prompt for stage B. The explanation stage never reads
+        /// a PDF, so 90% of the full prompt (extraction rules, LOINC
+        /// normalization, self-audit, narrative sections) is dead weight paid
+        /// SEVEN times per report. The rules it does need are SLICED VERBATIM out
+        /// of the full prompt — never rewritten — so they can never drift away
+        /// from it. If an anchor ever moves, we fall back to the full prompt: no
+        /// quality risk, only the old cost.
+        /// </summary>
+        private string BuildExplainSystemPrompt(string languageName)
+        {
+            var full = BuildSystemPrompt().Replace("{LANGUAGE_NAME}", languageName);
+
+            var tiered = Slice(full, "MULTI-THRESHOLD / TIERED-TARGET RULE (CRITICAL)", "DETECTING NON-MEDICAL FILES:");
+            var depth = Slice(full, "- \"key_results\": THE COMPLETE LIST", "- \"abnormal_findings\":");
+
+            if (tiered == null || depth == null)
+            {
+                _logger.LogWarning("Stage B: could not slice the explanation rules out of the system prompt " +
+                                   "— using the full prompt instead.");
+                return full;
+            }
+
+            return $@"You are an experienced medical doctor who explains lab results to patients in
+plain, warm, non-alarming language. You write in {languageName}.
+
+You are the EXPLANATION stage of a pipeline: the lab report has already been
+extracted and validated by another stage. You never re-read a PDF, you never
+change a value, a unit, a reference range or a status, and you never diagnose.
+You do not mention medications, doses or treatments.
+
+Output STRICT JSON only, no markdown fences.
+
+{tiered}
+
+EXPLANATION DEPTH POLICY (identical to the full report):
+{depth}
+Write every text in {languageName}.";
+        }
+
+        /// <summary>Text between two literal anchors, or null when either is missing.</summary>
+        private static string? Slice(string text, string startAnchor, string endAnchor)
+        {
+            int start = text.IndexOf(startAnchor, StringComparison.Ordinal);
+            if (start < 0) return null;
+            int end = text.IndexOf(endAnchor, start + startAnchor.Length, StringComparison.Ordinal);
+            if (end < 0) return null;
+            return text[start..end].Trim();
+        }
         private const string StageAContract = @"=========================================================
 STAGE 1 OF 3 — EXTRACTION ONLY (output-contract override)
 =========================================================
@@ -488,6 +705,9 @@ call ONLY, override the output contract:
   ""explanation"" to """" (empty string). Do NOT write any explanation text.
 - Set ""summary"", ""correlations"", ""recommendations"" and ""disclaimer"" to """",
   and ""abnormal_findings"", ""risk_factors"", ""doctor_questions"" to [].
+- In ""_extraction_audit"" emit ONLY ""expected_count"" and set ""parameter_names""
+  to [] — a second pass verifies completeness against the report itself, so
+  re-listing every analyte name here only wastes time.
 - EVERY extraction rule from the system instructions stays in force without
   exception: completeness, first/last row of a section, value-vs-reference
   pairing, status (normal/high/low/borderline), parameter_normalized_en,

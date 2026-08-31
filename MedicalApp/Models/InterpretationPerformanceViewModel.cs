@@ -99,7 +99,19 @@ namespace MedicalApp.Models
             public decimal CostAUsd { get; set; }
             public decimal CostBUsd { get; set; }
             public decimal CostCUsd { get; set; }
-            public decimal CostTotalUsd => CostAUsd + CostBUsd + CostCUsd;
+            public decimal CostTotalUsd => CostAUsd + CostBUsd + CostCUsd + CostSweepUsd;
+
+            /// <summary>Estimated USD of the completeness sweep (stage A2).</summary>
+            public decimal CostSweepUsd { get; set; }
+
+            /// <summary>Estimated USD of a monolithic row, from its own token counts.</summary>
+            public decimal CostMonoUsd { get; set; }
+
+            /// <summary>What this interpretation cost, whichever pipeline produced it.</summary>
+            public decimal CostUsd => IsSplit ? CostTotalUsd : CostMonoUsd;
+
+            /// <summary>How many parallel calls the extraction was split into.</summary>
+            public long StageAChunks => S("ai_a_chunks");
         }
     }
 }

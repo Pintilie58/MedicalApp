@@ -552,6 +552,15 @@ namespace MedicalApp.Controllers
                 r.CostAUsd = priceA.ComputeCost(r.StageAIn, r.StageAOut);
                 r.CostBUsd = priceB.ComputeCost(r.StageBIn, r.StageBOut);
                 r.CostCUsd = priceC.ComputeCost(r.StageCIn, r.StageCOut);
+                r.CostSweepUsd = priceA.ComputeCost(r.SweepIn, r.SweepOut);
+            }
+
+            // Monolithic rows: priced from their own token counts and their own
+            // model, so time AND money can be compared side by side.
+            foreach (var r in vm.Rows.Where(r => !r.IsSplit))
+            {
+                var price = _pricing.Resolve(r.ModelUsed ?? _geminiSettings.Model);
+                r.CostMonoUsd = price.ComputeCost(r.InputTokens ?? 0, r.OutputTokens ?? 0);
             }
 
             return View(vm);

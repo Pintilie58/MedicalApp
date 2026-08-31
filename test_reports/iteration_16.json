@@ -1,0 +1,31 @@
+{
+  "iteration": 16,
+  "date": "2026-06",
+  "context": "Second real measurement by the user (84-analyte report): split total AI 144s vs monolithic 120s, cost $0.142 vs ~$0.06. Breakdown from the Admin panel: A extraction 55.5s / ~13.5k tokens (~245 tok/s), B 7.7k tokens over 7 parallel batches (~15s), C on gemini-2.5-pro 3221 tokens of which 2898 thinking in ~85s (~38 tok/s). Diagnosis: the bottleneck is the VOLUME of serially generated output tokens, not thinking; 2.5-pro generates 6x slower than 2.5-flash; and the extraction was still one monolithic call.",
+  "fixes": [
+    "Fix 1 — stage C moved from gemini-2.5-pro to gemini-2.5-flash with thinkingLevel=high (budget 16384, MORE reasoning than before, on a 6x faster engine). Expected: 85s -> ~18s.",
+    "Fix 2 — stage A split into 2 PARALLEL calls in TEXT mode (Gemini:ExtractorChunks). The report text is cut on line boundaries; every piece keeps the report header (patient data + column titles) and the pieces overlap by 4 lines so a row on the cut is readable in full somewhere. Tables are stitched back with dedupe on normalized name + value, patient_info is merged from whichever piece carried it. Any failure => automatic retry as ONE normal full-text extraction; the completeness sweep is the second net. Expected: 55s -> ~28s.",
+    "Fix 3 — dedicated SHORT system prompt for stage B: the explanation-depth policy and the multi-threshold rule are SLICED VERBATIM out of the full prompt (never rewritten, so they cannot drift), everything else is dropped. Measured: 5.856 chars vs 45.300 chars = 87% smaller, paid 7 times per report. Stage C keeps the FULL prompt (single call, quality first).",
+    "Fix 4 — stage A no longer emits _extraction_audit.parameter_names (a duplicate list of all 84 names); the sweep does that job now.",
+    "Admin — monolithic rows are now priced from their own tokens and model, so a new 'Cost AI' column compares money next to time; the A/B/C table shows how many parallel pieces the extraction used and the sweep cost is included in the AI total."
+  ],
+  "expected_effect": "AI stage ~144s -> ~45-55s and cost ~$0.142 -> ~$0.07-0.08 (below today's monolithic). NOT yet measured against the real Google API — the user must re-run the same report.",
+  "test_type": "END-TO-END probe against a local fake Gemini (HttpListener) driving the real service + unit checks on the completer (/app/memory/probes/GeminiSplitPipelineProbe.cs.txt)",
+  "build": "Build succeeded, 0 Warning(s), 0 Error(s)",
+  "checks_total": 37,
+  "checks_passed": 37,
+  "checks": [
+    "Chunked extraction: 2 calls that genuinely overlap in time, each with its FRAGMENT note, telemetry ai_a_chunks=2",
+    "Chunked extraction: 40 analytes stitched with the overlap duplicate dropped, NO analyte lost across the cut, patient info recovered from the fragment that had it",
+    "Chunked extraction: audit parameter_names dropped, expected_count equals the final table",
+    "Chunk failure: automatic retry as ONE full-text extraction, telemetry ai_a_chunks=1, complete report, no monolithic fallback needed",
+    "ExtractorChunks=1 disables chunking entirely",
+    "Fix 1: stage C on gemini-2.5-flash receives thinkingBudget=16384 (high) and never a thinkingLevel field",
+    "Fix 3: stage B prompt is 87% smaller yet keeps the explanation-depth rules and the multi-threshold rule verbatim, and drops the extraction rules; stage C keeps the full prompt",
+    "Sweep still works on top of chunked extraction (1 analyte recovered, explained, audit raised)",
+    "Monolithic mode: one call, no thinking key, own explanations, no split telemetry — zero regression",
+    "Stage C failing on every model still falls back to the monolithic call with a complete report",
+    "Completer: 8 of 12 becomes 12 of 12, model entries untouched, idempotent, severity thresholds verified"
+  ],
+  "db_migrations": "none"
+}

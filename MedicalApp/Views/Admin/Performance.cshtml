@@ -76,6 +76,7 @@
                         <th class="text-end">TOTAL</th>
                         <th class="text-end">Tokeni out</th>
                         <th class="text-end">din care<br />„thinking"</th>
+                        <th class="text-end">Cost AI</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -118,6 +119,9 @@
                             <td class="text-end small @(r.ThinkingTokens > 2000 ? "text-danger fw-semibold" : "text-muted")">
                                 @(r.ThinkingTokens > 0 ? r.ThinkingTokens.ToString() : "0")
                             </td>
+                            <td class="text-end small fw-semibold" data-testid="perf-cost-@r.HistoryId">
+                                $@r.CostUsd.ToString("0.00000")
+                            </td>
                         </tr>
                     }
                 </tbody>
@@ -157,7 +161,14 @@
                                 {
                                     <tr data-testid="perf-split-row-@r.HistoryId">
                                         <td class="small text-muted">@r.HistoryId</td>
-                                        <td class="text-end @heat(r.StageAMs)">@ms(r.StageAMs)</td>
+                                        <td class="text-end @heat(r.StageAMs)">
+                                            @ms(r.StageAMs)
+                                            @if (r.StageAChunks > 1)
+                                            {
+                                                <span class="badge bg-info text-dark"
+                                                      title="Extragerea a rulat pe felii paralele">@r.StageAChunks felii</span>
+                                            }
+                                        </td>
                                         <td class="text-end small text-muted">$@r.CostAUsd.ToString("0.00000")</td>
                                         <td class="text-end small text-muted">
                                             @r.StageBOut tok / @r.StageABatches loturi
