@@ -61,7 +61,7 @@ namespace MedicalApp.Controllers
         private string? CurrentEmail => HttpContext.Session.GetString("UserEmail");
 
         [HttpGet]
-        public async Task<IActionResult> Upload()
+        public async Task<IActionResult> Upload([FromServices] ILoincHealthState loincHealth)
         {
             if (string.IsNullOrEmpty(CurrentEmail))
                 return RedirectToAction("Index", "Home");
@@ -82,6 +82,18 @@ namespace MedicalApp.Controllers
             ViewBag.CreditRest = user.CreditRest;
             ViewBag.BonusCreditsRemaining = user.BonusCreditsRemaining;
             ViewBag.TotalAvailableCredits = user.TotalAvailableCredits;
+
+            // Pre-flight check: the LOINC microservice is what turns analytes into
+            // codes used by charts/comparisons. Read the cached snapshot (0 ms) and
+            // warn BEFORE the user spends a credit. "unknown" (no probe yet) and
+            // "disabled" are not warnings.
+            if (!loincHealth.IsUp
+                && loincHealth.LastProbeUtc.HasValue
+                && !string.Equals(loincHealth.Status, "disabled", StringComparison.OrdinalIgnoreCase))
+            {
+                ViewBag.LoincOffline = true;
+                ViewBag.LoincOfflineDetail = $"{loincHealth.Status} — {loincHealth.Message}";
+            }
 
             // Load user's profiles for the dropdown.
             var profiles = await _db.Profiles

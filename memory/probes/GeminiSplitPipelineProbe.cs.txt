@@ -357,7 +357,10 @@ Check("fallback: monolithic call took over when C failed everywhere",
     recorded.Count(c => c.Stage == "MONO") == 1);
 Check("fallback: user still gets a complete report",
     res5.KeyResults?.Count == 40 && res5.Summary == "Sumar monolitic");
-Check("fallback: split telemetry cleared", svc5.LastStageTimings.Count == 0 && svc5.LastModelsUsed == "");
+Check("fallback: split telemetry cleared", svc5.LastStageTimings.Count == 0);
+Check("fallback: the REASON is visible in the Admin Model column",
+    svc5.LastModelsUsed.StartsWith("mono <- split fail:") && svc5.LastModelsUsed.Length <= 40,
+    svc5.LastModelsUsed);
 
 listener.Stop();
 

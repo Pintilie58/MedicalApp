@@ -118,11 +118,28 @@ namespace MedicalApp.Services
             }
             else
             {
-                (result, inA, outA, rawA) = await SingleExtraction();
+                try
+                {
+                    (result, inA, outA, rawA) = await SingleExtraction();
+                }
+                catch (Exception exA) when (!ct.IsCancellationRequested)
+                {
+                    // ONE quick retry on the narrative model before giving up on
+                    // the split: dropping to monolithic costs 40-60s of work.
+                    _logger.LogWarning(exA,
+                        "Split pipeline: extraction failed on {Model}, one retry on {Fallback}.",
+                        _settings.ExtractorModel, _settings.NarrativeModel);
+
+                    (result, inA, outA, rawA) = await CallGeminiAsync(
+                        languageCode, fileName, patientContext, pdfBase64, pdfBytesLength, extractedText, ct,
+                        modelOverride: _settings.NarrativeModel,
+                        userPromptAddendum: StageAContract(textMode),
+                        thinkingLevelOverride: _settings.ExtractorThinkingLevel,
+                        allowSplitPipeline: false);
+                }
                 LastStageTimings["ai_a_chunks"] = 1;
             }
             swA.Stop();
-
             LastStageTimings["ai_a_ms"] = swA.ElapsedMilliseconds;
             LastStageTimings["ai_a_in"] = inA;
             LastStageTimings["ai_a_out"] = outA;
@@ -290,14 +307,7 @@ namespace MedicalApp.Services
 
             var recovered = new List<KeyResult>();
 
-            var parsed = JsonSerializer.Deserialize<SweepResponse>(
-                ExtractJsonObject(modelText),
-                new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true,
-                    AllowTrailingCommas = true,
-                    ReadCommentHandling = JsonCommentHandling.Skip
-                });
+            var parsed = DeserializeWithRepair<SweepResponse>(ExtractJsonObject(modelText));
 
             foreach (var kr in parsed?.Missing ?? new List<KeyResult>())
             {
@@ -316,6 +326,46 @@ namespace MedicalApp.Services
         private static string NormalizeName(string name) =>
             System.Text.RegularExpressions.Regex.Replace(
                 name.Trim().ToLowerInvariant(), @"[\s\.\-_/]+", "");
+
+        /// <summary>
+        /// Deserializes a stage response with the SAME defensive repairs the
+        /// monolithic path uses (raw newlines inside strings, missing closing
+        /// braces). Without this, one malformed character in stage C's JSON
+        /// wasted the whole split and fell back to a full monolithic call —
+        /// exactly what happened on the user's report 1362
+        /// ("'}' is invalid without a matching open. Path: $.doctor_questions[5]").
+        /// </summary>
+        private T? DeserializeWithRepair<T>(string json)
+        {
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                AllowTrailingCommas = true,
+                ReadCommentHandling = JsonCommentHandling.Skip
+            };
+
+            try
+            {
+                return JsonSerializer.Deserialize<T>(json, options);
+            }
+            catch (JsonException firstEx)
+            {
+                var repaired = TryRepairRawNewlinesInStrings(json, firstEx, _logger);
+                if (repaired == null || ReferenceEquals(repaired, json))
+                    repaired = TryRepairGeminiJsonDrift(json, firstEx, _logger);
+                else
+                {
+                    var draft = TryRepairGeminiJsonDrift(repaired, firstEx, _logger);
+                    if (draft != null) repaired = draft;
+                }
+
+                if (repaired == null || ReferenceEquals(repaired, json)) throw;
+
+                var result = JsonSerializer.Deserialize<T>(repaired, options);
+                _logger.LogWarning("Split pipeline: repaired a malformed stage response ({Type}).", typeof(T).Name);
+                return result;
+            }
+        }
 
         private sealed class SweepResponse
         {
@@ -636,14 +686,7 @@ part so you can read the table). Another call handles the other part.
                         languageCode: languageCode,
                         ct: ct);
 
-                    var narrative = JsonSerializer.Deserialize<InterpretationResult>(
-                        ExtractJsonObject(raw.Text),
-                        new JsonSerializerOptions
-                        {
-                            PropertyNameCaseInsensitive = true,
-                            AllowTrailingCommas = true,
-                            ReadCommentHandling = JsonCommentHandling.Skip
-                        });
+                    var narrative = DeserializeWithRepair<InterpretationResult>(ExtractJsonObject(raw.Text));
 
                     return (narrative, raw.InputTokens, raw.OutputTokens, raw.ThoughtTokens);
                 }
@@ -652,6 +695,14 @@ part so you can read the table). Another call handles the other part.
                     _logger.LogWarning(ex,
                         "Split pipeline: narrative stage failed on {Model}, retrying on {Next}.",
                         modelChain[attempt], modelChain[attempt + 1]);
+                }
+                catch (Exception ex) when (!ct.IsCancellationRequested)
+                {
+                    // Last attempt: wrap it so the fallback reason stays readable
+                    // in the log and in the Admin panel.
+                    _logger.LogError(ex, "Split pipeline: narrative stage failed on every model.");
+                    throw new InvalidOperationException(
+                        $"Split pipeline: narrative stage failed on every model ({ex.GetType().Name}).", ex);
                 }
             }
 

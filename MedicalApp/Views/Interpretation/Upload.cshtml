@@ -27,6 +27,19 @@
                 <small class="text-muted">@Loc.T("OneCreditPerInterpretation")</small>
             </div>
 
+            @if (ViewBag.LoincOffline as bool? == true)
+            {
+                <div class="alert alert-warning d-flex align-items-start gap-2"
+                     data-testid="loinc-offline-warning">
+                    <span class="fs-5 lh-1">&#9888;</span>
+                    <div>
+                        <strong>@Loc.T("LoincOfflineWarningTitle")</strong>
+                        <div class="small">@Loc.T("LoincOfflineWarningBody")</div>
+                        <div class="small text-muted mt-1">@ViewBag.LoincOfflineDetail</div>
+                    </div>
+                </div>
+            }
+
             @if (!string.IsNullOrEmpty(errorMessage))
             {
                 <div class="alert alert-danger">@errorMessage</div>

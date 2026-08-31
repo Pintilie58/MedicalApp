@@ -831,6 +831,8 @@ namespace MedicalApp.Services
                 ["GeneratedOn"] = "Generated on",
                 ["Page"] = "Page",
                 ["ProcessingModeText"] = "Processed in text mode (literal extraction)",
+                ["LoincOfflineWarningTitle"] = "LOINC service unavailable",
+                ["LoincOfflineWarningBody"] = "The interpretation will still run normally, but the analytes will not receive LOINC codes, so they will not appear in the charts and comparisons. Start the LOINC service and reload this page before uploading.",
                 ["ProcessingModeVision"] = "Processed in vision mode (image OCR)",
                 // ===== Profile Compare PDF (B2C) =====
                 ["ProfileCompareTitle"] = "Profile comparison:",
@@ -2031,6 +2033,8 @@ namespace MedicalApp.Services
                 ["GeneratedOn"] = "Generat la",
                 ["Page"] = "Pagina",
                 ["ProcessingModeText"] = "Procesat în mod text (extragere literală)",
+                ["LoincOfflineWarningTitle"] = "Serviciul LOINC nu este disponibil",
+                ["LoincOfflineWarningBody"] = "Interpretarea va rula normal, însă analizele nu vor primi coduri LOINC, deci nu vor apărea în grafice și comparații. Pornește serviciul LOINC și reîncarcă această pagină înainte de a încărca buletinul.",
                 ["ProcessingModeVision"] = "Procesat în mod vision (OCR pe imagine)",
                 // ===== Profile Compare PDF (B2C) =====
                 ["ProfileCompareTitle"] = "Comparație profil:",
@@ -3340,6 +3344,8 @@ namespace MedicalApp.Services
                 ["GeneratedOn"] = "Généré le",
                 ["Page"] = "Page",
                 ["ProcessingModeText"] = "Traité en mode texte (extraction littérale)",
+                ["LoincOfflineWarningTitle"] = "Service LOINC indisponible",
+                ["LoincOfflineWarningBody"] = "L'interprétation fonctionnera normalement, mais les analyses ne recevront pas de codes LOINC et n'apparaîtront donc pas dans les graphiques et les comparaisons. Démarrez le service LOINC et rechargez cette page avant de téléverser.",
                 ["ProcessingModeVision"] = "Traité en mode vision (OCR sur image)",
 
                 // ===== Phase 2 & 3 (Services + Mascot + Admin health) =====
@@ -4471,6 +4477,8 @@ namespace MedicalApp.Services
                 ["GeneratedOn"] = "Generado el",
                 ["Page"] = "Página",
                 ["ProcessingModeText"] = "Procesado en modo texto (extracción literal)",
+                ["LoincOfflineWarningTitle"] = "Servicio LOINC no disponible",
+                ["LoincOfflineWarningBody"] = "La interpretación se ejecutará con normalidad, pero los análisis no recibirán códigos LOINC, por lo que no aparecerán en los gráficos ni en las comparaciones. Inicie el servicio LOINC y recargue esta página antes de subir el informe.",
                 ["ProcessingModeVision"] = "Procesado en modo visión (OCR sobre imagen)",
 
                 // ===== Phase 2 & 3 (Services + Mascot + Admin health) =====
@@ -5602,6 +5610,8 @@ namespace MedicalApp.Services
                 ["GeneratedOn"] = "Erstellt am",
                 ["Page"] = "Seite",
                 ["ProcessingModeText"] = "Im Textmodus verarbeitet (wörtliche Extraktion)",
+                ["LoincOfflineWarningTitle"] = "LOINC-Dienst nicht verfügbar",
+                ["LoincOfflineWarningBody"] = "Die Auswertung läuft normal weiter, aber die Analysen erhalten keine LOINC-Codes und erscheinen daher nicht in den Diagrammen und Vergleichen. Starten Sie den LOINC-Dienst und laden Sie diese Seite neu, bevor Sie hochladen.",
                 ["ProcessingModeVision"] = "Im Bildmodus verarbeitet (Bild-OCR)",
 
                 // ===== Phase 2 & 3 (Services + Mascot + Admin health) =====

@@ -156,9 +156,17 @@ namespace MedicalApp.Services
                     // Do not leave half-filled split telemetry on the row — the
                     // report about to be produced comes from the monolithic call.
                     LastStageTimings.Clear();
-                    LastModelsUsed = "";
+
+                    // ...but DO leave a visible trace of WHY, otherwise a fallback
+                    // looks like "it just ran monolithic" in the Admin panel.
+                    var reason = splitEx is GeminiTransientException gte
+                        ? $"HTTP {gte.HttpStatusCode}"
+                        : splitEx.GetType().Name.Replace("Exception", "");
+                    var label = $"mono <- split fail: {reason}";
+                    LastModelsUsed = label.Length <= 40 ? label : label[..40];
+
                     _logger.LogWarning(splitEx,
-                        "Split pipeline failed — falling back to the monolithic Gemini call for this interpretation.");
+                        "Split pipeline failed ({Reason}) — falling back to the monolithic Gemini call.", reason);
                 }
             }
 

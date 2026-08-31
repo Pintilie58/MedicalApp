@@ -1,0 +1,34 @@
+{
+  "iteration": 19,
+  "date": "2026-06",
+  "questions_answered": {
+    "why_did_it_fall_back_to_monolithic": "The user's log gave the exact cause: System.Text.Json.JsonException — \"'}' is invalid without a matching open. Path: $.doctor_questions[5]\". Stage C returned slightly malformed JSON. The monolithic path has had defensive JSON repair for months (raw newlines inside strings, missing closing braces), but the split stages deserialized RAW, so one bad character threw away the whole split and paid for a full monolithic call (300.8s in that run, because Google was also slow at that moment).",
+    "why_is_loinc_matching_20s_now": "It did not get worse — it scales with the report. Small report (~25 analytes) = 5-6s; the 84-analyte report = 20-25s consistently (row 1356 monolithic was already 24.0s); the 8.6s of row 1357 was the outlier. Root cause: the Python matcher called model.encode([name]) SEPARATELY for every analyte — 84 individual model invocations over an 8-thread pool, where the cost is dominated by per-call overhead."
+  },
+  "fixes": [
+    "Stage C and the sweep now deserialize through the SAME defensive repair the monolithic path uses (DeserializeWithRepair: raw-newline repair + Gemini JSON drift repair). A malformed character no longer wastes the split.",
+    "The last narrative attempt now wraps its exception, so the log and the Admin panel show a readable reason instead of a bare JsonException.",
+    "The fallback reason is visible in the Admin 'Model' column: 'mono <- split fail: HTTP 429' / '... InvalidOperation' (40-char safe).",
+    "One quick retry of stage A on the narrative model before abandoning the split (approved by the user): falling back to monolithic costs 40-60s of thrown-away work.",
+    "LOINC matcher: new pipeline.encode_queries() embeds ALL query names in ONE model call; find_loinc/_semantic_match accept a pre-computed query_embedding; /loinc/match-batch embeds the whole batch up front and logs the embedding time separately from the matching time."
+  ],
+  "measured": "LOINC probe on the real store: results BIT-IDENTICAL (same codes, same scores to 1e-6) and 2.6x faster on 12 analytes in this container (1841ms -> 709ms, and that 709ms still includes all the fuzzy/rule matching). The gain grows with the analyte count, so the 84-analyte report should drop from ~20-25s to a few seconds.",
+  "test_type": "C# end-to-end probe against a local fake Gemini + Python probe against the real LOINC store",
+  "build": "Build succeeded, 0 Warning(s), 0 Error(s)",
+  "checks_total": 65,
+  "checks_passed": 65,
+  "new_checks": [
+    "Fallback reason is exposed in the Admin Model column and fits the column",
+    "LOINC: one embedding per query, float32 and L2-normalized",
+    "LOINC: matching results identical to per-name encoding (codes AND scores)",
+    "LOINC: empty input is a no-op; query_embedding=None still works (VISION / fallback path)",
+    "All previous C# checks still pass (chunked extraction, sweep, raw-line reconstruction, short stage-B prompt, thinking budgets, live progress, monolithic mode untouched, out-of-range completer)"
+  ],
+  "files_changed": [
+    "Services/GeminiMedicalInterpretationService.cs (fallback reason)",
+    "Services/GeminiMedicalInterpretationService.Split.cs (DeserializeWithRepair, stage A retry, wrapped narrative failure)",
+    "loinc_service/pipeline.py (encode_queries + query_embedding threading)",
+    "loinc_service/main.py (batch embedding + richer timing log)"
+  ],
+  "db_migrations": "none"
+}

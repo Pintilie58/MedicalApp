@@ -30,7 +30,7 @@ from pydantic import BaseModel, Field
 
 from loinc_store import STORE
 from canonical_anchors import all_anchors, anchor_count
-from pipeline import find_loinc, get_model
+from pipeline import encode_queries, find_loinc, get_model
 
 logging.basicConfig(
     level=logging.INFO,
@@ -200,7 +200,20 @@ def match_batch(reqs: list[LoincRequest]):
     if not reqs:
         return []
 
-    def one(req: LoincRequest):
+    t0 = time.perf_counter()
+
+    # Embed EVERY query name in one single model call. Encoding them one by one
+    # was the dominant cost of a large report (~20s for 84 analytes); the
+    # vectors are identical, so results do not change at all.
+    try:
+        embeddings = encode_queries([r.test_name or "" for r in reqs])
+    except Exception:
+        log.exception("batch embedding failed; falling back to per-analyte encoding")
+        embeddings = [None] * len(reqs)
+    t_emb = time.perf_counter()
+
+    def one(item):
+        idx, req = item
         try:
             result = find_loinc(
                 req.test_name,
@@ -208,23 +221,24 @@ def match_batch(reqs: list[LoincRequest]):
                 raw_parameter_name=req.raw_parameter_name,
                 panel_header_raw=req.panel_header_raw,
                 analyte_line_raw=req.analyte_line_raw,
+                query_embedding=embeddings[idx] if idx < len(embeddings) else None,
             )
         except Exception:
             log.exception("find_loinc failed for input: %r (unit=%r)", req.test_name, req.unit)
             return None
         return result.to_dict() if result is not None else None
-
-    t0 = time.perf_counter()
     # Matching is numpy/CPU bound and releases the GIL inside numpy, so a
     # modest pool gives a real speed-up without thrashing a small container.
     workers = min(8, max(1, len(reqs)))
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        results = list(pool.map(one, reqs))
+        results = list(pool.map(one, list(enumerate(reqs))))
 
     matched = sum(1 for r in results if r is not None)
     log.info(
-        "/loinc/match-batch | %d analytes, %d matched, %.0f ms (%d workers)",
-        len(reqs), matched, (time.perf_counter() - t0) * 1000, workers,
+        "/loinc/match-batch | %d analytes, %d matched, %.0f ms total "
+        "(%.0f ms batch-embedding + %.0f ms matching, %d workers)",
+        len(reqs), matched, (time.perf_counter() - t0) * 1000,
+        (t_emb - t0) * 1000, (time.perf_counter() - t_emb) * 1000, workers,
     )
     return results
 
