@@ -1,0 +1,30 @@
+{
+  "iteration": 18,
+  "date": "2026-06",
+  "context": "Row 1361 (all previous fixes active): A 35.5s with 2 slices (was 55.5s), B+C still 89.0s, total AI 124.5s, cost $0.136, ~42.5k output tokens. B+C confirms the throughput ceiling on the API key. Next lever chosen by the user: cut the tokens of the extraction stage.",
+  "feature": "Idea 2 — the raw analyte line is rebuilt in C# instead of being retyped by the model",
+  "why": "KeyResult.AnalyteLineRaw is a VERBATIM copy of a report line that the app already holds in memory in TEXT mode. Making the model re-emit 84 full lines was roughly 30-40% of the extraction stage's generated tokens, for a result a string search produces in microseconds.",
+  "implementation": [
+    "Services/RawLineReconstructor.cs — for every analyte with an EMPTY raw line, finds the report line containing the normalized parameter name, scoring candidates so the actual result row wins over a comment that merely mentions the analyte (value present +4, line not yet used +2). Diacritics, spacing and separators are normalized, so 'Colesterol total' matches 'COLESTEROL  TOTAL' and comma decimals match.",
+    "Wired in InterpretationController right after the lab-marker sanitizer and BEFORE the LOINC matcher, which uses that line as context. Works for BOTH pipelines.",
+    "Stage A's contract now asks the model to skip analyte_line_raw — but ONLY in TEXT mode. In VISION mode (scanned PDFs) there is no text to rebuild from, so the model keeps emitting it.",
+    "Purely additive: a raw line already produced by the model is never overwritten."
+  ],
+  "expected_effect": "Extraction stage output down ~30-40% (13.5k -> ~8.5k tokens), so A ~35.5s -> ~22-25s and a lower A cost. NOT yet measured against the real API.",
+  "test_type": "END-TO-END probe against a local fake Gemini + unit checks on a realistic Romanian lab report text",
+  "build": "Build succeeded, 0 Warning(s), 0 Error(s)",
+  "checks_total": 58,
+  "checks_passed": 58,
+  "new_checks": [
+    "5 raw lines rebuilt locally from a realistic report text (0 LLM tokens)",
+    "The RESULT row wins over a comment line that mentions the same analyte",
+    "Comma decimals match (Hemoglobina 14,2), and an analyte whose name lost its 'LLIS' marker still finds its line",
+    "A raw line already provided by the model is NEVER overwritten",
+    "An analyte missing from the text stays empty — no crash, no wrong line attached",
+    "Idempotent; null text / null result / empty analytes are safe no-ops",
+    "Stage A's prompt contains the SKIP analyte_line_raw instruction in TEXT mode",
+    "All previous checks still pass (chunked extraction, sweep, short stage-B prompt, thinking budgets, live progress hook, tracker, monolithic mode untouched, monolithic fallback, out-of-range completer)"
+  ],
+  "also_verified": "DI registration probe: every dependency of all 10 controllers is registered (regression guard after the Program.cs incident).",
+  "db_migrations": "none"
+}

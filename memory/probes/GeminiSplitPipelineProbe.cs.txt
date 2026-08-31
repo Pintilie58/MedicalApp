@@ -408,6 +408,70 @@ Check("completer: borderline and unparseable stay mild",
     Sev("Borderline") == "mild" && Sev("Text") == "mild");
 Check("completer: all 6 out-of-range analytes listed", sev.AbnormalFindings!.Count == 6);
 
+
+// ================= 7. Raw analyte line rebuilt locally ======================
+var reportText = string.Join("\n", new[]
+{
+    "LABORATOR SYNEVO — Buletin de analize",
+    "Pacient: Ion Popescu   Data recoltarii: 17/08/2025",
+    "",
+    "PROFIL LIPIDIC",
+    "Colesterol total          250      mg/dL     0 - 200      H   metoda enzimatica",
+    "HDL colesterol             38      mg/dL     > 40         L",
+    "Trigliceride              210      mg/dL     < 150        H",
+    "Nota: colesterolul total se interpreteaza in context clinic.",
+    "",
+    "HEMATOLOGIE",
+    "Hemoglobina              14,2      g/dL      13,0 - 17,0",
+    "LLIS Amilaza serica        54      U/L       28 - 100",
+    "Feritina                   12      ng/mL     20 - 250     L"
+});
+
+var rl = new InterpretationResult
+{
+    IsMedicalAnalysis = true,
+    KeyResults = new List<KeyResult>
+    {
+        new() { Parameter = "Colesterol total", Value = "250", Unit = "mg/dL", ReferenceRange = "0 - 200", Status = "high" },
+        new() { Parameter = "HDL colesterol", Value = "38", Unit = "mg/dL", ReferenceRange = "> 40", Status = "low" },
+        new() { Parameter = "Trigliceride", Value = "210", Unit = "mg/dL", ReferenceRange = "< 150", Status = "high" },
+        new() { Parameter = "Hemoglobina", Value = "14,2", Unit = "g/dL", ReferenceRange = "13,0 - 17,0", Status = "normal" },
+        // name already cleaned of the LLIS marker -> must still find its line
+        new() { Parameter = "Amilaza serica", Value = "54", Unit = "U/L", ReferenceRange = "28 - 100", Status = "normal" },
+        // model kept its own raw line -> must NOT be overwritten
+        new() { Parameter = "Feritina", Value = "12", Unit = "ng/mL", ReferenceRange = "20 - 250", Status = "low",
+                AnalyteLineRaw = "linia scrisa de model" },
+        // not present in the text -> stays empty, no crash
+        new() { Parameter = "Vitamina D", Value = "18", Unit = "ng/mL", ReferenceRange = "30 - 100", Status = "low" }
+    }
+};
+
+int rebuilt = RawLineReconstructor.Fill(rl, reportText);
+Check("raw line: 5 lines rebuilt locally (0 LLM tokens)", rebuilt == 5, "rebuilt=" + rebuilt);
+Check("raw line: exact line found for 'Colesterol total' (not the comment mentioning it)",
+    rl.KeyResults![0].AnalyteLineRaw!.StartsWith("Colesterol total") && rl.KeyResults[0].AnalyteLineRaw!.Contains("250"),
+    rl.KeyResults[0].AnalyteLineRaw ?? "null");
+Check("raw line: HDL and Trigliceride matched their own rows",
+    rl.KeyResults[1].AnalyteLineRaw!.Contains("38") && rl.KeyResults[2].AnalyteLineRaw!.Contains("210"));
+Check("raw line: comma decimals match (Hemoglobina 14,2)",
+    rl.KeyResults[3].AnalyteLineRaw!.Contains("14,2"), rl.KeyResults[3].AnalyteLineRaw ?? "null");
+Check("raw line: analyte whose name lost the LLIS marker is still found",
+    (rl.KeyResults[4].AnalyteLineRaw ?? "").Contains("Amilaza serica"), rl.KeyResults[4].AnalyteLineRaw ?? "null");
+Check("raw line: a line already provided by the model is NEVER overwritten",
+    rl.KeyResults[5].AnalyteLineRaw == "linia scrisa de model");
+Check("raw line: an analyte missing from the text stays empty (no crash, no wrong line)",
+    string.IsNullOrEmpty(rl.KeyResults[6].AnalyteLineRaw), rl.KeyResults[6].AnalyteLineRaw ?? "null");
+Check("raw line: idempotent (second pass rebuilds nothing)", RawLineReconstructor.Fill(rl, reportText) == 0);
+Check("raw line: no text / no analytes is a safe no-op",
+    RawLineReconstructor.Fill(rl, null) == 0 && RawLineReconstructor.Fill(null, reportText) == 0
+    && RawLineReconstructor.Fill(new InterpretationResult(), reportText) == 0);
+
+// The stage-A prompt must ask to skip the raw line ONLY in TEXT mode.
+var aPrompt = St("A")[0].UserText;
+Check("raw line: stage A prompt asks to SKIP analyte_line_raw in TEXT mode",
+    aPrompt.Contains("SKIP \"analyte_line_raw\"") || aPrompt.Contains("SKIP \u0022analyte_line_raw"),
+    aPrompt.Contains("SKIP") ? "found" : "missing");
+
 Console.WriteLine(fails == 0 ? "\nALL CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
 return fails == 0 ? 0 : 1;
 

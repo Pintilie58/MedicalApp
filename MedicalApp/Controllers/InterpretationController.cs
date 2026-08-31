@@ -789,6 +789,24 @@ namespace MedicalApp.Controllers
                 _logger.LogWarning(afEx, "AbnormalFindingsCompleter threw. Keeping the model's list as is.");
             }
 
+            // 3.5b) Rebuild the raw analyte lines locally instead of paying the
+            // model to retype them (~30-40% of the extraction stage's tokens).
+            // Runs BEFORE the LOINC matcher, which uses that line as context.
+            try
+            {
+                var rebuilt = RawLineReconstructor.Fill(result, extractedText);
+                if (rebuilt > 0)
+                {
+                    _logger.LogInformation(
+                        "RawLineReconstructor: rebuilt {Count} raw analyte line(s) locally (no LLM tokens spent).",
+                        rebuilt);
+                }
+            }
+            catch (Exception rlEx)
+            {
+                _logger.LogWarning(rlEx, "RawLineReconstructor threw. Continuing without the raw lines.");
+            }
+
             _progress.SetStage(progressToken, "loinc_match");
 
             // 3.6) POST-LLM LOINC matcher (new pipeline, Faza C v4).

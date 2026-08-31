@@ -1,4 +1,4 @@
-using MedicalApp.Models;
+﻿using MedicalApp.Models;
 using System.Text;
 using System.Text.Json;
 
@@ -76,6 +76,10 @@ namespace MedicalApp.Services
             LastStageTimings["ai_pipeline"] = 1;
             LastModelsUsed = "";
 
+            // TEXT mode: we hold the report text in C#, so the model does not
+            // need to retype the raw lines — RawLineReconstructor rebuilds them.
+            bool textMode = pdfBase64 == null && !string.IsNullOrWhiteSpace(extractedText);
+
             // ---------- Stage A: extraction ----------
             var swA = System.Diagnostics.Stopwatch.StartNew();
 
@@ -93,7 +97,7 @@ namespace MedicalApp.Services
             Task<(InterpretationResult, int, int, string)> SingleExtraction() => CallGeminiAsync(
                 languageCode, fileName, patientContext, pdfBase64, pdfBytesLength, extractedText, ct,
                 modelOverride: _settings.ExtractorModel,
-                userPromptAddendum: StageAContract,
+                userPromptAddendum: StageAContract(textMode),
                 thinkingLevelOverride: _settings.ExtractorThinkingLevel,
                 allowSplitPipeline: false);
 
@@ -401,7 +405,7 @@ ALREADY EXTRACTED (");
             var tasks = chunks.Select((chunk, i) => CallGeminiAsync(
                 languageCode, fileName, patientContext, null, 0, chunk, ct,
                 modelOverride: _settings.ExtractorModel,
-                userPromptAddendum: StageAContract + ChunkNote(i + 1, chunks.Count),
+                userPromptAddendum: StageAContract(true) + ChunkNote(i + 1, chunks.Count),
                 thinkingLevelOverride: _settings.ExtractorThinkingLevel,
                 allowSplitPipeline: false)).ToList();
 
@@ -710,7 +714,7 @@ Write every text in {languageName}.";
             if (end < 0) return null;
             return text[start..end].Trim();
         }
-        private const string StageAContract = @"=========================================================
+        private static string StageAContract(bool textMode) => @"=========================================================
 STAGE 1 OF 3 — EXTRACTION ONLY (output-contract override)
 =========================================================
 This call is the EXTRACTION stage of a 3-stage pipeline: another call writes the
@@ -731,7 +735,12 @@ call ONLY, override the output contract:
   panel_header_raw, analyte_line_raw, lab routing codes, and the
   _extraction_audit self-check.
 Extraction accuracy is the ONLY thing that matters here. Do not spend effort on
-prose — it is another stage's job.";
+prose — it is another stage's job." + (textMode
+            ? @"
+- SKIP ""analyte_line_raw"": set it to """" (empty string). The application already
+  holds the report text and rebuilds that line locally, so retyping every line
+  here would only waste time. Every other field stays mandatory."
+            : "");
 
         private static string BuildExplainPrompt(List<KeyResult> analytes, List<int> indices,
             string languageCode, string languageName, string patientBlock)
