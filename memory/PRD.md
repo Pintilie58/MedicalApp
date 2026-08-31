@@ -45,6 +45,20 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   - Probă: `/app/memory/probes/AbnormalFindingsColorProbe.cs.txt` (PDF generat + verificare
     pixeli roșu/albastru/muștar) — ALL PASS.
 
+- **Fix alarmă falsă „Serviciul LOINC nu este disponibil”** (iunie 2026):
+  1. `appsettings.json` → `LoincAutoStart.ProbeTimeoutMs` 800 ms → **3000 ms** (800 ms era prea puțin;
+     serviciul e single-worker și nu răspunde cât timp face un batch match).
+  2. `LoincMatcher.BaseUrl` `http://localhost:8000` → **`http://127.0.0.1:8000`** (pe Windows
+     `localhost` se resolvă întâi pe IPv6 `::1`, iar uvicorn ascultă doar pe IPv4 127.0.0.1 →
+     penalizare de conexiune care depășea timeout-ul).
+  3. `LoincHealthMonitor`: o singură ratare NU mai marchează serviciul picat — se păstrează
+     snapshot-ul anterior până la **2 ratări consecutive**; citește și `entries` din `/ready`
+     (serviciul Python nu trimite `loinc_count`).
+  4. `LoincMatcherClient.IsReadyAsync()` nou; ecranul de upload **confirmă live** înainte de a
+     afișa banner-ul și reîmprospătează cache-ul dacă serviciul e de fapt viu.
+  - Notă: banner-ul NU e limitat la admin, apare pentru orice utilizator pe pagina de upload.
+  - Probe: `/app/memory/probes/LoincHealthFalseAlarmProbe.cs.txt` + `fake_loinc_service.py` — ALL PASS.
+
 ## Backlog
 - **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare

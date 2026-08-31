@@ -117,10 +117,9 @@ namespace MedicalApp.Services
 
                 if (!resp.IsSuccessStatusCode)
                 {
-                    _state.Update(false, "error",
+                    await OnProbeFailedAsync("error",
                         $"HTTP {(int)resp.StatusCode} from {baseUrl}/ready",
-                        sw.ElapsedMilliseconds, null, baseUrl);
-                    await OnProbeFailedAsync();
+                        sw.ElapsedMilliseconds, baseUrl);
                     return;
                 }
 
@@ -129,8 +128,11 @@ namespace MedicalApp.Services
                 {
                     var body = await resp.Content.ReadAsStringAsync(cts.Token);
                     using var doc = System.Text.Json.JsonDocument.Parse(body);
-                    if (doc.RootElement.TryGetProperty("loinc_count", out var lc) &&
-                        lc.ValueKind == System.Text.Json.JsonValueKind.Number)
+                    // The FastAPI service answers {"status":"ready","entries":N};
+                    // older builds used "loinc_count". Accept both.
+                    if ((doc.RootElement.TryGetProperty("loinc_count", out var lc)
+                            || doc.RootElement.TryGetProperty("entries", out lc))
+                        && lc.ValueKind == System.Text.Json.JsonValueKind.Number)
                     {
                         loincCount = lc.GetInt32();
                     }
@@ -143,24 +145,30 @@ namespace MedicalApp.Services
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
                 sw.Stop();
-                _state.Update(false, "timeout",
+                await OnProbeFailedAsync("timeout",
                     $"No response from {baseUrl}/ready within {timeoutMs} ms.",
-                    sw.ElapsedMilliseconds, null, baseUrl);
-                await OnProbeFailedAsync();
+                    sw.ElapsedMilliseconds, baseUrl);
             }
             catch (Exception ex)
             {
                 sw.Stop();
-                _state.Update(false, "down",
+                await OnProbeFailedAsync("down",
                     ex.GetBaseException().Message,
-                    sw.ElapsedMilliseconds, null, baseUrl);
-                await OnProbeFailedAsync();
+                    sw.ElapsedMilliseconds, baseUrl);
             }
         }
 
-        private async Task OnProbeFailedAsync()
+        private async Task OnProbeFailedAsync(string status, string? message, long latencyMs, string baseUrl)
         {
             _consecutiveFailures++;
+
+            // A single missed probe is NOT an outage: the microservice is
+            // single-worker and cannot answer while it is matching a batch. Keep
+            // the previous snapshot until a SECOND probe fails, otherwise the
+            // admin widget and the upload warning flip red on a healthy service.
+            if (_consecutiveFailures >= 2)
+                _state.Update(false, status, message, latencyMs, null, baseUrl);
+
             var auto = _autoStartOpts.CurrentValue;
 
             if (!auto.Enabled)

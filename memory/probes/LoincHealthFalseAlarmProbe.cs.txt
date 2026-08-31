@@ -1,0 +1,74 @@
+using MedicalApp.Services;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using System.Reflection;
+
+int fails = 0;
+void Check(string label, bool ok, string detail = "")
+{
+    Console.WriteLine((ok ? "PASS  " : "FAIL  ") + label + (detail.Length > 0 ? "  ->  " + detail : ""));
+    if (!ok) fails++;
+}
+
+var http = new HttpClient();
+async Task Mode(string m) => await http.GetStringAsync("http://127.0.0.1:8000/mode/" + m);
+
+var matcherSettings = new LoincMatcherSettings { BaseUrl = "http://127.0.0.1:8000", Enabled = true };
+var client = new LoincMatcherClient(new HttpClient(),
+    Options.Create(matcherSettings), NullLogger<LoincMatcherClient>.Instance);
+
+// ---------- 1. Live readiness probe (used by the upload screen) ----------
+await Mode("up");
+Check("IsReadyAsync = true cand serviciul e viu", await client.IsReadyAsync());
+await Mode("503");
+Check("IsReadyAsync = false la 503 (store neincarcat)", !await client.IsReadyAsync());
+await Mode("slow");
+Check("IsReadyAsync = false cand nu raspunde in timeout", !await client.IsReadyAsync(default, 1000));
+await Mode("up");
+
+// ---------- 2. Monitor: o singura ratare NU inseamna cadere ----------
+var state = new LoincHealthState();
+var autoStart = new LoincAutoStartSettings { Enabled = false, ProbeTimeoutMs = 1000, PollIntervalSeconds = 15 };
+var factory = new SingleClientFactory();
+var monitor = new LoincHealthMonitor(factory, state,
+    new StaticMonitor<LoincMatcherSettings>(matcherSettings),
+    new StaticMonitor<LoincAutoStartSettings>(autoStart),
+    NullLogger<LoincHealthMonitor>.Instance);
+
+var probe = typeof(LoincHealthMonitor).GetMethod("ProbeOnceAsync",
+    BindingFlags.NonPublic | BindingFlags.Instance)!;
+async Task ProbeOnce() => await (Task)probe.Invoke(monitor, new object?[] { CancellationToken.None })!;
+
+await ProbeOnce();
+Check("Probe pe serviciu viu -> ok", state.IsUp && state.Status == "ok", state.Status);
+Check("entries citit din /ready", state.LoincCount == 97531, state.LoincCount?.ToString() ?? "null");
+
+await Mode("slow");
+await ProbeOnce();
+Check("Prima ratare NU marcheaza serviciul picat", state.IsUp && state.Status == "ok",
+    $"{state.Status}/{state.IsUp}");
+await ProbeOnce();
+Check("A doua ratare consecutiva marcheaza picat", !state.IsUp && state.Status == "timeout",
+    $"{state.Status}/{state.IsUp}");
+
+await Mode("up");
+await ProbeOnce();
+Check("Revenirea la viu reseteaza starea", state.IsUp && state.Status == "ok", state.Status);
+
+Console.WriteLine(fails == 0 ? "\nALL PASS" : $"\n{fails} FAIL(S)");
+return fails == 0 ? 0 : 1;
+
+sealed class SingleClientFactory : IHttpClientFactory
+{
+    public HttpClient CreateClient(string name) => new HttpClient();
+}
+
+sealed class StaticMonitor<T> : IOptionsMonitor<T>
+{
+    private readonly T _value;
+    public StaticMonitor(T value) => _value = value;
+    public T CurrentValue => _value;
+    public T Get(string? name) => _value;
+    public IDisposable OnChange(Action<T, string?> listener) => new Noop();
+    private sealed class Noop : IDisposable { public void Dispose() { } }
+}

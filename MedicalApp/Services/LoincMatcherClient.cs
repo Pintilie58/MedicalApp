@@ -43,6 +43,31 @@ namespace MedicalApp.Services
         }
 
         /// <summary>
+        /// Live readiness check against <c>{BaseUrl}/ready</c>. Used by the upload
+        /// screen to CONFIRM a cached "down" verdict before warning the user: the
+        /// background monitor can record a false alarm when the microservice is
+        /// alive but busy (a batch match saturates the single uvicorn worker and
+        /// a short probe times out).
+        /// </summary>
+        public async Task<bool> IsReadyAsync(CancellationToken ct = default, int timeoutMs = 2500)
+        {
+            if (!_settings.Enabled) return false;
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                cts.CancelAfter(TimeSpan.FromMilliseconds(timeoutMs));
+                var url = (_settings.BaseUrl ?? string.Empty).TrimEnd('/') + "/ready";
+                using var resp = await _http.GetAsync(url, cts.Token);
+                return resp.IsSuccessStatusCode;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "LoincMatcher: live readiness probe failed.");
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Resolves a LOINC code for every <see cref="InterpretationResult.KeyResults"/>
         /// entry that has a non-empty <c>ParameterNormalizedEn</c>. Mutates
         /// <see cref="KeyResult.LoincCode"/>, <see cref="KeyResult.LoincLongName"/>

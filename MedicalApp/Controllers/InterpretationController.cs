@@ -86,13 +86,24 @@ namespace MedicalApp.Controllers
             // Pre-flight check: the LOINC microservice is what turns analytes into
             // codes used by charts/comparisons. Read the cached snapshot (0 ms) and
             // warn BEFORE the user spends a credit. "unknown" (no probe yet) and
-            // "disabled" are not warnings.
+            // "disabled" are not warnings. A cached failure is NEVER trusted on its
+            // own: the monitor records a "timeout" whenever the service is alive but
+            // busy (a batch match saturates the single uvicorn worker), so we
+            // confirm live before showing anything and refresh the snapshot.
             if (!loincHealth.IsUp
                 && loincHealth.LastProbeUtc.HasValue
                 && !string.Equals(loincHealth.Status, "disabled", StringComparison.OrdinalIgnoreCase))
             {
-                ViewBag.LoincOffline = true;
-                ViewBag.LoincOfflineDetail = $"{loincHealth.Status} — {loincHealth.Message}";
+                var liveUp = await _loincMatcher.IsReadyAsync(HttpContext.RequestAborted);
+                if (liveUp)
+                {
+                    loincHealth.Update(true, "ok", null, 0, loincHealth.LoincCount, loincHealth.BaseUrl);
+                }
+                else
+                {
+                    ViewBag.LoincOffline = true;
+                    ViewBag.LoincOfflineDetail = $"{loincHealth.Status} — {loincHealth.Message}";
+                }
             }
 
             // Load user's profiles for the dropdown.
