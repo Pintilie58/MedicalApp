@@ -79,6 +79,13 @@ namespace MedicalApp.Models
             public string? Parameter { get; set; }
             public string? Explanation { get; set; }
             public string? Severity { get; set; }
+
+            /// <summary>Status of the underlying analyte (high | low | borderline),
+            /// copied from key_results so name + value are colored by the VALUE,
+            /// not by the model's severity guess.</summary>
+            public string? Status { get; set; }
+            public string? Value { get; set; }
+            public string? Unit { get; set; }
         }
     }
 }

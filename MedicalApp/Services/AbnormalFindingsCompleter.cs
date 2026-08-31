@@ -48,6 +48,20 @@ namespace MedicalApp.Services
             return added;
         }
 
+        /// <summary>
+        /// Finds the key_results row that a given abnormal finding refers to
+        /// (normalized name match). Used by the on-screen report and the PDF to
+        /// color the finding by its VALUE status (high/low/borderline) and to
+        /// print the value + unit next to the analyte name.
+        /// </summary>
+        public static KeyResult? FindKeyResult(InterpretationResult? result, string? parameter)
+        {
+            if (result?.KeyResults == null || string.IsNullOrWhiteSpace(parameter)) return null;
+            var key = Key(parameter);
+            return result.KeyResults.FirstOrDefault(k =>
+                !string.IsNullOrWhiteSpace(k.Parameter) && Key(k.Parameter) == key);
+        }
+
         private static string Key(string parameter) =>
             Regex.Replace(parameter.Trim().ToLowerInvariant(), @"[\s\.\-_]+", "");
 

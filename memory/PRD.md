@@ -33,6 +33,17 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   `LoincOfflineWarningTitle`, `LoincOfflineWarningBody` (5 limbi: en/ro/fr/es/de).
   Nu se avertizează pentru statusurile `unknown` (fără probe încă) și `disabled`.
 - Verificat: warning-ul CS0414 din `AdminController.cs` nu mai există — build cu 0 warnings.
+- **Colorare după valoare în „VALORI ÎN AFARA NORMALULUI”**:
+  - `AbnormalFindingsCompleter.FindKeyResult()` — helper nou care leagă un finding de
+    rândul din `key_results` (potrivire pe nume normalizat).
+  - `ReportScreenViewModel.LockableFinding` are acum `Status`, `Value`, `Unit`.
+  - `Views/Profiles/ViewReport.cshtml`: denumirea + valoarea (valoare + unitate afișate
+    lângă nume) colorate roșu (high) / albastru (low) / muștar (borderline); severitatea
+    rămâne doar fallback pentru interpretări vechi nepotrivite.
+  - `PdfReportGenerator`: aceeași colorare + „Nume — valoare unitate” în raportul PDF
+    trimis pe email; în tabelul complet de analize denumirea analizei e colorată după status.
+  - Probă: `/app/memory/probes/AbnormalFindingsColorProbe.cs.txt` (PDF generat + verificare
+    pixeli roșu/albastru/muștar) — ALL PASS.
 
 ## Backlog
 - **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);

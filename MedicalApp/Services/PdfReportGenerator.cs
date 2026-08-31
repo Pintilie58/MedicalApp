@@ -195,7 +195,10 @@ namespace MedicalApp.Services
                     {
                         var f = r.AbnormalFindings[i];
                         bool blur = isFreemium && BlurAt(i);
-                        col.Item().Element(e => AbnormalFindingBlock(e, f, blur, labels));
+                        // Match the analyte so the block can be colored by the
+                        // VALUE (red/blue/mustard) and print value + unit.
+                        var src = AbnormalFindingsCompleter.FindKeyResult(r, f.Parameter);
+                        col.Item().Element(e => AbnormalFindingBlock(e, f, src, blur, labels));
                     }
                 }
 
@@ -493,7 +496,7 @@ namespace MedicalApp.Services
                             }
                             else
                             {
-                                c.Item().Text(r.Parameter).SemiBold().FontSize(10);
+                                c.Item().Text(r.Parameter).SemiBold().FontSize(10).FontColor(color);
                                 // Inline analyte metadata copied verbatim from the PDF row
                                 // (specimen + method + analyzer, e.g.
                                 // "-Ser - Turbidimetrie (ABX PENTRA C400 ISE)"). Displayed
@@ -561,13 +564,23 @@ namespace MedicalApp.Services
             });
         }
 
-        private static void AbnormalFindingBlock(IContainer e, AbnormalFinding f, bool blur, LocalizedLabels labels)
+        private static void AbnormalFindingBlock(IContainer e, AbnormalFinding f, KeyResult? src, bool blur, LocalizedLabels labels)
         {
-            var severityColor = f.Severity switch
+            // Color by the VALUE of the analyte (red = high, blue = low,
+            // mustard = borderline). Severity stays as a fallback for old
+            // interpretations where the analyte can no longer be matched.
+            var status = src?.Status?.Trim().ToLowerInvariant();
+            var severityColor = status switch
             {
-                "severe" => AccentRed,
-                "moderate" => AccentYellow,
-                _ => AccentBlue
+                "high" => AccentRed,
+                "low" => AccentBlue,
+                "borderline" => AccentYellow,
+                _ => f.Severity switch
+                {
+                    "severe" => AccentRed,
+                    "moderate" => AccentYellow,
+                    _ => AccentBlue
+                }
             };
             e.PaddingVertical(3).Row(row =>
             {
@@ -589,7 +602,17 @@ namespace MedicalApp.Services
                     }
                     else
                     {
-                        c.Item().Text(f.Parameter).Bold().FontSize(10).FontColor(severityColor);
+                        c.Item().Text(t =>
+                        {
+                            t.Span(f.Parameter).Bold().FontSize(10).FontColor(severityColor);
+                            if (!string.IsNullOrWhiteSpace(src?.Value))
+                            {
+                                t.Span("  —  ").FontSize(10).FontColor(severityColor);
+                                t.Span(src!.Value!).Bold().FontSize(10).FontColor(severityColor);
+                                if (!string.IsNullOrWhiteSpace(src.Unit))
+                                    t.Span(" " + src.Unit).FontSize(9).FontColor(severityColor);
+                            }
+                        });
                         if (!string.IsNullOrWhiteSpace(f.Explanation))
                             c.Item().Text(f.Explanation).FontSize(9);
                     }

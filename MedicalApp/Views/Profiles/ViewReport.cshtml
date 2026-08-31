@@ -472,14 +472,22 @@
                         <div data-testid="report-screen-abnormal-findings">
                             @foreach (var f in Model.AbnormalFindings)
                             {
+                                // Color follows the VALUE (red = high, blue = low,
+                                // mustard = borderline). Severity is only a fallback
+                                // for old interpretations where the analyte behind
+                                // the finding can no longer be matched.
+                                var hasStatus = !string.IsNullOrWhiteSpace(f.Status)
+                                    && f.Status!.ToLowerInvariant() is "high" or "low" or "borderline";
                                 var borderColor = f.Locked
                                     ? "#dadce0"
-                                    : f.Severity switch
-                                    {
-                                        "severe" => "#c62828",
-                                        "moderate" => "#f9a825",
-                                        _ => "#1565c0"
-                                    };
+                                    : hasStatus
+                                        ? st(f.Status).Color
+                                        : f.Severity switch
+                                        {
+                                            "severe" => "#c62828",
+                                            "moderate" => "#f9a825",
+                                            _ => "#1565c0"
+                                        };
                                 <div class="ps-3 mb-3" style="border-left:5px solid @borderColor;">
                                     @if (f.Locked)
                                     {
@@ -489,7 +497,15 @@
                                     }
                                     else
                                     {
-                                        <div class="fw-bold" style="color:@borderColor">@f.Parameter</div>
+                                        <div class="fw-bold" style="color:@borderColor"
+                                             data-testid="abnormal-finding-name">
+                                            @f.Parameter
+                                            @if (!string.IsNullOrWhiteSpace(f.Value))
+                                            {
+                                                <text>&nbsp;&mdash;&nbsp;</text>
+                                                <span data-testid="abnormal-finding-value">@f.Value@(string.IsNullOrWhiteSpace(f.Unit) ? "" : " " + f.Unit)</span>
+                                            }
+                                        </div>
                                         <div>@f.Explanation</div>
                                     }
                                 </div>

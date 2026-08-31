@@ -341,12 +341,19 @@ namespace MedicalApp.Controllers
                     var f = r.AbnormalFindings[i];
                     bool isLocked = isFreemium && PdfReportGenerator.IsRedactedAt(i);
                     if (isLocked) locked++;
+                    // The finding is colored by the VALUE of the analyte it refers
+                    // to (red = high, blue = low, mustard = borderline), so the
+                    // section reads the same way as the results table.
+                    var src = isLocked ? null : AbnormalFindingsCompleter.FindKeyResult(r, f.Parameter);
                     vm.AbnormalFindings.Add(new ReportScreenViewModel.LockableFinding
                     {
                         Locked = isLocked,
                         Parameter = isLocked ? null : f.Parameter,
                         Explanation = isLocked ? null : f.Explanation,
-                        Severity = isLocked ? null : f.Severity
+                        Severity = isLocked ? null : f.Severity,
+                        Status = src?.Status,
+                        Value = src?.Value,
+                        Unit = src?.Unit
                     });
                 }
             }

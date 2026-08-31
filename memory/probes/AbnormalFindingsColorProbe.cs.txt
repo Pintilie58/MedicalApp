@@ -1,0 +1,61 @@
+using MedicalApp.Models;
+using MedicalApp.Services;
+using static MedicalApp.Models.InterpretationResult;
+
+int fails = 0;
+void Check(string label, bool ok, string detail = "")
+{
+    Console.WriteLine((ok ? "PASS  " : "FAIL  ") + label + (detail.Length > 0 ? "  ->  " + detail : ""));
+    if (!ok) fails++;
+}
+
+static KeyResult K(string p, string v, string unit, string range, string status) => new KeyResult
+{
+    Parameter = p, Value = v, Unit = unit, ReferenceRange = range, Status = status,
+    Explanation = "explicatie pentru " + p
+};
+
+var r = new InterpretationResult
+{
+    IsMedicalAnalysis = true,
+    Summary = "Sumar test",
+    KeyResults = new List<KeyResult>
+    {
+        K("LDL colesterol", "180", "mg/dL", "0-130", "high"),
+        K("Hemoglobina", "9.1", "g/dL", "12-16", "low"),
+        K("Glicemie", "99", "mg/dL", "70-99", "borderline"),
+        K("Creatinina", "0.9", "mg/dL", "0.7-1.2", "normal")
+    }
+};
+
+// The completer fills abnormal_findings from key_results (high/low/borderline).
+var added = AbnormalFindingsCompleter.Complete(r);
+Check("Completer a adaugat 3 valori anormale", added == 3, "added=" + added);
+
+// 1) Matching finding -> key_results (case / spacing insensitive)
+var m1 = AbnormalFindingsCompleter.FindKeyResult(r, "ldl  colesterol");
+Check("FindKeyResult normalizeaza numele", m1 != null && m1!.Status == "high", m1?.Status ?? "null");
+var m2 = AbnormalFindingsCompleter.FindKeyResult(r, "Hemoglobina");
+Check("FindKeyResult -> low", m2?.Status == "low" && m2?.Value == "9.1");
+var m3 = AbnormalFindingsCompleter.FindKeyResult(r, "Inexistent");
+Check("FindKeyResult -> null cand nu exista", m3 == null);
+
+// 2) PDF (the one attached to the email) must print value + unit in the
+//    abnormal findings section.
+var labels = new LocalizedLabels
+{
+    KeyResults = "REZULTATE", AbnormalFindings = "VALORI IN AFARA NORMALULUI",
+    Parameter = "Analiza", Value = "Valoare", Reference = "Referinta", Status = "Status",
+    BrandTitle = "MyMedicalApp", Summary = "Sumar"
+};
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+var gen = new PdfReportGenerator();
+var pdf = gen.Generate(r, labels, false);
+Check("PDF generat", pdf.Length > 1000, pdf.Length + " bytes");
+File.WriteAllBytes("/tmp/probe/out.pdf", pdf);
+
+var freemium = gen.Generate(r, labels, true);
+Check("PDF freemium generat (blur nu crapa)", freemium.Length > 1000, freemium.Length + " bytes");
+
+Console.WriteLine(fails == 0 ? "\nALL PASS" : $"\n{fails} FAIL(S)");
+return fails == 0 ? 0 : 1;
