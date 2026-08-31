@@ -76,7 +76,8 @@ builder.Services.AddScoped<IMedicalInterpretationProvider>(sp =>
 });
 
 builder.Services.AddSingleton<PdfReportGenerator>();
-builder.Services.AddSingleton<InterpretationProgressTracker>();  // live upload progress (in-memory, short TTL)builder.Services.AddSingleton<EvolutionPdfGenerator>();
+builder.Services.AddSingleton<InterpretationProgressTracker>();  // live upload progress (in-memory, short TTL)
+builder.Services.AddSingleton<EvolutionPdfGenerator>();
 
 // Where the in-PDF freemium "unlock for FREE" buttons point. Configurable so the
 // link can move from localhost to the public domain without touching code.
