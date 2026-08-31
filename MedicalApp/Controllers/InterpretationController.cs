@@ -25,6 +25,7 @@ namespace MedicalApp.Controllers
         private readonly IMemoryCache _cache;
         private readonly LoincMatcherClient _loincMatcher;
         private readonly IAiUsageLogger _aiUsage;
+        private readonly InterpretationProgressTracker _progress;
         private readonly ILogger<InterpretationController> _logger;
 
         private const long MaxFileSize = 10 * 1024 * 1024; // 10 MB
@@ -41,6 +42,7 @@ namespace MedicalApp.Controllers
             IMemoryCache cache,
             LoincMatcherClient loincMatcher,
             IAiUsageLogger aiUsage,
+            InterpretationProgressTracker progress,
             ILogger<InterpretationController> logger)
         {
             _db = db;
@@ -52,6 +54,7 @@ namespace MedicalApp.Controllers
             _cache = cache;
             _loincMatcher = loincMatcher;
             _aiUsage = aiUsage;
+            _progress = progress;
             _logger = logger;
         }
 
@@ -111,11 +114,37 @@ namespace MedicalApp.Controllers
             });
         }
 
+        /// <summary>
+        /// Live progress of the upload the browser is currently waiting on.
+        /// Polled every 1.5s by the upload screen so it can show the stages and,
+        /// as soon as the extraction is done, the table of results itself.
+        /// </summary>
+        [HttpGet]
+        public IActionResult Progress(string? token)
+        {
+            if (string.IsNullOrEmpty(CurrentEmail)) return Unauthorized();
+
+            var state = _progress.Get(token);
+            if (state == null) return Json(new { stage = "upload" });
+
+            return Json(new
+            {
+                stage = state.Stage,
+                error = state.Error,
+                outOfRange = state.OutOfRangeCount,
+                analytes = state.Table?.Count ?? 0,
+                table = state.Table
+            });
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         [RequestSizeLimit(MaxFileSize)]
-        public async Task<IActionResult> Upload(InterpretationUploadViewModel model, bool force = false, string? reuploadToken = null)
+        public async Task<IActionResult> Upload(InterpretationUploadViewModel model, bool force = false,
+                                                string? reuploadToken = null, string? progressToken = null)
         {
+            _progress.SetStage(progressToken, "upload");
+
             if (string.IsNullOrEmpty(CurrentEmail))
                 return RedirectToAction("Index", "Home");
 
@@ -281,6 +310,7 @@ namespace MedicalApp.Controllers
                 extractedText = "(text extraction failed - Gemini reads the PDF directly)";
             }
             timer.Add("pdf_extract", extractSw.ElapsedMilliseconds);
+            _progress.SetStage(progressToken, "ai_extract");
 
             if (!useGemini && (string.IsNullOrWhiteSpace(extractedText) || extractedText.Length < 50))
             {
@@ -356,6 +386,17 @@ namespace MedicalApp.Controllers
             int attempt = 0;
             int transientAttempts = 0;
             int modelAttempts = 0;
+            // Live progress: publish the table the moment the extraction stage
+            // produces it, so the user sees results at ~40s instead of ~150s.
+            if (_ai is GeminiMedicalInterpretationService progressAware)
+                progressAware.OnStage = (stage, analytes) =>
+                {
+                    if (stage == "ai_extract_done" && analytes != null)
+                        _progress.SetTable(progressToken, analytes);
+                    else
+                        _progress.SetStage(progressToken, stage);
+                };
+
             string? currentModelOverride = null;
             // What actually produced the report. On the split pipeline this is
             // "split: A=..., B=..., C=..." instead of the configured primary
@@ -675,6 +716,7 @@ namespace MedicalApp.Controllers
                         msgKey = "InterpretationFailed";
                     }
                     TempData["ErrorMessage"] = Loc.T(msgKey);
+                    _progress.Fail(progressToken, Loc.T(msgKey));
                     return RedirectToAction(nameof(Upload));
                 }
             }
@@ -684,6 +726,7 @@ namespace MedicalApp.Controllers
             {
                 await SaveHistory(user.Email, originalFileName, languageCode, "rejected", result.RejectionReason, 0, inputTokens, outputTokens, profile.Id, rawGptResponse, pdfHash,
                     modelUsed: useGemini ? (modelsUsedLabel ?? currentModelOverride ?? _geminiSettings.Model) : null);
+                _progress.Fail(progressToken, Loc.T("NotMedicalAnalysisMessage"));
                 TempData["ErrorMessage"] = string.Format(Loc.T("NotMedicalAnalysisMessage"),
                     result.RejectionReason ?? Loc.T("UnknownReason"));
                 return RedirectToAction(nameof(Upload));
@@ -746,6 +789,8 @@ namespace MedicalApp.Controllers
                 _logger.LogWarning(afEx, "AbnormalFindingsCompleter threw. Keeping the model's list as is.");
             }
 
+            _progress.SetStage(progressToken, "loinc_match");
+
             // 3.6) POST-LLM LOINC matcher (new pipeline, Faza C v4).
             // Gemini emits only `parameter_normalized_en` (a clean English medical
             // term). The deterministic Python FastAPI matcher (semantic + fuzzy +
@@ -789,6 +834,8 @@ namespace MedicalApp.Controllers
                 });
             }
 
+            _progress.SetStage(progressToken, "pdf_report");
+
             // 4) Generate PDF report
             byte[] reportPdfBytes;
             try
@@ -808,12 +855,14 @@ namespace MedicalApp.Controllers
                 var pdfSw = System.Diagnostics.Stopwatch.StartNew();
                 reportPdfBytes = _pdfGenerator.Generate(result, labels, isFreemium);
                 timer.Add("pdf_report", pdfSw.ElapsedMilliseconds);
+                _progress.SetStage(progressToken, "done");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "PDF generation failed");
                 await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, inputTokens, outputTokens, profile.Id);
                 TempData["ErrorMessage"] = Loc.T("PdfGenerationFailed");
+                _progress.Fail(progressToken, Loc.T("PdfGenerationFailed"));
                 return RedirectToAction(nameof(Upload));
             }
 

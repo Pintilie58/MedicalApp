@@ -1,0 +1,32 @@
+{
+  "iteration": 17,
+  "date": "2026-06",
+  "context": "Third real measurement (row 1360): A dropped 55.5s -> 38.7s with 2 parallel slices and B's cost halved thanks to the short prompt, but B+C stayed at 93.3s although the maths says ~30s. Diagnosis: the parallel calls do NOT run truly in parallel — the API key's throughput is shared, so every parallelization returns only ~30% instead of 50%. Conclusion agreed with the user: further splitting is pointless; the remaining levers are FEWER TOKENS and PERCEIVED time. The user chose to implement perceived time (Idea 4) first, in-app screen only.",
+  "feature": "Live progress on the upload screen + preliminary results table shown as soon as the extraction stage finishes",
+  "design": [
+    "Services/InterpretationProgressTracker.cs — in-memory, short TTL (20 min), keyed by a client-generated GUID. Throw-away UI state; never a source of truth.",
+    "GeminiMedicalInterpretationService.OnStage hook — the split pipeline calls it with the analytes the instant stage A finishes; the controller forwards that to the tracker.",
+    "GET /Interpretation/Progress?token=... returns JSON {stage, table, outOfRange, analytes, error}; requires a logged-in session.",
+    "The POST flow is UNCHANGED (same synchronous request, same redirect): the browser simply polls every 1.5s and paints what the server reports, so there is no new failure mode and no background-job infrastructure.",
+    "Upload.cshtml — 5 live steps with animated dots, an elapsed-seconds counter, and a scrollable preliminary table (name / value+unit with arrow / reference range) with out-of-range rows highlighted; 9 new Loc keys x 7 languages (63 keys).",
+    "Monolithic mode still gets the step progress (no early table, since there is no separate extraction stage)."
+  ],
+  "effect": "The user sees the full table of values, with the out-of-range ones highlighted, at ~40s instead of staring at a spinner for ~157s.",
+  "test_type": "END-TO-END probe against a local fake Gemini + tracker unit checks + a rendered HTML/CSS preview screenshot of the overlay",
+  "build": "Build succeeded, 0 Warning(s), 0 Error(s)",
+  "checks_total": 47,
+  "checks_passed": 47,
+  "new_checks": [
+    "Progress hook fires exactly once, with all 40 extracted analytes, and fires BEFORE the pipeline completes (measured: at +351ms of a 776ms run)",
+    "Tracker: stage stored; table published with blank names skipped and statuses normalized; out-of-range counted; stage advances to the explanation step; failures recorded; unknown/null token is a safe no-op",
+    "All previous checks still pass (chunked extraction, sweep, short stage-B prompt, thinking budgets, monolithic mode untouched, monolithic fallback, out-of-range completer)"
+  ],
+  "visual_check": "Overlay rendered and screenshotted: steps (done/active/pending), elapsed counter, 'Primele rezultate' badge with '84 analize, 12 în afara intervalului', highlighted out-of-range rows, explanatory note. Layout clean at 1920x800.",
+  "db_migrations": "none",
+  "open_ideas_not_implemented": [
+    "Idea 1 — reusable explanation library keyed by LOINC + language (would remove most of stage B: -7.5k tokens, -60..-90s, -$0.025)",
+    "Idea 2 — reconstruct analyte_line_raw in C# instead of asking the model to retype it (-30..40% of stage A tokens)",
+    "Idea 3 — deterministic C# parser in shadow mode, LLM only as verifier (A: 38.7s -> ~8s)",
+    "Idea 5 — check the Google project's rate-limit tier: the throughput ceiling may be a quota issue, not a code issue"
+  ]
+}

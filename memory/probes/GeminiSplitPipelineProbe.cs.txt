@@ -223,7 +223,45 @@ var text = "LABORATOR TEST\nPacient: Test\nData: 10/06/2026\n" +
 flags.FailSecondChunk = false; flags.FailStageC = false; flags.SweepFinds = true;
 recorded.Clear();
 var svc = Build("split");
+
+// Live progress hook (what the upload screen polls): the table must be
+// published as soon as the extraction stage is done, LONG before the end.
+var progressEvents = new List<(string Stage, int Count, DateTime At)>();
+var runStart = DateTime.UtcNow;
+svc.OnStage = (stage, analytes) => progressEvents.Add((stage, analytes?.Count ?? 0, DateTime.UtcNow));
+
 var (res, inTok, outTok, raw) = await svc.InterpretTextAsync(text, "probe.pdf", "ro");
+var runEnd = DateTime.UtcNow;
+
+Check("progress: the table is published once, right after extraction",
+    progressEvents.Count(e => e.Stage == "ai_extract_done") == 1,
+    string.Join(",", progressEvents.Select(e => e.Stage + "(" + e.Count + ")")));
+Check("progress: the published table already holds all 40 extracted analytes",
+    progressEvents.First(e => e.Stage == "ai_extract_done").Count == 40,
+    progressEvents.First(e => e.Stage == "ai_extract_done").Count.ToString());
+Check("progress: published BEFORE the pipeline finished (this is the whole point)",
+    progressEvents.First(e => e.Stage == "ai_extract_done").At < runEnd.AddMilliseconds(-150),
+    $"published at +{(progressEvents.First(e => e.Stage == "ai_extract_done").At - runStart).TotalMilliseconds:0}ms of {(runEnd - runStart).TotalMilliseconds:0}ms");
+
+// The tracker itself (what the JSON endpoint returns)
+var tracker = new InterpretationProgressTracker();
+tracker.SetStage("tok1", "ai_extract");
+Check("tracker: stage stored", tracker.Get("tok1")!.Stage == "ai_extract");
+tracker.SetTable("tok1", new List<KeyResult>
+{
+    new() { Parameter = "Colesterol", Value = "250", Unit = "mg/dL", ReferenceRange = "0-200", Status = "HIGH" },
+    new() { Parameter = "Glucoza", Value = "90", Unit = "mg/dL", ReferenceRange = "70-100", Status = "normal" },
+    new() { Parameter = "  ", Value = "1", Status = "low" }
+});
+var st1 = tracker.Get("tok1")!;
+Check("tracker: table published, blank names skipped, status normalized",
+    st1.Table!.Count == 2 && st1.Table[0].Status == "high", st1.Table!.Count.ToString());
+Check("tracker: out-of-range counted", st1.OutOfRangeCount == 1, st1.OutOfRangeCount.ToString());
+Check("tracker: stage advances to the explanation step", st1.Stage == "ai_explain");
+tracker.Fail("tok1", "boom");
+Check("tracker: failure recorded", tracker.Get("tok1")!.Stage == "error" && tracker.Get("tok1")!.Error == "boom");
+Check("tracker: unknown token returns null (endpoint answers 'upload')", tracker.Get("nope") == null);
+Check("tracker: null/empty token is a no-op", tracker.Get(null) == null);
 
 List<Call> St(string s) => recorded.Where(c => c.Stage == s).ToList();
 

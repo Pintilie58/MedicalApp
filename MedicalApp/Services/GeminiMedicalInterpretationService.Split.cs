@@ -47,6 +47,20 @@ namespace MedicalApp.Services
             return label.Length <= 40 ? label : label[..40];
         }
 
+        /// <summary>
+        /// Optional progress hook. The controller wires it to the live progress
+        /// tracker so the upload screen can show the extracted table as soon as
+        /// stage A is done, instead of waiting for the whole pipeline.
+        /// Arguments: stage key, and the analytes when the stage produced them.
+        /// </summary>
+        public Action<string, IReadOnlyList<KeyResult>?>? OnStage { get; set; }
+
+        private void Report(string stage, IReadOnlyList<KeyResult>? analytes = null)
+        {
+            try { OnStage?.Invoke(stage, analytes); }
+            catch { /* progress reporting must never break an interpretation */ }
+        }
+
         private sealed record GeminiRaw(
             string Text, string FinishReason, int InputTokens, int OutputTokens, int ThoughtTokens);
 
@@ -121,6 +135,9 @@ namespace MedicalApp.Services
             _logger.LogInformation(
                 "Split pipeline: stage A extracted {Count} analytes in {Ms} ms ({Model}). Starting B+C in parallel.",
                 analytes.Count, swA.ElapsedMilliseconds, _settings.ExtractorModel);
+
+            // The table is ready — let the browser show it now.
+            Report("ai_extract_done", analytes);
 
             var patientBlock = BuildPatientContextBlock(patientContext);
 

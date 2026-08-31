@@ -37,6 +37,16 @@ Development workflow: bi-directional Git sync. The agent modifies files in the c
 
 ## Implemented (changelog)
 
+- ✅ **2026-06 — Progres în timp real la upload + tabelul de rezultate afișat imediat ce e gata extragerea (Idee 4)**:
+  - **Context măsurat (rândul 1360):** A a scăzut 55,5s → **38,7s** cu 2 felii paralele, iar costul etapei B s-a înjumătățit ($0,049 → $0,025) datorită promptului scurt. DAR B+C au rămas 93,3s deși matematic ar trebui ~30s → **apelurile paralele nu rulează chiar în paralel: debitul cheii API e partajat**. Concluzie agreată cu userul: alte spargeri nu mai ajută; pârghiile rămase sunt MAI PUŢINI TOKENI și TIMPUL PERCEPUT.
+  - **`Services/InterpretationProgressTracker.cs`** (nou): stare de UI în memorie, TTL 20 min, cheie GUID generată de browser. Nu e niciodată sursă de adevăr pentru raport.
+  - **Hook `OnStage`** pe serviciul Gemini: pipeline-ul split îl apelează cu analizele exact când se termină etapa A; controllerul le trimite în tracker.
+  - **`GET /Interpretation/Progress?token=`** → JSON `{stage, table, outOfRange, analytes, error}`, doar pentru sesiune autentificată. **POST-ul rămâne NESCHIMBAT** (același request sincron, același redirect) — browserul doar face polling la 1,5s, deci zero infrastructură de job-uri și zero mod nou de eșec.
+  - **`Upload.cshtml`**: 5 pași live cu puncte animate (făcut/în curs/în așteptare), cronometru de secunde și **tabel preliminar derulabil** (nume / valoare+UM cu săgeată / interval), cu rândurile în afara intervalului evidențiate. 9 chei Loc noi × 7 limbi (63 chei).
+  - **Efect:** userul vede tabelul complet de valori, cu anormalele marcate, la **~40s** în loc să se uite la un spinner 157s. Modul monolitic păstrează pașii (fără tabel timpuriu, neavând etapă A separată).
+  - Validare: `/app/test_reports/iteration_17.json` — **47/47 PASS** (hook-ul publică tabelul înainte de finalul pipeline-ului, măsurat; tracker testat pe cazuri limită; toate testele anterioare trec) + screenshot al overlay-ului randat. Build: 0 erori / 0 warning-uri. Fără migrații EF.
+  - **Idei rămase pe masă:** bibliotecă de explicații pe cod LOINC (Idee 1), reconstrucția `analyte_line_raw` în C# (Idee 2), parser determinist în mod umbră (Idee 3), verificarea tier-ului de quota Google (Idee 5).
+
 - ✅ **2026-06 — A doua rundă de optimizare Gemini (după măsurătorile reale ale userului)**:
   - **Diagnostic real (buletin 84 analize):** A = 55,5s / ~13.500 tokeni (~245 tok/s), B = 7.700 tokeni pe 7 loturi paralele (~15s), C pe `2.5-pro` = 3.221 tokeni din care 2.898 thinking în ~85s (**~38 tok/s**). Concluzie: bottleneckul nu e thinking-ul, e **volumul de tokeni generați secvențial**; 2.5-pro generează de 6 ori mai încet decât 2.5-flash; extragerea rămăsese singurul apel monolitic.
   - **Fix 1:** etapa C mutată de pe `2.5-pro` pe **`2.5-flash` cu thinking `high` (buget 16.384)** — mai MULT raționament decât înainte, pe un motor de 6x mai rapid. Estimat 85s → ~18s.
