@@ -84,6 +84,12 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   - pastilă roșie „Interpretarea nu s-a finalizat. Creditul a fost restituit.” la eșec;
   - polling la 6s, se oprește automat la 401 (delogare).
   - Verificat prin probă (endpoint: running / lastDone / lastFailed / 401) + screenshot pe cele 3 stări.
+  - **Corecții după feedback (iunie 2026)**: `JobStatus` face acum **o singură** interogare (ultimul rând
+    al userului = jobul urmărit) în loc de trei; polling 6s cât urmărim un job / 30s în repaus, cu pauză
+    când tabul e ascuns; pastila sincronizează și bannerul „o interpretare rulează în fundal” din pagină
+    (înainte rămânea afișat din randarea server-side și contrazicea „Gata!”). Zgomotul din Output a fost
+    tăiat prin `Microsoft.EntityFrameworkCore.Database.Command` și `System.Net.Http.HttpClient` = `Warning`
+    în appsettings(.Development).json.
 
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare

@@ -174,40 +174,76 @@
         }
 
         function poll() {
+            // No point hammering the server while the tab is in the background —
+            // we refresh right away when it becomes visible again.
+            if (document.hidden) return;
+
             fetch(URL, { credentials: 'same-origin' })
                 .then(function (r) {
-                    if (r.status === 401) { clearInterval(timer); return null; }
+                    if (r.status === 401) { stopPolling(); return null; }
                     return r.ok ? r.json() : null;
                 })
                 .then(function (d) {
                     if (!d) return;
+                    syncPageBanner(d.running);
 
                     if (d.running) {
                         store(K_WATCHING, String(d.runningId || ''));
                         store(K_PENDING, null);
                         store(K_FAILED, null);
                         show('running', T.running, '#');
+                        setRate(FAST);
                         return;
                     }
 
                     var watching = parseInt(read(K_WATCHING) || '0', 10);
-                    if (!watching) return; // nothing of ours was running
+                    if (!watching) { setRate(SLOW); return; } // nothing of ours was running
 
                     if (d.lastDoneId && d.lastDoneId >= watching) {
                         store(K_WATCHING, null);
                         store(K_PENDING, d.lastDoneId + '|' + (d.lastDoneUrl || ''));
                         show('done', T.done, d.lastDoneUrl || '#');
                         celebrate();
+                        setRate(SLOW);
                     } else if (d.lastFailedId && d.lastFailedId >= watching) {
                         store(K_WATCHING, null);
                         store(K_FAILED, '1');
                         show('failed', T.failed, '#');
+                        setRate(SLOW);
                     }
                 })
                 .catch(function () { /* best effort */ });
         }
 
-        var timer = setInterval(poll, 6000);
+        // A page rendered WHILE a job was running keeps its server-side banner
+        // ("o interpretare rulează în fundal") forever, which then contradicts the
+        // "Gata!" pill. The poll owns that banner from now on.
+        function syncPageBanner(isRunning) {
+            var banner = document.querySelector('[data-testid="interpretation-running-banner"]');
+            if (banner) banner.hidden = !isRunning;
+        }
+
+        // 6s while we are following a job, 30s when idle — enough to notice a job
+        // started in another tab without spamming the database.
+        var FAST = 6000, SLOW = 30000;
+        var timer = null, rate = 0;
+        function setRate(ms) {
+            if (rate === ms) return;
+            rate = ms;
+            if (timer) clearInterval(timer);
+            timer = setInterval(poll, ms);
+        }
+        function stopPolling() {
+            if (timer) clearInterval(timer);
+            timer = null;
+            rate = -1;
+        }
+
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden && rate !== -1) poll();
+        });
+
+        setRate(read(K_WATCHING) ? FAST : SLOW);
         poll();
     })();
 </script>

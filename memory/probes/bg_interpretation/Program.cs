@@ -280,7 +280,7 @@ InterpretationJob Job(int historyId, string token) => new(
     // Momentan nu rulează nimic pentru acest user.
     var idle = Status();
     Check("Fara job activ, running = false", !Flag(idle, "running"));
-    Check("Ultimul raport reusit e raportat", Num(idle, "lastDoneId") != null);
+    Check("Ultimul rand (reusit) e raportat", Num(idle, "lastDoneId") != null);
     Check("URL-ul raportului e corect",
         (Str(idle, "lastDoneUrl") ?? "").StartsWith("/Profiles/ViewReport/"), Str(idle, "lastDoneUrl") ?? "null");
 

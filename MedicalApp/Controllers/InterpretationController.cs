@@ -168,34 +168,27 @@ namespace MedicalApp.Controllers
         {
             if (string.IsNullOrEmpty(CurrentEmail)) return Unauthorized();
 
-            var running = await _db.InterpretationHistories.AsNoTracking()
-                .Where(h => h.UserEmail == CurrentEmail && h.Status == "processing")
+            // ONE query: the user's newest row IS the job the indicator follows.
+            // (The previous version fired three SELECTs every poll and filled the
+            // output window with noise.)
+            var latest = await _db.InterpretationHistories.AsNoTracking()
+                .Where(h => h.UserEmail == CurrentEmail)
                 .OrderByDescending(h => h.Id)
-                .Select(h => new { h.Id })
+                .Select(h => new { h.Id, h.Status })
                 .FirstOrDefaultAsync();
 
-            var lastDone = await _db.InterpretationHistories.AsNoTracking()
-                .Where(h => h.UserEmail == CurrentEmail && h.Status == "success")
-                .OrderByDescending(h => h.Id)
-                .Select(h => new { h.Id })
-                .FirstOrDefaultAsync();
-
-            var lastFailed = await _db.InterpretationHistories.AsNoTracking()
-                .Where(h => h.UserEmail == CurrentEmail
-                            && (h.Status == "error" || h.Status == "rejected"))
-                .OrderByDescending(h => h.Id)
-                .Select(h => new { h.Id })
-                .FirstOrDefaultAsync();
+            bool running = latest?.Status == "processing";
+            bool done = latest?.Status == "success";
+            bool failed = latest?.Status is "error" or "rejected";
 
             return Json(new
             {
-                running = running != null,
-                runningId = running?.Id,
-                lastDoneId = lastDone?.Id,
-                lastDoneUrl = lastDone == null ? null : $"/Profiles/ViewReport/{lastDone.Id}",
-                lastFailedId = lastFailed?.Id
-            });
-        }
+                running,
+                runningId = running ? latest!.Id : (int?)null,
+                lastDoneId = done ? latest!.Id : (int?)null,
+                lastDoneUrl = done ? $"/Profiles/ViewReport/{latest!.Id}" : null,
+                lastFailedId = failed ? latest!.Id : (int?)null
+            });        }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
