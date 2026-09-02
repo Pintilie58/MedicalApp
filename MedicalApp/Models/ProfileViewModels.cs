@@ -83,6 +83,10 @@ namespace MedicalApp.Models
             public string? PatientName { get; set; }
             public string? DateTaken { get; set; }
             public bool HasRawJson { get; set; }
+
+            /// <summary>success | processing — "processing" rows are jobs still
+            /// running in the background, shown as "în lucru" and not clickable.</summary>
+            public string Status { get; set; } = "success";
         }
     }
 

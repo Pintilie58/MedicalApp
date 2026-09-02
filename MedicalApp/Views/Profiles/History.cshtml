@@ -201,6 +201,26 @@
                         <tbody>
                             @foreach (var h in Model.Items)
                             {
+                                if (h.Status == "processing")
+                                {
+                                    // Background job still running (queued by
+                                    // /Interpretation/Upload). The page auto-refreshes
+                                    // until it becomes a normal "success" row.
+                                    <tr class="table-warning" data-testid="history-row-processing-@h.Id">
+                                        <td></td>
+                                        <td>
+                                            <div class="fw-semibold">@h.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</div>
+                                            <div class="small text-muted">@h.CreatedAt.ToLocalTime().ToString("HH:mm")</div>
+                                        </td>
+                                        <td><span class="text-break">@(h.OriginalFileName ?? "-")</span></td>
+                                        <td colspan="4">
+                                            <span class="spinner-border spinner-border-sm text-warning me-2" role="status"></span>
+                                            <strong data-testid="history-processing-badge">@Loc.T("HistoryStatusProcessing")</strong>
+                                            <div class="small text-muted">@Loc.T("HistoryProcessingNote")</div>
+                                        </td>
+                                    </tr>
+                                    continue;
+                                }
                                 <tr data-testid="history-row-@h.Id">
                                     <td>
                                         @if (h.HasRawJson)
@@ -398,6 +418,15 @@
                 pendingForm = null;
                 confirmBtn.disabled = false;
             });
+        })();
+    </script>
+
+    <script>
+        // Background interpretations: while any row is still "în lucru", reload
+        // the page every 10s so it flips to the finished report on its own.
+        (function () {
+            if (!document.querySelector('[data-testid^="history-row-processing-"]')) return;
+            setTimeout(function () { window.location.reload(); }, 10000);
         })();
     </script>
 }

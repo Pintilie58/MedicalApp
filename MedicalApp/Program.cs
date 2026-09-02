@@ -143,6 +143,16 @@ builder.Services.AddHostedService<LoincHealthMonitor>();
 // Pending registrations (in-memory, singleton)
 builder.Services.AddSingleton<PendingRegistrationStore>();
 
+// ---------------------------------------------------------------------------
+// B2C interpretations run in the BACKGROUND (June 2026). The HTTP request only
+// reserves the credit and queues the job; the worker executes it even if the
+// user closes the tab. Concurrency is capped inside InterpretationJobQueue
+// (3 app-wide, 1 per user) to stay clear of Gemini's rate limit.
+// ---------------------------------------------------------------------------
+builder.Services.AddSingleton<InterpretationJobQueue>();
+builder.Services.AddScoped<B2cInterpretationRunner>();
+builder.Services.AddHostedService<InterpretationQueueWorker>();
+
 // LOINC dictionary - configuration for the optional startup seed.
 builder.Services.Configure<LoincSettings>(builder.Configuration.GetSection("Loinc"));
 
@@ -184,6 +194,9 @@ using (var scopedServices = app.Services.CreateScope())
         // life-cycle is unrecoverable in-process — flip it to "Failed" so the
         // operator sees the truth and can re-launch manually.
         await StartupSeed.FailOrphanedBatchesAsync(app.Services, seedLogger);
+        // B2C: same rule for interpretations queued in the previous app life —
+        // unrecoverable in-process, so mark them failed and refund the credit.
+        await StartupSeed.FailOrphanedInterpretationsAsync(app.Services, seedLogger);
         await LoincSeeder.EnsureSeededAsync(app.Services, app.Environment, seedLogger);
     }
     catch (Exception ex)

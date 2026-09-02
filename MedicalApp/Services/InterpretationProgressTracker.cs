@@ -34,6 +34,22 @@ namespace MedicalApp.Services
             public List<PartialAnalyte>? Table { get; set; }
             public int OutOfRangeCount { get; set; }
             public string? Error { get; set; }
+
+            /// <summary>Where the browser should go once the background job is
+            /// finished. Set only on the "done" stage.</summary>
+            public string? RedirectUrl { get; set; }
+            public int? HistoryId { get; set; }
+        }
+
+        /// <summary>Job finished successfully — hands the browser its destination.</summary>
+        public void Done(string? token, string redirectUrl, int historyId)
+        {
+            if (string.IsNullOrWhiteSpace(token)) return;
+            var state = _states.GetOrAdd(token!, _ => new ProgressState());
+            state.Stage = "done";
+            state.RedirectUrl = redirectUrl;
+            state.HistoryId = historyId;
+            state.UpdatedUtc = DateTime.UtcNow;
         }
 
         public void SetStage(string? token, string stage)

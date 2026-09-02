@@ -6,55 +6,45 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using System.Globalization;
-using System.Net.Http;
 using System.Security.Cryptography;
-using System.Text.Encodings.Web;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace MedicalApp.Controllers
 {
     public class InterpretationController : Controller
     {
         private readonly AppDbContext _db;
-        private readonly IMedicalInterpretationProvider _ai;
-        private readonly InterpretationSettings _interpretationSettings;
         private readonly GeminiSettings _geminiSettings;
-        private readonly IEmailService _emailService;
-        private readonly PdfReportGenerator _pdfGenerator;
         private readonly IMemoryCache _cache;
         private readonly LoincMatcherClient _loincMatcher;
         private readonly IAiUsageLogger _aiUsage;
         private readonly InterpretationProgressTracker _progress;
+        private readonly InterpretationJobQueue _queue;
         private readonly ILogger<InterpretationController> _logger;
 
         private const long MaxFileSize = 10 * 1024 * 1024; // 10 MB
         private const string DupCacheKeyPrefix = "dup_pdf:";
         private static readonly TimeSpan DupCacheLifetime = TimeSpan.FromMinutes(15);
 
+        // The heavy pipeline lives in B2cInterpretationRunner and runs in the
+        // background worker — this controller only validates, reserves the credit
+        // and queues the job, so it no longer needs the AI/PDF/email services.
         public InterpretationController(
             AppDbContext db,
-            IMedicalInterpretationProvider ai,
-            IOptions<InterpretationSettings> interpretationOptions,
             IOptions<GeminiSettings> geminiOptions,
-            IEmailService emailService,
-            PdfReportGenerator pdfGenerator,
             IMemoryCache cache,
             LoincMatcherClient loincMatcher,
             IAiUsageLogger aiUsage,
             InterpretationProgressTracker progress,
+            InterpretationJobQueue queue,
             ILogger<InterpretationController> logger)
         {
             _db = db;
-            _ai = ai;
-            _interpretationSettings = interpretationOptions.Value;
             _geminiSettings = geminiOptions.Value;
-            _emailService = emailService;
-            _pdfGenerator = pdfGenerator;
             _cache = cache;
             _loincMatcher = loincMatcher;
             _aiUsage = aiUsage;
             _progress = progress;
+            _queue = queue;
             _logger = logger;
         }
 
@@ -127,6 +117,10 @@ namespace MedicalApp.Controllers
             ViewBag.CanCreateProfile =
                 ProfileGateService.CanCreateAdditionalProfile(user, profiles.Count);
 
+            // A background job from an earlier visit may still be running — tell
+            // the user instead of letting them start a second one and get refused.
+            ViewBag.HasRunningJob = _queue.IsUserBusy(user.Email);
+
             var defaultId = profiles.FirstOrDefault(p => p.IsDefault)?.Id
                          ?? profiles.FirstOrDefault()?.Id;
 
@@ -156,7 +150,9 @@ namespace MedicalApp.Controllers
                 error = state.Error,
                 outOfRange = state.OutOfRangeCount,
                 analytes = state.Table?.Count ?? 0,
-                table = state.Table
+                table = state.Table,
+                redirectUrl = state.RedirectUrl,
+                historyId = state.HistoryId
             });
         }
 
@@ -258,13 +254,7 @@ namespace MedicalApp.Controllers
                 }
             }
 
-            // Instrumentation: one timer per interpretation. Persisted on the
-            // history row so the Admin panel can show exactly where the minutes go.
-            var timer = new StageTimer();
-
             var languageCode = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
-            var providerName = (_interpretationSettings.Provider ?? "Gemini").Trim();
-            var useGemini = !string.Equals(providerName, "OpenAI", StringComparison.OrdinalIgnoreCase);
 
             // Compute SHA-256 hash of the uploaded PDF for duplicate detection.
             string pdfHash = ComputeSha256(pdfBytes);
@@ -309,703 +299,80 @@ namespace MedicalApp.Controllers
                 }
             }
 
-            // For the OpenAI path we also need a text extraction.
-            // For the Gemini path we still extract text - purely as a DEBUG attachment.
-            string extractedText;
-            var extractSw = System.Diagnostics.Stopwatch.StartNew();
-            try
-            {
-                using var ms = new MemoryStream(pdfBytes);
-                extractedText = PdfTextExtractor.Extract(ms);
-            }
-            catch (Exception ex)
-            {
-                if (!useGemini)
-                {
-                    // OpenAI path needs the text - hard fail
-                    _logger.LogError(ex, "Failed to extract text from PDF (OpenAI path)");
-                    await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, null, null, profile.Id);
-                    TempData["ErrorMessage"] = Loc.T("PdfExtractFailed");
-                    return RedirectToAction(nameof(Upload));
-                }
-                // Gemini path - text is only for debug, swallow the error
-                _logger.LogWarning(ex, "PdfTextExtractor failed (Gemini path - non-fatal). Continuing without DEBUG text.");
-                extractedText = "(text extraction failed - Gemini reads the PDF directly)";
-            }
-            timer.Add("pdf_extract", extractSw.ElapsedMilliseconds);
-            _progress.SetStage(progressToken, "ai_extract");
+            // =================================================================
+            //  BACKGROUND EXECUTION (June 2026)
+            //  Everything past this point used to run inside THIS request, so the
+            //  user stared at a blocked screen for 2-4 minutes and closing the tab
+            //  killed the Gemini call mid-flight. Now the request only queues the
+            //  work; InterpretationQueueWorker runs it and the browser follows
+            //  along through /Interpretation/Progress.
+            // =================================================================
 
-            if (!useGemini && (string.IsNullOrWhiteSpace(extractedText) || extractedText.Length < 50))
+            // One interpretation at a time per user — keeps us far away from
+            // Gemini's per-project rate limit and makes the credit math obvious.
+            if (_queue.IsUserBusy(user.Email))
             {
-                await SaveHistory(user.Email, originalFileName, languageCode, "rejected", "Empty or too short", 0, null, null, profile.Id);
-                TempData["ErrorMessage"] = Loc.T("PdfEmptyText");
+                TempData["ErrorMessage"] = Loc.T("InterpretationAlreadyRunning");
                 return RedirectToAction(nameof(Upload));
             }
 
-            // 2) Call AI provider for interpretation - with auto-retry on transient errors
-            InterpretationResult result;
-            int inputTokens, outputTokens;
-            string rawGptResponse;
+            // The browser generates the token; if scripts are disabled we still
+            // need one so the job can publish its progress somewhere.
+            if (string.IsNullOrWhiteSpace(progressToken))
+                progressToken = Guid.NewGuid().ToString("N");
 
-            // Build the patient context the AI uses to pick risk-tiered lipid targets.
-            int? ageYears = profile.BirthYear.HasValue
-                ? Math.Max(0, DateTime.UtcNow.Year - profile.BirthYear.Value)
-                : (int?)null;
-            var patientCtx = new PatientContext(
-                CardiovascularRisk: profile.CardiovascularRisk,
-                AgeYears: ageYears,
-                Gender: profile.Gender);
+            // Reserve the credit NOW. Refunded automatically on failure, on a
+            // non-medical rejection, and by the startup recovery after a restart.
+            CreditLedger.ReserveOne(user);
 
-            // Choose Gemini path:
-            //  * TEXT-MODE (preferred when text extraction succeeded): the layout-aware
-            //    PdfPig extractor reads the PDF's text layer directly, so digits are
-            //    literal — eliminates OCR hallucinations like 33.9->33.7 or 0-0.2->0-2.
-            //  * VISION-MODE (fallback): used when PdfTextExtractor returned
-            //    nothing useful (image-only PDFs / scans) OR when the extracted
-            //    text is just metadata/header without real lab measurements.
-            //    Common cause: user opens a PDF in Word, edits the first page
-            //    (adds [MyMedicalApp.NET] markers, patient/email), exports back to
-            //    PDF — Word keeps page 1 as text but RASTERIZES pages 2-3 with
-            //    the actual lab table. PdfPig then only sees the administrative
-            //    header, Gemini correctly says "no medical data" and the user
-            //    gets a confusing rejection. We detect this by counting
-            //    "<number> <lab-unit>" matches in the extracted text and
-            //    fall through to the vision path when there are too few.
-            // The 200-char threshold rules out trivially-short extractions
-            // that would not represent a real lab report.
-            bool extractedTextLooksMedical =
-                !string.IsNullOrWhiteSpace(extractedText)
-                && extractedText.Length >= 200
-                && !extractedText.StartsWith("(text extraction failed")
-                && LooksLikeMedicalData(extractedText);
-
-            bool geminiUseTextMode = useGemini && extractedTextLooksMedical;
-
-            if (useGemini && !geminiUseTextMode)
+            var pending = new InterpretationHistory
             {
-                _logger.LogInformation(
-                    "B2C interpretation: switching to VISION mode (extracted text has too few medical " +
-                    "value+unit patterns — likely rasterized pages or scan-only PDF). File: {File}",
-                    originalFileName);
-            }
-
-            // Two distinct retry budgets:
-            //  * maxAttemptsTransient: for upstream overload / rate-limit (HTTP 429/503).
-            //    These need long backoffs (Google needs time to free capacity) so we
-            //    retry up to 5 times with 5s, 15s, 30s, 60s pauses (~ 110s total).
-            //  * maxAttemptsModel: for model-side issues (malformed JSON, truncated
-            //    output, audit mismatch). 3 attempts is plenty - retrying does not
-            //    help if the model genuinely cannot produce a valid output.
-            //  * FALLBACK MODEL: after `transientFallbackThreshold` consecutive 503/429
-            //    on the primary model, we switch to `GeminiSettings.FallbackModel`
-            //    (typically gemini-2.5-pro) for the remaining transient attempts.
-            //    Pro is more expensive but much less congested globally, so it usually
-            //    succeeds when flash is being throttled. The decision is made once,
-            //    at the threshold, and we stay on the fallback for any further retries
-            //    (no flapping between models).
-            const int maxAttemptsTransient = 5;
-            const int maxAttemptsModel = 3;
-            const int transientFallbackThreshold = 2;
-            int attempt = 0;
-            int transientAttempts = 0;
-            int modelAttempts = 0;
-            // Live progress: publish the table the moment the extraction stage
-            // produces it, so the user sees results at ~40s instead of ~150s.
-            if (_ai is GeminiMedicalInterpretationService progressAware)
-                progressAware.OnStage = (stage, analytes) =>
-                {
-                    if (stage == "ai_extract_done" && analytes != null)
-                        _progress.SetTable(progressToken, analytes);
-                    else
-                        _progress.SetStage(progressToken, stage);
-                };
-
-            string? currentModelOverride = null;
-            // What actually produced the report. On the split pipeline this is
-            // "split: A=..., B=..., C=..." instead of the configured primary
-            // model, so the Admin panel never misleads us again.
-            string? modelsUsedLabel = null;
-            Exception? lastException = null;
-
-            while (true)
-            {
-                attempt++;
-                var aiSw = System.Diagnostics.Stopwatch.StartNew();
-                try
-                {
-                    if (useGemini)
-                    {
-                        if (geminiUseTextMode)
-                        {
-                            // TEXT-mode: send extracted text only - no PDF base64 - so
-                            // values/units/refs are literal (no vision OCR hallucination).
-                            // currentModelOverride is null on the happy path; only set
-                            // after we've decided to fall back to the secondary model
-                            // (typically gemini-2.5-pro) because of repeated 503s.
-                            (result, inputTokens, outputTokens, rawGptResponse) =
-                                await _ai.InterpretTextAsync(extractedText, originalFileName, languageCode, patientCtx,
-                                    HttpContext.RequestAborted, currentModelOverride);
-                        }
-                        else
-                        {
-                            // VISION-mode fallback (scanned PDFs / extraction failed).
-                            // Pass currentModelOverride so the tiered fallback chain
-                            // (Flash → Pro 2.5 → Gemini 3.1) is actually honoured here
-                            // — without it, this path silently stayed on the primary
-                            // model even after the controller had decided to escalate.
-                            using var pdfMs = new MemoryStream(pdfBytes);
-                            (result, inputTokens, outputTokens, rawGptResponse) =
-                                await _ai.InterpretPdfAsync(pdfMs, originalFileName, languageCode, patientCtx,
-                                    HttpContext.RequestAborted, currentModelOverride);
-                        }
-                    }
-                    else
-                    {
-                        (result, inputTokens, outputTokens, rawGptResponse) =
-                            await _ai.InterpretAsync(extractedText, languageCode);
-                    }
-                    timer.Add("ai_calls", aiSw.ElapsedMilliseconds);
-                    timer.Add("ai_attempts", 1);
-                    if (_ai is GeminiMedicalInterpretationService gem)
-                    {
-                        timer.Add("ai_thinking_tokens", gem.LastThoughtsTokenCount);
-                        if (!string.IsNullOrWhiteSpace(gem.LastModelsUsed))
-                            modelsUsedLabel = gem.LastModelsUsed;
-                        // Split pipeline: per-stage milliseconds and tokens, so the
-                        // Admin performance panel can show A / B / C separately.
-                        foreach (var kv in gem.LastStageTimings)
-                            timer.Add(kv.Key, kv.Value);
-                    }
-                    break; // success
-                }
-                catch (GeminiTransientException ex) when (transientAttempts + 1 < maxAttemptsTransient)
-                {
-                    transientAttempts++;
-                    timer.Add("ai_calls", aiSw.ElapsedMilliseconds);
-                    timer.Add("ai_attempts", 1);
-
-                    // Log the failed transient call BEFORE we decide on tier promotion
-                    // so the Reliability widget sees the model that actually hiccupped
-                    // (not the model we are about to escalate to). inputTokens=0 and
-                    // outputTokens=0 so this row contributes ZERO to the cost panel —
-                    // a transient 503 means Google never billed us.
-                    await _aiUsage.LogAsync(
-                        source: "B2C",
-                        userEmail: user.Email,
-                        clinicId: null,
-                        modelUsed: currentModelOverride ?? _geminiSettings.Model ?? "(unknown)",
-                        inputTokens: 0,
-                        outputTokens: 0,
-                        status: "transient_error",
-                        errorMessage: $"HTTP {ex.HttpStatusCode}: {ex.Message}");
-
-                    // Tiered fallback (mirrors CamBatchService, "plasă de siguranță"):
-                    //   tier 1 (null override)              = Primary (e.g. Flash)
-                    //   tier 2 (override == FallbackModel)  = Fallback (e.g. Pro 2.5)
-                    //   tier 3 (override == SecondaryFallback) = Next-gen (e.g. Gemini 3 Pro)
-                    // We promote tier 1→2 at transientFallbackThreshold and 2→3
-                    // when Pro itself keeps hitting transient errors, so the
-                    // user gets a result instead of a final retry exhaustion.
-                    if (currentModelOverride == null
-                        && transientAttempts >= transientFallbackThreshold
-                        && !string.IsNullOrWhiteSpace(_geminiSettings.FallbackModel)
-                        && !string.Equals(_geminiSettings.FallbackModel, _geminiSettings.Model,
-                                          StringComparison.OrdinalIgnoreCase))
-                    {
-                        currentModelOverride = _geminiSettings.FallbackModel;
-                        _logger.LogWarning(
-                            "Gemini primary model {Primary} hit {Count} consecutive transient {Status} errors. " +
-                            "Switching to FALLBACK model {Fallback} for the remaining retries.",
-                            _geminiSettings.Model, transientAttempts, ex.HttpStatusCode, currentModelOverride);
-                    }
-                    else if (string.Equals(currentModelOverride, _geminiSettings.FallbackModel,
-                                           StringComparison.OrdinalIgnoreCase)
-                             && !string.IsNullOrWhiteSpace(_geminiSettings.SecondaryFallbackModel)
-                             && !string.Equals(_geminiSettings.SecondaryFallbackModel,
-                                               _geminiSettings.FallbackModel,
-                                               StringComparison.OrdinalIgnoreCase)
-                             && !string.Equals(_geminiSettings.SecondaryFallbackModel,
-                                               _geminiSettings.Model,
-                                               StringComparison.OrdinalIgnoreCase))
-                    {
-                        currentModelOverride = _geminiSettings.SecondaryFallbackModel;
-                        _logger.LogWarning(
-                            "Gemini FALLBACK model also hit transient {Status}. " +
-                            "Switching to SECONDARY FALLBACK {Sec} for the remaining retries.",
-                            ex.HttpStatusCode, currentModelOverride);
-                    }
-
-                    // Progressive backoff for upstream overload: 5s, 15s, 30s, 60s
-                    int[] delaysMs = { 5_000, 15_000, 30_000, 60_000 };
-                    int wait = delaysMs[Math.Min(transientAttempts - 1, delaysMs.Length - 1)];
-                    _logger.LogWarning(
-                        "Gemini upstream transient {Status} (try {N}/{Max}). Backing off {Wait} ms. Model in use: {Model}.",
-                        ex.HttpStatusCode, transientAttempts, maxAttemptsTransient, wait,
-                        currentModelOverride ?? _geminiSettings.Model);
-                    lastException = ex;
-                    await Task.Delay(wait);
-                }
-                catch (GeminiModelRetiredException ex)
-                {
-                    // Google retired the model id we're calling. Tiered promotion:
-                    //   * if we're still on Primary → try FallbackModel
-                    //   * if we're on FallbackModel → try SecondaryFallbackModel
-                    //   * otherwise (already on last tier or all the same id) → fail clean.
-                    string? nextModel = null;
-                    if (currentModelOverride == null)
-                        nextModel = _geminiSettings.FallbackModel;
-                    else if (string.Equals(currentModelOverride, _geminiSettings.FallbackModel,
-                                           StringComparison.OrdinalIgnoreCase))
-                        nextModel = _geminiSettings.SecondaryFallbackModel;
-
-                    if (!string.IsNullOrWhiteSpace(nextModel)
-                        && !string.Equals(nextModel, ex.RetiredModelId, StringComparison.OrdinalIgnoreCase)
-                        && !string.Equals(nextModel, _geminiSettings.Model, StringComparison.OrdinalIgnoreCase)
-                        && !string.Equals(nextModel, currentModelOverride, StringComparison.OrdinalIgnoreCase))
-                    {
-                        var prev = currentModelOverride ?? _geminiSettings.Model;
-                        currentModelOverride = nextModel;
-                        _logger.LogWarning(
-                            "Gemini model '{Retired}' has been retired by Google. " +
-                            "Promoting from {Prev} to {Next} and retrying immediately.",
-                            ex.RetiredModelId, prev, currentModelOverride);
-                        lastException = ex;
-                        continue; // do NOT consume an attempt slot
-                    }
-                    // Last resort — surface a clear admin-facing log and rethrow so
-                    // the caller marks this interpretation as failed.
-                    _logger.LogError(
-                        "Gemini model '{Retired}' has been retired and no usable fallback is configured. " +
-                        "Update appsettings.json -> Gemini.Model / FallbackModel / SecondaryFallbackModel.",
-                        ex.RetiredModelId);
-                    throw;
-                }
-                catch (OperationCanceledException ex) when (transientAttempts + 1 < maxAttemptsTransient)
-                {
-                    transientAttempts++;
-                    _logger.LogWarning(ex,
-                        "{Provider} call timed out (transient try {N}/{Max}). Retrying...",
-                        providerName, transientAttempts, maxAttemptsTransient);
-                    await _aiUsage.LogAsync(
-                        source: "B2C",
-                        userEmail: user.Email,
-                        clinicId: null,
-                        modelUsed: currentModelOverride ?? _geminiSettings.Model ?? "(unknown)",
-                        inputTokens: 0,
-                        outputTokens: 0,
-                        status: "transient_error",
-                        errorMessage: "Timeout: " + (ex.Message.Length > 200 ? ex.Message[..200] : ex.Message));
-                    lastException = ex;
-                    await Task.Delay(5_000 * transientAttempts); // 5s, 10s, 15s, 20s
-                }
-                catch (HttpRequestException ex) when (transientAttempts + 1 < maxAttemptsTransient)
-                {
-                    transientAttempts++;
-                    _logger.LogWarning(ex,
-                        "{Provider} HTTP error (transient try {N}/{Max}). Retrying...",
-                        providerName, transientAttempts, maxAttemptsTransient);
-                    await _aiUsage.LogAsync(
-                        source: "B2C",
-                        userEmail: user.Email,
-                        clinicId: null,
-                        modelUsed: currentModelOverride ?? _geminiSettings.Model ?? "(unknown)",
-                        inputTokens: 0,
-                        outputTokens: 0,
-                        status: "transient_error",
-                        errorMessage: "HttpRequestException: " + (ex.Message.Length > 200 ? ex.Message[..200] : ex.Message));
-                    lastException = ex;
-                    await Task.Delay(5_000 * transientAttempts);
-                }
-                catch (InvalidOperationException ex) when (
-                    ex.Message.Contains("MaxOutputTokens", StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(currentModelOverride, _geminiSettings.SecondaryFallbackModel,
-                                      StringComparison.OrdinalIgnoreCase))
-                {
-                    // Flash returned a truncated response at MaxOutputTokens. PDFs cu mulți
-                    // parametri (Examen sumar urină + sediment) sau cu sumar AI prolix
-                    // depășesc limita. Pro suportă output mai mare; SecondaryFallback (Gemini 3)
-                    // și mai mult. Comut imediat la următorul tier FĂRĂ să consum din retry budget.
-                    // Aceeași strategie ca pe CAM batch — simetrie B2C ↔ B2B.
-                    string? nextModel = null;
-                    if (currentModelOverride == null)
-                        nextModel = _geminiSettings.FallbackModel;
-                    else if (string.Equals(currentModelOverride, _geminiSettings.FallbackModel,
-                                           StringComparison.OrdinalIgnoreCase))
-                        nextModel = _geminiSettings.SecondaryFallbackModel;
-
-                    if (!string.IsNullOrWhiteSpace(nextModel)
-                        && !string.Equals(nextModel, currentModelOverride, StringComparison.OrdinalIgnoreCase)
-                        && !string.Equals(nextModel, _geminiSettings.Model, StringComparison.OrdinalIgnoreCase))
-                    {
-                        var prev = currentModelOverride ?? _geminiSettings.Model;
-                        currentModelOverride = nextModel;
-                        _logger.LogWarning(
-                            "Gemini hit MaxOutputTokens on {Prev}; switching to {Next} for this request " +
-                            "(no retry budget consumed). Detail: {Detail}",
-                            prev, nextModel, ex.Message);
-                        lastException = ex;
-                        // NU incrementăm modelAttempts — comutarea pe tier-ul următor NU consumă budget.
-                        continue;
-                    }
-                    // No next tier available — fall through to the generic
-                    // InvalidOperationException catch below for normal retry.
-                    throw;
-                }
-                catch (InvalidOperationException ex) when (modelAttempts + 1 < maxAttemptsModel)
-                {
-                    modelAttempts++;
-                    // Model-side issues: malformed JSON, truncated output (MAX_TOKENS),
-                    // audit mismatch, empty response. These often succeed on a fresh call.
-                    _logger.LogWarning(ex,
-                        "{Provider} produced an invalid response (model try {N}/{Max}). Retrying... Reason: {Reason}",
-                        providerName, modelAttempts, maxAttemptsModel, ex.Message);
-
-                    // Feb 2026 — Tiered promotion on JSON/audit failures.
-                    // Historical bug: retrying the SAME model on dense reports
-                    // (e.g. 78 parameters, ~20k output tokens) tends to repeat
-                    // the same syntax error. On the reported production
-                    // incident, Flash was called 3× consecutively and failed 3×
-                    // with the exact same "'}' invalid without matching open"
-                    // error at doctor_questions[5]. Meanwhile Pro (Fallback)
-                    // and 3.1-Pro (SecondaryFallback) were never tried.
-                    //
-                    // Fix: escalate to the next tier IMMEDIATELY, without
-                    // consuming a retry slot on the same underperforming model.
-                    // Mirrors the tiered promotion pattern already used for
-                    // MaxOutputTokens above (~line 540).
-                    //
-                    // Progression on a dense report:
-                    //   attempt 1 = Flash          → JSON error caught here
-                    //   attempt 2 = Pro (Fallback) → new model, better chance
-                    //   attempt 3 = 3.1-Pro (Sec.) → strongest model, last shot
-                    string? nextModel = null;
-                    if (currentModelOverride == null)
-                        nextModel = _geminiSettings.FallbackModel;
-                    else if (string.Equals(currentModelOverride, _geminiSettings.FallbackModel,
-                                           StringComparison.OrdinalIgnoreCase))
-                        nextModel = _geminiSettings.SecondaryFallbackModel;
-                    // else: already on SecondaryFallback → no higher tier to
-                    // escalate to. The retry then re-tries the same top-tier
-                    // model (better than nothing, sometimes 3.1-Pro succeeds
-                    // on the second call).
-
-                    if (!string.IsNullOrWhiteSpace(nextModel)
-                        && !string.Equals(nextModel, currentModelOverride, StringComparison.OrdinalIgnoreCase)
-                        && !string.Equals(nextModel, _geminiSettings.Model, StringComparison.OrdinalIgnoreCase))
-                    {
-                        var prev = currentModelOverride ?? _geminiSettings.Model;
-                        currentModelOverride = nextModel;
-                        _logger.LogWarning(
-                            "{Provider} JSON/audit failure on {Prev}. Escalating to {Next} " +
-                            "for the next attempt (retry slot {N}/{Max} already consumed).",
-                            providerName, prev, currentModelOverride, modelAttempts, maxAttemptsModel);
-                    }
-
-                    lastException = ex;
-                    await Task.Delay(1500 * modelAttempts); // 1.5s, 3s
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex,
-                        "{Provider} interpretation failed (transient={T}/{TMax}, model={M}/{MMax})",
-                        providerName, transientAttempts, maxAttemptsTransient, modelAttempts, maxAttemptsModel);
-
-                    bool isTransient = ex is GeminiTransientException
-                                    || ex is OperationCanceledException
-                                    || ex is HttpRequestException;
-
-                    // For transient upstream failures (Google overloaded, network issues),
-                    // do NOT save a noisy "error" row in the user's archive. The user did
-                    // not produce a bad PDF - Google was busy. Logged in the file only.
-                    if (!isTransient)
-                    {
-                        await SaveHistory(user.Email, originalFileName, languageCode, "error",
-                            ex.Message, 0, null, null, profile.Id);
-                    }
-
-                    string msgKey;
-                    if (ex is GeminiTransientException gex)
-                    {
-                        msgKey = gex.HttpStatusCode == 429
-                            ? "AiRateLimited"
-                            : "AiOverloaded";
-                    }
-                    else if (ex is OperationCanceledException || ex is HttpRequestException)
-                    {
-                        msgKey = "InterpretationTimeout";
-                    }
-                    else
-                    {
-                        msgKey = "InterpretationFailed";
-                    }
-                    TempData["ErrorMessage"] = Loc.T(msgKey);
-                    _progress.Fail(progressToken, Loc.T(msgKey));
-                    return RedirectToAction(nameof(Upload));
-                }
-            }
-
-            // 3) If non-medical, reject without consuming credit
-            if (!result.IsMedicalAnalysis)
-            {
-                await SaveHistory(user.Email, originalFileName, languageCode, "rejected", result.RejectionReason, 0, inputTokens, outputTokens, profile.Id, rawGptResponse, pdfHash,
-                    modelUsed: useGemini ? (modelsUsedLabel ?? currentModelOverride ?? _geminiSettings.Model) : null);
-                _progress.Fail(progressToken, Loc.T("NotMedicalAnalysisMessage"));
-                TempData["ErrorMessage"] = string.Format(Loc.T("NotMedicalAnalysisMessage"),
-                    result.RejectionReason ?? Loc.T("UnknownReason"));
-                return RedirectToAction(nameof(Upload));
-            }
-
-            // 3.5) POST-LLM mathematical validator (safety net for math hallucinations).
-            // Now that we use TEXT-mode for digital PDFs, values are literal and OCR
-            // hallucinations are gone — but the model can still mislabel a status
-            // (e.g. value 0.03 inside range 0-0.2 wrongly flagged "high"). This
-            // recomputes the status from value+range in plain C#. Parameters whose
-            // value or range cannot be parsed (e.g. "negative"/"positive", multi-tier
-            // text ranges) are SKIPPED and the model's status is preserved. The
-            // call is wrapped in try/catch so a validator bug NEVER breaks the flow.
-            bool resultMutated = false;
-
-            // 3.4) Strip the lab's internal routing markers ("LLIS", "#LC", ...)
-            // that the text layer glues in front of the analyte name. Runs
-            // BEFORE the LOINC matcher so the matcher receives clean names.
-            try
-            {
-                if (LabMarkerSanitizer.Clean(result) > 0) resultMutated = true;
-            }
-            catch
-            {
-                // Cosmetic step — never break the interpretation flow.
-            }
-
-            try
-            {
-                var stats = StatusValidator.Validate(result, _logger);
-                _logger.LogInformation(
-                    "StatusValidator: parsed {Total} parameter(s), corrected {Corrected}, skipped (unparseable value/range) {Skipped}.",
-                    stats.Total, stats.Corrected, stats.Skipped);
-                if (stats.Corrected > 0) resultMutated = true;
-            }
-            catch (Exception valEx)
-            {
-                // Validator must NEVER break the user's interpretation flow.
-                _logger.LogWarning(valEx,
-                    "StatusValidator threw an unexpected exception. Continuing with the model's original statuses.");
-            }
-
-            // 3.5) Guarantee the "out of range" section is COMPLETE. The model
-            // writes abnormal_findings itself and drops entries on dense reports
-            // (observed 8 listed out of 12 actual). Runs AFTER StatusValidator so
-            // it works on the final, C#-verified statuses.
-            try
-            {
-                var addedFindings = AbnormalFindingsCompleter.Complete(result);
-                if (addedFindings > 0)
-                {
-                    resultMutated = true;
-                    _logger.LogInformation(
-                        "AbnormalFindingsCompleter: added {Added} out-of-range analyte(s) the model had omitted.",
-                        addedFindings);
-                }
-            }
-            catch (Exception afEx)
-            {
-                _logger.LogWarning(afEx, "AbnormalFindingsCompleter threw. Keeping the model's list as is.");
-            }
-
-            // 3.5b) Rebuild the raw analyte lines locally instead of paying the
-            // model to retype them (~30-40% of the extraction stage's tokens).
-            // Runs BEFORE the LOINC matcher, which uses that line as context.
-            try
-            {
-                var rebuilt = RawLineReconstructor.Fill(result, extractedText);
-                if (rebuilt > 0)
-                {
-                    _logger.LogInformation(
-                        "RawLineReconstructor: rebuilt {Count} raw analyte line(s) locally (no LLM tokens spent).",
-                        rebuilt);
-                }
-            }
-            catch (Exception rlEx)
-            {
-                _logger.LogWarning(rlEx, "RawLineReconstructor threw. Continuing without the raw lines.");
-            }
-
-            _progress.SetStage(progressToken, "loinc_match");
-
-            // 3.6) POST-LLM LOINC matcher (new pipeline, Faza C v4).
-            // Gemini emits only `parameter_normalized_en` (a clean English medical
-            // term). The deterministic Python FastAPI matcher (semantic + fuzzy +
-            // rules over the local 97k-entry LoincDictionary) resolves the
-            // canonical LOINC code from that term. Eliminates LLM LOINC
-            // hallucinations entirely. Conservative: any matcher failure is
-            // silently skipped — the entry simply has null LoincCode and the
-            // rest of the pipeline (PDF, email, Compare) continues normally.
-            try
-            {
-                var loincSw = System.Diagnostics.Stopwatch.StartNew();
-                var matcherStats = await _loincMatcher.MatchAllAsync(result, HttpContext.RequestAborted);
-                timer.Add("loinc_match", loincSw.ElapsedMilliseconds);
-                // Any code populated by the matcher must trigger re-serialization
-                // so the DB-persisted RawJsonResult reflects the assigned codes
-                // (used by PDF regeneration, archive and Compare-by-LOINC view).
-                if (matcherStats.Matched > 0)
-                {
-                    resultMutated = true;
-                }
-            }
-            catch (Exception lmEx)
-            {
-                _logger.LogWarning(lmEx,
-                    "LoincMatcherClient threw an unexpected exception. " +
-                    "Continuing without LOINC codes for this interpretation.");
-            }
-
-            // Re-serialize the corrected InterpretationResult so the JSON we
-            // persist in the DB (RawJsonResult) reflects the corrected statuses
-            // AND LOINC nulling. This is critical for the upcoming P1.6
-            // denormalization and P1.8 evolution charts, which both read from
-            // RawJsonResult.
-            if (resultMutated)
-            {
-                rawGptResponse = JsonSerializer.Serialize(result, new JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-                });
-            }
-
-            _progress.SetStage(progressToken, "pdf_report");
-
-            // 4) Generate PDF report
-            byte[] reportPdfBytes;
-            try
-            {
-                var labels = BuildLabels(languageCode);
-                // Footer badge: tell the reader which pipeline produced this PDF.
-                labels.ProcessingMode = useGemini
-                    ? Loc.T(geminiUseTextMode ? "ProcessingModeText" : "ProcessingModeVision")
-                    : "";
-                // Freemium rule: a user is "freemium" until they buy at least one
-                // paid pack. user.Credite is the cumulative bought-credits counter
-                // (it grows on every CreditsController purchase). When it's still
-                // zero, the user is either on the initial 1 free bonus credit or
-                // on promo bonus credits — both of those produce blurred PDFs to
-                // motivate the upgrade.
-                bool isFreemium = user.Credite == 0;
-                var pdfSw = System.Diagnostics.Stopwatch.StartNew();
-                reportPdfBytes = _pdfGenerator.Generate(result, labels, isFreemium);
-                timer.Add("pdf_report", pdfSw.ElapsedMilliseconds);
-                _progress.SetStage(progressToken, "done");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "PDF generation failed");
-                await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, inputTokens, outputTokens, profile.Id);
-                TempData["ErrorMessage"] = Loc.T("PdfGenerationFailed");
-                _progress.Fail(progressToken, Loc.T("PdfGenerationFailed"));
-                return RedirectToAction(nameof(Upload));
-            }
-
-            // 5) Send email with attachment (+ debug attachments: extracted text and raw GPT JSON)
-            try
-            {
-                // Subject + body must follow the LANGUAGE OF THE REPORT (languageCode),
-                // not the UI culture, so the user sees an email consistent with the
-                // attached PDF — even when they have the UI in one language but
-                // requested the interpretation in another (e.g. UI=RO, report=DE).
-                var subject = $"[{profile.Name}] " + Loc.T("ResultEmailSubject", languageCode);
-                var htmlBody = BuildEmailBody(originalFileName, profile.Name, languageCode);
-                var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                var emailSw = System.Diagnostics.Stopwatch.StartNew();
-
-                var attachments = new List<(byte[] Bytes, string FileName, string MimeType)>
-                {
-                    (reportPdfBytes,
-                        $"MedicalApp_Interpretation_{timestamp}.pdf",
-                        "application/pdf"),
-                    // NOTE: DEBUG_01 (extracted text) and DEBUG_02 (raw AI JSON)
-                    // were previously attached for QA but are now dropped from
-                    // user-facing emails per product decision. The same data is
-                    // still kept in DB (InterpretationHistories.RawJsonResult)
-                    // for admin / support investigations.
-                };
-
-                await _emailService.SendEmailWithAttachmentsAsync(
-                    user.Email, subject, htmlBody, attachments);
-                timer.Add("email", emailSw.ElapsedMilliseconds);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Sending result email failed");
-                await SaveHistory(user.Email, originalFileName, languageCode, "error", ex.Message, 0, inputTokens, outputTokens, profile.Id);
-                TempData["ErrorMessage"] = Loc.T("EmailSendFailed");
-                return RedirectToAction(nameof(Upload));
-            }
-
-            // 6) Consume 1 credit (SUCCESS) - bonus first, then paid
-            if (user.BonusCreditsRemaining > 0)
-            {
-                user.BonusCreditsConsumed += 1;
-            }
-            else
-            {
-                user.CreditConsum += 1;
-                user.CreditRest = user.Credite - user.CreditConsum;
-            }
+                UserEmail = user.Email,
+                OriginalFileName = originalFileName,
+                Language = languageCode,
+                Status = "processing",
+                CreditsConsumed = 1,
+                ProfileId = profile.Id,
+                PdfSha256 = pdfHash,
+                CreatedAt = DateTime.UtcNow
+            };
+            _db.InterpretationHistories.Add(pending);
             await _db.SaveChangesAsync();
 
-            var savedHistoryId = await SaveHistory(user.Email, originalFileName, languageCode, "success", null, 1, inputTokens, outputTokens, profile.Id, rawGptResponse, pdfHash,
-                modelUsed: useGemini ? (modelsUsedLabel ?? currentModelOverride ?? _geminiSettings.Model) : null,
-                timer: timer);
+            var job = new InterpretationJob(
+                HistoryId: pending.Id,
+                UserEmail: user.Email,
+                ProfileId: profile.Id,
+                ProfileName: profile.Name,
+                PdfBytes: pdfBytes,
+                OriginalFileName: originalFileName,
+                PdfHash: pdfHash,
+                LanguageCode: languageCode,
+                Force: force,
+                ProgressToken: progressToken);
 
-            _logger.LogInformation(
-                "Interpretation TIMING (history {Id}, file {File}): {Timings}",
-                savedHistoryId, originalFileName, timer.ToString());
-
-            // OVERRIDE on force re-interpret: the user explicitly paid for a fresh
-            // run, and we want a single canonical row per (user, profile, pdfHash)
-            // so charts and aggregations are not polluted with duplicates.
-            if (force)
+            if (!_queue.TryEnqueue(job))
             {
-                // Find all earlier success rows with the same hash for this user+profile
-                // (excluding the row we just inserted, which is the most recent).
-                var stale = await _db.InterpretationHistories
-                    .Where(h => h.UserEmail == user.Email
-                                && h.ProfileId == profile.Id
-                                && h.Status == "success"
-                                && h.PdfSha256 == pdfHash)
-                    .OrderByDescending(h => h.CreatedAt)
-                    .Skip(1) // keep the newest, drop the rest
-                    .ToListAsync();
-
-                if (stale.Count > 0)
-                {
-                    _db.InterpretationHistories.RemoveRange(stale);
-                    await _db.SaveChangesAsync();
-                    _logger.LogInformation(
-                        "Force re-interpret OVERRIDE: removed {Count} stale row(s) with matching hash for {Email}/profile={Pid}.",
-                        stale.Count, user.Email, profile.Id);
-                }
+                // Lost a race with another tab of the same user — undo cleanly.
+                CreditLedger.RefundOne(user);
+                _db.InterpretationHistories.Remove(pending);
+                await _db.SaveChangesAsync();
+                TempData["ErrorMessage"] = Loc.T("InterpretationAlreadyRunning");
+                return RedirectToAction(nameof(Upload));
             }
 
-            // Signal to the redirect destination (Dashboard or the on-screen report)
-            // that a B2C interpretation just finished successfully → the page plays
-            // the longer ~2.5 s finale jingle via
-            // window.DoctorMascot.playInterpretationFinishSound(). Cleared after one
-            // page render because TempData is single-shot.
-            TempData["PlayInterpretationSuccessSound"] = "1";
+            _logger.LogInformation(
+                "Interpretation queued: history={Id}, user={Email}, profile={Pid}, file={File}.",
+                pending.Id, user.Email, profile.Id, originalFileName);
 
-            // Freemium users land on the on-screen DEMO report instead of the
-            // Dashboard: they see the result immediately, inside the app, with the
-            // "unlock for FREE" CTAs one click from the paywall. The PDF email was
-            // already sent above, so nothing is lost. The report screen states that
-            // the email went out, so no extra SuccessMessage is needed here.
-            if (user.Credite == 0)
-                return RedirectToAction("ViewReport", "Profiles", new { id = savedHistoryId });
-
-            TempData["SuccessMessage"] = Loc.T("InterpretationEmailedSuccess");
-            return RedirectToAction("Dashboard", "Account");
+            // Re-render the upload page with the progress overlay already open and
+            // bound to this job's token. The user can stay and watch, or leave —
+            // the job finishes either way.
+            ViewBag.ActiveProgressToken = progressToken;
+            ViewBag.ActiveHistoryId = pending.Id;
+            ViewBag.ActiveProfileId = profile.Id;
+            await RepopulateFormViewBags(user, model);
+            return View(model);
         }
 
         private async Task<int> SaveHistory(string email, string? file, string? lang, string status,
@@ -1064,57 +431,6 @@ namespace MedicalApp.Controllers
             return Convert.ToHexString(hash).ToLowerInvariant();
         }
 
-        // ===================================================================
-        //  LooksLikeMedicalData
-        //  Quick heuristic: does the extracted text actually contain lab
-        //  measurements (a number followed by a typical lab unit), or only
-        //  administrative metadata?
-        //
-        //  Triggered when a PDF was edited in Word (e.g. user adds
-        //  [MyMedicalApp.NET] / patient / email markers on page 1) and Word
-        //  rasterizes pages 2-3 with the actual lab table. PdfPig then
-        //  only sees the cover-page header — the resulting text is long
-        //  enough to clear the 200-char threshold but contains NO real
-        //  values+units. If we send it to Gemini's TEXT path we get the
-        //  "no medical data" rejection. Returning false here makes the
-        //  controller fall through to VISION mode (same path B2B uses),
-        //  which works because Gemini reads the rasterized pages visually.
-        //
-        //  Match pattern: a number (optionally with comma/dot decimal)
-        //  immediately followed (allowing whitespace) by a common lab unit —
-        //  g/dL, mg/dL, µg/L, ng/mL, mmol/L, mIU/mL, U/L, mm/h, 10^3/uL,
-        //  10^6/uL, or a bare "%".
-        //
-        //  The threshold of 5 distinct matches is intentionally low: a real
-        //  lab report has dozens; a metadata-only page has zero or maybe one
-        //  (e.g. age "64 ani"). Five is enough headroom for false negatives.
-        // ===================================================================
-        private static readonly Regex s_medicalValueUnit = new Regex(
-            @"\d+(?:[.,]\d+)?\s*(?:g\s*/\s*d[lL]"
-            + @"|mg\s*/\s*d[lL]"
-            + @"|µ?g\s*/\s*[lL]"
-            + @"|n?g\s*/\s*m[lL]"
-            + @"|mmol\s*/\s*[lL]"
-            + @"|mIU\s*/\s*m[lL]"
-            + @"|U\s*/\s*[lL]"
-            + @"|mm\s*/\s*h"
-            + @"|10\^?[36]\s*/\s*u?[lL]"
-            + @"|fl\b"
-            + @"|pg\b"
-            + @"|%)",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        private static bool LooksLikeMedicalData(string text)
-        {
-            if (string.IsNullOrWhiteSpace(text)) return false;
-            // Threshold of 3 distinct value+unit matches is intentionally low:
-            // a real lab report has 10-60+ measurements; a metadata-only
-            // (rasterized-body) PDF has zero. Anything in between is rare,
-            // so 3 cleanly separates the two cases with minimal false
-            // positives on tiny single-test reports.
-            return s_medicalValueUnit.Matches(text).Count >= 3;
-        }
-
         /// <summary>
         /// Holds the uploaded PDF bytes in memory so the user can trigger a
         /// "force re-interpret" without being asked to re-select the file.
@@ -1140,39 +456,5 @@ namespace MedicalApp.Controllers
                 .ToListAsync();
         }
 
-        // ===================================================================
-        //  BuildEmailBody
-        //  IMPORTANT: pass the language that was used to GENERATE the
-        //  interpretation (form's languageCode), NOT the UI culture. The
-        //  user can have their UI in one language while requesting the
-        //  report in another (e.g. UI=RO, interpretation=DE). Both the
-        //  subject and the body must match the report's language so the
-        //  email feels consistent with the attached PDF.
-        // ===================================================================
-        private static string BuildEmailBody(string? originalFileName, string? profileName, string? languageCode)
-        {
-            var greeting = Loc.T("EmailGreeting", languageCode);
-            var intro = Loc.T("ResultEmailIntro", languageCode);
-            var attached = Loc.T("ResultEmailAttachedNote", languageCode);
-            var tagline = Loc.T("Tagline", languageCode);
-            var regards = Loc.T("EmailRegards", languageCode);
-            var profileLine = string.IsNullOrWhiteSpace(profileName)
-                ? string.Empty
-                : $"<p style='background:#eef5ff;border-left:4px solid #0d47a1;padding:10px 14px;border-radius:6px;margin:16px 0;'>{string.Format(Loc.T("EmailInterpretForProfileFmt", languageCode), $"<strong>{System.Net.WebUtility.HtmlEncode(profileName)}</strong>")}</p>";
-            return $@"
-<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
-    <h2 style='color: #0d47a1;'>MyMedicalApp.NET</h2>
-    <p>{greeting}</p>
-    {profileLine}
-    <p>{intro}</p>
-    <p style='color: #6c757d; font-size: 0.9em;'>{attached}</p>
-    <p style='font-style: italic; color: #0d47a1;'>{tagline}</p>
-    <hr style='border: none; border-top: 1px solid #dee2e6; margin: 20px 0;' />
-    <p style='color: #6c757d; font-size: 0.9em;'>{regards}</p>
-    <p style='color: #0d47a1; font-weight: bold;'>www.mymedicalapp.net</p>
-</div>";
-        }
-
-        private static LocalizedLabels BuildLabels(string _) => LocalizedLabels.ForCurrentUi();
     }
 }

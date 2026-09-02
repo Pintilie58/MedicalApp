@@ -27,6 +27,15 @@
                 <small class="text-muted">@Loc.T("OneCreditPerInterpretation")</small>
             </div>
 
+            @if (ViewBag.HasRunningJob as bool? == true)
+            {
+                <div class="alert alert-info d-flex align-items-start gap-2"
+                     data-testid="interpretation-running-banner">
+                    <span class="spinner-border spinner-border-sm mt-1" role="status"></span>
+                    <div>@Loc.T("InterpretationRunningBanner")</div>
+                </div>
+            }
+
             @if (ViewBag.LoincOffline as bool? == true)
             {
                 <div class="alert alert-warning d-flex align-items-start gap-2"
@@ -171,7 +180,7 @@
             };
         }
         <partial name="_DoctorMascot" view-data="uploadMascotVd" />
-        <p class="processing-subtitle">@Loc.T("PleaseWaitDoNotClose")</p>
+        <p class="processing-subtitle" data-testid="upload-background-note">@Loc.T("InterpretationRunsInBackground")</p>
 
         <!-- Live progress: real stages + the results table as soon as it exists. -->
         <div class="progress-steps" id="progressSteps" data-testid="upload-progress-steps">
@@ -182,6 +191,14 @@
             <div class="progress-step" data-step="pdf_report"><span class="dot"></span>@Loc.T("ProgressStepPdf")</div>
         </div>
         <div class="progress-elapsed" id="progressElapsed" data-testid="upload-progress-elapsed"></div>
+
+        <div id="progressError" class="alert alert-danger text-start mt-2" hidden
+             data-testid="upload-progress-error"></div>
+
+        <div class="mt-2">
+            <a href="#" id="leaveInBackgroundLink" class="btn btn-outline-primary btn-sm"
+               data-testid="leave-in-background-btn">@Loc.T("LeaveInBackgroundBtn")</a>
+        </div>
 
         <div id="partialResults" class="partial-results" data-testid="upload-partial-results" hidden>
             <div class="partial-results-head">
@@ -517,10 +534,29 @@
             // ---------------------------------------------------------------
             var STAGES = ['upload', 'ai_extract', 'ai_explain', 'loinc_match', 'pdf_report'];
             var tokenEl = document.getElementById('progressToken');
-            var token = (window.crypto && window.crypto.randomUUID)
-                ? window.crypto.randomUUID()
-                : 'p' + Date.now() + Math.random().toString(36).slice(2);
+            // When the POST comes back, the server hands us the token of the job it
+            // just queued so we keep following THAT job instead of inventing a new one.
+            var serverToken = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                (ViewBag.ActiveProgressToken as string) ?? ""));
+            var token = serverToken
+                || ((window.crypto && window.crypto.randomUUID)
+                    ? window.crypto.randomUUID()
+                    : 'p' + Date.now() + Math.random().toString(36).slice(2));
             if (tokenEl) tokenEl.value = token;
+
+            // "Lasă în fundal" → the profile's archive, where the row shows "în lucru".
+            var bgLink = document.getElementById('leaveInBackgroundLink');
+            function backgroundHref() {
+                var sel = document.querySelector('[name="ProfileId"]');
+                var pid = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                    ViewBag.ActiveProfileId as int? ?? 0));
+                if (!pid && sel && sel.value) pid = parseInt(sel.value, 10) || 0;
+                return pid ? ('/Profiles/History/' + pid) : '/Profiles';
+            }
+            if (bgLink) bgLink.addEventListener('click', function (e) {
+                e.preventDefault();
+                window.location.href = backgroundHref();
+            });
 
             function paintStage(stage) {
                 var idx = STAGES.indexOf(stage);
@@ -569,16 +605,17 @@
             function startProgressPolling() {
                 var started = Date.now();
                 var elapsedEl = document.getElementById('progressElapsed');
+                var errEl = document.getElementById('progressError');
                 paintStage('upload');
 
-                setInterval(function () {
+                var elapsedTimer = setInterval(function () {
                     if (elapsedEl) {
                         var s = Math.round((Date.now() - started) / 1000);
                         elapsedEl.textContent = '@Loc.T("ProgressElapsed")'.replace('{0}', s);
                     }
                 }, 1000);
 
-                setInterval(function () {
+                var pollTimer = setInterval(function () {
                     fetch('@Url.Action("Progress", "Interpretation")?token=' + encodeURIComponent(token),
                           { credentials: 'same-origin' })
                         .then(function (r) { return r.ok ? r.json() : null; })
@@ -586,9 +623,44 @@
                             if (!d) return;
                             paintStage(d.stage);
                             if (d.table && d.table.length) paintTable(d.table, d.outOfRange);
+
+                            if (d.stage === 'done' && d.redirectUrl) {
+                                clearInterval(pollTimer);
+                                clearInterval(elapsedTimer);
+                                try {
+                                    if (window.DoctorMascot &&
+                                        window.DoctorMascot.playInterpretationFinishSound) {
+                                        window.DoctorMascot.playInterpretationFinishSound();
+                                    }
+                                } catch (e) { /* sound is a nicety */ }
+                                window.location.href = d.redirectUrl;
+                                return;
+                            }
+
+                            if (d.stage === 'error') {
+                                clearInterval(pollTimer);
+                                clearInterval(elapsedTimer);
+                                if (errEl) {
+                                    errEl.textContent = d.error || '';
+                                    errEl.hidden = false;
+                                }
+                                if (btn) {
+                                    btn.disabled = false;
+                                    btn.innerHTML = '@Loc.T("InterpretAndSend")';
+                                }
+                            }
                         })
                         .catch(function () { /* polling is best-effort */ });
                 }, 1500);
+            }
+
+            // The POST returns immediately now (the job runs in the background),
+            // so when the server hands us a token we re-open the overlay and keep
+            // watching the job that is already running.
+            if (serverToken) {
+                overlay.classList.add('is-visible');
+                overlay.setAttribute('aria-hidden', 'false');
+                startProgressPolling();
             }
 
             // Safety net: if user navigates back via bfcache and the page is

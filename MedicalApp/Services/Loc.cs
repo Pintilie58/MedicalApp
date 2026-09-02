@@ -833,6 +833,12 @@ namespace MedicalApp.Services
                 ["ProcessingModeText"] = "Processed in text mode (literal extraction)",
                 ["LoincOfflineWarningTitle"] = "LOINC service unavailable",
                 ["LoincOfflineWarningBody"] = "The interpretation will still run normally, but the analytes will not receive LOINC codes, so they will not appear in the charts and comparisons. Start the LOINC service and reload this page before uploading.",
+                ["InterpretationAlreadyRunning"] = "You already have an interpretation running. Wait for it to finish — you will get the email and it will appear in the archive.",
+                ["InterpretationRunsInBackground"] = "The interpretation runs on the server. You can close this page or keep browsing — it will be finished either way, and the result arrives by email and in the archive.",
+                ["LeaveInBackgroundBtn"] = "Leave it running in the background",
+                ["InterpretationRunningBanner"] = "An interpretation is running in the background. You will find it in the profile's archive as soon as it is ready.",
+                ["HistoryStatusProcessing"] = "In progress",
+                ["HistoryProcessingNote"] = "The interpretation is running on the server; this page refreshes by itself.",
                 ["ProcessingModeVision"] = "Processed in vision mode (image OCR)",
                 // ===== Profile Compare PDF (B2C) =====
                 ["ProfileCompareTitle"] = "Profile comparison:",
@@ -2035,6 +2041,12 @@ namespace MedicalApp.Services
                 ["ProcessingModeText"] = "Procesat în mod text (extragere literală)",
                 ["LoincOfflineWarningTitle"] = "Serviciul LOINC nu este disponibil",
                 ["LoincOfflineWarningBody"] = "Interpretarea va rula normal, însă analizele nu vor primi coduri LOINC, deci nu vor apărea în grafice și comparații. Pornește serviciul LOINC și reîncarcă această pagină înainte de a încărca buletinul.",
+                ["InterpretationAlreadyRunning"] = "Ai deja o interpretare în lucru. Așteaptă să se termine — primești emailul, iar rezultatul apare în arhivă.",
+                ["InterpretationRunsInBackground"] = "Interpretarea rulează pe server. Poți închide această pagină sau naviga liniștit — se duce până la final, iar rezultatul ajunge pe email și în arhivă.",
+                ["LeaveInBackgroundBtn"] = "Lasă să ruleze în fundal",
+                ["InterpretationRunningBanner"] = "O interpretare rulează în fundal. O găsești în arhiva profilului imediat ce este gata.",
+                ["HistoryStatusProcessing"] = "În lucru",
+                ["HistoryProcessingNote"] = "Interpretarea rulează pe server; pagina se actualizează singură.",
                 ["ProcessingModeVision"] = "Procesat în mod vision (OCR pe imagine)",
                 // ===== Profile Compare PDF (B2C) =====
                 ["ProfileCompareTitle"] = "Comparație profil:",
@@ -3346,6 +3358,12 @@ namespace MedicalApp.Services
                 ["ProcessingModeText"] = "Traité en mode texte (extraction littérale)",
                 ["LoincOfflineWarningTitle"] = "Service LOINC indisponible",
                 ["LoincOfflineWarningBody"] = "L'interprétation fonctionnera normalement, mais les analyses ne recevront pas de codes LOINC et n'apparaîtront donc pas dans les graphiques et les comparaisons. Démarrez le service LOINC et rechargez cette page avant de téléverser.",
+                ["InterpretationAlreadyRunning"] = "Une interprétation est déjà en cours. Attendez qu'elle se termine — vous recevrez l'e-mail et elle apparaîtra dans l'archive.",
+                ["InterpretationRunsInBackground"] = "L'interprétation s'exécute sur le serveur. Vous pouvez fermer cette page ou continuer à naviguer — elle ira jusqu'au bout et le résultat arrivera par e-mail et dans l'archive.",
+                ["LeaveInBackgroundBtn"] = "Laisser tourner en arrière-plan",
+                ["InterpretationRunningBanner"] = "Une interprétation s'exécute en arrière-plan. Vous la trouverez dans l'archive du profil dès qu'elle sera prête.",
+                ["HistoryStatusProcessing"] = "En cours",
+                ["HistoryProcessingNote"] = "L'interprétation s'exécute sur le serveur ; cette page s'actualise d'elle-même.",
                 ["ProcessingModeVision"] = "Traité en mode vision (OCR sur image)",
 
                 // ===== Phase 2 & 3 (Services + Mascot + Admin health) =====
@@ -4479,6 +4497,12 @@ namespace MedicalApp.Services
                 ["ProcessingModeText"] = "Procesado en modo texto (extracción literal)",
                 ["LoincOfflineWarningTitle"] = "Servicio LOINC no disponible",
                 ["LoincOfflineWarningBody"] = "La interpretación se ejecutará con normalidad, pero los análisis no recibirán códigos LOINC, por lo que no aparecerán en los gráficos ni en las comparaciones. Inicie el servicio LOINC y recargue esta página antes de subir el informe.",
+                ["InterpretationAlreadyRunning"] = "Ya tienes una interpretación en curso. Espera a que termine — recibirás el correo y aparecerá en el archivo.",
+                ["InterpretationRunsInBackground"] = "La interpretación se ejecuta en el servidor. Puedes cerrar esta página o seguir navegando — llegará hasta el final y el resultado llegará por correo y al archivo.",
+                ["LeaveInBackgroundBtn"] = "Dejar que siga en segundo plano",
+                ["InterpretationRunningBanner"] = "Una interpretación se está ejecutando en segundo plano. La encontrarás en el archivo del perfil en cuanto esté lista.",
+                ["HistoryStatusProcessing"] = "En curso",
+                ["HistoryProcessingNote"] = "La interpretación se ejecuta en el servidor; esta página se actualiza sola.",
                 ["ProcessingModeVision"] = "Procesado en modo visión (OCR sobre imagen)",
 
                 // ===== Phase 2 & 3 (Services + Mascot + Admin health) =====
@@ -5612,6 +5636,12 @@ namespace MedicalApp.Services
                 ["ProcessingModeText"] = "Im Textmodus verarbeitet (wörtliche Extraktion)",
                 ["LoincOfflineWarningTitle"] = "LOINC-Dienst nicht verfügbar",
                 ["LoincOfflineWarningBody"] = "Die Auswertung läuft normal weiter, aber die Analysen erhalten keine LOINC-Codes und erscheinen daher nicht in den Diagrammen und Vergleichen. Starten Sie den LOINC-Dienst und laden Sie diese Seite neu, bevor Sie hochladen.",
+                ["InterpretationAlreadyRunning"] = "Sie haben bereits eine laufende Auswertung. Warten Sie, bis sie fertig ist — Sie erhalten die E-Mail und sie erscheint im Archiv.",
+                ["InterpretationRunsInBackground"] = "Die Auswertung läuft auf dem Server. Sie können diese Seite schließen oder weitersurfen — sie wird zu Ende geführt und das Ergebnis kommt per E-Mail und ins Archiv.",
+                ["LeaveInBackgroundBtn"] = "Im Hintergrund weiterlaufen lassen",
+                ["InterpretationRunningBanner"] = "Eine Auswertung läuft im Hintergrund. Sie finden sie im Archiv des Profils, sobald sie fertig ist.",
+                ["HistoryStatusProcessing"] = "In Bearbeitung",
+                ["HistoryProcessingNote"] = "Die Auswertung läuft auf dem Server; diese Seite aktualisiert sich selbst.",
                 ["ProcessingModeVision"] = "Im Bildmodus verarbeitet (Bild-OCR)",
 
                 // ===== Phase 2 & 3 (Services + Mascot + Admin health) =====

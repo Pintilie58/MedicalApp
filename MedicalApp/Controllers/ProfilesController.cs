@@ -119,7 +119,7 @@ namespace MedicalApp.Controllers
                 .AsNoTracking()
                 .Where(h => h.UserEmail == CurrentEmail
                             && h.ProfileId == profile.Id
-                            && h.Status == "success")
+                            && (h.Status == "success" || h.Status == "processing"))
                 .OrderByDescending(h => h.CreatedAt)
                 .Select(h => new
                 {
@@ -127,7 +127,8 @@ namespace MedicalApp.Controllers
                     h.CreatedAt,
                     h.OriginalFileName,
                     h.Language,
-                    h.RawJsonResult
+                    h.RawJsonResult,
+                    h.Status
                 })
                 .ToListAsync();
 
@@ -140,6 +141,7 @@ namespace MedicalApp.Controllers
                     CreatedAt = r.CreatedAt,
                     OriginalFileName = r.OriginalFileName,
                     Language = r.Language,
+                    Status = r.Status,
                     HasRawJson = !string.IsNullOrWhiteSpace(r.RawJsonResult)
                 };
 

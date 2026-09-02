@@ -273,6 +273,40 @@ namespace MedicalApp.Services
         }
 
         /// <summary>
+        /// B2C symmetry of <see cref="FailOrphanedBatchesAsync"/>: an interpretation
+        /// left "processing" when the app died (IIS recycle, crash, deploy) can no
+        /// longer be resumed — the PDF bytes only existed in memory. Flip it to
+        /// "error" and GIVE THE CREDIT BACK, because the user paid for a report
+        /// they never received.
+        /// </summary>
+        public static async Task FailOrphanedInterpretationsAsync(IServiceProvider services, ILogger logger)
+        {
+            using var scope = services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var orphans = await db.InterpretationHistories
+                .Where(h => h.Status == "processing")
+                .ToListAsync();
+            if (orphans.Count == 0) return;
+
+            foreach (var h in orphans)
+            {
+                h.Status = "error";
+                h.ErrorMessage = "Interrupted by an application restart. Credit refunded.";
+                if (h.CreditsConsumed > 0)
+                {
+                    h.CreditsConsumed = 0;
+                    var user = await db.Users.FirstOrDefaultAsync(u => u.Email == h.UserEmail);
+                    if (user != null) CreditLedger.RefundOne(user);
+                }
+            }
+            await db.SaveChangesAsync();
+            logger.LogWarning(
+                "StartupSeed: recovered {Count} interrupted interpretation(s) — credits refunded.",
+                orphans.Count);
+        }
+
+        /// <summary>
         /// CAM Faza 3 — decizie d)i: NU avem auto-resume pentru loturi în execuție.
         /// Orice ClinicBatchRun rămas cu Status="Running" la pornirea aplicației
         /// (după un crash/restart) e marcat ca "Failed" + FinishedAt = now. Operatorul

@@ -59,8 +59,24 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   - Notă: banner-ul NU e limitat la admin, apare pentru orice utilizator pe pagina de upload.
   - Probe: `/app/memory/probes/LoincHealthFalseAlarmProbe.cs.txt` + `fake_loinc_service.py` — ALL PASS.
 
-## Backlog
-- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
+- **B2C interpretation runs in the BACKGROUND** (iunie 2026, decizii utilizator: coadă în proces,
+  rezervare credit la lansare, rămâne pe pagină dar poate pleca, 3 simultane / 1 per user):
+  - `InterpretationJobQueue` (singleton, `Channel` + gate per user), `InterpretationQueueWorker`
+    (`BackgroundService`, `SemaphoreSlim(3)`), `B2cInterpretationRunner` (scoped) — tot pipeline-ul
+    mutat din `InterpretationController` (controllerul a scăzut de la 1179 la ~460 linii).
+  - `CreditLedger.ReserveOne/RefundOne` — creditul se rezervă la lansare și se restituie automat
+    la eșec, la respingere (PDF non-medical) și la repornirea aplicației
+    (`StartupSeed.FailOrphanedInterpretationsAsync`).
+  - Rând `InterpretationHistories.Status = "processing"` creat la lansare → apare în Istoric ca
+    „În lucru” (auto-refresh 10s) și devine „success” când jobul se termină.
+  - `/Interpretation/Progress` returnează acum și `redirectUrl` + `historyId`; overlay-ul navighează
+    singur la final, afișează eroarea la eșec și are butonul „Lasă să ruleze în fundal”.
+  - Cancelarea nu mai vine din browser (`HttpContext.RequestAborted`) — închiderea tabului nu mai
+    omoară apelul Gemini.
+  - Probă integrată: `/app/memory/probes/bg_interpretation/` (EF InMemory + AI/email fals,
+    30 verificări: coadă, credit, happy path, eșec, respingere, orfan, freemium, worker) — ALL PASS.
+
+## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard
 - **P2**: buton de re-probe LOINC din UI (fără restart aplicație)
