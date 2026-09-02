@@ -90,6 +90,18 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
     (înainte rămânea afișat din randarea server-side și contrazicea „Gata!”). Zgomotul din Output a fost
     tăiat prin `Microsoft.EntityFrameworkCore.Database.Command` și `System.Net.Http.HttpClient` = `Warning`
     în appsettings(.Development).json.
+- **Limite de coadă configurabile + widget admin** (iunie 2026):
+  - `InterpretationQueueSettings` legat de secțiunea `InterpretationQueue` din `appsettings.json`
+    (`MaxConcurrent: 3`, `MaxPerUser: 1`, valorile < 1 sunt corectate la 1). Se schimbă fără rebuild,
+    doar cu restart. `InterpretationQueueWorker` citește `MaxConcurrent` o singură dată la pornire.
+  - `GET /Admin/InterpretationQueueStatus` + widget în `Views/Admin/Index.cshtml`:
+    „X în lucru / Y la rând / limite: 3 simultan / 1 per utilizator”, plus avertisment roșu când
+    există rânduri `processing` fără job activ (orfane rămase după un crash). Poll 15s.
+  - Document de arhitectură pentru scalare: **`/app/memory/AZURE_SCALING.md`** (Gemini NU e gâtuirea;
+    gâtuirile reale: LOINC single-worker, coadă în memorie, PDF în RAM, SMTP sincron; plan de trecere
+    la Service Bus + Blob + worker separat).
+  - Regresie verificată: suita completă re-rulată → **48/48 PASS**, inclusiv teste noi care demonstrează
+    că limitele din configurație schimbă real comportamentul (2 per user acceptă 2, refuză al 3-lea).
 
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare

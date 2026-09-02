@@ -48,6 +48,7 @@ services.AddScoped<IAiUsageLogger, AiUsageLogger>();
 services.AddScoped<PdfReportGenerator>();
 services.AddHttpClient<LoincMatcherClient>();
 services.AddSingleton<InterpretationProgressTracker>();
+services.Configure<InterpretationQueueSettings>(o => { o.MaxConcurrent = 3; o.MaxPerUser = 1; });
 services.AddSingleton<InterpretationJobQueue>();
 services.AddScoped<B2cInterpretationRunner>();
 services.AddSingleton<InterpretationQueueWorker>();
@@ -129,6 +130,8 @@ InterpretationJob Job(int historyId, string token) => new(
 // =================================================================
 {
     var j1 = Job(0, "t1");
+    Check("Limitele vin din configuratie", queue.MaxConcurrent == 3 && queue.MaxPerUser == 1,
+        $"{queue.MaxConcurrent}/{queue.MaxPerUser}");
     Check("Utilizator liber la inceput", !queue.IsUserBusy("u@test.ro"));
     Check("Primul job intra in coada", queue.TryEnqueue(j1));
     Check("Utilizatorul e marcat ocupat", queue.IsUserBusy("u@test.ro"));
@@ -324,6 +327,32 @@ InterpretationJob Job(int historyId, string token) => new(
         unauth is Microsoft.AspNetCore.Mvc.UnauthorizedResult);
 }
 
+// =================================================================
+// 10. Limitele din appsettings schimba REAL comportamentul
+// =================================================================
+{
+    var q2 = new InterpretationJobQueue(new StaticOptions<InterpretationQueueSettings>(
+        new InterpretationQueueSettings { MaxConcurrent = 7, MaxPerUser = 2 }));
+    Check("Citeste MaxConcurrent din configuratie", q2.MaxConcurrent == 7, q2.MaxConcurrent.ToString());
+    Check("Primul job al userului intra", q2.TryEnqueue(Job(0, "a")));
+    Check("Al doilea job intra cand limita e 2", q2.TryEnqueue(Job(0, "b")));
+    Check("Al treilea job e refuzat", !q2.TryEnqueue(Job(0, "c")));
+    Check("Contoarele pentru widgetul de admin sunt corecte",
+        q2.ActiveCount == 2 && q2.QueuedCount == 2, $"active={q2.ActiveCount} queued={q2.QueuedCount}");
+    q2.ReleaseUser("u@test.ro");
+    Check("Dupa eliberare mai incape un job", !q2.IsUserBusy("u@test.ro") && q2.TryEnqueue(Job(0, "d")));
+
+    var q1 = new InterpretationJobQueue(new StaticOptions<InterpretationQueueSettings>(
+        new InterpretationQueueSettings { MaxConcurrent = 3, MaxPerUser = 1 }));
+    Check("Cu limita 1 al doilea job e refuzat (comportamentul actual)",
+        q1.TryEnqueue(Job(0, "x")) && !q1.TryEnqueue(Job(0, "y")));
+
+    var q0 = new InterpretationJobQueue(new StaticOptions<InterpretationQueueSettings>(
+        new InterpretationQueueSettings { MaxConcurrent = 0, MaxPerUser = 0 }));
+    Check("Valorile de 0 din config sunt corectate la 1 (fara blocaj total)",
+        q0.MaxConcurrent == 1 && q0.MaxPerUser == 1);
+}
+
 Console.WriteLine(fails == 0 ? "\nALL PASS" : $"\n{fails} FAIL(S)");
 return fails == 0 ? 0 : 1;
 
@@ -406,4 +435,14 @@ sealed class FakeSession : Microsoft.AspNetCore.Http.ISession
     public void Remove(string key) => _data.Remove(key);
     public void Set(string key, byte[] value) => _data[key] = value;
     public bool TryGetValue(string key, out byte[] value) => _data.TryGetValue(key, out value!);
+}
+
+sealed class StaticOptions<T> : Microsoft.Extensions.Options.IOptionsMonitor<T>
+{
+    private readonly T _value;
+    public StaticOptions(T value) => _value = value;
+    public T CurrentValue => _value;
+    public T Get(string? name) => _value;
+    public IDisposable OnChange(Action<T, string?> listener) => new Noop();
+    private sealed class Noop : IDisposable { public void Dispose() { } }
 }

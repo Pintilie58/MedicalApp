@@ -842,6 +842,11 @@ namespace MedicalApp.Services
                 ["JobIndicatorRunning"] = "PDF report in progress! Please wait…",
                 ["JobIndicatorDone"] = "Done! See the report",
                 ["JobIndicatorFailed"] = "The interpretation did not finish. The credit was refunded.",
+                ["AdminQueueWidgetTitle"] = "Interpretation queue (background)",
+                ["AdminQueueRunningFmt"] = "{0} running",
+                ["AdminQueueWaitingFmt"] = "{0} waiting",
+                ["AdminQueueLimitsFmt"] = "limits: {0} at once / {1} per user",
+                ["AdminQueueOrphansFmt"] = "{0} stuck row(s)",
                 ["ProcessingModeVision"] = "Processed in vision mode (image OCR)",
                 // ===== Profile Compare PDF (B2C) =====
                 ["ProfileCompareTitle"] = "Profile comparison:",
@@ -2053,6 +2058,11 @@ namespace MedicalApp.Services
                 ["JobIndicatorRunning"] = "Fișier PDF în lucru! Așteptați…",
                 ["JobIndicatorDone"] = "Gata! Vezi raportul",
                 ["JobIndicatorFailed"] = "Interpretarea nu s-a finalizat. Creditul a fost restituit.",
+                ["AdminQueueWidgetTitle"] = "Coada de interpretări (fundal)",
+                ["AdminQueueRunningFmt"] = "{0} în lucru",
+                ["AdminQueueWaitingFmt"] = "{0} la rând",
+                ["AdminQueueLimitsFmt"] = "limite: {0} simultan / {1} per utilizator",
+                ["AdminQueueOrphansFmt"] = "{0} rând(uri) blocate",
                 ["ProcessingModeVision"] = "Procesat în mod vision (OCR pe imagine)",
                 // ===== Profile Compare PDF (B2C) =====
                 ["ProfileCompareTitle"] = "Comparație profil:",
@@ -3373,6 +3383,11 @@ namespace MedicalApp.Services
                 ["JobIndicatorRunning"] = "Rapport PDF en cours ! Veuillez patienter…",
                 ["JobIndicatorDone"] = "C'est prêt ! Voir le rapport",
                 ["JobIndicatorFailed"] = "L'interprétation n'a pas abouti. Le crédit a été remboursé.",
+                ["AdminQueueWidgetTitle"] = "File d'interprétations (arrière-plan)",
+                ["AdminQueueRunningFmt"] = "{0} en cours",
+                ["AdminQueueWaitingFmt"] = "{0} en attente",
+                ["AdminQueueLimitsFmt"] = "limites : {0} simultanées / {1} par utilisateur",
+                ["AdminQueueOrphansFmt"] = "{0} ligne(s) bloquée(s)",
                 ["ProcessingModeVision"] = "Traité en mode vision (OCR sur image)",
 
                 // ===== Phase 2 & 3 (Services + Mascot + Admin health) =====
@@ -4515,6 +4530,11 @@ namespace MedicalApp.Services
                 ["JobIndicatorRunning"] = "¡Informe PDF en curso! Espere…",
                 ["JobIndicatorDone"] = "¡Listo! Ver el informe",
                 ["JobIndicatorFailed"] = "La interpretación no se completó. El crédito fue devuelto.",
+                ["AdminQueueWidgetTitle"] = "Cola de interpretaciones (segundo plano)",
+                ["AdminQueueRunningFmt"] = "{0} en curso",
+                ["AdminQueueWaitingFmt"] = "{0} en espera",
+                ["AdminQueueLimitsFmt"] = "límites: {0} simultáneas / {1} por usuario",
+                ["AdminQueueOrphansFmt"] = "{0} fila(s) bloqueada(s)",
                 ["ProcessingModeVision"] = "Procesado en modo visión (OCR sobre imagen)",
 
                 // ===== Phase 2 & 3 (Services + Mascot + Admin health) =====
@@ -5657,6 +5677,11 @@ namespace MedicalApp.Services
                 ["JobIndicatorRunning"] = "PDF-Bericht in Arbeit! Bitte warten…",
                 ["JobIndicatorDone"] = "Fertig! Bericht ansehen",
                 ["JobIndicatorFailed"] = "Die Auswertung wurde nicht abgeschlossen. Das Guthaben wurde zurückgebucht.",
+                ["AdminQueueWidgetTitle"] = "Auswertungs-Warteschlange (Hintergrund)",
+                ["AdminQueueRunningFmt"] = "{0} laufend",
+                ["AdminQueueWaitingFmt"] = "{0} wartend",
+                ["AdminQueueLimitsFmt"] = "Grenzen: {0} gleichzeitig / {1} pro Nutzer",
+                ["AdminQueueOrphansFmt"] = "{0} hängende Zeile(n)",
                 ["ProcessingModeVision"] = "Im Bildmodus verarbeitet (Bild-OCR)",
 
                 // ===== Phase 2 & 3 (Services + Mascot + Admin health) =====

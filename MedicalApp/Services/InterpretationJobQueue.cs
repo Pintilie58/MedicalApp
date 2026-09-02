@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
+using Microsoft.Extensions.Options;
 
 namespace MedicalApp.Services
 {
@@ -7,16 +8,24 @@ namespace MedicalApp.Services
     /// In-process queue for B2C interpretations (singleton).
     ///
     /// Why a queue and not a bare <c>Task.Run</c> (as CAM batches do): it gives
-    /// us a single place to cap concurrency. Gemini rate-limits per project, so
-    /// letting N users fire N simultaneous interpretations turns into HTTP 429
-    /// for everybody. Limits (confirmed with the product owner):
-    ///   * <see cref="MaxConcurrent"/> = 3 jobs running at once, app-wide;
-    ///   * <see cref="MaxPerUser"/>    = 1 job per user (queued or running).
+    /// us a single place to cap concurrency. Limits come from appsettings
+    /// (<see cref="InterpretationQueueSettings"/>) so they can be tuned on the
+    /// server without a rebuild; defaults are 3 app-wide and 1 per user.
     /// </summary>
     public class InterpretationJobQueue
     {
-        public const int MaxConcurrent = 3;
-        public const int MaxPerUser = 1;
+        private readonly IOptionsMonitor<InterpretationQueueSettings> _options;
+
+        public InterpretationJobQueue(IOptionsMonitor<InterpretationQueueSettings> options)
+        {
+            _options = options;
+        }
+
+        /// <summary>Jobs running at once in this process (>= 1).</summary>
+        public int MaxConcurrent => Math.Max(1, _options.CurrentValue.MaxConcurrent);
+
+        /// <summary>Jobs queued or running per user (>= 1).</summary>
+        public int MaxPerUser => Math.Max(1, _options.CurrentValue.MaxPerUser);
 
         private readonly Channel<InterpretationJob> _channel =
             Channel.CreateUnbounded<InterpretationJob>();
@@ -28,8 +37,9 @@ namespace MedicalApp.Services
         public ChannelReader<InterpretationJob> Reader => _channel.Reader;
 
         /// <summary>
-        /// True when the user already has an interpretation queued or running.
-        /// Checked BEFORE the credit is reserved so we never have to roll back.
+        /// True when the user already reached their per-user limit (queued or
+        /// running). Checked BEFORE the credit is reserved so we never have to
+        /// roll back.
         /// </summary>
         public bool IsUserBusy(string email) =>
             _perUser.TryGetValue(email, out var n) && n >= MaxPerUser;
@@ -40,8 +50,9 @@ namespace MedicalApp.Services
         /// </summary>
         public bool TryEnqueue(InterpretationJob job)
         {
+            var limit = MaxPerUser;
             var count = _perUser.AddOrUpdate(job.UserEmail, 1, (_, n) => n + 1);
-            if (count > MaxPerUser)
+            if (count > limit)
             {
                 ReleaseUser(job.UserEmail);
                 return false;
@@ -70,5 +81,8 @@ namespace MedicalApp.Services
 
         /// <summary>Jobs queued or running right now, app-wide (admin/diagnostics).</summary>
         public int ActiveCount => _perUser.Values.Sum();
+
+        /// <summary>Jobs still waiting for a free slot (admin/diagnostics).</summary>
+        public int QueuedCount => _channel.Reader.Count;
     }
 }

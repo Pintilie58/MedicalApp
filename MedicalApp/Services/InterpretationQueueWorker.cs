@@ -30,7 +30,14 @@ namespace MedicalApp.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            using var gate = new SemaphoreSlim(InterpretationJobQueue.MaxConcurrent);
+            // Read once at startup: SemaphoreSlim cannot be resized, and changing
+            // the ceiling mid-flight would be a nasty source of surprises. Editing
+            // appsettings and restarting is the intended way to raise it.
+            var maxConcurrent = _queue.MaxConcurrent;
+            using var gate = new SemaphoreSlim(maxConcurrent);
+            _logger.LogInformation(
+                "Interpretation worker started: {Max} concurrent job(s), {PerUser} per user.",
+                maxConcurrent, _queue.MaxPerUser);
 
             try
             {

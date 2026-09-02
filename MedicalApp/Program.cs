@@ -149,6 +149,8 @@ builder.Services.AddSingleton<PendingRegistrationStore>();
 // user closes the tab. Concurrency is capped inside InterpretationJobQueue
 // (3 app-wide, 1 per user) to stay clear of Gemini's rate limit.
 // ---------------------------------------------------------------------------
+builder.Services.Configure<InterpretationQueueSettings>(
+    builder.Configuration.GetSection("InterpretationQueue"));
 builder.Services.AddSingleton<InterpretationJobQueue>();
 builder.Services.AddScoped<B2cInterpretationRunner>();
 builder.Services.AddHostedService<InterpretationQueueWorker>();

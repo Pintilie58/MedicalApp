@@ -65,6 +65,67 @@
        with an existing Scripts section already defined further down in this view.
        Status labels are read from a localized JSON blob below so the widget
        follows the admin's UI language. *@
+    @* ===== Background interpretation queue (admin-only, polls every 15s) ===== *@
+    <div class="card mb-3 border-0 shadow-sm" data-testid="interp-queue-widget">
+        <div class="card-body py-2 px-3">
+            <div class="d-flex align-items-center flex-wrap gap-2">
+                <strong class="me-1" style="font-size:.9rem;">
+                    <i class="bi bi-hourglass-split"></i> @Loc.T("AdminQueueWidgetTitle")
+                </strong>
+                <span id="queueRunning" class="badge bg-primary" data-testid="interp-queue-running">–</span>
+                <span id="queueWaiting" class="badge bg-secondary" data-testid="interp-queue-waiting">–</span>
+                <span id="queueLimits" class="small text-muted ms-1" data-testid="interp-queue-limits"></span>
+                <span id="queueOrphans" class="small text-danger ms-1" data-testid="interp-queue-orphans"></span>
+                <span class="ms-auto small text-muted" id="queueStamp" data-testid="interp-queue-stamp"></span>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Polls /Admin/InterpretationQueueStatus so the admin can tell whether
+        // MaxConcurrent (appsettings → InterpretationQueue) is a real bottleneck.
+        (function () {
+            var url = '@Url.Action("InterpretationQueueStatus", "Admin")';
+            var elRun = document.getElementById('queueRunning');
+            var elWait = document.getElementById('queueWaiting');
+            var elLim = document.getElementById('queueLimits');
+            var elOrph = document.getElementById('queueOrphans');
+            var elStamp = document.getElementById('queueStamp');
+            if (!elRun) return;
+
+            var L = {
+                running: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("AdminQueueRunningFmt"))),
+                waiting: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("AdminQueueWaitingFmt"))),
+                limits: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("AdminQueueLimitsFmt"))),
+                orphans: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("AdminQueueOrphansFmt")))
+            };
+
+            function fmt(t, a, b) {
+                return String(t).replace('{0}', a).replace('{1}', b);
+            }
+
+            function tick() {
+                fetch(url, { credentials: 'same-origin' })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (d) {
+                        if (!d) return;
+                        elRun.textContent = fmt(L.running, d.running);
+                        elRun.className = 'badge ' + (d.running > 0 ? 'bg-primary' : 'bg-secondary');
+                        elWait.textContent = fmt(L.waiting, d.queued);
+                        elWait.className = 'badge ' + (d.queued > 0 ? 'bg-warning text-dark' : 'bg-light text-muted');
+                        elLim.textContent = fmt(L.limits, d.maxConcurrent, d.maxPerUser);
+                        // A "processing" row with nothing running means an orphan
+                        // left by a crash — the startup recovery refunds those.
+                        var orphans = d.processingRows - d.running - d.queued;
+                        elOrph.textContent = orphans > 0 ? fmt(L.orphans, orphans) : '';
+                        elStamp.textContent = new Date().toLocaleTimeString();
+                    })
+                    .catch(function () { /* best effort */ });
+            }
+            tick();
+            setInterval(tick, 15000);
+        })();
+    </script>
+
     <script type="application/json" id="loincHealthI18n" data-testid="loinc-health-i18n">
         @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new {
             unknown   = Loc.T("AdminLoincHealthStatusUnknown"),

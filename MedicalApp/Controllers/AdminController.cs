@@ -50,9 +50,36 @@ namespace MedicalApp.Controllers
         //    { ok: true,  status: "ok",     loincCount: 12345, latencyMs: 3 }
         //    { ok: false, status: "down",   message: "...",   latencyMs: 2003 }
         // =====================================================================
+        /// <summary>
+        /// Live state of the background B2C interpretation queue, so the admin
+        /// can see whether the concurrency limit is actually squeezing users
+        /// before raising it in appsettings.
+        /// </summary>
         [HttpGet]
-        public IActionResult LoincServiceHealth([FromServices] ILoincHealthState state)
+        public async Task<IActionResult> InterpretationQueueStatus(
+            [FromServices] InterpretationJobQueue queue)
         {
+            var queued = queue.QueuedCount;
+            var active = queue.ActiveCount;
+
+            // Rows still marked "processing" in the archive — includes anything
+            // orphaned by a crash, which is exactly what we want to notice here.
+            var processingRows = await _db.InterpretationHistories
+                .AsNoTracking()
+                .CountAsync(h => h.Status == "processing");
+
+            return Json(new
+            {
+                running = Math.Max(0, active - queued),
+                queued,
+                processingRows,
+                maxConcurrent = queue.MaxConcurrent,
+                maxPerUser = queue.MaxPerUser
+            });
+        }
+
+        [HttpGet]
+        public IActionResult LoincServiceHealth([FromServices] ILoincHealthState state)        {
             // If the background monitor has not completed its first probe yet
             // (very short window right after app start), fall through with
             // status="unknown" so the widget still renders — do not block.
