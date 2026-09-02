@@ -75,6 +75,15 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
     omoară apelul Gemini.
   - Probă integrată: `/app/memory/probes/bg_interpretation/` (EF InMemory + AI/email fals,
     30 verificări: coadă, credit, happy path, eșec, respingere, orfan, freemium, worker) — ALL PASS.
+- **Indicator global de job (dreapta sus)** — `Views/Shared/_JobIndicator.cshtml`, randat din `_Layout`
+  pentru utilizatorii logați, plus endpoint `GET /Interpretation/JobStatus` (citește din
+  `InterpretationHistories`, nu din memorie, deci supraviețuiește și restartului de browser):
+  - pastilă galbenă cu spinner „Fișier PDF în lucru! Așteptați…” cât timp există rând `processing`;
+  - pastilă verde cu clopoțel „Gata! Vezi raportul” (+ jingle) când jobul urmărit s-a finalizat,
+    memorată în `localStorage` până e închisă → apare și dacă userul a fost pe alt site;
+  - pastilă roșie „Interpretarea nu s-a finalizat. Creditul a fost restituit.” la eșec;
+  - polling la 6s, se oprește automat la 401 (delogare).
+  - Verificat prin probă (endpoint: running / lastDone / lastFailed / 401) + screenshot pe cele 3 stări.
 
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare

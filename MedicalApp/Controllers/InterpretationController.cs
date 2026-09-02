@@ -156,6 +156,47 @@ namespace MedicalApp.Controllers
             });
         }
 
+        /// <summary>
+        /// Global, token-free status of the user's background interpretation.
+        /// Polled by the top-right indicator on EVERY page, so the user sees
+        /// "PDF în lucru" and then "Gata!" even after leaving the upload screen.
+        /// Reads the archive row (the source of truth), not the in-memory
+        /// progress tracker, so it also survives a browser restart.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> JobStatus()
+        {
+            if (string.IsNullOrEmpty(CurrentEmail)) return Unauthorized();
+
+            var running = await _db.InterpretationHistories.AsNoTracking()
+                .Where(h => h.UserEmail == CurrentEmail && h.Status == "processing")
+                .OrderByDescending(h => h.Id)
+                .Select(h => new { h.Id })
+                .FirstOrDefaultAsync();
+
+            var lastDone = await _db.InterpretationHistories.AsNoTracking()
+                .Where(h => h.UserEmail == CurrentEmail && h.Status == "success")
+                .OrderByDescending(h => h.Id)
+                .Select(h => new { h.Id })
+                .FirstOrDefaultAsync();
+
+            var lastFailed = await _db.InterpretationHistories.AsNoTracking()
+                .Where(h => h.UserEmail == CurrentEmail
+                            && (h.Status == "error" || h.Status == "rejected"))
+                .OrderByDescending(h => h.Id)
+                .Select(h => new { h.Id })
+                .FirstOrDefaultAsync();
+
+            return Json(new
+            {
+                running = running != null,
+                runningId = running?.Id,
+                lastDoneId = lastDone?.Id,
+                lastDoneUrl = lastDone == null ? null : $"/Profiles/ViewReport/{lastDone.Id}",
+                lastFailedId = lastFailed?.Id
+            });
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         [RequestSizeLimit(MaxFileSize)]

@@ -839,6 +839,9 @@ namespace MedicalApp.Services
                 ["InterpretationRunningBanner"] = "An interpretation is running in the background. You will find it in the profile's archive as soon as it is ready.",
                 ["HistoryStatusProcessing"] = "In progress",
                 ["HistoryProcessingNote"] = "The interpretation is running on the server; this page refreshes by itself.",
+                ["JobIndicatorRunning"] = "PDF report in progress! Please wait…",
+                ["JobIndicatorDone"] = "Done! See the report",
+                ["JobIndicatorFailed"] = "The interpretation did not finish. The credit was refunded.",
                 ["ProcessingModeVision"] = "Processed in vision mode (image OCR)",
                 // ===== Profile Compare PDF (B2C) =====
                 ["ProfileCompareTitle"] = "Profile comparison:",
@@ -2047,6 +2050,9 @@ namespace MedicalApp.Services
                 ["InterpretationRunningBanner"] = "O interpretare rulează în fundal. O găsești în arhiva profilului imediat ce este gata.",
                 ["HistoryStatusProcessing"] = "În lucru",
                 ["HistoryProcessingNote"] = "Interpretarea rulează pe server; pagina se actualizează singură.",
+                ["JobIndicatorRunning"] = "Fișier PDF în lucru! Așteptați…",
+                ["JobIndicatorDone"] = "Gata! Vezi raportul",
+                ["JobIndicatorFailed"] = "Interpretarea nu s-a finalizat. Creditul a fost restituit.",
                 ["ProcessingModeVision"] = "Procesat în mod vision (OCR pe imagine)",
                 // ===== Profile Compare PDF (B2C) =====
                 ["ProfileCompareTitle"] = "Comparație profil:",
@@ -3364,6 +3370,9 @@ namespace MedicalApp.Services
                 ["InterpretationRunningBanner"] = "Une interprétation s'exécute en arrière-plan. Vous la trouverez dans l'archive du profil dès qu'elle sera prête.",
                 ["HistoryStatusProcessing"] = "En cours",
                 ["HistoryProcessingNote"] = "L'interprétation s'exécute sur le serveur ; cette page s'actualise d'elle-même.",
+                ["JobIndicatorRunning"] = "Rapport PDF en cours ! Veuillez patienter…",
+                ["JobIndicatorDone"] = "C'est prêt ! Voir le rapport",
+                ["JobIndicatorFailed"] = "L'interprétation n'a pas abouti. Le crédit a été remboursé.",
                 ["ProcessingModeVision"] = "Traité en mode vision (OCR sur image)",
 
                 // ===== Phase 2 & 3 (Services + Mascot + Admin health) =====
@@ -4503,6 +4512,9 @@ namespace MedicalApp.Services
                 ["InterpretationRunningBanner"] = "Una interpretación se está ejecutando en segundo plano. La encontrarás en el archivo del perfil en cuanto esté lista.",
                 ["HistoryStatusProcessing"] = "En curso",
                 ["HistoryProcessingNote"] = "La interpretación se ejecuta en el servidor; esta página se actualiza sola.",
+                ["JobIndicatorRunning"] = "¡Informe PDF en curso! Espere…",
+                ["JobIndicatorDone"] = "¡Listo! Ver el informe",
+                ["JobIndicatorFailed"] = "La interpretación no se completó. El crédito fue devuelto.",
                 ["ProcessingModeVision"] = "Procesado en modo visión (OCR sobre imagen)",
 
                 // ===== Phase 2 & 3 (Services + Mascot + Admin health) =====
@@ -5642,6 +5654,9 @@ namespace MedicalApp.Services
                 ["InterpretationRunningBanner"] = "Eine Auswertung läuft im Hintergrund. Sie finden sie im Archiv des Profils, sobald sie fertig ist.",
                 ["HistoryStatusProcessing"] = "In Bearbeitung",
                 ["HistoryProcessingNote"] = "Die Auswertung läuft auf dem Server; diese Seite aktualisiert sich selbst.",
+                ["JobIndicatorRunning"] = "PDF-Bericht in Arbeit! Bitte warten…",
+                ["JobIndicatorDone"] = "Fertig! Bericht ansehen",
+                ["JobIndicatorFailed"] = "Die Auswertung wurde nicht abgeschlossen. Das Guthaben wurde zurückgebucht.",
                 ["ProcessingModeVision"] = "Im Bildmodus verarbeitet (Bild-OCR)",
 
                 // ===== Phase 2 & 3 (Services + Mascot + Admin health) =====

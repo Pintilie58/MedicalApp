@@ -110,6 +110,10 @@
     </header>
 
     <main role="main">
+        @if (!string.IsNullOrEmpty(Context.Session.GetString("UserEmail")))
+        {
+            <partial name="_JobIndicator" />
+        }
         @RenderBody()
     </main>
 

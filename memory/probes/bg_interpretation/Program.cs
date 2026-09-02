@@ -244,6 +244,86 @@ InterpretationJob Job(int historyId, string token) => new(
     await worker.StopAsync(CancellationToken.None);
 }
 
+// =================================================================
+// 9. Endpointul global de status (indicatorul din dreapta sus)
+// =================================================================
+{
+    using var scope = sp.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var ctrl = new MedicalApp.Controllers.InterpretationController(
+        db,
+        Options.Create(new GeminiSettings { Model = "gemini-2.5-flash" }),
+        new Microsoft.Extensions.Caching.Memory.MemoryCache(
+            new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
+        scope.ServiceProvider.GetRequiredService<LoincMatcherClient>(),
+        scope.ServiceProvider.GetRequiredService<IAiUsageLogger>(),
+        tracker, queue,
+        scope.ServiceProvider.GetRequiredService<ILogger<MedicalApp.Controllers.InterpretationController>>());
+
+    var http = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+    http.Session = new FakeSession("u@test.ro");
+    ctrl.ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = http };
+
+    // The action returns an anonymous type from another assembly, so we read
+    // it the way the browser does: through its JSON shape.
+    JsonElement Status()
+    {
+        var res = ctrl.JobStatus().GetAwaiter().GetResult() as Microsoft.AspNetCore.Mvc.JsonResult;
+        return JsonDocument.Parse(JsonSerializer.Serialize(res!.Value!)).RootElement.Clone();
+    }
+    static bool Flag(JsonElement e, string n) => e.GetProperty(n).GetBoolean();
+    static int? Num(JsonElement e, string n) =>
+        e.GetProperty(n).ValueKind == JsonValueKind.Null ? null : e.GetProperty(n).GetInt32();
+    static string? Str(JsonElement e, string n) =>
+        e.GetProperty(n).ValueKind == JsonValueKind.Null ? null : e.GetProperty(n).GetString();
+
+    // Momentan nu rulează nimic pentru acest user.
+    var idle = Status();
+    Check("Fara job activ, running = false", !Flag(idle, "running"));
+    Check("Ultimul raport reusit e raportat", Num(idle, "lastDoneId") != null);
+    Check("URL-ul raportului e corect",
+        (Str(idle, "lastDoneUrl") ?? "").StartsWith("/Profiles/ViewReport/"), Str(idle, "lastDoneUrl") ?? "null");
+
+    // Un job in lucru trebuie sa apara imediat.
+    var pendingId = await NewPendingRow("u@test.ro");
+    var busy = Status();
+    Check("Cu job in lucru, running = true", Flag(busy, "running"));
+    Check("Se raporteaza id-ul jobului in lucru", Num(busy, "runningId") == pendingId,
+        Num(busy, "runningId")?.ToString() ?? "null");
+
+    // Dupa finalizare, running dispare si lastDoneId ajunge la jobul nostru.
+    var row = await db.InterpretationHistories.FirstAsync(h => h.Id == pendingId);
+    row.Status = "success";
+    await db.SaveChangesAsync();
+    var done = Status();
+    Check("Dupa finalizare running = false", !Flag(done, "running"));
+    Check("lastDoneId ajunge la jobul urmarit", Num(done, "lastDoneId") == pendingId,
+        Num(done, "lastDoneId")?.ToString() ?? "null");
+
+    // Un job eșuat este raportat separat, ca sa putem afisa pastila roșie.
+    row.Status = "error";
+    await db.SaveChangesAsync();
+    var failed = Status();
+    Check("Jobul eșuat e raportat prin lastFailedId", Num(failed, "lastFailedId") == pendingId,
+        Num(failed, "lastFailedId")?.ToString() ?? "null");
+
+    // Fara sesiune (utilizator delogat) -> 401, ca sa opreasca polling-ul.
+    var anon = new MedicalApp.Controllers.InterpretationController(
+        db, Options.Create(new GeminiSettings()),
+        new Microsoft.Extensions.Caching.Memory.MemoryCache(
+            new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
+        scope.ServiceProvider.GetRequiredService<LoincMatcherClient>(),
+        scope.ServiceProvider.GetRequiredService<IAiUsageLogger>(),
+        tracker, queue,
+        scope.ServiceProvider.GetRequiredService<ILogger<MedicalApp.Controllers.InterpretationController>>());
+    var anonHttp = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+    anonHttp.Session = new FakeSession(null);
+    anon.ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = anonHttp };
+    var unauth = await anon.JobStatus();
+    Check("Delogat -> 401 (polling-ul se opreste)",
+        unauth is Microsoft.AspNetCore.Mvc.UnauthorizedResult);
+}
+
 Console.WriteLine(fails == 0 ? "\nALL PASS" : $"\n{fails} FAIL(S)");
 return fails == 0 ? 0 : 1;
 
@@ -307,4 +387,23 @@ sealed class FakeEmail : IEmailService
     public Task SendEmailWithAttachmentsAsync(string toEmail, string subject, string htmlBody,
         IEnumerable<(byte[] Bytes, string FileName, string MimeType)> attachments)
     { Sent.Add((toEmail, subject, attachments.Count())); return Task.CompletedTask; }
+}
+
+sealed class FakeSession : Microsoft.AspNetCore.Http.ISession
+{
+    private readonly Dictionary<string, byte[]> _data = new();
+    public FakeSession(string? userEmail)
+    {
+        if (userEmail != null)
+            _data["UserEmail"] = System.Text.Encoding.UTF8.GetBytes(userEmail);
+    }
+    public bool IsAvailable => true;
+    public string Id => "fake";
+    public IEnumerable<string> Keys => _data.Keys;
+    public void Clear() => _data.Clear();
+    public Task CommitAsync(CancellationToken ct = default) => Task.CompletedTask;
+    public Task LoadAsync(CancellationToken ct = default) => Task.CompletedTask;
+    public void Remove(string key) => _data.Remove(key);
+    public void Set(string key, byte[] value) => _data[key] = value;
+    public bool TryGetValue(string key, out byte[] value) => _data.TryGetValue(key, out value!);
 }
