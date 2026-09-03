@@ -36,5 +36,34 @@ namespace MedicalApp.Services
         /// the dashboard.
         /// </summary>
         public int RetentionDays { get; set; } = 30;
+
+        /// <summary>
+        /// Where CAM files live: <c>"LocalDisk"</c> (default — development,
+        /// Docker with a mounted volume) or <c>"Blob"</c> (Azure Blob Storage).
+        /// Switching this value is the ONLY change needed to go to the cloud;
+        /// see /app/memory/CAM_BLOB_STORAGE.md.
+        /// </summary>
+        public string Storage { get; set; } = "LocalDisk";
+
+        /// <summary>Azure Blob settings, used only when <see cref="Storage"/> = "Blob".</summary>
+        public CamBlobSettings Blob { get; set; } = new();
+    }
+
+    public class CamBlobSettings
+    {
+        /// <summary>
+        /// Storage account connection string. Leave EMPTY on Azure and set
+        /// <see cref="AccountUrl"/> instead, so the app authenticates with its
+        /// managed identity and no secret is stored in configuration.
+        /// For local Docker testing, point it at Azurite
+        /// (<c>UseDevelopmentStorage=true</c>).
+        /// </summary>
+        public string ConnectionString { get; set; } = "";
+
+        /// <summary>e.g. https://mymedicalappfiles.blob.core.windows.net (managed identity path).</summary>
+        public string AccountUrl { get; set; } = "";
+
+        /// <summary>Container that holds every clinic's files. Created if missing.</summary>
+        public string Container { get; set; } = "cam";
     }
 }

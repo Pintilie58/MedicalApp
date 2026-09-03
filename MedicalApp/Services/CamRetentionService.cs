@@ -1,4 +1,4 @@
-using MedicalApp.Models;
+﻿using MedicalApp.Models;
 using Microsoft.Extensions.Options;
 
 namespace MedicalApp.Services
@@ -95,13 +95,14 @@ namespace MedicalApp.Services
         /// Measures disk usage across all CAM folders (incl. Original) for
         /// the given clinic. Pure read-only.
         /// </summary>
-        public UsageReport MeasureUsage(Clinic clinic)
+        public async Task<UsageReport> MeasureUsageAsync(Clinic clinic,
+            CancellationToken ct = default)
         {
             var r = new UsageReport();
-            (r.BytesOriginal, r.FilesOriginal) = MeasureFolder(_files.GetOriginalFolder(clinic));
-            (r.BytesSends,    r.FilesSends)    = MeasureFolder(_files.GetSendsFolder(clinic));
-            (r.BytesSumar,    r.FilesSumar)    = MeasureFolder(_files.GetSumarFolder(clinic));
-            (r.BytesErrors,   r.FilesErrors)   = MeasureFolder(_files.GetErrorsFolder(clinic));
+            (r.BytesOriginal, r.FilesOriginal) = await MeasureAsync(clinic, CamFolder.Original, ct);
+            (r.BytesSends,    r.FilesSends)    = await MeasureAsync(clinic, CamFolder.Sends, ct);
+            (r.BytesSumar,    r.FilesSumar)    = await MeasureAsync(clinic, CamFolder.Sumar, ct);
+            (r.BytesErrors,   r.FilesErrors)   = await MeasureAsync(clinic, CamFolder.Errors, ct);
             return r;
         }
 
@@ -117,7 +118,7 @@ namespace MedicalApp.Services
         /// dashboard, where the operator may type their own value).
         /// When null, uses appsettings.json default.
         /// </param>
-        public Task<CleanupResult> CleanupAsync(Clinic clinic,
+        public async Task<CleanupResult> CleanupAsync(Clinic clinic,
             int? overrideRetentionDays = null,
             CancellationToken ct = default)
         {
@@ -141,18 +142,15 @@ namespace MedicalApp.Services
                 CutoffUtc = cutoff
             };
 
-            (int del, long bytes, int prot) sends = SweepFolder(
-                _files.GetSendsFolder(clinic), cutoff, protectedNames);
-            (int del, long bytes, int prot) sumar = SweepFolder(
-                _files.GetSumarFolder(clinic), cutoff, protectedNames);
-            (int del, long bytes, int prot) errs = SweepFolder(
-                _files.GetErrorsFolder(clinic), cutoff, protectedNames);
+            var sends = await SweepAsync(clinic, CamFolder.Sends, cutoff, protectedNames, ct);
+            var sumar = await SweepAsync(clinic, CamFolder.Sumar, cutoff, protectedNames, ct);
+            var errs  = await SweepAsync(clinic, CamFolder.Errors, cutoff, protectedNames, ct);
 
-            result.FilesDeletedSends = sends.del;
-            result.FilesDeletedSumar = sumar.del;
-            result.FilesDeletedErrors = errs.del;
+            result.FilesDeletedSends = sends.deleted;
+            result.FilesDeletedSumar = sumar.deleted;
+            result.FilesDeletedErrors = errs.deleted;
             result.BytesFreed = sends.bytes + sumar.bytes + errs.bytes;
-            result.FilesProtectedByLastBatch = sends.prot + sumar.prot + errs.prot;
+            result.FilesProtectedByLastBatch = sends.protectedCount + sumar.protectedCount + errs.protectedCount;
 
             if (result.TotalDeleted > 0)
             {
@@ -162,74 +160,63 @@ namespace MedicalApp.Services
                     result.FilesDeletedSends, result.FilesDeletedSumar, result.FilesDeletedErrors,
                     result.BytesFreed, days, result.FilesProtectedByLastBatch);
             }
-            return Task.FromResult(result);
+            return result;
         }
 
         // ------------- helpers (private) -------------
 
-        private static (long bytes, int files) MeasureFolder(string path)
+        private async Task<(long bytes, int files)> MeasureAsync(Clinic clinic,
+            CamFolder folder, CancellationToken ct)
         {
-            if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
-                return (0, 0);
             try
             {
-                long total = 0; int count = 0;
-                foreach (var f in Directory.EnumerateFiles(path, "*", SearchOption.TopDirectoryOnly))
-                {
-                    try
-                    {
-                        var fi = new FileInfo(f);
-                        total += fi.Length;
-                        count++;
-                    }
-                    catch { /* file may vanish mid-scan, ignore */ }
-                }
-                return (total, count);
-            }
-            catch { return (0, 0); }
-        }
-
-        /// <summary>
-        /// Sweeps one folder, deleting files older than <paramref name="cutoff"/>
-        /// whose name is NOT in <paramref name="protectedNames"/>.
-        /// </summary>
-        private (int deleted, long bytes, int protectedCount) SweepFolder(
-            string path, DateTime cutoff, HashSet<string> protectedNames)
-        {
-            if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
-                return (0, 0, 0);
-
-            int deleted = 0; long bytes = 0; int prot = 0;
-            string[] files;
-            try
-            {
-                files = Directory.GetFiles(path, "*", SearchOption.TopDirectoryOnly);
+                var entries = await _files.ListAsync(clinic, folder, null, ct);
+                return (entries.Sum(e => e.SizeBytes), entries.Count);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "CAM cleanup: cannot enumerate folder {Path}", path);
+                _logger.LogWarning(ex, "CAM usage: cannot measure {Folder}", folder);
+                return (0, 0);
+            }
+        }
+
+        /// <summary>
+        /// Sweeps one bucket, deleting files older than <paramref name="cutoff"/>
+        /// whose name is NOT in <paramref name="protectedNames"/>. Never throws:
+        /// one locked/vanished file must not abort the sweep.
+        /// </summary>
+        private async Task<(int deleted, long bytes, int protectedCount)> SweepAsync(
+            Clinic clinic, CamFolder folder, DateTime cutoff,
+            HashSet<string> protectedNames, CancellationToken ct)
+        {
+            IReadOnlyList<CamFileEntry> entries;
+            try
+            {
+                entries = await _files.ListAsync(clinic, folder, null, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "CAM cleanup: cannot enumerate {Folder}", folder);
                 return (0, 0, 0);
             }
 
-            foreach (var full in files)
+            int deleted = 0; long bytes = 0; int prot = 0;
+            foreach (var e in entries)
             {
                 try
                 {
-                    var fi = new FileInfo(full);
-                    if (!fi.Exists) continue;
-                    if (fi.LastWriteTimeUtc >= cutoff) continue; // too fresh
+                    if (e.LastModifiedUtc >= cutoff) continue;           // too fresh
+                    if (protectedNames.Contains(e.Name)) { prot++; continue; }
 
-                    if (protectedNames.Contains(fi.Name)) { prot++; continue; }
-
-                    long size = fi.Length;
-                    fi.Delete();
-                    deleted++;
-                    bytes += size;
+                    if (await _files.DeleteAsync(clinic, folder, e.Name, ct))
+                    {
+                        deleted++;
+                        bytes += e.SizeBytes;
+                    }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "CAM cleanup: failed to delete {Path}", full);
-                    // continue — never abort a sweep because of one locked file
+                    _logger.LogWarning(ex, "CAM cleanup: failed to delete {File}", e.Name);
                 }
             }
             return (deleted, bytes, prot);

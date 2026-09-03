@@ -124,6 +124,21 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   Verificat prin probă (`/app/memory/probes/CamCompareColorProbe.cs.txt`): PDF real generat + analiză
   de pixeli (toate 4 culorile prezente) + text extras.
 
+- **CAM pregătit pentru Azure Blob Storage** (iunie 2026, inactiv până la hostare):
+  - `ICamFileStore` rescris din „căi de folder” în **operațiuni** (List/Read/Write/Move/Delete/
+    Exists/Ensure/GetDisplayLocation). Fără asta, Blob-ul e imposibil (nu are foldere, nici rename).
+  - `LocalDiskCamFileStore` (dev/Docker, comportament identic cu înainte) + `BlobCamFileStore` nou
+    (Azure.Storage.Blobs + Azure.Identity, managed identity fără secrete, move = copiere server-side).
+  - Comutare din `CamSettings:Storage` = `LocalDisk` | `Blob`; `Program.cs` alege implementarea.
+  - Adaptați: CheckPdfs/Batch/CAM-Dashboard controllers, `CamBatchService` (lucrează cu NUME de
+    fișiere, nu căi), `CamRetentionService` (măsurare + sweep async prin store),
+    `CamBatchSumarWriter.Write` → `Build` (întoarce nume + text, nu mai scrie pe disc).
+  - Testat: **50/50 PASS** — același contract de 25 verificări rulat pe disc local ȘI pe Azurite
+    (emulator Azure real, pornit local), inclusiv izolarea între clinici, non-suprascriere,
+    integritate la mutare, path traversal. Plus regresie: suita B2C 55/55 PASS.
+  - Ghid de activare + Docker/Azurite: **`/app/memory/CAM_BLOB_STORAGE.md`**
+    (atenție: Azurite are nevoie de `--skipApiVersionCheck` cu SDK-ul actual).
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard

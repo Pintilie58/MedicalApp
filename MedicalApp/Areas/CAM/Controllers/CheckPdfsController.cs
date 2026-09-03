@@ -1,4 +1,4 @@
-using MedicalApp.Data;
+﻿using MedicalApp.Data;
 using MedicalApp.Models;
 using MedicalApp.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -53,35 +53,32 @@ namespace MedicalApp.Areas.CAM.Controllers
             var vm = new Models.CamCheckPdfsViewModel
             {
                 ClinicName = clinic.Name,
-                OriginalFolder = _files.GetOriginalFolder(clinic)
+                OriginalFolder = _files.GetDisplayLocation(clinic, CamFolder.Original)
             };
 
-            if (!Directory.Exists(vm.OriginalFolder))
+            var pdfs = (await _files.ListAsync(clinic, CamFolder.Original, ".pdf"))
+                .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (pdfs.Count == 0)
             {
-                vm.FolderMissing = true;
+                // No files yet is NOT an error: the upload form above stays
+                // available. ("Folder missing" cannot happen with Blob storage.)
                 return View(vm);
             }
 
-            var pdfs = Directory.GetFiles(vm.OriginalFolder, "*.pdf", SearchOption.TopDirectoryOnly)
-                .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
             // Preload all overrides for this clinic in ONE query.
-            var fileNames = pdfs
-                .Select(Path.GetFileName)
-                .Where(n => !string.IsNullOrEmpty(n))
-                .Select(n => n!)
-                .ToList();
+            var fileNames = pdfs.Select(f => f.Name).ToList();
             var overrides = await _db.ClinicPdfOverrides.AsNoTracking()
                 .Where(o => o.ClinicId == clinic.Id && fileNames.Contains(o.FileName))
                 .ToDictionaryAsync(o => o.FileName, o => o);
 
-            foreach (var path in pdfs)
+            foreach (var entry in pdfs)
             {
                 var row = new Models.CamCheckPdfsViewModel.Row
                 {
-                    FileName = Path.GetFileName(path),
-                    SizeKb = (int)Math.Round(new FileInfo(path).Length / 1024.0)
+                    FileName = entry.Name,
+                    SizeKb = (int)Math.Round(entry.SizeBytes / 1024.0)
                 };
 
                 // Check for an operator override FIRST.
@@ -96,7 +93,8 @@ namespace MedicalApp.Areas.CAM.Controllers
                 {
                     try
                     {
-                        var bytes = await System.IO.File.ReadAllBytesAsync(path);
+                        var bytes = await _files.ReadAsync(clinic, CamFolder.Original, entry.Name)
+                                    ?? Array.Empty<byte>();
                         // No domain blacklist anymore — per user's Feb 2026 decision,
                         // identification relies on either the [MedicalApp] block
                         // (gold path) or Gemini's PatientInfo from the actual batch
@@ -137,7 +135,7 @@ namespace MedicalApp.Areas.CAM.Controllers
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "CheckPdfs: failed reading {File}", path);
+                        _logger.LogWarning(ex, "CheckPdfs: failed reading {File}", entry.Name);
                         row.IsValid = false;
                         row.Reason = "I/O error: " + ex.Message;
                     }
@@ -295,10 +293,7 @@ namespace MedicalApp.Areas.CAM.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
-            var originalFolder = _files.GetOriginalFolder(clinic);
-            var path = Path.Combine(originalFolder, safeName);
-
-            if (!System.IO.File.Exists(path))
+            if (!await _files.ExistsAsync(clinic, CamFolder.Original, safeName))
             {
                 TempData["ErrorMessage"] = string.Format(Loc.T("ErrFileNoLongerExists"), safeName);
                 return RedirectToAction(nameof(Index));
@@ -306,11 +301,11 @@ namespace MedicalApp.Areas.CAM.Controllers
 
             try
             {
-                System.IO.File.Delete(path);
+                await _files.DeleteAsync(clinic, CamFolder.Original, safeName);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "DeletePdf: failed to delete {Path}", path);
+                _logger.LogWarning(ex, "DeletePdf: failed to delete {File}", safeName);
                 TempData["ErrorMessage"] = string.Format(Loc.T("ErrDeleteFailed"), ex.Message);
                 return RedirectToAction(nameof(Index));
             }
@@ -365,12 +360,9 @@ namespace MedicalApp.Areas.CAM.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
-            var originalFolder = _files.GetOriginalFolder(clinic);
-            if (!Directory.Exists(originalFolder))
-            {
-                TempData["ErrorMessage"] = Loc.T("ErrOriginalFolderMissing");
-                return RedirectToAction(nameof(Index));
-            }
+            // Makes sure the destination exists (folders on disk, container in
+            // the cloud) instead of refusing the upload.
+            await _files.EnsureClinicFoldersAsync(clinic);
 
             int copied = 0, skipped = 0, rejected = 0;
             string? firstUploadedName = null;
@@ -381,20 +373,14 @@ namespace MedicalApp.Areas.CAM.Controllers
 
                 // Sanitize file name (drop path components, keep base + ext).
                 var baseName = Path.GetFileName(f.FileName);
-                var dest = Path.Combine(originalFolder, baseName);
-                if (System.IO.File.Exists(dest))
-                {
-                    // Disambiguate to avoid silently overwriting an existing file.
-                    var stem = Path.GetFileNameWithoutExtension(baseName);
-                    var ext = Path.GetExtension(baseName);
-                    baseName = $"{stem}_{DateTime.Now:yyyyMMdd_HHmmss}{ext}";
-                    dest = Path.Combine(originalFolder, baseName);
-                }
 
                 try
                 {
-                    using var stream = new FileStream(dest, FileMode.CreateNew, FileAccess.Write);
-                    await f.CopyToAsync(stream);
+                    using var ms = new MemoryStream();
+                    await f.CopyToAsync(ms);
+                    // The store disambiguates instead of overwriting an existing file.
+                    baseName = await _files.WriteAsync(clinic, CamFolder.Original, baseName,
+                        ms.ToArray());
                     copied++;
                     // Remember the FIRST file successfully copied — the view
                     // will scroll the operator directly to its row so they
@@ -403,7 +389,7 @@ namespace MedicalApp.Areas.CAM.Controllers
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "UploadFiles: failed to write {Dest}", dest);
+                    _logger.LogWarning(ex, "UploadFiles: failed to write {Dest}", baseName);
                     skipped++;
                 }
             }

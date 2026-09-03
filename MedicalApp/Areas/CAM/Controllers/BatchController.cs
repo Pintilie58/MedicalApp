@@ -1,4 +1,4 @@
-using MedicalApp.Data;
+﻿using MedicalApp.Data;
 using MedicalApp.Models;
 using MedicalApp.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -52,13 +52,9 @@ namespace MedicalApp.Areas.CAM.Controllers
 
             var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Email == CurrentEmail);
 
-            var originalFolder = _files.GetOriginalFolder(clinic);
-            var pdfs = Directory.Exists(originalFolder)
-                ? Directory.GetFiles(originalFolder, "*.pdf", SearchOption.TopDirectoryOnly)
-                    .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
-                    .Select(p => new FileInfo(p))
-                    .ToList()
-                : new List<FileInfo>();
+            var pdfs = (await _files.ListAsync(clinic, CamFolder.Original, ".pdf"))
+                .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
             bool alreadyRunning = _registry.HasRunningForClinic(clinic.Id);
             int? runningId = null;
@@ -77,7 +73,7 @@ namespace MedicalApp.Areas.CAM.Controllers
                 Files = pdfs.Take(50).Select(f => new Models.CamBatchStartViewModel.FileRow
                 {
                     FileName = f.Name,
-                    SizeKb = (int)Math.Round(f.Length / 1024.0)
+                    SizeKb = (int)Math.Round(f.SizeBytes / 1024.0)
                 }).ToList(),
                 CreditsAvailable = user?.TotalAvailableCredits ?? 0,
                 AlreadyRunning = alreadyRunning,

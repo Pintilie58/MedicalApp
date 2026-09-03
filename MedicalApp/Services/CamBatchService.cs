@@ -125,16 +125,12 @@ namespace MedicalApp.Services
 
                 var user = await db.Users.FirstOrDefaultAsync(u => u.Email == clinic.UserEmail);
 
-                var originalFolder = files.GetOriginalFolder(clinic);
-                var sendsFolder = files.GetSendsFolder(clinic);
-                var sumarFolder = files.GetSumarFolder(clinic);
-                var errorsFolder = files.GetErrorsFolder(clinic);
-
-                var pdfPaths = Directory.Exists(originalFolder)
-                    ? Directory.GetFiles(originalFolder, "*.pdf", SearchOption.TopDirectoryOnly)
-                        .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
-                        .ToList()
-                    : new List<string>();
+                // File NAMES from now on, never paths: the store may be a local
+                // folder or an Azure Blob prefix (see ICamFileStore).
+                var pdfPaths = (await files.ListAsync(clinic, CamFolder.Original, ".pdf"))
+                    .Select(f => f.Name)
+                    .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
 
                 batch.TotalFiles = pdfPaths.Count;
                 await db.SaveChangesAsync();
@@ -150,7 +146,7 @@ namespace MedicalApp.Services
                     await db.SaveChangesAsync();
                     progress.Status = "Completed";
                     progress.FinishedAt = batch.FinishedAt;
-                    await WriteSumarAsync(db, batch, clinic, sumarFolder);
+                    await WriteSumarAsync(db, files, batch, clinic);
                     return;
                 }
 
@@ -172,7 +168,7 @@ namespace MedicalApp.Services
                     {
                         await ProcessOneFileAsync(
                             db, files, extractor, gemini, pdfGen, compareGen, loincMatcher, email,
-                            clinic, user, batch, progress, path, sendsFolder, errorsFolder, lang, ct);
+                            clinic, user, batch, progress, path, lang, ct);
                     }
                     catch (Exception ex)
                     {
@@ -194,7 +190,7 @@ namespace MedicalApp.Services
                 progress.FinishedAt = batch.FinishedAt;
                 progress.Log(string.Format(Loc.T("CamBatchLogFinalized", lang), batch.Status));
 
-                await WriteSumarAsync(db, batch, clinic, sumarFolder);
+                await WriteSumarAsync(db, files, batch, clinic);
             }
             catch (Exception ex)
             {
@@ -239,20 +235,22 @@ namespace MedicalApp.Services
             ClinicBatchRun batch,
             CamBatchProgress progress,
             string path,
-            string sendsFolder,
-            string errorsFolder,
             string lang,
             CancellationToken ct)
         {
             var fileName = Path.GetFileName(path);
             byte[] bytes;
-            try { bytes = await File.ReadAllBytesAsync(path, ct); }
+            try
+            {
+                bytes = await files.ReadAsync(clinic, CamFolder.Original, fileName, ct)
+                        ?? throw new FileNotFoundException("File vanished from Original", fileName);
+            }
             catch (Exception ex)
             {
                 progress.Log(string.Format(Loc.T("CamBatchLogReadFailed", lang), ex.Message));
                 await RecordErrorAsync(db, batch, path, null, "Read error: " + ex.Message);
                 batch.NotSends++; progress.NotSends++;
-                await MoveToErrorsIfRetriesExhaustedAsync(db, batch, path, errorsFolder);
+                await MoveToErrorsIfRetriesExhaustedAsync(db, files, clinic, batch, path);
                 return;
             }
 
@@ -296,7 +294,7 @@ namespace MedicalApp.Services
                     progress.Log($"   ✘ {localizedReason}");
                     await RecordErrorAsync(db, batch, path, null, probe.Reason ?? "Not a medical lab PDF");
                     batch.NotSends++; progress.NotSends++;
-                    await MoveToErrorsIfRetriesExhaustedAsync(db, batch, path, errorsFolder);
+                    await MoveToErrorsIfRetriesExhaustedAsync(db, files, clinic, batch, path);
                     return;
                 }
                 else
@@ -308,7 +306,7 @@ namespace MedicalApp.Services
                     await RecordErrorAsync(db, batch, path, null,
                         "PDF fără bloc [MedicalApp] și fără override manual. Apasă „Editează” în pagina Verificare PDF-uri.");
                     batch.NotSends++; progress.NotSends++;
-                    await MoveToErrorsIfRetriesExhaustedAsync(db, batch, path, errorsFolder);
+                    await MoveToErrorsIfRetriesExhaustedAsync(db, files, clinic, batch, path);
                     return;
                 }
             }
@@ -332,7 +330,7 @@ namespace MedicalApp.Services
                 // the file to Errors/ so the next "Lansează lot" doesn't keep
                 // burning credits on the same broken PDF. (Was missing here;
                 // present on all the other NotSends paths.)
-                await MoveToErrorsIfRetriesExhaustedAsync(db, batch, path, errorsFolder);
+                await MoveToErrorsIfRetriesExhaustedAsync(db, files, clinic, batch, path);
                 return;
             }
 
@@ -509,10 +507,7 @@ namespace MedicalApp.Services
             // 9. Move original PDF to Sends/ and consume 1 credit
             try
             {
-                Directory.CreateDirectory(sendsFolder);
-                var dest = Path.Combine(sendsFolder, fileName);
-                if (File.Exists(dest)) dest = Path.Combine(sendsFolder, $"{DateTime.Now:yyyyMMdd_HHmmss}_{fileName}");
-                File.Move(path, dest);
+                await files.MoveAsync(clinic, CamFolder.Original, CamFolder.Sends, fileName, ct);
             }
             catch (Exception ex)
             {
@@ -645,7 +640,8 @@ namespace MedicalApp.Services
             return $"Email failed for {emailLabel}: {first}";
         }
 
-        private async Task MoveToErrorsIfRetriesExhaustedAsync(AppDbContext db, ClinicBatchRun batch, string filePath, string errorsFolder)
+        private async Task MoveToErrorsIfRetriesExhaustedAsync(AppDbContext db, ICamFileStore files,
+            Clinic clinic, ClinicBatchRun batch, string filePath)
         {
             var fileName = Path.GetFileName(filePath);
             var attempts = await db.ClinicBatchErrors
@@ -656,10 +652,9 @@ namespace MedicalApp.Services
             if (attempts < 3) return;
             try
             {
-                Directory.CreateDirectory(errorsFolder);
-                var destPdf = Path.Combine(errorsFolder, fileName);
-                if (File.Exists(destPdf)) destPdf = Path.Combine(errorsFolder, $"{DateTime.Now:yyyyMMdd_HHmmss}_{fileName}");
-                File.Move(filePath, destPdf);
+                var movedName = await files.MoveAsync(clinic, CamFolder.Original,
+                    CamFolder.Errors, fileName);
+                if (movedName == null) return;
 
                 var reasons = await db.ClinicBatchErrors
                     .Where(e => e.FileName == fileName)
@@ -670,10 +665,10 @@ namespace MedicalApp.Services
                     .Select(x => x.e.Reason)
                     .ToListAsync();
 
-                File.WriteAllText(destPdf + ".reasons.txt",
-                    Loc.T("CamBatchFailedThreeTimesHeader") + "\n" +
-                    string.Join("\n", reasons.Select(r => "  • " + r)),
-                    System.Text.Encoding.UTF8);
+                var reasonsText = Loc.T("CamBatchFailedThreeTimesHeader") + "\n" +
+                    string.Join("\n", reasons.Select(r => "  • " + r));
+                await files.WriteAsync(clinic, CamFolder.Errors, movedName + ".reasons.txt",
+                    System.Text.Encoding.UTF8.GetBytes(reasonsText), overwrite: true);
 
                 // Cleanup: override-ul nu mai are sens — fișierul a părăsit Original.
                 var ovToDelete = await db.ClinicPdfOverrides
@@ -690,14 +685,16 @@ namespace MedicalApp.Services
             }
         }
 
-        private static async Task WriteSumarAsync(AppDbContext db, ClinicBatchRun batch,
-            Clinic clinic, string sumarFolder)
+        private static async Task WriteSumarAsync(AppDbContext db, ICamFileStore files,
+            ClinicBatchRun batch, Clinic clinic)
         {
             try
             {
                 var errors = await db.ClinicBatchErrors.Where(e => e.BatchRunId == batch.Id)
                     .OrderBy(e => e.OccurredAt).ToListAsync();
-                CamBatchSumarWriter.Write(batch, clinic, errors, sumarFolder);
+                var (name, text) = CamBatchSumarWriter.Build(batch, clinic, errors);
+                await files.WriteAsync(clinic, CamFolder.Sumar, name,
+                    System.Text.Encoding.UTF8.GetBytes(text), overwrite: true);
             }
             catch { /* never break the batch on a sumar I/O failure */ }
         }

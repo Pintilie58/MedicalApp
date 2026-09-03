@@ -114,7 +114,17 @@ builder.Services.AddScoped<ArchiveAccessService>();
 // LocalDiskCamFileStore for an AzureBlobCamFileStore without controllers
 // changing a single line.
 builder.Services.Configure<CamSettings>(builder.Configuration.GetSection("CamSettings"));
-builder.Services.AddSingleton<ICamFileStore, LocalDiskCamFileStore>();
+// CAM file storage: local disk by default (dev / Docker volume), Azure Blob in
+// the cloud. Selected by CamSettings:Storage — see /app/memory/CAM_BLOB_STORAGE.md.
+if (string.Equals(builder.Configuration["CamSettings:Storage"], "Blob",
+        StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddSingleton<ICamFileStore, BlobCamFileStore>();
+}
+else
+{
+    builder.Services.AddSingleton<ICamFileStore, LocalDiskCamFileStore>();
+}
 builder.Services.AddScoped<CamPdfMetadataExtractor>();
 builder.Services.AddSingleton<CamBatchRegistry>();
 builder.Services.AddScoped<CamBatchService>();

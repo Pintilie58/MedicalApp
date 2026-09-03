@@ -4,23 +4,21 @@ using MedicalApp.Models;
 namespace MedicalApp.Services
 {
     /// <summary>
-    /// Writes the per-batch session summary as a plain UTF-8 .txt file
-    /// in the clinic's <c>Sumar</c> folder. Name convention:
-    /// <c>Sum_yyyyMMdd_HHmm.txt</c>. Used by the operator to keep a hard
-    /// record of each batch run (file count, errors, durations).
+    /// Builds the per-batch session summary as plain UTF-8 text. The CALLER
+    /// stores it through <see cref="ICamFileStore"/> (local folder or Azure
+    /// Blob), which is why this class no longer touches the filesystem.
+    /// Name convention: <c>Sum_yyyyMMdd_HHmm.txt</c>.
     ///
     /// Labels follow the operator's current UI culture via <see cref="Loc"/>.
     /// </summary>
     public static class CamBatchSumarWriter
     {
-        public static string Write(
+        public static (string FileName, string Text) Build(
             ClinicBatchRun batch,
             Clinic clinic,
-            List<ClinicBatchError> errors,
-            string sumarFolder)
+            List<ClinicBatchError> errors)
         {
             var fileName = $"Sum_{batch.StartedAt.ToLocalTime():yyyyMMdd_HHmm}.txt";
-            var path = Path.Combine(sumarFolder, fileName);
 
             var sb = new StringBuilder();
             sb.AppendLine("=========================================");
@@ -56,9 +54,6 @@ namespace MedicalApp.Services
             sb.AppendLine("---");
             sb.AppendLine($"{Loc.T("SumarPdfFooterGenerated")}medicalapp.ro");
 
-            Directory.CreateDirectory(sumarFolder);
-            File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
-            return path;
-        }
+            return (fileName, sb.ToString());        }
     }
 }

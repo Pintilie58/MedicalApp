@@ -1,4 +1,4 @@
-using MedicalApp.Data;
+﻿using MedicalApp.Data;
 using MedicalApp.Models;
 using MedicalApp.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -74,11 +74,11 @@ namespace MedicalApp.Areas.CAM.Controllers
                 CreditsAvailable = user.TotalAvailableCredits,
                 FoldersCreated = clinic.FoldersCreatedAt.HasValue,
                 FoldersCreatedAt = clinic.FoldersCreatedAt,
-                ClinicFolderRoot = _files.GetClinicRoot(clinic),
-                OriginalFolder = _files.GetOriginalFolder(clinic),
-                SendsFolder = _files.GetSendsFolder(clinic),
-                SumarFolder = _files.GetSumarFolder(clinic),
-                ErrorsFolder = _files.GetErrorsFolder(clinic)
+                ClinicFolderRoot = _files.GetDisplayLocation(clinic),
+                OriginalFolder = _files.GetDisplayLocation(clinic, CamFolder.Original),
+                SendsFolder = _files.GetDisplayLocation(clinic, CamFolder.Sends),
+                SumarFolder = _files.GetDisplayLocation(clinic, CamFolder.Sumar),
+                ErrorsFolder = _files.GetDisplayLocation(clinic, CamFolder.Errors)
             };
 
             await PopulateStatsAsync(vm, clinic.Id, year, month);
@@ -87,7 +87,7 @@ namespace MedicalApp.Areas.CAM.Controllers
             // breaks the dashboard if the disk is unreachable.
             try
             {
-                var usage = _retention.MeasureUsage(clinic);
+                var usage = await _retention.MeasureUsageAsync(clinic);
                 vm.DiskBytesTotal = usage.BytesTotal;
                 vm.DiskFilesTotal = usage.FilesTotal;
                 vm.DiskBytesSends = usage.BytesSends;
@@ -371,11 +371,9 @@ namespace MedicalApp.Areas.CAM.Controllers
             // user already gets the PDF via the response).
             try
             {
-                var sumarFolder = _files.GetSumarFolder(clinic);
-                Directory.CreateDirectory(sumarFolder);
                 var fileName = $"Sumar_Lot_{batch.Id}_{batch.StartedAt.ToLocalTime():yyyyMMdd_HHmm}.pdf";
-                await System.IO.File.WriteAllBytesAsync(
-                    Path.Combine(sumarFolder, fileName), pdfBytes);
+                await _files.WriteAsync(clinic, CamFolder.Sumar, fileName, pdfBytes,
+                    overwrite: true);
             }
             catch (Exception ex)
             {

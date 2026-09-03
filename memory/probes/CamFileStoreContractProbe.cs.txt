@@ -1,0 +1,156 @@
+using MedicalApp.Models;
+using MedicalApp.Services;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using System.Text;
+
+int fails = 0;
+void Check(string label, bool ok, string detail = "")
+{
+    Console.WriteLine((ok ? "PASS  " : "FAIL  ") + label + (detail.Length > 0 ? "  ->  " + detail : ""));
+    if (!ok) fails++;
+}
+
+var clinicA = new Clinic { Id = 1, Name = "Clinica A", UserEmail = "clinica.a@example.com" };
+var clinicB = new Clinic { Id = 2, Name = "Clinica B", UserEmail = "clinica.b@example.com" };
+
+// The SAME contract test runs against both implementations. If they diverge,
+// switching CamSettings:Storage to "Blob" would silently break CAM.
+async Task Contract(string label, ICamFileStore store)
+{
+    Console.WriteLine($"\n--- {label} ---");
+    var loc = await store.EnsureClinicFoldersAsync(clinicA);
+    await store.EnsureClinicFoldersAsync(clinicB);
+    Check($"[{label}] EnsureClinicFolders da o locatie", !string.IsNullOrWhiteSpace(loc), loc);
+
+    // curatare (rulari repetate)
+    foreach (CamFolder f in Enum.GetValues<CamFolder>())
+        foreach (var e in await store.ListAsync(clinicA, f))
+            await store.DeleteAsync(clinicA, f, e.Name);
+    foreach (var e in await store.ListAsync(clinicB, CamFolder.Original))
+        await store.DeleteAsync(clinicB, CamFolder.Original, e.Name);
+
+    Check($"[{label}] Original e gol la inceput",
+        (await store.ListAsync(clinicA, CamFolder.Original)).Count == 0);
+
+    var pdf = Encoding.UTF8.GetBytes("%PDF-1.4 buletin");
+    var n1 = await store.WriteAsync(clinicA, CamFolder.Original, "buletin.pdf", pdf);
+    Check($"[{label}] Write pastreaza numele cand e liber", n1 == "buletin.pdf", n1);
+
+    var n2 = await store.WriteAsync(clinicA, CamFolder.Original, "buletin.pdf", pdf);
+    Check($"[{label}] Al doilea fisier cu acelasi nume NU suprascrie",
+        n2 != "buletin.pdf" && n2.EndsWith("buletin.pdf"), n2);
+
+    await store.WriteAsync(clinicA, CamFolder.Original, "note.txt",
+        Encoding.UTF8.GetBytes("nu e pdf"));
+
+    var all = await store.ListAsync(clinicA, CamFolder.Original);
+    Check($"[{label}] List vede toate cele 3 fisiere", all.Count == 3, all.Count.ToString());
+    var pdfs = await store.ListAsync(clinicA, CamFolder.Original, ".pdf");
+    Check($"[{label}] Filtrul .pdf exclude note.txt", pdfs.Count == 2, pdfs.Count.ToString());
+    Check($"[{label}] Dimensiunea e raportata corect",
+        pdfs.All(e => e.SizeBytes == pdf.Length), string.Join(",", pdfs.Select(e => e.SizeBytes)));
+
+    Check($"[{label}] Exists = true pentru un fisier scris",
+        await store.ExistsAsync(clinicA, CamFolder.Original, "buletin.pdf"));
+    Check($"[{label}] Exists = false pentru inexistent",
+        !await store.ExistsAsync(clinicA, CamFolder.Original, "lipsa.pdf"));
+
+    var read = await store.ReadAsync(clinicA, CamFolder.Original, "buletin.pdf");
+    Check($"[{label}] Read intoarce exact octetii scrisi",
+        read != null && read.SequenceEqual(pdf));
+    Check($"[{label}] Read pe inexistent intoarce null",
+        await store.ReadAsync(clinicA, CamFolder.Original, "lipsa.pdf") == null);
+
+    // Izolare intre clinici (fara asta, o clinica ar vedea PDF-urile alteia!)
+    await store.WriteAsync(clinicB, CamFolder.Original, "alta.pdf", pdf);
+    var aNames = (await store.ListAsync(clinicA, CamFolder.Original)).Select(e => e.Name).ToList();
+    Check($"[{label}] Clinicile sunt izolate", !aNames.Contains("alta.pdf"),
+        string.Join(",", aNames));
+
+    // Move Original -> Sends
+    var moved = await store.MoveAsync(clinicA, CamFolder.Original, CamFolder.Sends, "buletin.pdf");
+    Check($"[{label}] Move intoarce numele destinatie", moved == "buletin.pdf", moved ?? "null");
+    Check($"[{label}] Fisierul a plecat din Original",
+        !await store.ExistsAsync(clinicA, CamFolder.Original, "buletin.pdf"));
+    Check($"[{label}] Fisierul a ajuns in Sends",
+        await store.ExistsAsync(clinicA, CamFolder.Sends, "buletin.pdf"));
+    var movedBytes = await store.ReadAsync(clinicA, CamFolder.Sends, "buletin.pdf");
+    Check($"[{label}] Continutul e intact dupa mutare",
+        movedBytes != null && movedBytes.SequenceEqual(pdf));
+
+    // Move cu nume ocupat in destinatie
+    await store.WriteAsync(clinicA, CamFolder.Original, "buletin.pdf", pdf);
+    var moved2 = await store.MoveAsync(clinicA, CamFolder.Original, CamFolder.Sends, "buletin.pdf");
+    Check($"[{label}] Move nu suprascrie in destinatie",
+        moved2 != null && moved2 != "buletin.pdf" && moved2.EndsWith("buletin.pdf"), moved2 ?? "null");
+    Check($"[{label}] Sends are acum 2 fisiere",
+        (await store.ListAsync(clinicA, CamFolder.Sends)).Count == 2);
+
+    Check($"[{label}] Move pe inexistent intoarce null",
+        await store.MoveAsync(clinicA, CamFolder.Original, CamFolder.Errors, "lipsa.pdf") == null);
+
+    // Errors + reasons.txt (fluxul din CamBatchService)
+    await store.WriteAsync(clinicA, CamFolder.Original, "rau.pdf", pdf);
+    var toErr = await store.MoveAsync(clinicA, CamFolder.Original, CamFolder.Errors, "rau.pdf");
+    await store.WriteAsync(clinicA, CamFolder.Errors, toErr + ".reasons.txt",
+        Encoding.UTF8.GetBytes("motiv 1\nmotiv 2"), overwrite: true);
+    var errFiles = (await store.ListAsync(clinicA, CamFolder.Errors)).Select(e => e.Name).ToList();
+    Check($"[{label}] Errors are PDF-ul si motivele",
+        errFiles.Contains("rau.pdf") && errFiles.Contains("rau.pdf.reasons.txt"),
+        string.Join(",", errFiles));
+
+    // Delete
+    Check($"[{label}] Delete = true pentru fisier existent",
+        await store.DeleteAsync(clinicA, CamFolder.Errors, "rau.pdf"));
+    Check($"[{label}] Delete = false pentru inexistent",
+        !await store.DeleteAsync(clinicA, CamFolder.Errors, "rau.pdf"));
+
+    // Sumar (writerul nu mai atinge discul)
+    var batch = new ClinicBatchRun { Id = 5, ClinicId = 1, StartedAt = DateTime.UtcNow,
+        FinishedAt = DateTime.UtcNow, Status = "Completed", TotalFiles = 3, FilesSent = 2 };
+    var (sumarName, sumarText) = CamBatchSumarWriter.Build(batch, clinicA, new List<ClinicBatchError>());
+    await store.WriteAsync(clinicA, CamFolder.Sumar, sumarName,
+        Encoding.UTF8.GetBytes(sumarText), overwrite: true);
+    var sumarBack = await store.ReadAsync(clinicA, CamFolder.Sumar, sumarName);
+    Check($"[{label}] Sumarul se scrie si se citeste",
+        sumarName.StartsWith("Sum_") && sumarBack != null && sumarBack.Length > 100, sumarName);
+
+    // Path traversal
+    var evil = await store.WriteAsync(clinicA, CamFolder.Original, "../../../etc/passwd", pdf);
+    Check($"[{label}] Numele cu path traversal e neutralizat",
+        !evil.Contains("..") && !evil.Contains("/"), evil);
+
+    Check($"[{label}] Locatia afisata in UI nu e goala",
+        !string.IsNullOrWhiteSpace(store.GetDisplayLocation(clinicA, CamFolder.Original)),
+        store.GetDisplayLocation(clinicA, CamFolder.Original));
+}
+
+var localRoot = "/tmp/cam_probe_files";
+var local = new LocalDiskCamFileStore(
+    Options.Create(new CamSettings { FilesRoot = localRoot }),
+    NullLogger<LocalDiskCamFileStore>.Instance);
+await Contract("DISC LOCAL", local);
+
+var blobSettings = new CamSettings
+{
+    Storage = "Blob",
+    Blob = new CamBlobSettings
+    {
+        ConnectionString = "UseDevelopmentStorage=true",
+        Container = "cam"
+    }
+};
+try
+{
+    var blob = new BlobCamFileStore(Options.Create(blobSettings),
+        NullLogger<BlobCamFileStore>.Instance);
+    await Contract("AZURE BLOB (Azurite)", blob);
+}
+catch (Exception ex)
+{
+    Check("Azurite disponibil", false, ex.GetBaseException().Message);
+}
+
+Console.WriteLine(fails == 0 ? "\nALL PASS" : $"\n{fails} FAIL(S)");
+return fails == 0 ? 0 : 1;

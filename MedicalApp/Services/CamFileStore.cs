@@ -3,100 +3,206 @@ using Microsoft.Extensions.Options;
 
 namespace MedicalApp.Services
 {
+    /// <summary>The four logical CAM buckets of a clinic.</summary>
+    public enum CamFolder
+    {
+        /// <summary>Operator drops PDFs here; the batch consumes them.</summary>
+        Original,
+        /// <summary>Successfully processed files are moved here.</summary>
+        Sends,
+        /// <summary>Per-batch summaries (.txt / .pdf).</summary>
+        Sumar,
+        /// <summary>Files that failed all retries, with a .reasons.txt next to them.</summary>
+        Errors
+    }
+
+    /// <summary>One stored file, independent of where it physically lives.</summary>
+    public sealed record CamFileEntry(string Name, long SizeBytes, DateTime LastModifiedUtc);
+
     /// <summary>
-    /// Storage abstraction for the CAM module. The current production implementation
-    /// (<see cref="LocalDiskCamFileStore"/>) reads/writes the local Windows disk
-    /// (<c>C:\MedicalApp_files\&lt;clinic&gt;\</c>). Tomorrow's cloud
-    /// implementation can target Azure Blob Storage without controllers
-    /// changing a single line.
+    /// Storage abstraction for the CAM module — expressed as OPERATIONS, not as
+    /// filesystem paths.
+    ///
+    /// This shape is deliberate (June 2026). The previous version handed callers
+    /// a folder path and they did their own <c>Directory.GetFiles</c> /
+    /// <c>File.Move</c>, which cannot be implemented over Azure Blob Storage:
+    /// blobs have no folders, no rename and no local path. With operations, the
+    /// same controllers work unchanged over local disk (development, Docker
+    /// volume) or over Blob Storage (Azure) — see /app/memory/CAM_BLOB_STORAGE.md.
+    ///
+    /// Implementations: <see cref="LocalDiskCamFileStore"/>, <see cref="BlobCamFileStore"/>.
     /// </summary>
     public interface ICamFileStore
     {
         /// <summary>
-        /// Returns the per-clinic root folder ON DISK (e.g.
-        /// <c>C:\MedicalApp_files\clinica_demo_at_example_com</c>). Stable for
-        /// the lifetime of the clinic — derived from <see cref="Clinic.UserEmail"/>.
-        /// Idempotent (does not create anything).
+        /// Human-readable location shown in the UI ("where are my files?").
+        /// A disk path locally, a blob URL prefix in the cloud. Never used to
+        /// perform I/O.
         /// </summary>
-        string GetClinicRoot(Clinic clinic);
+        string GetDisplayLocation(Clinic clinic, CamFolder? folder = null);
 
         /// <summary>
-        /// Per-subfolder helpers. They DON'T create the folders, they just
-        /// compute paths. Use <see cref="EnsureClinicFoldersAsync"/> first.
-        /// </summary>
-        string GetOriginalFolder(Clinic clinic);
-        string GetSendsFolder(Clinic clinic);
-        string GetSumarFolder(Clinic clinic);
-        string GetErrorsFolder(Clinic clinic);
-
-        /// <summary>
-        /// Creates the <c>Original</c>, <c>Sends</c>, <c>Sumar</c>,
-        /// <c>Errors</c> folders for the clinic if they don't already exist.
-        /// Called from <c>CreditsController</c> right after the FIRST
-        /// successful CAM credit purchase. Idempotent (safe to call again).
-        /// Returns the absolute clinic root path that was ensured.
+        /// Prepares storage for a clinic (folders on disk, container/prefix in
+        /// the cloud). Idempotent. Returns the display location of the root.
         /// </summary>
         Task<string> EnsureClinicFoldersAsync(Clinic clinic, CancellationToken ct = default);
+
+        /// <summary>Files in a bucket, newest first. <paramref name="extension"/> like ".pdf".</summary>
+        Task<IReadOnlyList<CamFileEntry>> ListAsync(Clinic clinic, CamFolder folder,
+            string? extension = null, CancellationToken ct = default);
+
+        Task<bool> ExistsAsync(Clinic clinic, CamFolder folder, string name,
+            CancellationToken ct = default);
+
+        /// <summary>File content, or null when it no longer exists.</summary>
+        Task<byte[]?> ReadAsync(Clinic clinic, CamFolder folder, string name,
+            CancellationToken ct = default);
+
+        /// <summary>
+        /// Stores content and returns the name actually used: when
+        /// <paramref name="overwrite"/> is false and the name is taken, a
+        /// timestamp prefix is added instead of destroying the existing file.
+        /// </summary>
+        Task<string> WriteAsync(Clinic clinic, CamFolder folder, string name, byte[] content,
+            bool overwrite = false, CancellationToken ct = default);
+
+        /// <summary>
+        /// Moves a file between buckets (copy + delete in the cloud) and returns
+        /// the destination name, or null if the source was already gone.
+        /// </summary>
+        Task<string?> MoveAsync(Clinic clinic, CamFolder from, CamFolder to, string name,
+            CancellationToken ct = default);
+
+        Task<bool> DeleteAsync(Clinic clinic, CamFolder folder, string name,
+            CancellationToken ct = default);
     }
 
     /// <summary>
-    /// Local Windows-disk implementation of <see cref="ICamFileStore"/>.
-    /// Layout:
-    /// <code>
-    /// {FilesRoot}\
-    ///   {clinic-safe-name}\
-    ///     Original\   ← operator drops PDF-uri aici
-    ///     Sends\      ← mutate aici dupa procesare cu succes
-    ///     Sumar\      ← Sum_yyyyMMdd_HHmm.txt per batch
-    ///     Errors\     ← fisiere care au esuat 3 retries
-    /// </code>
+    /// Local-disk implementation — the one used during development and inside a
+    /// Docker container with a mounted volume.
+    /// Layout: <c>{FilesRoot}\{clinic-safe-name}\{Original|Sends|Sumar|Errors}\</c>
     /// </summary>
     public class LocalDiskCamFileStore : ICamFileStore
     {
         private readonly CamSettings _settings;
         private readonly ILogger<LocalDiskCamFileStore> _logger;
 
-        public LocalDiskCamFileStore(IOptions<CamSettings> options, ILogger<LocalDiskCamFileStore> logger)
+        public LocalDiskCamFileStore(IOptions<CamSettings> options,
+            ILogger<LocalDiskCamFileStore> logger)
         {
             _settings = options.Value;
             _logger = logger;
         }
 
-        public string GetClinicRoot(Clinic clinic)
-        {
-            var safe = SafeFolderName(clinic.UserEmail);
-            return Path.Combine(_settings.FilesRoot, safe);
-        }
+        private string Root(Clinic clinic) =>
+            Path.Combine(_settings.FilesRoot, SafeFolderName(clinic.UserEmail));
 
-        public string GetOriginalFolder(Clinic clinic) => Path.Combine(GetClinicRoot(clinic), "Original");
-        public string GetSendsFolder(Clinic clinic)    => Path.Combine(GetClinicRoot(clinic), "Sends");
-        public string GetSumarFolder(Clinic clinic)    => Path.Combine(GetClinicRoot(clinic), "Sumar");
-        public string GetErrorsFolder(Clinic clinic)   => Path.Combine(GetClinicRoot(clinic), "Errors");
+        private string Dir(Clinic clinic, CamFolder folder) =>
+            Path.Combine(Root(clinic), folder.ToString());
+
+        public string GetDisplayLocation(Clinic clinic, CamFolder? folder = null) =>
+            folder.HasValue ? Dir(clinic, folder.Value) : Root(clinic);
 
         public Task<string> EnsureClinicFoldersAsync(Clinic clinic, CancellationToken ct = default)
         {
-            var root = GetClinicRoot(clinic);
+            var root = Root(clinic);
             try
             {
-                Directory.CreateDirectory(GetOriginalFolder(clinic));
-                Directory.CreateDirectory(GetSendsFolder(clinic));
-                Directory.CreateDirectory(GetSumarFolder(clinic));
-                Directory.CreateDirectory(GetErrorsFolder(clinic));
-                _logger.LogInformation("CAM folders ensured for clinic {Email} at {Root}", clinic.UserEmail, root);
+                foreach (CamFolder f in Enum.GetValues<CamFolder>())
+                    Directory.CreateDirectory(Dir(clinic, f));
+                _logger.LogInformation("CAM folders ensured for clinic {Email} at {Root}",
+                    clinic.UserEmail, root);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to ensure CAM folders for clinic {Email} at {Root}", clinic.UserEmail, root);
+                _logger.LogError(ex, "Failed to ensure CAM folders for clinic {Email} at {Root}",
+                    clinic.UserEmail, root);
                 throw;
             }
             return Task.FromResult(root);
         }
 
+        public Task<IReadOnlyList<CamFileEntry>> ListAsync(Clinic clinic, CamFolder folder,
+            string? extension = null, CancellationToken ct = default)
+        {
+            var dir = Dir(clinic, folder);
+            if (!Directory.Exists(dir))
+                return Task.FromResult<IReadOnlyList<CamFileEntry>>(Array.Empty<CamFileEntry>());
+
+            var pattern = string.IsNullOrWhiteSpace(extension) ? "*" : "*" + extension;
+            var list = new List<CamFileEntry>();
+            foreach (var path in Directory.GetFiles(dir, pattern, SearchOption.TopDirectoryOnly))
+            {
+                var fi = new FileInfo(path);
+                list.Add(new CamFileEntry(fi.Name, fi.Length, fi.LastWriteTimeUtc));
+            }
+            list.Sort((a, b) => b.LastModifiedUtc.CompareTo(a.LastModifiedUtc));
+            return Task.FromResult<IReadOnlyList<CamFileEntry>>(list);
+        }
+
+        public Task<bool> ExistsAsync(Clinic clinic, CamFolder folder, string name,
+            CancellationToken ct = default) =>
+            Task.FromResult(File.Exists(FullPath(clinic, folder, name)));
+
+        public async Task<byte[]?> ReadAsync(Clinic clinic, CamFolder folder, string name,
+            CancellationToken ct = default)
+        {
+            var path = FullPath(clinic, folder, name);
+            if (!File.Exists(path)) return null;
+            return await File.ReadAllBytesAsync(path, ct);
+        }
+
+        public async Task<string> WriteAsync(Clinic clinic, CamFolder folder, string name,
+            byte[] content, bool overwrite = false, CancellationToken ct = default)
+        {
+            var dir = Dir(clinic, folder);
+            Directory.CreateDirectory(dir);
+            var finalName = SafeFileName(name);
+            if (!overwrite && File.Exists(Path.Combine(dir, finalName)))
+                finalName = Stamped(finalName);
+            await File.WriteAllBytesAsync(Path.Combine(dir, finalName), content, ct);
+            return finalName;
+        }
+
+        public Task<string?> MoveAsync(Clinic clinic, CamFolder from, CamFolder to, string name,
+            CancellationToken ct = default)
+        {
+            var src = FullPath(clinic, from, name);
+            if (!File.Exists(src)) return Task.FromResult<string?>(null);
+
+            var destDir = Dir(clinic, to);
+            Directory.CreateDirectory(destDir);
+            var finalName = SafeFileName(name);
+            if (File.Exists(Path.Combine(destDir, finalName)))
+                finalName = Stamped(finalName);
+            File.Move(src, Path.Combine(destDir, finalName));
+            return Task.FromResult<string?>(finalName);
+        }
+
+        public Task<bool> DeleteAsync(Clinic clinic, CamFolder folder, string name,
+            CancellationToken ct = default)
+        {
+            var path = FullPath(clinic, folder, name);
+            if (!File.Exists(path)) return Task.FromResult(false);
+            File.Delete(path);
+            return Task.FromResult(true);
+        }
+
+        private string FullPath(Clinic clinic, CamFolder folder, string name) =>
+            Path.Combine(Dir(clinic, folder), SafeFileName(name));
+
+        internal static string Stamped(string name) =>
+            $"{DateTime.Now:yyyyMMdd_HHmmss}_{name}";
+
+        /// <summary>Strips any path information — callers pass user-supplied names.</summary>
+        internal static string SafeFileName(string name) =>
+            Path.GetFileName(name ?? string.Empty);
+
         /// <summary>
         /// Turns an email (or any string) into a safe folder-name segment.
         /// "clinica@example.com" → "clinica_at_example_com".
         /// </summary>
-        private static string SafeFolderName(string raw)
+        internal static string SafeFolderName(string raw)
         {
             if (string.IsNullOrWhiteSpace(raw)) return "unknown";
             var s = raw.Trim().ToLowerInvariant().Replace("@", "_at_");
