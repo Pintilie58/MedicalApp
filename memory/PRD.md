@@ -165,6 +165,15 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
     Data Protection între două instanțe pe Azurite și scenariul de orfani. Regresie: B2C 66/66 PASS.
   - Ghid de activare: **`/app/memory/SCALE_OUT.md`**.
 
+- **Fix avertisment EF „First/FirstOrDefault without OrderBy”** (iunie 2026): cele două agregate
+  `GroupBy(_ => 1).Select(...).FirstOrDefaultAsync()` din `Areas/CAM/Controllers/DashboardController.cs`
+  (`PopulateStatsAsync`, `ComputeBatchPeriodRangeAsync`) au primit `.OrderBy(...)` înainte de
+  `FirstOrDefaultAsync`. Avertismentul era o euristică EF — agregatul întoarce cel mult un rând, deci
+  `First` era deja determinist și NU s-au afișat niciodată date greșite. Fix de igienă a logului.
+  Reprodus și verificat cu `/app/memory/probes/EfFirstWithoutOrderByProbe.cs.txt` (forma veche = 1
+  avertisment, forma nouă = 0, valori agregate identice). Confirmat de testing agent:
+  `/app/test_reports/iteration_20.json` — 0 probleme, regresie B2C 66/66 PASS.
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard

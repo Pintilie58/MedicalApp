@@ -1,0 +1,100 @@
+using MedicalApp.Data;
+using MedicalApp.Models;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Logging;
+
+int fails = 0;
+void Check(string label, bool ok, string detail = "")
+{
+    Console.WriteLine((ok ? "PASS  " : "FAIL  ") + label + (detail.Length > 0 ? "  ->  " + detail : ""));
+    if (!ok) fails++;
+}
+
+var captured = new List<string>();
+
+// SQL Server provider with an unreachable server: the query is COMPILED (and
+// the warning logged) before any connection is opened, so we can reproduce the
+// exact warning from the user's log without a database.
+var sqlOpts = new DbContextOptionsBuilder<AppDbContext>()
+    .UseSqlServer("Server=127.0.0.1,1;Database=None;User Id=sa;Password=x;TrustServerCertificate=True;Connect Timeout=1")
+    .LogTo(msg => { if (msg.Contains("without 'OrderBy'")) captured.Add(msg); }, LogLevel.Warning)
+    .Options;
+
+async Task<int> CompileWarnings(bool withOrderBy)
+{
+    captured.Clear();
+    using var sdb = new AppDbContext(sqlOpts);
+    var q = sdb.ClinicBatchRuns.AsNoTracking()
+        .Where(b => b.ClinicId == 7)
+        .GroupBy(_ => 1)
+        .Select(g => new { Total = g.Count(), Interpreted = g.Sum(b => (int?)b.FilesInterpreted) ?? 0 });
+    try
+    {
+        if (withOrderBy) await q.OrderBy(x => x.Interpreted).FirstOrDefaultAsync();
+        else await q.FirstOrDefaultAsync();
+    }
+    catch { /* connection failure expected — compilation already happened */ }
+    return captured.Count;
+}
+
+var warnOld = await CompileWarnings(false);
+var warnNew = await CompileWarnings(true);
+Check("REPRODUS: forma veche genereaza avertismentul din logul utilizatorului",
+    warnOld > 0, warnOld + " avertisment(e)");
+Check("REZOLVAT: forma noua nu mai genereaza avertisment",
+    warnNew == 0, warnNew + " avertisment(e)");
+
+var opts = new DbContextOptionsBuilder<AppDbContext>()
+    .UseInMemoryDatabase("efwarn_" + Guid.NewGuid())
+    .ConfigureWarnings(w => w.Log(CoreEventId.RowLimitingOperationWithoutOrderByWarning))
+    .LogTo(msg =>
+    {
+        if (msg.Contains("without 'OrderBy'")) captured.Add(msg);
+    }, LogLevel.Warning)
+    .Options;
+
+using var db = new AppDbContext(opts);
+db.ClinicBatchRuns.AddRange(
+    new ClinicBatchRun { Id = 1, ClinicId = 7, Status = "Completed", StartedAt = DateTime.UtcNow.AddDays(-1),
+        FilesInterpreted = 3, FilesSent = 3, FilesCompared = 2, NotSends = 0 },
+    new ClinicBatchRun { Id = 2, ClinicId = 7, Status = "Failed", StartedAt = DateTime.UtcNow,
+        FilesInterpreted = 1, FilesSent = 0, FilesCompared = 0, NotSends = 1 });
+db.SaveChanges();
+
+// --- forma VECHE (fara OrderBy) — trebuie sa produca warning
+var old = await db.ClinicBatchRuns.AsNoTracking()
+    .Where(b => b.ClinicId == 7)
+    .GroupBy(_ => 1)
+    .Select(g => new { Total = g.Count(), Interpreted = g.Sum(b => (int?)b.FilesInterpreted) ?? 0 })
+    .FirstOrDefaultAsync();
+
+
+// --- forma NOUA (cu OrderBy) — fara warning, aceleasi valori
+captured.Clear();
+var neo = await db.ClinicBatchRuns.AsNoTracking()
+    .Where(b => b.ClinicId == 7)
+    .GroupBy(_ => 1)
+    .Select(g => new { Total = g.Count(), Interpreted = g.Sum(b => (int?)b.FilesInterpreted) ?? 0 })
+    .OrderBy(x => x.Interpreted)
+    .FirstOrDefaultAsync();
+
+Check("Rezultatul e IDENTIC (fara regresie de date)",
+    old != null && neo != null && old.Total == neo.Total && old.Interpreted == neo.Interpreted,
+    $"old=({old?.Total},{old?.Interpreted}) new=({neo?.Total},{neo?.Interpreted})");
+Check("Valorile agregate sunt corecte", neo!.Total == 2 && neo.Interpreted == 4,
+    $"{neo.Total}/{neo.Interpreted}");
+
+// --- clinica fara loturi: ambele forme intorc null (comportament pastrat)
+captured.Clear();
+var empty = await db.ClinicBatchRuns.AsNoTracking()
+    .Where(b => b.ClinicId == 999)
+    .GroupBy(_ => 1)
+    .Select(g => new { Total = g.Count(), Interpreted = g.Sum(b => (int?)b.FilesInterpreted) ?? 0 })
+    .OrderBy(x => x.Interpreted)
+    .FirstOrDefaultAsync();
+Check("Clinica fara loturi intoarce null, fara avertisment",
+    empty == null && captured.Count == 0);
+
+Console.WriteLine(fails == 0 ? "\nALL PASS" : $"\n{fails} FAIL(S)");
+return fails == 0 ? 0 : 1;

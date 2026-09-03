@@ -172,6 +172,10 @@ namespace MedicalApp.Areas.CAM.Controllers
                     Compared = g.Sum(b => (int?)b.FilesCompared) ?? 0,
                     NotSends = g.Sum(b => (int?)b.NotSends) ?? 0
                 })
+                // Single-group aggregate ⇒ at most one row, so First is already
+                // deterministic. The explicit ordering only silences EF's
+                // "First without OrderBy" heuristic warning in the logs.
+                .OrderBy(x => x.Interpreted)
                 .FirstOrDefaultAsync();
 
             if (lifetimeStats != null)
@@ -311,6 +315,9 @@ namespace MedicalApp.Areas.CAM.Controllers
                     Failed = g.Count(b => b.Status == "Failed"),
                     Cancelled = g.Count(b => b.Status == "Cancelled")
                 })
+                // Same as above: one aggregated row, ordering added only to keep
+                // the EF query warning out of the logs.
+                .OrderBy(x => x.Total)
                 .FirstOrDefaultAsync();
 
             var patients = await _db.ClinicAnalyses.AsNoTracking()

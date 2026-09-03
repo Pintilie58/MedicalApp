@@ -390,7 +390,8 @@ InterpretationJob Job(int historyId, string token) => new(
     using var scope = sp.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var acc = new MedicalApp.Controllers.AccountController(
-        db, fakeEmail, new PendingRegistrationStore(),
+        db, fakeEmail, new PendingRegistrationStore(new Microsoft.Extensions.Caching.Distributed.MemoryDistributedCache(
+            Options.Create(new Microsoft.Extensions.Caching.Memory.MemoryDistributedCacheOptions()))),
         Options.Create(new AdminSettings()),
         scope.ServiceProvider.GetRequiredService<ILogger<MedicalApp.Controllers.AccountController>>());
 
