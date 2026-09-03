@@ -1,0 +1,61 @@
+using MedicalApp.Models;
+using MedicalApp.Services;
+using QuestPDF.Infrastructure;
+using System.Text.Json;
+
+int fails = 0;
+void Check(string label, bool ok, string detail = "")
+{
+    Console.WriteLine((ok ? "PASS  " : "FAIL  ") + label + (detail.Length > 0 ? "  ->  " + detail : ""));
+    if (!ok) fails++;
+}
+
+QuestPDF.Settings.License = LicenseType.Community;
+
+static string Json(params (string p, string v, string unit, string range, string status)[] rows)
+{
+    var r = new InterpretationResult
+    {
+        IsMedicalAnalysis = true,
+        Summary = "sumar",
+        PatientInfo = new PatientInfo { Name = "Ion Popescu", DateTaken = "2026-01-10" },
+        KeyResults = rows.Select(x => new KeyResult
+        {
+            Parameter = x.p, Value = x.v, Unit = x.unit, ReferenceRange = x.range, Status = x.status
+        }).ToList()
+    };
+    return JsonSerializer.Serialize(r);
+}
+
+var clinic = new Clinic { Id = 1, Name = "Clinica Test", UserEmail = "clinic@test.ro" };
+var patient = new ClinicPatient { Id = 1, ClinicId = 1, Name = "Ion Popescu" };
+
+var analyses = new List<ClinicAnalysis>
+{
+    new() { Id = 1, ClinicId = 1, PatientId = 1, OriginalFileName = "a1.pdf",
+        SamplingDate = new DateTime(2025, 11, 3), ProcessedAt = new DateTime(2025, 11, 3),
+        RawJsonResult = Json(
+            ("Hemoglobina", "9.1", "g/dL", "12-16", "low"),
+            ("LDL colesterol", "180", "mg/dL", "0-130", "high"),
+            ("Glicemie", "99", "mg/dL", "70-99", "borderline"),
+            ("Creatinina", "0.9", "mg/dL", "0.7-1.2", "normal")) },
+    new() { Id = 2, ClinicId = 1, PatientId = 1, OriginalFileName = "a2.pdf",
+        SamplingDate = new DateTime(2026, 1, 10), ProcessedAt = new DateTime(2026, 1, 10),
+        RawJsonResult = Json(
+            ("Hemoglobina", "13.4", "g/dL", "12-16", "normal"),
+            ("LDL colesterol", "205", "mg/dL", "0-130", "high"),
+            ("Glicemie", "88", "mg/dL", "70-99", "normal"),
+            ("Creatinina", "0.6", "mg/dL", "0.7-1.2", "low")) },
+};
+
+var gen = new CamComparePdfGenerator();
+var pdf = gen.GenerateIfPossible(clinic, patient, analyses);
+Check("PDF-ul de comparatie CAM se genereaza", pdf != null && pdf.Length > 1000,
+    (pdf?.Length ?? 0) + " bytes");
+if (pdf != null) File.WriteAllBytes("/app/probe/cam_compare.pdf", pdf);
+
+Check("O singura analiza nu produce comparatie",
+    gen.GenerateIfPossible(clinic, patient, analyses.Take(1).ToList()) == null);
+
+Console.WriteLine(fails == 0 ? "\nALL PASS" : $"\n{fails} FAIL(S)");
+return fails == 0 ? 0 : 1;

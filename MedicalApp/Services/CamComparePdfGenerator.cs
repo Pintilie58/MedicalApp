@@ -226,9 +226,14 @@ namespace MedicalApp.Services
                                 }
 
                                 // ---- Parameter label cell ----
+                                // Colored by the status of the MOST RECENT value
+                                // (columns are ordered oldest → newest), so the
+                                // clinician sees the current state at a glance.
+                                var latestStatus = row.Cells
+                                    .LastOrDefault(c => c.CellDirection != "absent")?.Status;
                                 table.Cell().Element(BodyCellStyle).Text(t =>
                                 {
-                                    t.Span(row.Parameter).SemiBold();
+                                    t.Span(row.Parameter).SemiBold().FontColor(StatusColor(latestStatus));
                                     if (!string.IsNullOrWhiteSpace(row.Unit))
                                     {
                                         t.Span($" ({row.Unit})").FontSize(8).FontColor(Colors.Grey.Darken1);
@@ -264,7 +269,8 @@ namespace MedicalApp.Services
                                         }
                                         else
                                         {
-                                            t.Span(cell.Value ?? "-").SemiBold();
+                                            t.Span(cell.Value ?? "-").SemiBold()
+                                                .FontColor(StatusColor(cell.Status));
                                             // Status arrow (↑ high / ↓ low / ≈ borderline / ✓ normal)
                                             var statusGlyph = StatusGlyph(cell.Status);
                                             if (statusGlyph != null)
@@ -295,6 +301,12 @@ namespace MedicalApp.Services
                             t.DefaultTextStyle(s => s.FontSize(7).FontColor(Colors.Grey.Darken1));
                             t.Line(Loc.T("CamCompareLegendLine1"));
                             t.Line(Loc.T("CamCompareLegendLine2"));
+                            // Value colors (added June 2026 at the clinic's request).
+                            t.Span("● ").FontColor("#c62828").Bold();
+                            t.Span("● ").FontColor("#1565c0").Bold();
+                            t.Span("● ").FontColor("#f9a825").Bold();
+                            t.Span("● ").FontColor("#2e7d32").Bold();
+                            t.Line(" " + Loc.T("CamCompareLegendStatusColors"));
                             t.Span("● ").FontColor("#198754");
                             t.Span(Loc.T("CamCompareLegendVerified"));
                             t.Span("● ").FontColor("#0d6efd");
@@ -345,14 +357,29 @@ namespace MedicalApp.Services
                     .BorderBottom(0.5f).BorderColor(Colors.Grey.Lighten2);
         }
 
+        /// <summary>
+        /// Text color by VALUE status — identical palette to the B2C report and
+        /// the on-screen tables: red = high, blue = low, mustard = borderline,
+        /// green = normal. Unknown/missing status stays neutral dark grey.
+        /// </summary>
+        private static string StatusColor(string? status) =>
+            (status ?? string.Empty).Trim().ToLowerInvariant() switch
+            {
+                "high" => "#c62828",
+                "low" => "#1565c0",
+                "borderline" => "#f9a825",
+                "normal" => "#2e7d32",
+                _ => Colors.Grey.Darken4
+            };
+
         private static (string glyph, string color)? StatusGlyph(string? status)
         {
             return (status ?? string.Empty).ToLowerInvariant() switch
             {
-                "high"       => ("↑", Colors.Red.Darken2),
-                "low"        => ("↓", Colors.Blue.Darken2),
-                "borderline" => ("≈", Colors.Orange.Darken2),
-                "normal"     => ("✓", Colors.Green.Darken2),
+                "high"       => ("↑", "#c62828"),
+                "low"        => ("↓", "#1565c0"),
+                "borderline" => ("≈", "#f9a825"),
+                "normal"     => ("✓", "#2e7d32"),
                 _ => ((string, string)?)null
             };
         }

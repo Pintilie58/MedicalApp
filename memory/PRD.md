@@ -116,6 +116,14 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   - Regresie: suita re-rulată → **55/55 PASS** (inclusiv teste noi: command timeout, strategie de retry,
     construcția modelului EF fără conexiune, `Dashboard()` async cu și fără sesiune).
 
+- **Colorare după status în comparația B2B (CAM)** (iunie 2026): `CamComparePdfGenerator` —
+  denumirea analizei e colorată după statusul **celei mai recente** valori (coloanele sunt vechi→nou),
+  iar fiecare valoare din tabel după statusul ei; paletă identică cu B2C (`#c62828` high, `#1565c0` low,
+  `#f9a825` borderline, `#2e7d32` normal, gri neutru la status necunoscut). Glifele ↑↓≈✓ folosesc acum
+  aceleași hex-uri. Adăugată linie de legendă `CamCompareLegendStatusColors` în toate 7 limbile.
+  Verificat prin probă (`/app/memory/probes/CamCompareColorProbe.cs.txt`): PDF real generat + analiză
+  de pixeli (toate 4 culorile prezente) + text extras.
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard
