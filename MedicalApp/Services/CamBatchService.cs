@@ -1,4 +1,4 @@
-using System.Net.Http;
+﻿using System.Net.Http;
 using System.Text.Json;
 using MedicalApp.Data;
 using MedicalApp.Models;
@@ -150,7 +150,7 @@ namespace MedicalApp.Services
                     await db.SaveChangesAsync();
                     progress.Status = "Completed";
                     progress.FinishedAt = batch.FinishedAt;
-                    WriteSumar(db, batch, clinic, sumarFolder);
+                    await WriteSumarAsync(db, batch, clinic, sumarFolder);
                     return;
                 }
 
@@ -194,7 +194,7 @@ namespace MedicalApp.Services
                 progress.FinishedAt = batch.FinishedAt;
                 progress.Log(string.Format(Loc.T("CamBatchLogFinalized", lang), batch.Status));
 
-                WriteSumar(db, batch, clinic, sumarFolder);
+                await WriteSumarAsync(db, batch, clinic, sumarFolder);
             }
             catch (Exception ex)
             {
@@ -690,12 +690,13 @@ namespace MedicalApp.Services
             }
         }
 
-        private static void WriteSumar(AppDbContext db, ClinicBatchRun batch, Clinic clinic, string sumarFolder)
+        private static async Task WriteSumarAsync(AppDbContext db, ClinicBatchRun batch,
+            Clinic clinic, string sumarFolder)
         {
             try
             {
-                var errors = db.ClinicBatchErrors.Where(e => e.BatchRunId == batch.Id)
-                    .OrderBy(e => e.OccurredAt).ToList();
+                var errors = await db.ClinicBatchErrors.Where(e => e.BatchRunId == batch.Id)
+                    .OrderBy(e => e.OccurredAt).ToListAsync();
                 CamBatchSumarWriter.Write(batch, clinic, errors, sumarFolder);
             }
             catch { /* never break the batch on a sumar I/O failure */ }

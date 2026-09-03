@@ -18,8 +18,21 @@ builder.Services.AddSession(options =>
 });
 
 // Entity Framework + SQL Server
+// Retry + command timeout: SQL Azure drops idle connections and throttles
+// periodically, so a transient failure is NORMAL there, not an incident.
+// Safe to enable because the app uses no explicit transactions (a retrying
+// execution strategy would otherwise refuse to run a manual BeginTransaction).
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        sql =>
+        {
+            sql.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(10),
+                errorNumbersToAdd: null);
+            sql.CommandTimeout(30);
+        }));
 
 // Email service configuration
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));

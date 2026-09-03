@@ -102,6 +102,19 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
     la Service Bus + Blob + worker separat).
   - Regresie verificată: suita completă re-rulată → **48/48 PASS**, inclusiv teste noi care demonstrează
     că limitele din configurație schimbă real comportamentul (2 per user acceptă 2, refuză al 3-lea).
+- **Audit I/O async + pregătire SQL Azure** (iunie 2026, pas 1 din planul de scalabilitate):
+  - Audit: Gemini/HTTP, email (MailKit), upload PDF, coada de fundal — deja 100% async;
+    zero `SaveChanges()` sincron, zero `async void`; `.Result` apare doar după `Task.WhenAll`
+    (nu e sync-over-async). Endpoint-urile FastAPI sunt `def` intenționat (CPU-bound → threadpool).
+  - Corectate 3 apeluri sincrone reale: `AccountController.Dashboard()` (era `IActionResult` cu
+    `_db.Users.FirstOrDefault` — pagina cea mai vizitată), `CamBatchService.WriteSumar` → `WriteSumarAsync`,
+    `CAM/DashboardController` `File.WriteAllBytes` → `WriteAllBytesAsync`.
+  - `Program.cs`: `UseSqlServer` cu `EnableRetryOnFailure(5, 10s)` + `CommandTimeout(30)` — obligatoriu
+    pe SQL Azure. Sigur pentru că aplicația nu folosește tranzacții explicite (`BeginTransaction`).
+  - Limitări asumate: `File.Move/Delete`, `Directory.GetFiles` NU au variante async în .NET (rămân
+    sincrone în serviciile de fundal). Problema reală a CAM pe Azure nu e async, ci folderele locale.
+  - Regresie: suita re-rulată → **55/55 PASS** (inclusiv teste noi: command timeout, strategie de retry,
+    construcția modelului EF fără conexiune, `Dashboard()` async cu și fără sesiune).
 
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare

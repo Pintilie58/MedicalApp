@@ -506,13 +506,13 @@ namespace MedicalApp.Controllers
             return RedirectToAction("Dashboard", "Account");
         }
 
-        public IActionResult Dashboard()
+        public async Task<IActionResult> Dashboard()
         {
             var email = HttpContext.Session.GetString("UserEmail");
             if (string.IsNullOrEmpty(email))
                 return RedirectToAction("Index", "Home");
 
-            var user = _db.Users.FirstOrDefault(u => u.Email == email);
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email);
             if (user == null)
             {
                 HttpContext.Session.Clear();

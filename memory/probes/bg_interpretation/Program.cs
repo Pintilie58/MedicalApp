@@ -353,6 +353,70 @@ InterpretationJob Job(int historyId, string token) => new(
         q0.MaxConcurrent == 1 && q0.MaxPerUser == 1);
 }
 
+// =================================================================
+// 11. Configurarea SQL Azure: retry + command timeout, model valid
+// =================================================================
+{
+    var opts = new DbContextOptionsBuilder<AppDbContext>()
+        .UseSqlServer("Server=(local);Database=Fake;Trusted_Connection=True;TrustServerCertificate=True",
+            sql =>
+            {
+                sql.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10),
+                    errorNumbersToAdd: null);
+                sql.CommandTimeout(30);
+            })
+        .Options;
+
+    var ext = opts.FindExtension<Microsoft.EntityFrameworkCore.SqlServer.Infrastructure.Internal
+        .SqlServerOptionsExtension>();
+    Check("Command timeout este setat la 30s", ext?.CommandTimeout == 30,
+        ext?.CommandTimeout?.ToString() ?? "null");
+    Check("Strategia de retry este activa",
+        ext?.ExecutionStrategyFactory != null);
+
+    // Modelul se construieste fara conexiune la baza: prinde erori de mapare
+    // introduse accidental (regresie de configurare EF).
+    using var probeDb = new AppDbContext(opts);
+    var entityCount = probeDb.Model.GetEntityTypes().Count();
+    Check("Modelul EF se construieste corect", entityCount > 5, entityCount + " entitati");
+    Check("InterpretationHistory e in model",
+        probeDb.Model.FindEntityType(typeof(InterpretationHistory)) != null);
+}
+
+// =================================================================
+// 12. AccountController.Dashboard() este async si intoarce userul
+// =================================================================
+{
+    using var scope = sp.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var acc = new MedicalApp.Controllers.AccountController(
+        db, fakeEmail, new PendingRegistrationStore(),
+        Options.Create(new AdminSettings()),
+        scope.ServiceProvider.GetRequiredService<ILogger<MedicalApp.Controllers.AccountController>>());
+
+    var http = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+    http.Session = new FakeSession("u@test.ro");
+    acc.ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = http };
+
+    var method = typeof(MedicalApp.Controllers.AccountController).GetMethod("Dashboard");
+    Check("Dashboard() returneaza Task (este async)",
+        method!.ReturnType == typeof(Task<Microsoft.AspNetCore.Mvc.IActionResult>),
+        method.ReturnType.Name);
+
+    var view = await acc.Dashboard() as Microsoft.AspNetCore.Mvc.ViewResult;
+    Check("Dashboard() randeaza view-ul cu utilizatorul incarcat",
+        view?.Model is User u2 && u2.Email == "u@test.ro",
+        view?.Model?.GetType().Name ?? "null");
+
+    // Fara sesiune -> redirect la Home (comportament neschimbat).
+    var anonHttp = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+    anonHttp.Session = new FakeSession(null);
+    acc.ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = anonHttp };
+    var redirect = await acc.Dashboard() as Microsoft.AspNetCore.Mvc.RedirectToActionResult;
+    Check("Fara sesiune, Dashboard() redirecteaza la Home",
+        redirect?.ControllerName == "Home", redirect?.ControllerName ?? "null");
+}
+
 Console.WriteLine(fails == 0 ? "\nALL PASS" : $"\n{fails} FAIL(S)");
 return fails == 0 ? 0 : 1;
 

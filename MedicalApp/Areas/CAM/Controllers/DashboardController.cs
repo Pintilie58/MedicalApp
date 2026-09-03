@@ -374,7 +374,8 @@ namespace MedicalApp.Areas.CAM.Controllers
                 var sumarFolder = _files.GetSumarFolder(clinic);
                 Directory.CreateDirectory(sumarFolder);
                 var fileName = $"Sumar_Lot_{batch.Id}_{batch.StartedAt.ToLocalTime():yyyyMMdd_HHmm}.pdf";
-                System.IO.File.WriteAllBytes(Path.Combine(sumarFolder, fileName), pdfBytes);
+                await System.IO.File.WriteAllBytesAsync(
+                    Path.Combine(sumarFolder, fileName), pdfBytes);
             }
             catch (Exception ex)
             {
