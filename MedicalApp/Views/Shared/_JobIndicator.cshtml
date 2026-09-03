@@ -234,9 +234,10 @@
             if (banner) banner.hidden = !isRunning;
         }
 
-        // 6s while we are following a job, 30s when idle — enough to notice a job
-        // started in another tab without spamming the database.
-        var FAST = 6000, SLOW = 30000;
+        // 10s while we are following a job, 60s when idle — enough to notice a
+        // job started in another tab without making this the most executed query
+        // in the app (thousands of signed-in users × one poll each).
+        var FAST = 10000, SLOW = 60000;
         var timer = null, rate = 0;
         function setRate(ms) {
             if (rate === ms) return;

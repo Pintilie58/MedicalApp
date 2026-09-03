@@ -43,6 +43,17 @@ namespace MedicalApp.Data
                 entity.ToTable("InterpretationHistories");
                 entity.HasKey(h => h.Id);
                 entity.HasIndex(h => h.UserEmail);
+
+                // Composite indexes for the hot paths (added June 2026 after the
+                // query audit). With millions of rows, filtering on UserEmail
+                // alone forced SQL Server to read every row of that user — and
+                // each row carries the large RawJsonResult column.
+                //   1) profile archive + charts + comparisons
+                entity.HasIndex(h => new { h.UserEmail, h.ProfileId, h.Status })
+                      .HasDatabaseName("IX_InterpretationHistories_User_Profile_Status");
+                //   2) "have I already interpreted this exact PDF?" on every upload
+                entity.HasIndex(h => new { h.UserEmail, h.PdfSha256 })
+                      .HasDatabaseName("IX_InterpretationHistories_User_PdfSha256");
                 entity.Property(h => h.CreatedAt).HasColumnType("datetime2");
             });
 
@@ -133,6 +144,11 @@ namespace MedicalApp.Data
                 entity.HasKey(a => a.Id);
                 entity.HasIndex(a => a.PatientId);
                 entity.HasIndex(a => a.ClinicId);
+                // B2B comparisons filter on BOTH columns at once (all analyses of
+                // one patient inside one clinic) — a composite index serves that
+                // in a single seek instead of intersecting two indexes.
+                entity.HasIndex(a => new { a.ClinicId, a.PatientId })
+                      .HasDatabaseName("IX_ClinicAnalyses_Clinic_Patient");
                 entity.Property(a => a.ProcessedAt).HasColumnType("datetime2");
                 entity.Property(a => a.SamplingDate).HasColumnType("datetime2");
             });

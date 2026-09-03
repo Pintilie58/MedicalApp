@@ -99,8 +99,49 @@ La 3 minute per interpretare: **~30 joburi simultane** în vârf.
 - Gemini: ~30 joburi × ~2 cereri/minut = ~60 RPM — confortabil chiar și pe tier 1.
 - LOINC: ~30 cereri de potrivire/minut → 2-4 workeri.
 
-## 6. Ordinea recomandată a lucrărilor
+## 6. Connection string pentru Azure SQL
 
+Valorile de folosit la hostare (local rămâne string-ul actual, neatins):
+
+```
+Server=tcp:<server>.database.windows.net,1433;
+Database=MedicalAppDb;
+User ID=<user>;Password=<parola>;
+Encrypt=True;TrustServerCertificate=False;
+Connect Timeout=30;
+Max Pool Size=50;
+Min Pool Size=2;
+```
+
+De ce exact așa:
+
+| Parametru | Motiv |
+|---|---|
+| `Max Pool Size=50` | pool-ul e **per instanță**: 3 instanțe × 100 (implicit) = 300 de sesiuni, iar tarifele mici de Azure SQL limitează exact în zona asta. 50 × 3 = 150, confortabil |
+| `Min Pool Size=2` | ține 2 conexiuni calde; evită latența de conectare „la rece” la prima cerere |
+| `Connect Timeout=30` | Azure SQL se conectează mai lent decât un SQL Express local |
+| `Encrypt=True` | obligatoriu pe Azure SQL |
+| **fără** `MultipleActiveResultSets` | MARS încetinește conexiunile și nu e necesar: EF Core execută o interogare pe rând. Scoate-l din string la migrare |
+
+`EnableRetryOnFailure(5, 10s)` și `CommandTimeout(30)` sunt deja în cod (`Program.cs`).
+
+## 7. Indexuri (migrarea `AddHotPathIndexes`)
+
+Adăugate în iunie 2026 după auditul de interogări; **trebuie aplicate cu
+`Update-Database`** (aplicația nu rulează migrări automat):
+
+| Index | Servește |
+|---|---|
+| `IX_InterpretationHistories_User_Profile_Status` | arhiva profilului, graficele, comparațiile |
+| `IX_InterpretationHistories_User_PdfSha256` | „am mai interpretat acest PDF?”, la fiecare încărcare |
+| `IX_ClinicAnalyses_Clinic_Patient` | comparațiile B2B (analizele unui pacient dintr-o clinică) |
+
+Fără ele, filtrarea se făcea pe indexul de `UserEmail` și apoi rând cu rând —
+iar fiecare rând cară coloana mare `RawJsonResult`. Local, invizibil; la milioane
+de rânduri, secunde.
+
+
+## 8. Ordinea recomandată a lucrărilor
 1. (Făcut) limite configurabile din `appsettings.json`.
 2. (Făcut) widget în admin cu „în lucru / la rând”, ca să vedem dacă limita strânge.
 3. Măsoară durata reală a unei interpretări pe zile normale → urcă `MaxConcurrent`.
