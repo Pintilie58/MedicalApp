@@ -1,4 +1,4 @@
-using MedicalApp.Data;
+﻿using MedicalApp.Data;
 using MedicalApp.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -29,13 +29,17 @@ namespace MedicalApp.Services
         private readonly BudgetAlertSettings _settings;
         private readonly ILogger<BudgetAlertService> _logger;
 
+        private readonly SingletonLeaseService _lease;
+
         public BudgetAlertService(
             IServiceScopeFactory scopeFactory,
             IOptions<BudgetAlertSettings> settings,
+            SingletonLeaseService lease,
             ILogger<BudgetAlertService> logger)
         {
             _scopeFactory = scopeFactory;
             _settings = settings.Value;
+            _lease = lease;
             _logger = logger;
         }
 
@@ -92,7 +96,13 @@ namespace MedicalApp.Services
             {
                 try
                 {
-                    await CheckOnceAsync(stoppingToken);
+                    // One instance per round, otherwise every instance would
+                    // nudge the admins about the same budget.
+                    if (await _lease.TryAcquireAsync("budget-alert",
+                            TimeSpan.FromMinutes(10), stoppingToken))
+                    {
+                        await CheckOnceAsync(stoppingToken);
+                    }
                 }
                 catch (Exception ex)
                 {

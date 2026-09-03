@@ -273,20 +273,92 @@ namespace MedicalApp.Services
         }
 
         /// <summary>
+        /// Creates the SQL objects multi-instance hosting needs, idempotently, so
+        /// nobody has to run the <c>dotnet sql-cache create</c> tool by hand:
+        ///   * the distributed session cache table (schema fixed by
+        ///     Microsoft.Extensions.Caching.SqlServer — do not change columns);
+        ///   * the singleton-lease table used by the scheduled services.
+        /// No-op when ScaleOut:Enabled is false.
+        /// </summary>
+        public static async Task EnsureScaleOutInfrastructureAsync(IServiceProvider services,
+            ScaleOutSettings scaleOut, ILogger logger)
+        {
+            if (!scaleOut.Enabled) return;
+
+            using var scope = services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var schema = SafeSqlIdentifier(scaleOut.SessionCacheSchema, "dbo");
+            var table = SafeSqlIdentifier(scaleOut.SessionCacheTable, "AppSessionCache");
+
+            // EF1002 suppressed on purpose: SQL cannot parameterize object NAMES,
+            // and both values come from our own appsettings, filtered through
+            // SafeSqlIdentifier (letters, digits, underscore only).
+#pragma warning disable EF1002
+            await db.Database.ExecuteSqlRawAsync($@"
+IF NOT EXISTS (SELECT 1 FROM sys.tables t JOIN sys.schemas s ON s.schema_id = t.schema_id
+               WHERE t.name = '{table}' AND s.name = '{schema}')
+BEGIN
+    CREATE TABLE [{schema}].[{table}] (
+        Id                         nvarchar(449)  NOT NULL PRIMARY KEY,
+        Value                      varbinary(MAX) NOT NULL,
+        ExpiresAtTime              datetimeoffset NOT NULL,
+        SlidingExpirationInSeconds bigint         NULL,
+        AbsoluteExpiration         datetimeoffset NULL
+    );
+    CREATE NONCLUSTERED INDEX [Index_ExpiresAtTime]
+        ON [{schema}].[{table}] (ExpiresAtTime);
+END;
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'AppSingletonLease')
+BEGIN
+    CREATE TABLE dbo.AppSingletonLease (
+        JobName    nvarchar(100) NOT NULL PRIMARY KEY,
+        Owner      nvarchar(200) NOT NULL,
+        ExpiresUtc datetime2     NOT NULL
+    );
+END;");
+#pragma warning restore EF1002
+
+            logger.LogInformation(
+                "StartupSeed: scale-out infrastructure ready (session cache [{Schema}].[{Table}], singleton leases). Instance = {Instance}.",
+                schema, table, scaleOut.ResolvedInstanceId);
+        }
+
+        /// <summary>Keeps only [A-Za-z0-9_] so a config value can never inject SQL.</summary>
+        private static string SafeSqlIdentifier(string? raw, string fallback)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return fallback;
+            var cleaned = new string(raw.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray());
+            return cleaned.Length == 0 ? fallback : cleaned;
+        }
+
+        /// <summary>
         /// B2C symmetry of <see cref="FailOrphanedBatchesAsync"/>: an interpretation
         /// left "processing" when the app died (IIS recycle, crash, deploy) can no
         /// longer be resumed — the PDF bytes only existed in memory. Flip it to
         /// "error" and GIVE THE CREDIT BACK, because the user paid for a report
         /// they never received.
         /// </summary>
-        public static async Task FailOrphanedInterpretationsAsync(IServiceProvider services, ILogger logger)
+        public static async Task FailOrphanedInterpretationsAsync(IServiceProvider services,
+            ILogger logger, ScaleOutSettings? scaleOut = null)
         {
             using var scope = services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            var orphans = await db.InterpretationHistories
-                .Where(h => h.Status == "processing")
-                .ToListAsync();
+            var query = db.InterpretationHistories.Where(h => h.Status == "processing");
+
+            // MULTI-INSTANCE SAFETY: with siblings alive, "processing" does not
+            // mean "orphaned" — the job may be running right now on another
+            // instance. Only rows older than the grace period are ours to fail
+            // (a real interpretation never exceeds ~10 minutes).
+            if (scaleOut?.Enabled == true)
+            {
+                var cutoff = DateTime.UtcNow.AddMinutes(-Math.Max(5, scaleOut.OrphanGraceMinutes));
+                query = query.Where(h => h.CreatedAt < cutoff);
+            }
+
+            var orphans = await query.ToListAsync();
             if (orphans.Count == 0) return;
 
             foreach (var h in orphans)

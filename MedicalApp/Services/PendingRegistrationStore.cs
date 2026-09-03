@@ -1,4 +1,7 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
+
+using Microsoft.Extensions.Caching.Distributed;
+using System.Text.Json;
 
 namespace MedicalApp.Services
 {
@@ -34,42 +37,64 @@ namespace MedicalApp.Services
     /// For a production system this would be replaced with a persistent cache
     /// (Redis) or a DB table, but in-memory is sufficient for single-instance apps.
     /// </summary>
+    /// <summary>
+    /// Holds registrations waiting for email verification.
+    ///
+    /// Backed by <see cref="IDistributedCache"/> — NOT by a dictionary in this
+    /// process. With two instances, the verification code was written on one
+    /// instance and looked up on the other, so half the sign-ups failed with
+    /// "invalid code". Locally the distributed cache IS in-process memory, so
+    /// behaviour is identical to before; in the cloud it becomes the SQL Server
+    /// cache automatically (see ScaleOutSettings).
+    ///
+    /// The public API stays synchronous on purpose: registration happens a few
+    /// times a day, and changing it would mean touching every call site in
+    /// AccountController for no real gain.
+    /// </summary>
     public class PendingRegistrationStore
     {
-        private readonly ConcurrentDictionary<string, PendingRegistration> _store = new();
+        private const string KeyPrefix = "pendreg:";
+        private readonly IDistributedCache _cache;
+
+        public PendingRegistrationStore(IDistributedCache cache) => _cache = cache;
+
+        private static string Key(string email) =>
+            KeyPrefix + (email ?? string.Empty).Trim().ToLowerInvariant();
 
         public void Save(PendingRegistration pending)
         {
-            _store[pending.Email] = pending;
+            // Keep it a little past its own expiry so Get() can still report
+            // "expired" rather than "never existed".
+            var ttl = pending.ExpiresAt - DateTime.UtcNow + TimeSpan.FromMinutes(30);
+            if (ttl < TimeSpan.FromMinutes(1)) ttl = TimeSpan.FromMinutes(1);
+
+            _cache.SetString(Key(pending.Email),
+                JsonSerializer.Serialize(pending),
+                new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = ttl });
         }
 
         public PendingRegistration? Get(string email)
         {
-            if (_store.TryGetValue(email, out var pending))
+            var raw = _cache.GetString(Key(email));
+            if (string.IsNullOrEmpty(raw)) return null;
+
+            var pending = JsonSerializer.Deserialize<PendingRegistration>(raw);
+            if (pending == null) return null;
+
+            if (pending.ExpiresAt < DateTime.UtcNow)
             {
-                if (pending.ExpiresAt < DateTime.UtcNow)
-                {
-                    _store.TryRemove(email, out _);
-                    return null;
-                }
-                return pending;
+                Remove(email);
+                return null;
             }
-            return null;
+            return pending;
         }
 
-        public void Remove(string email) => _store.TryRemove(email, out _);
+        public void Remove(string email) => _cache.Remove(Key(email));
 
         /// <summary>
-        /// Removes entries expired more than 1 hour ago. Call periodically (not critical).
+        /// No-op: the cache expires entries by itself. Kept so existing callers
+        /// (and the cleanup timer) continue to compile and behave.
         /// </summary>
-        public void Cleanup()
-        {
-            var cutoff = DateTime.UtcNow.AddHours(-1);
-            foreach (var kv in _store)
-            {
-                if (kv.Value.ExpiresAt < cutoff)
-                    _store.TryRemove(kv.Key, out _);
-            }
-        }
+        public void Cleanup() { }
     }
 }

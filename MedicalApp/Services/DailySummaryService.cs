@@ -21,13 +21,17 @@ namespace MedicalApp.Services
         private readonly DailySummarySettings _settings;
         private readonly ILogger<DailySummaryService> _logger;
 
+        private readonly SingletonLeaseService _lease;
+
         public DailySummaryService(
             IServiceScopeFactory scopeFactory,
             IOptions<DailySummarySettings> settings,
+            SingletonLeaseService lease,
             ILogger<DailySummaryService> logger)
         {
             _scopeFactory = scopeFactory;
             _settings = settings.Value;
+            _lease = lease;
             _logger = logger;
         }
 
@@ -90,7 +94,11 @@ namespace MedicalApp.Services
                     {
                         _logger.LogInformation("Daily summary already sent today (by catch-up). Skipping scheduled run.");
                     }
-                    else
+                    // Only ONE instance may send it: three instances would send
+                    // the same summary three times. Lease is held for 2 hours so
+                    // a sibling starting later today does not resend it.
+                    else if (await _lease.TryAcquireAsync("daily-summary",
+                                 TimeSpan.FromHours(2), stoppingToken))
                     {
                         await SendSummaryAsync(stoppingToken);
                     }

@@ -149,6 +149,22 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   Notă: cu `MaxPerUser = 1`, poziția > 1 apare doar când alți utilizatori au joburi înaintea ta.
   Testat: **66/66 PASS** (avansarea pozițiilor la `MarkStarted`, job necunoscut → 0, formula ETA).
 
+- **Stateless / multi-instance (pas 2 din planul de scalabilitate)** — iunie 2026, **inactiv** implicit
+  (`ScaleOut:Enabled = false` ⇒ comportament local identic):
+  1. Sesiune pe `AddDistributedSqlServerCache` (tabel `AppSessionCache`, creat automat la pornire) —
+     fără asta, cu 2 instanțe utilizatorii se delogau aleatoriu (identitatea e `Session["UserEmail"]`).
+  2. Chei Data Protection în Blob (`dataprotection/keys.xml`, `SetApplicationName`) — altfel
+     „antiforgery token could not be decrypted”, inclusiv la fiecare repornire de container Docker.
+  3. `PendingRegistrationStore` rescris pe `IDistributedCache` (activ mereu; local = memorie) —
+     codurile de verificare la înregistrare nu mai sunt legate de o instanță.
+  4. `SingletonLeaseService` (tabel `AppSingletonLease`, MERGE atomic, fail-open) — `DailySummaryService`
+     și `BudgetAlertService` nu mai trimit emailuri duplicate de pe fiecare instanță.
+  5. `FailOrphanedInterpretationsAsync` respectă `OrphanGraceMinutes` (30) când scale-out e activ —
+     înainte, o instanță care repornea marca drept eșuate joburile ce rulau pe celelalte instanțe.
+  - Testat: **22/22 PASS** (`/app/memory/probes/ScaleOutProbe.cs.txt`), inclusiv round-trip real de
+    Data Protection între două instanțe pe Azurite și scenariul de orfani. Regresie: B2C 66/66 PASS.
+  - Ghid de activare: **`/app/memory/SCALE_OUT.md`**.
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard

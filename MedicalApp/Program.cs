@@ -1,10 +1,52 @@
 using MedicalApp.Data;
 using MedicalApp.Services;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ---------------------------------------------------------------------------
+// SCALE-OUT (June 2026). Everything here is INACTIVE until
+// ScaleOut:Enabled = true, so development and single-instance hosting behave
+// exactly as before. Activation steps: /app/memory/SCALE_OUT.md
+// ---------------------------------------------------------------------------
+builder.Services.Configure<ScaleOutSettings>(builder.Configuration.GetSection("ScaleOut"));
+builder.Services.AddSingleton<SingletonLeaseService>();
+
+var scaleOut = builder.Configuration.GetSection("ScaleOut").Get<ScaleOutSettings>()
+               ?? new ScaleOutSettings();
+
+if (scaleOut.Enabled)
+{
+    // 1) Sessions must live outside the process, otherwise the load balancer
+    //    logs users out at random (Session["UserEmail"] is our identity).
+    builder.Services.AddDistributedSqlServerCache(o =>
+    {
+        o.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+        o.SchemaName = scaleOut.SessionCacheSchema;
+        o.TableName = scaleOut.SessionCacheTable;
+    });
+
+    // 2) Data Protection keys encrypt the session cookie and every antiforgery
+    //    token. Local keys ⇒ "the antiforgery token could not be decrypted" as
+    //    soon as a second instance (or a fresh container) answers the request.
+    var camBlob = builder.Configuration.GetSection("CamSettings:Blob").Get<CamBlobSettings>()
+                  ?? new CamBlobSettings();
+    var keysBlobUri = ScaleOutBootstrap.EnsureDataProtectionBlob(camBlob, scaleOut);
+
+    builder.Services.AddDataProtection()
+        .SetApplicationName("MyMedicalApp")
+        .PersistKeysToAzureBlobStorage(keysBlobUri);
+}
+else
+{
+    // Single instance: an in-process distributed cache. Same object the app has
+    // always used implicitly, now explicit so PendingRegistrationStore has a
+    // dependency to resolve in BOTH modes.
+    builder.Services.AddDistributedMemoryCache();
+}
 
 // MVC + Session
 builder.Services.AddControllersWithViews();
@@ -221,7 +263,10 @@ using (var scopedServices = app.Services.CreateScope())
         await StartupSeed.FailOrphanedBatchesAsync(app.Services, seedLogger);
         // B2C: same rule for interpretations queued in the previous app life —
         // unrecoverable in-process, so mark them failed and refund the credit.
-        await StartupSeed.FailOrphanedInterpretationsAsync(app.Services, seedLogger);
+        // With scale-out on, only rows past the grace period (siblings may still
+        // be working on the fresh ones).
+        await StartupSeed.EnsureScaleOutInfrastructureAsync(app.Services, scaleOut, seedLogger);
+        await StartupSeed.FailOrphanedInterpretationsAsync(app.Services, seedLogger, scaleOut);
         await LoincSeeder.EnsureSeededAsync(app.Services, app.Environment, seedLogger);
     }
     catch (Exception ex)
