@@ -1,4 +1,4 @@
-using MedicalApp.Data;
+﻿using MedicalApp.Data;
 using MedicalApp.Models;
 using MedicalApp.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -22,6 +22,8 @@ namespace MedicalApp.Controllers
         private readonly IEmailService _emailService;
         private readonly ILogger<ProfilesController> _logger;
 
+        private readonly InterpretationJobQueue _queue;
+
         public ProfilesController(
             AppDbContext db,
             PdfReportGenerator pdfGenerator,
@@ -30,6 +32,7 @@ namespace MedicalApp.Controllers
             MedicalDossierPdfGenerator dossierPdf,
             ArchiveAccessService archiveAccess,
             IEmailService emailService,
+            InterpretationJobQueue queue,
             ILogger<ProfilesController> logger)
         {
             _db = db;
@@ -39,6 +42,7 @@ namespace MedicalApp.Controllers
             _dossierPdf = dossierPdf;
             _archiveAccess = archiveAccess;
             _emailService = emailService;
+            _queue = queue;
             _logger = logger;
         }
 
@@ -142,6 +146,7 @@ namespace MedicalApp.Controllers
                     OriginalFileName = r.OriginalFileName,
                     Language = r.Language,
                     Status = r.Status,
+                    QueuePosition = r.Status == "processing" ? _queue.GetPosition(r.Id) : 0,
                     HasRawJson = !string.IsNullOrWhiteSpace(r.RawJsonResult)
                 };
 

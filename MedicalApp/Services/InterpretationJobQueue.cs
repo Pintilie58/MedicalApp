@@ -34,6 +34,12 @@ namespace MedicalApp.Services
         private readonly ConcurrentDictionary<string, int> _perUser =
             new(StringComparer.OrdinalIgnoreCase);
 
+        // Ordering bookkeeping for "you are 3rd in line". A Channel cannot be
+        // inspected, so we keep the sequence number of every job that is queued
+        // but not yet started. HistoryId -> sequence.
+        private readonly ConcurrentDictionary<int, long> _waiting = new();
+        private long _sequence;
+
         public ChannelReader<InterpretationJob> Reader => _channel.Reader;
 
         /// <summary>
@@ -63,7 +69,23 @@ namespace MedicalApp.Services
                 ReleaseUser(job.UserEmail);
                 return false;
             }
+
+            _waiting[job.HistoryId] = Interlocked.Increment(ref _sequence);
             return true;
+        }
+
+        /// <summary>Called by the worker the moment a job leaves the queue.</summary>
+        public void MarkStarted(int historyId) => _waiting.TryRemove(historyId, out _);
+
+        /// <summary>
+        /// 1-based place in line, or 0 when the job is already running (or
+        /// unknown). "Position 1" = next to start.
+        /// </summary>
+        public int GetPosition(int historyId)
+        {
+            if (!_waiting.TryGetValue(historyId, out var mySeq)) return 0;
+            var ahead = _waiting.Values.Count(seq => seq < mySeq);
+            return ahead + 1;
         }
 
         /// <summary>Frees the user's slot. Called by the worker in a finally block.</summary>

@@ -139,6 +139,16 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   - Ghid de activare + Docker/Azurite: **`/app/memory/CAM_BLOB_STORAGE.md`**
     (atenție: Azurite are nevoie de `--skipApiVersionCheck` cu SDK-ul actual).
 
+- **Poziția în coadă + timp estimat** (iunie 2026): `InterpretationJobQueue` ține ordinea joburilor
+  care așteaptă (`_waiting`: HistoryId → număr de secvență); `GetPosition(historyId)` întoarce locul
+  1-based (0 = deja în lucru), `MarkStarted` e apelat de worker când jobul iese din coadă.
+  `JobStatus` returnează `position` + `etaSeconds` = `ceil(poziție / MaxConcurrent) × durata medie`
+  (media ultimelor 20 de interpretări reușite din `DurationMs`, cache 5 min, implicit 180s).
+  Afișat în pastila din dreapta sus („La rând: poziția 3 • ~6 min”) și în Istoric
+  („La rând (poziția 2)” vs „În lucru”). Chei noi în 5 limbi.
+  Notă: cu `MaxPerUser = 1`, poziția > 1 apare doar când alți utilizatori au joburi înaintea ta.
+  Testat: **66/66 PASS** (avansarea pozițiilor la `MarkStarted`, job necunoscut → 0, formula ETA).
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard

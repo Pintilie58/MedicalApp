@@ -417,6 +417,44 @@ InterpretationJob Job(int historyId, string token) => new(
         redirect?.ControllerName == "Home", redirect?.ControllerName ?? "null");
 }
 
+// =================================================================
+// 13. Poziția în coadă (feedback pentru utilizator)
+// =================================================================
+{
+    var q = new InterpretationJobQueue(new StaticOptions<InterpretationQueueSettings>(
+        new InterpretationQueueSettings { MaxConcurrent = 2, MaxPerUser = 5 }));
+
+    InterpretationJob J(int id) => new(id, "u@test.ro", 1, "Eu", new byte[] { 1 },
+        "f.pdf", "h", "ro", false, null);
+
+    Check("Job necunoscut -> poziția 0", q.GetPosition(999) == 0);
+
+    q.TryEnqueue(J(101));
+    q.TryEnqueue(J(102));
+    q.TryEnqueue(J(103));
+    Check("Primul intrat e primul la rând", q.GetPosition(101) == 1, q.GetPosition(101).ToString());
+    Check("Al doilea e pe poziția 2", q.GetPosition(102) == 2, q.GetPosition(102).ToString());
+    Check("Al treilea e pe poziția 3", q.GetPosition(103) == 3, q.GetPosition(103).ToString());
+
+    // Workerul preia primul job -> ceilalti avanseaza
+    q.MarkStarted(101);
+    Check("Jobul pornit nu mai e la rând (poziția 0)", q.GetPosition(101) == 0);
+    Check("Al doilea avanseaza pe poziția 1", q.GetPosition(102) == 1, q.GetPosition(102).ToString());
+    Check("Al treilea avanseaza pe poziția 2", q.GetPosition(103) == 2, q.GetPosition(103).ToString());
+
+    q.MarkStarted(102);
+    q.MarkStarted(103);
+    Check("Cand nimic nu mai asteapta, toate pozitiile sunt 0",
+        q.GetPosition(102) == 0 && q.GetPosition(103) == 0);
+
+    // Estimarea afisata userului: ceil(poz / MaxConcurrent) * durata medie
+    int Eta(int pos, int maxConc, int avgSec) =>
+        (int)Math.Ceiling((double)pos / maxConc) * avgSec;
+    Check("Estimare: poziția 1 cu 2 sloturi = o tura", Eta(1, 2, 180) == 180, Eta(1, 2, 180).ToString());
+    Check("Estimare: poziția 3 cu 2 sloturi = doua ture", Eta(3, 2, 180) == 360, Eta(3, 2, 180).ToString());
+    Check("Estimare: poziția 5 cu 3 sloturi = doua ture", Eta(5, 3, 200) == 400, Eta(5, 3, 200).ToString());
+}
+
 Console.WriteLine(fails == 0 ? "\nALL PASS" : $"\n{fails} FAIL(S)");
 return fails == 0 ? 0 : 1;
 

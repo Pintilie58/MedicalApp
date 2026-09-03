@@ -44,6 +44,7 @@ namespace MedicalApp.Services
                 await foreach (var job in _queue.Reader.ReadAllAsync(stoppingToken))
                 {
                     await gate.WaitAsync(stoppingToken);
+                    _queue.MarkStarted(job.HistoryId);
 
                     _ = Task.Run(async () =>
                     {

@@ -87,6 +87,9 @@ namespace MedicalApp.Models
             /// <summary>success | processing — "processing" rows are jobs still
             /// running in the background, shown as "în lucru" and not clickable.</summary>
             public string Status { get; set; } = "success";
+
+            /// <summary>Place in line while still queued (0 = being processed now).</summary>
+            public int QueuePosition { get; set; }
         }
     }
 

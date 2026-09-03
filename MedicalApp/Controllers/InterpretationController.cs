@@ -181,14 +181,47 @@ namespace MedicalApp.Controllers
             bool done = latest?.Status == "success";
             bool failed = latest?.Status is "error" or "rejected";
 
+            // "You are 3rd in line, about 8 minutes" — position 0 means the job
+            // is actually being worked on right now.
+            int position = running ? _queue.GetPosition(latest!.Id) : 0;
+            int? etaSeconds = position > 0
+                ? (int)Math.Ceiling((double)position / _queue.MaxConcurrent)
+                  * await AverageInterpretationSecondsAsync()
+                : null;
+
             return Json(new
             {
                 running,
                 runningId = running ? latest!.Id : (int?)null,
+                position,
+                etaSeconds,
                 lastDoneId = done ? latest!.Id : (int?)null,
                 lastDoneUrl = done ? $"/Profiles/ViewReport/{latest!.Id}" : null,
                 lastFailedId = failed ? latest!.Id : (int?)null
-            });        }
+            });
+        }
+
+        /// <summary>
+        /// Average duration of the last 20 successful interpretations, cached for
+        /// 5 minutes. Only an honest order of magnitude for the user; falls back
+        /// to 180 s until there is history to learn from.
+        /// </summary>
+        private async Task<int> AverageInterpretationSecondsAsync()
+        {
+            const string key = "avg_interpretation_seconds";
+            if (_cache.TryGetValue(key, out int cached)) return cached;
+
+            var recent = await _db.InterpretationHistories.AsNoTracking()
+                .Where(h => h.Status == "success" && h.DurationMs != null && h.DurationMs > 0)
+                .OrderByDescending(h => h.Id)
+                .Select(h => h.DurationMs!.Value)
+                .Take(20)
+                .ToListAsync();
+
+            var seconds = recent.Count > 0 ? (int)Math.Round(recent.Average() / 1000.0) : 180;
+            _cache.Set(key, seconds, TimeSpan.FromMinutes(5));
+            return seconds;
+        }
 
         [HttpPost]
         [ValidateAntiForgeryToken]

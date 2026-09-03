@@ -215,7 +215,16 @@
                                         <td><span class="text-break">@(h.OriginalFileName ?? "-")</span></td>
                                         <td colspan="4">
                                             <span class="spinner-border spinner-border-sm text-warning me-2" role="status"></span>
-                                            <strong data-testid="history-processing-badge">@Loc.T("HistoryStatusProcessing")</strong>
+                                            @if (h.QueuePosition > 0)
+                                            {
+                                                <strong data-testid="history-queued-badge">
+                                                    @string.Format(Loc.T("HistoryStatusQueuedFmt"), h.QueuePosition)
+                                                </strong>
+                                            }
+                                            else
+                                            {
+                                                <strong data-testid="history-processing-badge">@Loc.T("HistoryStatusProcessing")</strong>
+                                            }
                                             <div class="small text-muted">@Loc.T("HistoryProcessingNote")</div>
                                         </td>
                                     </tr>

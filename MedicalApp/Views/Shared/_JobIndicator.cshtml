@@ -113,6 +113,7 @@
 
         var T = {
             running: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("JobIndicatorRunning"))),
+            queued: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("JobIndicatorQueuedFmt"))),
             done: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("JobIndicatorDone"))),
             failed: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("JobIndicatorFailed")))
         };
@@ -191,7 +192,17 @@
                         store(K_WATCHING, String(d.runningId || ''));
                         store(K_PENDING, null);
                         store(K_FAILED, null);
-                        show('running', T.running, '#');
+                        // Waiting in line vs actually being processed — the user
+                        // needs to know the difference, otherwise a 10-minute
+                        // wait looks like a broken app.
+                        if (d.position > 0) {
+                            var mins = Math.max(1, Math.round((d.etaSeconds || 0) / 60));
+                            show('running',
+                                String(T.queued).replace('{0}', d.position).replace('{1}', mins),
+                                '#');
+                        } else {
+                            show('running', T.running, '#');
+                        }
                         setRate(FAST);
                         return;
                     }
