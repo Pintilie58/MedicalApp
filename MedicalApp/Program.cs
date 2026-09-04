@@ -182,6 +182,11 @@ builder.Services.AddScoped<CamBatchSumarPdfGenerator>();
 // to resolve the canonical LOINC code. Eliminates LLM LOINC hallucinations.
 builder.Services.Configure<LoincMatcherSettings>(
     builder.Configuration.GetSection("LoincMatcher"));
+// Persistent, GLOBAL cache of resolved LOINC mappings. Sits in front of the
+// Python matcher so it is only asked about analyte names never seen before.
+// KILL SWITCH: "LoincMatcher:Cache:Enabled" = false ⇒ every analyte is matched
+// live, exactly as before.
+builder.Services.AddSingleton<LoincMatchCacheStore>();
 builder.Services.AddHttpClient<LoincMatcherClient>((sp, http) =>
 {
     var opts = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<LoincMatcherSettings>>().Value;

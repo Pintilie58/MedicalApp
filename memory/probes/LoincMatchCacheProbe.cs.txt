@@ -1,0 +1,289 @@
+using System.Net;
+using System.Text;
+using System.Text.Json;
+using MedicalApp.Data;
+using MedicalApp.Models;
+using MedicalApp.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+// Probe for the persistent, GLOBAL LOINC match cache (Faza 1).
+// The Python matcher is replaced by a fake handler that COUNTS calls, so we can
+// prove the cache removes work without changing a single resolved code.
+
+int fails = 0;
+void Check(string label, bool ok, string detail = "")
+{
+    Console.WriteLine((ok ? "PASS  " : "FAIL  ") + label + (detail.Length > 0 ? "  ->  " + detail : ""));
+    if (!ok) fails++;
+}
+
+// ---------------------------------------------------------------- harness
+static InterpretationResult Report(params (string param, string en, string? unit)[] analytes) =>
+    new()
+    {
+        IsMedicalAnalysis = true,
+        KeyResults = analytes.Select(a => new KeyResult
+        {
+            Parameter = a.param,
+            ParameterNormalizedEn = a.en,
+            Unit = a.unit,
+            Value = "1",
+            Status = "normal"
+        }).ToList()
+    };
+
+static (LoincMatcherClient client, FakeMatcher fake, AppDbContext db, IServiceProvider sp) Build(
+    string dbName, bool cacheEnabled = true, string version = "v1", double minScore = 0.55)
+{
+    var services = new ServiceCollection();
+    services.AddLogging(b => b.SetMinimumLevel(LogLevel.Warning));
+    services.AddDbContext<AppDbContext>(o => o.UseInMemoryDatabase(dbName));
+    services.Configure<LoincMatcherSettings>(s =>
+    {
+        s.BaseUrl = "http://localhost:8000";
+        s.Enabled = true;
+        s.MinScore = minScore;
+        s.TimeoutSeconds = 5;
+        s.Cache = new LoincMatchCacheSettings { Enabled = cacheEnabled, PipelineVersion = version };
+    });
+    services.AddSingleton<LoincMatchCacheStore>();
+    var sp = services.BuildServiceProvider();
+
+    var fake = new FakeMatcher();
+    var http = new HttpClient(fake) { BaseAddress = new Uri("http://localhost:8000") };
+    var client = new LoincMatcherClient(
+        http,
+        sp.GetRequiredService<IOptions<LoincMatcherSettings>>(),
+        sp.GetRequiredService<LoincMatchCacheStore>(),
+        sp.GetRequiredService<ILogger<LoincMatcherClient>>());
+
+    var db = sp.GetRequiredService<AppDbContext>();
+    return (client, fake, db, sp);
+}
+
+const string DbA = "cache-a";
+
+// ================================================================ 1. cold run
+var (client, fake, db, sp) = Build(DbA);
+var r1 = Report(("Glicemie", "Glucose [Mass/volume] in Serum or Plasma", "mg/dL"),
+                ("Hemoglobina", "Hemoglobin [Mass/volume] in Blood", "g/dL"),
+                ("Colesterol", "Cholesterol [Mass/volume] in Serum or Plasma", "mg/dL"));
+var s1 = await client.MatchAllAsync(r1);
+
+Check("1. cold run calls the matcher once, for all 3 analytes",
+    fake.BatchCalls == 1 && fake.AnalytesSeen == 3, $"calls={fake.BatchCalls} analytes={fake.AnalytesSeen}");
+Check("1b. all 3 analytes got a code", s1.Matched == 3 && r1.KeyResults!.All(k => !string.IsNullOrEmpty(k.LoincCode)),
+    $"matched={s1.Matched}");
+Check("1c. nothing came from the cache on the cold run", s1.FromCache == 0, s1.FromCache.ToString());
+Check("1d. 3 mappings were remembered", await db.LoincMatchCache.CountAsync() == 3,
+    (await db.LoincMatchCache.CountAsync()).ToString());
+var codes1 = r1.KeyResults!.Select(k => k.LoincCode).ToList();
+
+// ================================================================ 2. warm run
+var (client2, fake2, _, _) = Build(DbA);   // same in-memory database
+var r2 = Report(("Glicemie", "Glucose [Mass/volume] in Serum or Plasma", "mg/dL"),
+                ("Hemoglobina", "Hemoglobin [Mass/volume] in Blood", "g/dL"),
+                ("Colesterol", "Cholesterol [Mass/volume] in Serum or Plasma", "mg/dL"));
+var s2 = await client2.MatchAllAsync(r2);
+
+Check("2. warm run does NOT call the matcher at all",
+    fake2.BatchCalls == 0 && fake2.SingleCalls == 0, $"batch={fake2.BatchCalls} single={fake2.SingleCalls}");
+Check("2b. all 3 analytes served from the cache", s2.FromCache == 3 && s2.Matched == 3,
+    $"cache={s2.FromCache} matched={s2.Matched}");
+Check("2c. codes are IDENTICAL to the cold run",
+    r2.KeyResults!.Select(k => k.LoincCode).SequenceEqual(codes1),
+    string.Join(",", r2.KeyResults!.Select(k => k.LoincCode)));
+Check("2d. long name, class, source and score survived the round-trip",
+    r2.KeyResults!.All(k => !string.IsNullOrEmpty(k.LoincLongName) && k.LoincClass == "CHEM"
+                            && k.LoincSource == "semantic" && k.LoincScore == 0.92));
+Check("2e. axis verdict survived the round-trip",
+    r2.KeyResults!.All(k => k.LoincAxisVerdict != null && k.LoincAxisVerdict!.ContainsKey("component")));
+
+// ================================================================ 3. partial hit
+var (client3, fake3, _, _) = Build(DbA);
+var r3 = Report(("Glicemie", "Glucose [Mass/volume] in Serum or Plasma", "mg/dL"),
+                ("Feritina", "Ferritin [Mass/volume] in Serum or Plasma", "ng/mL"));
+var s3 = await client3.MatchAllAsync(r3);
+
+Check("3. only the UNKNOWN analyte is sent to the matcher",
+    fake3.BatchCalls == 1 && fake3.AnalytesSeen == 1, $"calls={fake3.BatchCalls} analytes={fake3.AnalytesSeen}");
+Check("3b. the payload contained exactly the new analyte",
+    fake3.Payloads.Count == 1 && fake3.Payloads[0].Count == 1
+    && fake3.Payloads[0][0].StartsWith("Ferritin"), string.Join("|", fake3.Payloads.SelectMany(p => p)));
+Check("3c. stats show 1 from cache, 2 matched", s3.FromCache == 1 && s3.Matched == 2,
+    $"cache={s3.FromCache} matched={s3.Matched}");
+
+// ================================================================ 4. graceful degradation
+var (client4, fake4, _, _) = Build(DbA);
+fake4.Down = true;
+var r4 = Report(("Glicemie", "Glucose [Mass/volume] in Serum or Plasma", "mg/dL"),
+                ("Hemoglobina", "Hemoglobin [Mass/volume] in Blood", "g/dL"));
+var s4 = await client4.MatchAllAsync(r4);
+
+Check("4. with the Python service DOWN, known analytes are still coded",
+    s4.Matched == 2 && r4.KeyResults!.All(k => !string.IsNullOrEmpty(k.LoincCode)),
+    $"matched={s4.Matched}");
+Check("4b. codes are the same ones", r4.KeyResults!.Select(k => k.LoincCode)
+        .SequenceEqual(codes1.Take(2)), string.Join(",", r4.KeyResults!.Select(k => k.LoincCode)));
+
+var (client5, fake5, _, _) = Build(DbA);
+fake5.Down = true;
+var r5 = Report(("Analiza noua", "Brand new analyte never seen", "u"));
+var s5 = await client5.MatchAllAsync(r5);
+Check("4c. service down + unknown analyte => no code, no crash",
+    s5.Matched == 0 && string.IsNullOrEmpty(r5.KeyResults![0].LoincCode), $"matched={s5.Matched}");
+
+// ================================================================ 5. cache OFF = old behaviour
+var (client6, fake6, _, _) = Build(DbA, cacheEnabled: false);
+var r6 = Report(("Glicemie", "Glucose [Mass/volume] in Serum or Plasma", "mg/dL"));
+var s6 = await client6.MatchAllAsync(r6);
+Check("5. with the cache disabled every analyte goes to the matcher",
+    fake6.BatchCalls == 1 && fake6.AnalytesSeen == 1 && s6.FromCache == 0,
+    $"calls={fake6.BatchCalls} cache={s6.FromCache}");
+Check("5b. codes are still produced", s6.Matched == 1);
+
+// ================================================================ 6. key sensitivity
+var (client7, fake7, _, _) = Build(DbA);
+var r7 = Report(("Glicemie", "Glucose [Mass/volume] in Serum or Plasma", "mmol/L")); // different UNIT
+var s7 = await client7.MatchAllAsync(r7);
+Check("6. same name with a DIFFERENT unit is a cache miss (unit can change the code)",
+    fake7.BatchCalls == 1 && s7.FromCache == 0, $"calls={fake7.BatchCalls} cache={s7.FromCache}");
+
+var (client8, fake8, _, _) = Build(DbA);
+var r8 = Report(("Glicemie serica", "Glucose [Mass/volume] in Serum or Plasma", "mg/dL")); // different RAW name
+var s8 = await client8.MatchAllAsync(r8);
+Check("6b. same normalized name with a different RAW name is a cache miss",
+    fake8.BatchCalls == 1 && s8.FromCache == 0, $"calls={fake8.BatchCalls} cache={s8.FromCache}");
+
+var (client9, fake9, _, _) = Build(DbA, version: "v2");
+var r9 = Report(("Glicemie", "Glucose [Mass/volume] in Serum or Plasma", "mg/dL"));
+var s9 = await client9.MatchAllAsync(r9);
+Check("6c. bumping PipelineVersion invalidates the old rows",
+    fake9.BatchCalls == 1 && s9.FromCache == 0, $"calls={fake9.BatchCalls} cache={s9.FromCache}");
+
+var (clientA, fakeA, _, _) = Build(DbA, version: "v2");
+var rA = Report(("Glicemie", "Glucose [Mass/volume] in Serum or Plasma", "mg/dL"));
+var sA = await clientA.MatchAllAsync(rA);
+Check("6d. after the bump the new version caches normally",
+    fakeA.BatchCalls == 0 && sA.FromCache == 1, $"calls={fakeA.BatchCalls} cache={sA.FromCache}");
+
+// ================================================================ 7. threshold
+var (clientB, fakeB, dbB, _) = Build("cache-b", minScore: 0.90);
+fakeB.Score = 0.40;
+var rB = Report(("Ceva", "Low score analyte", "u"));
+var sB = await clientB.MatchAllAsync(rB);
+Check("7. below-threshold match is still discarded",
+    sB.BelowThreshold == 1 && string.IsNullOrEmpty(rB.KeyResults![0].LoincCode), $"low={sB.BelowThreshold}");
+Check("7b. but it is remembered, so we do not recompute it",
+    await dbB.LoincMatchCache.CountAsync() == 1);
+
+var (clientC, fakeC, _, _) = Build("cache-b", minScore: 0.90);
+var rC = Report(("Ceva", "Low score analyte", "u"));
+var sC = await clientC.MatchAllAsync(rC);
+Check("7c. the remembered low score is re-applied the same way (no call, still discarded)",
+    fakeC.BatchCalls == 0 && sC.BelowThreshold == 1 && sC.FromCache == 1,
+    $"calls={fakeC.BatchCalls} low={sC.BelowThreshold} cache={sC.FromCache}");
+
+// ================================================================ 8. sequential fallback
+var (clientD, fakeD, dbD, _) = Build("cache-c");
+fakeD.NoBatchEndpoint = true;
+var rD = Report(("A", "Analyte A", "u"), ("B", "Analyte B", "u"));
+var sD = await clientD.MatchAllAsync(rD);
+Check("8. an older Python service (no batch endpoint) still resolves per analyte",
+    sD.Matched == 2 && fakeD.SingleCalls == 2, $"matched={sD.Matched} single={fakeD.SingleCalls}");
+Check("8b. the sequential path also fills the cache",
+    await dbD.LoincMatchCache.CountAsync() == 2, (await dbD.LoincMatchCache.CountAsync()).ToString());
+
+var (clientE, fakeE, _, _) = Build("cache-c");
+var rE = Report(("A", "Analyte A", "u"), ("B", "Analyte B", "u"));
+var sE = await clientE.MatchAllAsync(rE);
+Check("8c. next time nothing is called at all",
+    fakeE.SingleCalls == 0 && fakeE.BatchCalls == 0 && sE.FromCache == 2,
+    $"single={fakeE.SingleCalls} batch={fakeE.BatchCalls} cache={sE.FromCache}");
+
+// ================================================================ 9. analytes without an English term
+var (clientF, fakeF, _, _) = Build("cache-d");
+var rF = Report(("Fara termen", "", "u"), ("Bun", "Good analyte", "u"));
+var sF = await clientF.MatchAllAsync(rF);
+Check("9. analytes without a normalized English term are skipped, not cached",
+    sF.NoNormalizedTerm == 1 && fakeF.AnalytesSeen == 1, $"skip={sF.NoNormalizedTerm} seen={fakeF.AnalytesSeen}");
+
+// ================================================================ 10. cache store internals
+var store = sp.GetRequiredService<LoincMatchCacheStore>();
+var k1 = store.BuildKey("Glucose [Mass/volume] in Serum or Plasma", "mg/dL", "Glicemie", null, null);
+var k2 = store.BuildKey("  GLUCOSE  [Mass/volume]  in Serum or Plasma ", "MG/DL", "glicemie", null, null);
+var k3 = store.BuildKey("Glucose [Mass/volume] in Serum or Plasma", "mmol/L", "Glicemie", null, null);
+Check("10. key ignores case and extra spaces", k1 == k2, k1[..12] + " vs " + k2[..12]);
+Check("10b. key separates different units", k1 != k3);
+Check("10c. key is a 64-char hex digest", k1.Length == 64 && k1.All(Uri.IsHexDigit), k1);
+var kPanel = store.BuildKey("X", null, null, "Hemoleucograma", null);
+var kLine = store.BuildKey("X", null, null, null, "Hemoleucograma");
+Check("10d. panel header and analyte line are not interchangeable", kPanel != kLine);
+await store.TouchAsync(new[] { k1 });   // must never throw, whatever the provider supports
+Check("10e. TouchAsync never throws", true);
+
+Console.WriteLine(fails == 0 ? "\nALL CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
+return fails == 0 ? 0 : 1;
+
+// ---------------------------------------------------------------- fake matcher
+class FakeMatcher : HttpMessageHandler
+{
+    public int BatchCalls;
+    public int SingleCalls;
+    public int AnalytesSeen;
+    public bool Down;
+    public bool NoBatchEndpoint;
+    public double Score = 0.92;
+    public readonly List<List<string>> Payloads = new();
+
+    protected override async Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request, CancellationToken ct)
+    {
+        var path = request.RequestUri!.AbsolutePath;
+        if (path.EndsWith("/ready")) return new HttpResponseMessage(HttpStatusCode.OK);
+
+        if (Down) throw new HttpRequestException("LOINC service is down");
+
+        var body = await request.Content!.ReadAsStringAsync(ct);
+
+        if (path.EndsWith("match-batch"))
+        {
+            if (NoBatchEndpoint)
+            {
+                BatchCalls++;
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+
+            BatchCalls++;
+            var items = JsonSerializer.Deserialize<List<Dictionary<string, JsonElement>>>(body)!;
+            AnalytesSeen += items.Count;
+            Payloads.Add(items.Select(i => i["test_name"].GetString() ?? "").ToList());
+
+            var arr = items.Select(i => Answer(i["test_name"].GetString() ?? ""));
+            return Json("[" + string.Join(",", arr) + "]");
+        }
+
+        SingleCalls++;
+        var one = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(body)!;
+        AnalytesSeen++;
+        return Json(Answer(one["test_name"].GetString() ?? ""));
+    }
+
+    string Answer(string name) => JsonSerializer.Serialize(new Dictionary<string, object?>
+    {
+        ["loinc"] = "CODE-" + Math.Abs(name.GetHashCode()) % 10000,
+        ["name"] = "Official name of " + name,
+        ["score"] = Score,
+        ["loinc_class"] = "CHEM",
+        ["loinc_source"] = "semantic",
+        ["axis_verdict"] = new Dictionary<string, string> { ["component"] = "ok" }
+    });
+
+    static HttpResponseMessage Json(string json) => new(HttpStatusCode.OK)
+    {
+        Content = new StringContent(json, Encoding.UTF8, "application/json")
+    };
+}

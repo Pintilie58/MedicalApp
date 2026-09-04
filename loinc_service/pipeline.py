@@ -26,8 +26,9 @@ import logging
 import re
 import threading
 import unicodedata
+from collections import OrderedDict
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from rapidfuzz import fuzz
@@ -38,6 +39,7 @@ from config import (
     AXIS_WEIGHT,
     EMBEDDING_MODEL_NAME,
     FUZZY_WEIGHT,
+    RESULT_CACHE_SIZE,
     RULES_WEIGHT,
     SEM_WEIGHT,
     TOP_K,
@@ -64,6 +66,79 @@ def get_model() -> SentenceTransformer:
                 _MODEL = SentenceTransformer(EMBEDDING_MODEL_NAME)
                 log.info("Embedding model ready.")
     return _MODEL
+
+
+# -------------------------------------------------------------------------
+# Result cache (in-process, LRU)
+# -------------------------------------------------------------------------
+# The matcher is DETERMINISTIC: the same (test_name, unit, raw name, panel
+# header, analyte line) always produces the same LOINC code, because the
+# store, the anchors and the weights are fixed for the life of the process.
+# Analyte names repeat massively across reports and users ("Hemoglobina
+# glicata" is the same query for everybody), and one match costs ~15 ms of
+# embedding plus a 142 MB similarity scan. Caching the outcome removes both.
+# Size is bounded (LRU); set LOINC_CACHE_SIZE=0 to disable entirely.
+# -------------------------------------------------------------------------
+_CACHE_LOCK = threading.Lock()
+_RESULT_CACHE: "OrderedDict[Tuple[str, str, str, str, str], Optional[MatchResult]]" = OrderedDict()
+_CACHE_HITS = 0
+_CACHE_MISSES = 0
+
+
+def cache_key(
+    test_name: str,
+    unit: Optional[str] = None,
+    raw_parameter_name: Optional[str] = None,
+    panel_header_raw: Optional[str] = None,
+    analyte_line_raw: Optional[str] = None,
+) -> Tuple[str, str, str, str, str]:
+    """Every input that can change the decision, and nothing else."""
+    def k(s: Optional[str]) -> str:
+        return " ".join((s or "").split()).lower()
+
+    return (k(test_name), k(unit), k(raw_parameter_name),
+            k(panel_header_raw), k(analyte_line_raw))
+
+
+def cache_lookup(key) -> Tuple[bool, Optional["MatchResult"]]:
+    """(found, value). ``value`` may legitimately be None (no match found)."""
+    global _CACHE_HITS, _CACHE_MISSES
+    if RESULT_CACHE_SIZE <= 0:
+        return False, None
+    with _CACHE_LOCK:
+        if key in _RESULT_CACHE:
+            _RESULT_CACHE.move_to_end(key)
+            _CACHE_HITS += 1
+            return True, _RESULT_CACHE[key]
+        _CACHE_MISSES += 1
+        return False, None
+
+
+def cache_store(key, value: Optional["MatchResult"]) -> None:
+    if RESULT_CACHE_SIZE <= 0:
+        return
+    with _CACHE_LOCK:
+        _RESULT_CACHE[key] = value
+        _RESULT_CACHE.move_to_end(key)
+        while len(_RESULT_CACHE) > RESULT_CACHE_SIZE:
+            _RESULT_CACHE.popitem(last=False)
+
+
+def cache_stats() -> Dict[str, int]:
+    with _CACHE_LOCK:
+        total = _CACHE_HITS + _CACHE_MISSES
+        return {
+            "size": len(_RESULT_CACHE),
+            "capacity": RESULT_CACHE_SIZE,
+            "hits": _CACHE_HITS,
+            "misses": _CACHE_MISSES,
+            "hit_rate_pct": round(100.0 * _CACHE_HITS / total, 1) if total else 0.0,
+        }
+
+
+def cache_clear() -> None:
+    with _CACHE_LOCK:
+        _RESULT_CACHE.clear()
 
 
 @dataclass
@@ -821,6 +896,11 @@ def find_loinc(
     if not test_name or not test_name.strip():
         return None
 
+    key = cache_key(test_name, unit, raw_parameter_name, panel_header_raw, analyte_line_raw)
+    found, cached = cache_lookup(key)
+    if found:
+        return cached
+
     result = _semantic_match(
         test_name,
         unit=unit,
@@ -830,6 +910,7 @@ def find_loinc(
         query_embedding=query_embedding,
     )
     if result is None:
+        cache_store(key, None)
         return result
 
     # Unit-aware post-correction.
@@ -846,7 +927,7 @@ def find_loinc(
                 test_name, unit, result.loinc, result.property,
                 peer.get("loinc"), peer.get("property"), result.component,
             )
-            return MatchResult(
+            swapped = MatchResult(
                 loinc=peer["loinc"],
                 name=peer.get("name") or "",
                 component=peer.get("component"),
@@ -866,7 +947,10 @@ def find_loinc(
                     ),
                 },
             )
+            cache_store(key, swapped)
+            return swapped
 
+    cache_store(key, result)
     return result
 
 

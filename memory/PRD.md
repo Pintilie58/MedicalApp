@@ -201,6 +201,29 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
     numere unește; veto LOINC blochează CRP vs timp de protrombină, dar e fail-open fără denumire).
     Regresie: `LoincUnifierProbe` **24/24 PASS**, suita B2C **66/66 PASS**, build 0 warning-uri.
 
+- **Serviciul LOINC: studiu de scalare + cache pe două niveluri** (iunie 2026,
+  document complet în **`/app/memory/LOINC_SCALING.md`**):
+  - Măsurători reale (`/app/memory/probes/loinc_capacity_probe.py`): encoding 14,5 ms/nume în
+    batch (207 ms individual), scanare 45 ms/analiză pe 97k rânduri (142 MB citiți de fiecare
+    analiză), **855 MB RSS per worker**, cold start 8-10 s. Concluzii: scalarea se face pe
+    replici mici (nu `--workers N`), iar gâtuirea se simte ca latență + alarme false `/ready`.
+  - **Faza 0 (Python)**: cache LRU în proces în `find_loinc` (cheie = nume + unitate + nume brut +
+    panel header + linia analitului, `LOINC_CACHE_SIZE=20000`), golit automat la `STORE.load()`;
+    `match-batch` vectorizează doar necunoscutele și dedupează întrebările identice;
+    `max_workers = min(cpu_count, n)`; `/health` și `/ready` devenite `async` (fix de fond pentru
+    alarma falsă „Serviciul LOINC nu e disponibil”); endpoint nou `/loinc/cache` cu hit rate.
+  - **Faza 1 (C#)**: tabel `LoincMatchCache` + `LoincMatchCacheStore` + integrare în
+    `LoincMatcherClient` — cache **global** (decizia utilizatorului), cheie SHA-256 care include
+    versiunea pipeline-ului (`LoincMatcher:Cache:PipelineVersion`). Python e întrebat numai despre
+    nume noi; un buletin complet cunoscut nu generează nici un apel HTTP și **se codifică chiar și
+    când serviciul Python e picat**. Kill switch: `LoincMatcher:Cache:Enabled = false`.
+  - Migrare EF nouă: **`AddLoincMatchCache`** (necesită `Update-Database`).
+  - Testat: probă Python **20/20 PASS** (`loinc_cache_probe.py`), probă C# **33/33 PASS**
+    (`LoincMatchCacheProbe.cs.txt` — inclusiv „serviciu picat + analize cunoscute ⇒ tot se
+    codifică”, invalidare la bump de versiune, cache oprit ⇒ comportament identic cu înainte),
+    suita de aur LOINC **56/56 PASS** (neschimbată față de baseline), regresie B2C **66/66 PASS**,
+    build 0 warning-uri.
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard

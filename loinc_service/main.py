@@ -20,6 +20,7 @@ Run (production-like, single worker):
 from __future__ import annotations
 
 import logging
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -30,7 +31,7 @@ from pydantic import BaseModel, Field
 
 from loinc_store import STORE
 from canonical_anchors import all_anchors, anchor_count
-from pipeline import encode_queries, find_loinc, get_model
+from pipeline import cache_key, cache_lookup, cache_stats, encode_queries, find_loinc, get_model
 
 logging.basicConfig(
     level=logging.INFO,
@@ -126,18 +127,18 @@ class LoincResponse(BaseModel):
 
 # -------------------- Endpoints --------------------
 @app.get("/health")
-def health():
+async def health():
     return {"status": "ok"}
 
 
 @app.get("/ready")
-def ready():
+async def ready():
     if STORE.embeddings is None or not STORE.metadata:
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={"status": "not_ready", "reason": "LOINC store not loaded"},
         )
-    return {"status": "ready", "entries": STORE.size}
+    return {"status": "ready", "entries": STORE.size, "cache": cache_stats()}
 
 
 @app.post("/loinc/match", response_model=LoincResponse)
@@ -202,18 +203,41 @@ def match_batch(reqs: list[LoincRequest]):
 
     t0 = time.perf_counter()
 
-    # Embed EVERY query name in one single model call. Encoding them one by one
-    # was the dominant cost of a large report (~20s for 84 analytes); the
-    # vectors are identical, so results do not change at all.
-    try:
-        embeddings = encode_queries([r.test_name or "" for r in reqs])
-    except Exception:
-        log.exception("batch embedding failed; falling back to per-analyte encoding")
-        embeddings = [None] * len(reqs)
+    # Embed only the analytes we have NOT resolved before. The cache answers
+    # repeats (the same analyte names come back for every user, every report)
+    # without paying for the embedding or the 142 MB similarity scan again.
+    keys = [
+        cache_key(r.test_name or "", r.unit, r.raw_parameter_name,
+                  r.panel_header_raw, r.analyte_line_raw)
+        for r in reqs
+    ]
+    cached: dict[int, dict | None] = {}
+    to_encode: list[int] = []
+    duplicate_of: dict[int, int] = {}
+    first_seen: dict[tuple, int] = {}
+    for idx, key in enumerate(keys):
+        found, value = cache_lookup(key)
+        if found:
+            cached[idx] = value.to_dict() if value is not None else None
+        elif key in first_seen:
+            # The very same question twice in one report: answer it once.
+            duplicate_of[idx] = first_seen[key]
+        else:
+            first_seen[key] = idx
+            to_encode.append(idx)
+
+    embeddings: dict[int, object] = {}
+    if to_encode:
+        try:
+            vectors = encode_queries([reqs[i].test_name or "" for i in to_encode])
+            embeddings = {i: vectors[n] for n, i in enumerate(to_encode) if n < len(vectors)}
+        except Exception:
+            log.exception("batch embedding failed; falling back to per-analyte encoding")
+            embeddings = {}
     t_emb = time.perf_counter()
 
-    def one(item):
-        idx, req = item
+    def one(idx: int):
+        req = reqs[idx]
         try:
             result = find_loinc(
                 req.test_name,
@@ -221,26 +245,49 @@ def match_batch(reqs: list[LoincRequest]):
                 raw_parameter_name=req.raw_parameter_name,
                 panel_header_raw=req.panel_header_raw,
                 analyte_line_raw=req.analyte_line_raw,
-                query_embedding=embeddings[idx] if idx < len(embeddings) else None,
+                query_embedding=embeddings.get(idx),
             )
         except Exception:
             log.exception("find_loinc failed for input: %r (unit=%r)", req.test_name, req.unit)
             return None
         return result.to_dict() if result is not None else None
-    # Matching is numpy/CPU bound and releases the GIL inside numpy, so a
-    # modest pool gives a real speed-up without thrashing a small container.
-    workers = min(8, max(1, len(reqs)))
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        results = list(pool.map(one, list(enumerate(reqs))))
+
+    # Matching is numpy/CPU bound and releases the GIL inside numpy, but it is
+    # limited by memory bandwidth, so more threads than cores only add
+    # contention (a container gets 1-2 vCPU, not 16).
+    results: list[dict | None] = [None] * len(reqs)
+    for idx, value in cached.items():
+        results[idx] = value
+
+    if to_encode:
+        workers = min(os.cpu_count() or 1, len(to_encode))
+        if workers > 1:
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                for idx, value in zip(to_encode, pool.map(one, to_encode)):
+                    results[idx] = value
+        else:
+            for idx in to_encode:
+                results[idx] = one(idx)
+
+    for idx, representative in duplicate_of.items():
+        results[idx] = results[representative]
 
     matched = sum(1 for r in results if r is not None)
     log.info(
-        "/loinc/match-batch | %d analytes, %d matched, %.0f ms total "
-        "(%.0f ms batch-embedding + %.0f ms matching, %d workers)",
-        len(reqs), matched, (time.perf_counter() - t0) * 1000,
-        (t_emb - t0) * 1000, (time.perf_counter() - t_emb) * 1000, workers,
+        "/loinc/match-batch | %d analytes (%d from cache, %d duplicates, %d computed), "
+        "%d matched, %.0f ms total (%.0f ms batch-embedding + %.0f ms matching)",
+        len(reqs), len(cached), len(duplicate_of), len(to_encode), matched,
+        (time.perf_counter() - t0) * 1000,
+        (t_emb - t0) * 1000, (time.perf_counter() - t_emb) * 1000,
     )
     return results
+
+
+@app.get("/loinc/cache")
+async def cache_info():
+    """In-process result cache: size, hit rate. Useful to confirm at a glance
+    that repeats are being served from memory instead of recomputed."""
+    return cache_stats()
 
 
 @app.get("/loinc/anchors")

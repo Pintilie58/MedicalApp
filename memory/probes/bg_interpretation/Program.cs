@@ -46,6 +46,7 @@ services.AddSingleton<FakeEmail>();
 services.AddSingleton<IEmailService>(sp => sp.GetRequiredService<FakeEmail>());
 services.AddScoped<IAiUsageLogger, AiUsageLogger>();
 services.AddScoped<PdfReportGenerator>();
+services.AddSingleton<LoincMatchCacheStore>();
 services.AddHttpClient<LoincMatcherClient>();
 services.AddSingleton<InterpretationProgressTracker>();
 services.Configure<InterpretationQueueSettings>(o => { o.MaxConcurrent = 3; o.MaxPerUser = 1; });

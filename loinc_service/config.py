@@ -71,6 +71,13 @@ AXIS_WEIGHT = float(os.environ.get("LOINC_AXIS_WEIGHT", "0.45"))
 # Number of top semantic candidates to keep for the fuzzy+rules re-rank stage.
 TOP_K = int(os.environ.get("LOINC_TOP_K", "25"))
 
+# -------------------- Result cache --------------------
+# Matching is deterministic for a given (name, unit, raw name, panel header,
+# analyte line), so identical queries can be answered from memory instead of
+# paying ~15 ms of embedding plus a 142 MB similarity scan again. Analyte
+# names repeat massively across users. 0 disables the cache.
+RESULT_CACHE_SIZE = int(os.environ.get("LOINC_CACHE_SIZE", "20000"))
+
 # -------------------- Server --------------------
 HOST = os.environ.get("LOINC_HOST", "127.0.0.1")
 PORT = int(os.environ.get("LOINC_PORT", "8000"))

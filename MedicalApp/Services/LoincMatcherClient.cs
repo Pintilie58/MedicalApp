@@ -30,15 +30,18 @@ namespace MedicalApp.Services
     {
         private readonly HttpClient _http;
         private readonly LoincMatcherSettings _settings;
+        private readonly LoincMatchCacheStore _cache;
         private readonly ILogger<LoincMatcherClient> _logger;
 
         public LoincMatcherClient(
             HttpClient http,
             Microsoft.Extensions.Options.IOptions<LoincMatcherSettings> settings,
+            LoincMatchCacheStore cache,
             ILogger<LoincMatcherClient> logger)
         {
             _http = http;
             _settings = settings.Value;
+            _cache = cache;
             _logger = logger;
         }
 
@@ -105,80 +108,129 @@ namespace MedicalApp.Services
             if (pending.Count == 0)
                 return stats;
 
-            var batch = await MatchBatchAsync(pending, ct);
-            if (batch != null)
-            {
-                for (int i = 0; i < pending.Count; i++)
-                {
-                    ApplyMatch(pending[i], i < batch.Count ? batch[i] : null, stats);
-                }
+            // ---------------------------------------------------------------
+            // Persistent cache first (global, June 2026). The matcher is
+            // deterministic, so a name already resolved never has to be sent
+            // again — and a report built only of known analytes gets its codes
+            // even while the Python service is down.
+            // ---------------------------------------------------------------
+            var keys = pending
+                .Select(kr => _cache.BuildKey(kr.ParameterNormalizedEn!, kr.Unit,
+                                              kr.Parameter, kr.PanelHeaderRaw, kr.AnalyteLineRaw))
+                .ToList();
 
+            var known = await _cache.GetAsync(keys.Distinct(StringComparer.Ordinal).ToList(), ct);
+
+            var misses = new List<int>();
+            for (int i = 0; i < pending.Count; i++)
+            {
+                if (known.TryGetValue(keys[i], out var entry))
+                    ApplyMatch(pending[i], FromCache(entry), stats);
+                else
+                    misses.Add(i);
+            }
+            stats.FromCache = pending.Count - misses.Count;
+
+            if (misses.Count == 0)
+            {
+                await _cache.TouchAsync(known.Keys.ToList(), ct);
                 _logger.LogInformation(
-                    "LoincMatcher summary (BATCH): total={Total} matched={Matched} below_threshold={Low} no_match={None} no_normalized_term={Skip}.",
-                    stats.Total, stats.Matched, stats.BelowThreshold, stats.NoMatch, stats.NoNormalizedTerm);
+                    "LoincMatcher summary (CACHE ONLY): total={Total} from_cache={Cached} matched={Matched} below_threshold={Low} no_normalized_term={Skip}.",
+                    stats.Total, stats.FromCache, stats.Matched, stats.BelowThreshold, stats.NoNormalizedTerm);
                 return stats;
             }
 
-            _logger.LogWarning(
-                "LoincMatcher: batch endpoint unavailable — falling back to the sequential per-analyte path (slower).");
-            stats = new MatcherStats();
+            var missItems = misses.Select(i => pending[i]).ToList();
+            var toRemember = new List<Models.LoincMatchCacheEntry>();
 
-            foreach (var kr in result.KeyResults)
+            // Fast path: resolve every UNKNOWN analyte in ONE request. If the
+            // batch endpoint is unavailable (older Python service still
+            // running) we fall back to the per-analyte loop, so a version
+            // mismatch degrades speed instead of breaking interpretations.
+            var batch = await MatchBatchAsync(missItems, ct);
+            if (batch != null)
             {
-                stats.Total++;
-                if (string.IsNullOrWhiteSpace(kr.ParameterNormalizedEn))
+                for (int n = 0; n < missItems.Count; n++)
                 {
-                    stats.NoNormalizedTerm++;
-                    continue;
+                    var match = n < batch.Count ? batch[n] : null;
+                    ApplyMatch(missItems[n], match, stats);
+                    Remember(toRemember, keys[misses[n]], missItems[n], match);
                 }
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "LoincMatcher: batch endpoint unavailable — falling back to the sequential per-analyte path for {Count} analyte(s) (slower).",
+                    missItems.Count);
 
-                var match = await MatchOneAsync(
-                    kr.ParameterNormalizedEn!,
-                    kr.Unit,
-                    kr.Parameter,        // raw analyte name (pre-Gemini normalization)
-                    kr.PanelHeaderRaw,   // verbatim section header (admin stripped)
-                    kr.AnalyteLineRaw,   // verbatim inline row metadata
-                    ct);
-                if (match == null)
+                for (int n = 0; n < missItems.Count; n++)
                 {
-                    stats.NoMatch++;
-                    continue;
+                    var kr = missItems[n];
+                    var match = await MatchOneAsync(
+                        kr.ParameterNormalizedEn!,
+                        kr.Unit,
+                        kr.Parameter,        // raw analyte name (pre-Gemini normalization)
+                        kr.PanelHeaderRaw,   // verbatim section header (admin stripped)
+                        kr.AnalyteLineRaw,   // verbatim inline row metadata
+                        ct);
+                    ApplyMatch(kr, match, stats);
+                    Remember(toRemember, keys[misses[n]], kr, match);
                 }
-
-                if (match.Score < _settings.MinScore)
-                {
-                    _logger.LogInformation(
-                        "LoincMatcher: parameter \"{Param}\" -> code {Code} score {Score:F2} BELOW threshold {Min:F2}. Discarding.",
-                        kr.Parameter, match.Loinc, match.Score, _settings.MinScore);
-                    stats.BelowThreshold++;
-                    continue;
-                }
-
-                kr.LoincCode = match.Loinc;
-                kr.LoincLongName = match.Name;
-                kr.LoincClass = match.LoincClass;
-                kr.LoincSource = match.LoincSource;
-                kr.LoincScore = match.Score;
-                kr.LoincAxisVerdict = match.AxisVerdict;
-                kr.LoincConfidence = match.Score switch
-                {
-                    >= 0.85 => "high",
-                    >= 0.65 => "medium",
-                    _ => "low"
-                };
-                stats.Matched++;
-
-                _logger.LogInformation(
-                    "LoincMatcher: \"{Param}\" [normalized_en=\"{NormEn}\"] -> {Code} \"{Name}\" (score {Score:F2}, confidence {Conf}, class {Class}, source {Source}).",
-                    kr.Parameter, kr.ParameterNormalizedEn, match.Loinc, match.Name, match.Score, kr.LoincConfidence, match.LoincClass ?? "(none)", match.LoincSource ?? "(none)");
             }
 
+            await _cache.SaveAsync(toRemember, ct);
+            await _cache.TouchAsync(known.Keys.ToList(), ct);
+
             _logger.LogInformation(
-                "LoincMatcher summary: total={Total} matched={Matched} below_threshold={Low} no_match={None} no_normalized_term={Skip}.",
-                stats.Total, stats.Matched, stats.BelowThreshold, stats.NoMatch, stats.NoNormalizedTerm);
+                "LoincMatcher summary: total={Total} from_cache={Cached} computed={Computed} matched={Matched} below_threshold={Low} no_match={None} no_normalized_term={Skip}.",
+                stats.Total, stats.FromCache, missItems.Count, stats.Matched,
+                stats.BelowThreshold, stats.NoMatch, stats.NoNormalizedTerm);
 
             return stats;
         }
+
+        /// <summary>Turns a remembered mapping back into a matcher response.</summary>
+        private static MatcherResponse FromCache(Models.LoincMatchCacheEntry entry) => new()
+        {
+            Loinc = entry.LoincCode,
+            Name = entry.LongName,
+            Score = entry.Score,
+            LoincClass = entry.LoincClass,
+            LoincSource = entry.LoincSource,
+            AxisVerdict = string.IsNullOrWhiteSpace(entry.AxisVerdictJson)
+                ? null
+                : System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(entry.AxisVerdictJson!)
+        };
+
+        /// <summary>Queues a freshly computed mapping for the persistent cache.</summary>
+        private void Remember(
+            List<Models.LoincMatchCacheEntry> sink, string key, KeyResult kr, MatcherResponse? match)
+        {
+            if (!_cache.Enabled || match == null || string.IsNullOrWhiteSpace(match.Loinc)) return;
+
+            var now = DateTime.UtcNow;
+            sink.Add(new Models.LoincMatchCacheEntry
+            {
+                CacheKey = key,
+                TestName = Trim(kr.ParameterNormalizedEn, 500),
+                Unit = Trim(kr.Unit, 64),
+                PipelineVersion = _cache.PipelineVersion,
+                LoincCode = Trim(match.Loinc, 20),
+                LongName = Trim(match.Name, 500),
+                LoincClass = Trim(match.LoincClass, 20),
+                LoincSource = Trim(match.LoincSource, 20),
+                Score = match.Score,
+                AxisVerdictJson = match.AxisVerdict == null || match.AxisVerdict.Count == 0
+                    ? null
+                    : System.Text.Json.JsonSerializer.Serialize(match.AxisVerdict),
+                CreatedAt = now,
+                LastUsedAt = now,
+                HitCount = 0
+            });
+        }
+
+        private static string Trim(string? s, int max) =>
+            string.IsNullOrEmpty(s) ? string.Empty : (s!.Length <= max ? s : s[..max]);
 
         /// <summary>
         /// Applies one matcher response to one analyte, enforcing the score
@@ -352,6 +404,8 @@ namespace MedicalApp.Services
             public int BelowThreshold { get; set; }
             public int NoMatch { get; set; }
             public int NoNormalizedTerm { get; set; }
+            /// <summary>How many analytes were answered from the persistent cache.</summary>
+            public int FromCache { get; set; }
         }
     }
 
@@ -362,5 +416,8 @@ namespace MedicalApp.Services
         public bool Enabled { get; set; } = true;
         public int TimeoutSeconds { get; set; } = 5;
         public double MinScore { get; set; } = 0.55;
+
+        /// <summary>Persistent, global cache of already-resolved mappings ("LoincMatcher:Cache").</summary>
+        public LoincMatchCacheSettings Cache { get; set; } = new();
     }
 }

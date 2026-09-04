@@ -187,6 +187,16 @@ class LoincStore:
             self.embeddings.nbytes / 1_000_000,
         )
 
+        # The pipeline caches match results, and those results are only valid
+        # for the dictionary they were computed against. Reloading the store
+        # (re-seed, tests) must therefore drop the cache. Imported lazily to
+        # avoid a circular import (pipeline imports this module).
+        try:
+            from pipeline import cache_clear
+            cache_clear()
+        except Exception:  # pragma: no cover - cache is an optimisation only
+            log.debug("Could not clear the match cache after loading the store.")
+
     def get_by_code(self, loinc: str) -> dict | None:
         """Return the metadata dict for ``loinc`` (or None if not in the store)."""
         if not loinc:

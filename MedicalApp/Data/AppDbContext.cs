@@ -13,6 +13,7 @@ namespace MedicalApp.Data
         public DbSet<PromoCode> PromoCodes { get; set; } = null!;
         public DbSet<Profile> Profiles { get; set; } = null!;
         public DbSet<LoincEntry> LoincDictionary { get; set; } = null!;
+        public DbSet<LoincMatchCacheEntry> LoincMatchCache { get; set; } = null!;
         public DbSet<AiUsageLog> AiUsageLogs { get; set; } = null!;
 
         // ----- CAM module (Clinici de Analize Medicale) -----
@@ -102,8 +103,30 @@ namespace MedicalApp.Data
                 entity.HasIndex(e => e.LongCommonName);
             });
 
-            // ===== AI usage log (separate from InterpretationHistories) =====
-            // Indexed on CreatedAt (admin dashboard queries always filter by it)
+            // ===== Persistent LOINC match cache =====
+            // Remembers "this analyte name + unit + source context -> this
+            // LOINC code" so the Python matcher is only asked about names it
+            // has never seen. Global by design (a validated mapping is the same
+            // for every user).
+            modelBuilder.Entity<LoincMatchCacheEntry>(entity =>
+            {
+                entity.ToTable("LoincMatchCache");
+                entity.HasKey(e => e.CacheKey);
+                entity.Property(e => e.CacheKey).HasMaxLength(64);
+                entity.Property(e => e.TestName).HasMaxLength(500);
+                entity.Property(e => e.Unit).HasMaxLength(64);
+                entity.Property(e => e.PipelineVersion).HasMaxLength(20);
+                entity.Property(e => e.LoincCode).HasMaxLength(20);
+                entity.Property(e => e.LongName).HasMaxLength(500);
+                entity.Property(e => e.LoincClass).HasMaxLength(20);
+                entity.Property(e => e.LoincSource).HasMaxLength(20);
+                entity.Property(e => e.CreatedAt).HasColumnType("datetime2");
+                entity.Property(e => e.LastUsedAt).HasColumnType("datetime2");
+                // Admin views: "which mappings do we know for this version?"
+                entity.HasIndex(e => e.PipelineVersion);
+            });
+
+            // ===== AI usage log (separate from InterpretationHistories) =====            // Indexed on CreatedAt (admin dashboard queries always filter by it)
             // and on Status (so we can split success vs error vs rejected fast).
             modelBuilder.Entity<AiUsageLog>(entity =>
             {
