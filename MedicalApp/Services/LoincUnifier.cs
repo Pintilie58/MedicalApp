@@ -29,6 +29,8 @@ namespace MedicalApp.Services
             public bool IsVerified;
             public double BestScore;
             public int Occurrences;
+            /// <summary>Official LOINC long name, when the matcher supplied one.</summary>
+            public string? OfficialName;
         }
 
         /// <summary>
@@ -101,38 +103,62 @@ namespace MedicalApp.Services
                 }
 
                 // Axes are consistent (present everywhere, or absent everywhere):
-                // group by the full signature and collapse the codes inside it.
-                foreach (var bySig in byName.GroupBy(k =>
-                             Signature(k.Parameter, k.Unit ?? "", k.ReferenceRange ?? "")))
+                // group by unit, then cluster COMPATIBLE reference ranges and
+                // collapse the codes inside each cluster.
+                foreach (var byUnit in byName.GroupBy(k => NormalizeUnit(k.Unit ?? ""), StringComparer.Ordinal))
                 {
-                    var codes = new Dictionary<string, Candidate>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var kr in bySig)
-                    {
-                        var code = kr.LoincCode!.Trim();
-                        if (!codes.TryGetValue(code, out var cand))
-                            codes[code] = cand = new Candidate { Code = code };
+                    var clusters = ClusterByRange(byUnit.ToList());
 
-                        cand.Occurrences++;
-                        if (LoincSourceBadge.IsVerified(kr.LoincSource)) cand.IsVerified = true;
-                        if (kr.LoincScore.HasValue && kr.LoincScore.Value > cand.BestScore)
-                            cand.BestScore = kr.LoincScore.Value;
+                    foreach (var cluster in clusters)
+                    {
+                        var codes = new Dictionary<string, Candidate>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var kr in cluster)
+                        {
+                            var code = kr.LoincCode!.Trim();
+                            if (!codes.TryGetValue(code, out var cand))
+                                codes[code] = cand = new Candidate { Code = code };
+
+                            cand.Occurrences++;
+                            if (LoincSourceBadge.IsVerified(kr.LoincSource)) cand.IsVerified = true;
+                            if (kr.LoincScore.HasValue && kr.LoincScore.Value > cand.BestScore)
+                                cand.BestScore = kr.LoincScore.Value;
+                            if (string.IsNullOrWhiteSpace(cand.OfficialName) &&
+                                !string.IsNullOrWhiteSpace(kr.LoincLongName))
+                                cand.OfficialName = kr.LoincLongName!;
+                        }
+
+                        if (codes.Count < 2) continue; // nothing to unify
+
+                        // Best code: verified beats guessed, then score, then how many
+                        // reports used it (the majority is usually right), then the
+                        // code itself so the outcome is stable across runs.
+                        var winner = codes.Values
+                            .OrderByDescending(c => c.IsVerified)
+                            .ThenByDescending(c => c.BestScore)
+                            .ThenByDescending(c => c.Occurrences)
+                            .ThenBy(c => c.Code, StringComparer.Ordinal)
+                            .First();
+
+                        foreach (var c in codes.Values)
+                        {
+                            if (string.Equals(c.Code, winner.Code, StringComparison.OrdinalIgnoreCase))
+                                continue;
+                            // Second opinion from the LOINC dictionary (fail-open):
+                            // only a CLEAR disagreement between the two official
+                            // names blocks the merge.
+                            if (OfficialNamesConflict(c.OfficialName, winner.OfficialName)) continue;
+                            map[c.Code] = winner.Code;
+                        }
                     }
 
-                    if (codes.Count < 2) continue; // nothing to unify
-
-                    // Best code: verified beats guessed, then score, then how many
-                    // reports used it (the majority is usually right), then the
-                    // code itself so the outcome is stable across runs.
-                    var winner = codes.Values
-                        .OrderByDescending(c => c.IsVerified)
-                        .ThenByDescending(c => c.BestScore)
-                        .ThenByDescending(c => c.Occurrences)
-                        .ThenBy(c => c.Code, StringComparer.Ordinal)
-                        .First();
-
-                    foreach (var c in codes.Values)
-                        if (!string.Equals(c.Code, winner.Code, StringComparison.OrdinalIgnoreCase))
-                            map[c.Code] = winner.Code;
+                    // Same name and same unit, but reference ranges that really
+                    // contradict each other AND different codes: honest "!" hint
+                    // instead of a silent merge.
+                    if (clusters.Count > 1 &&
+                        byUnit.Select(k => k.LoincCode!.Trim())
+                              .Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1 &&
+                        !axes.ContainsKey(byName.Key))
+                        axes[byName.Key] = "range";
                 }
             }
 
@@ -145,8 +171,184 @@ namespace MedicalApp.Services
                 ? better
                 : code;
 
-        private static string Signature(string name, string unit, string range) =>
-            $"{Normalize(name)}|{NormalizeUnit(unit)}|{NormalizeRange(range)}";
+        // ------------------------------------------------------------------
+        // Reference range: shape, compatibility, clustering
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// What a reference-range field really says: the OPERATIVE interval
+        /// (the first "4.8-5.6" / "&lt; 6" / "up to 200" in the text), every
+        /// number it contains, and the plain normalized text as last resort.
+        /// </summary>
+        private sealed class RangeShape
+        {
+            public string Text = "";
+            public string? Operative;
+            public List<string> Numbers = new();
+        }
+
+        private static readonly Dictionary<string, RangeShape> _shapeCache = new(StringComparer.Ordinal);
+
+        private static RangeShape ShapeOf(string range)
+        {
+            lock (_shapeCache)
+            {
+                if (_shapeCache.TryGetValue(range, out var cached)) return cached;
+                var shape = new RangeShape
+                {
+                    Text = NormalizeRange(range),
+                    Operative = OperativeRange(range),
+                    Numbers = RangeNumbers(range)
+                };
+                if (_shapeCache.Count < 5000) _shapeCache[range] = shape;
+                return shape;
+            }
+        }
+
+        private const string Num = @"\d+(?:[.,]\d+)?";
+
+        private static readonly Regex _interval = new(
+            $@"(?<lo>{Num})\s*(?:-|–|—|\.\.\.?|to|la)\s*(?<hi>{Num})",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly Regex _bound = new(
+            $@"(?<op><=|<|≤|>=|>|=<|=>|sub|pana la|până la|up to|max\.?|min\.?|peste)\s*(?<v>{Num})",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        /// <summary>
+        /// The first operative interval stated in the field, ignoring the
+        /// interpretive prose some labs append ("normal: 4.8-5.6% - risc
+        /// crescut: 5.7-6.4% - diabet: >=6.5% - tinta: ≤7%" ⇒ "4.8~5.6").
+        /// Returns null when the text states no usable interval, in which case
+        /// the caller keeps the historical, text-based comparison.
+        /// </summary>
+        internal static string? OperativeRange(string range)
+        {
+            if (string.IsNullOrWhiteSpace(range)) return null;
+
+            var i = _interval.Match(range);
+            var b = _bound.Match(range);
+
+            // The earliest statement in the text is the operative one.
+            bool useInterval = i.Success && (!b.Success || i.Index <= b.Index);
+
+            if (useInterval)
+            {
+                var lo = Canonical(i.Groups["lo"].Value);
+                var hi = Canonical(i.Groups["hi"].Value);
+                return lo == null || hi == null ? null : $"{lo}~{hi}";
+            }
+
+            if (b.Success)
+            {
+                var v = Canonical(b.Groups["v"].Value);
+                if (v == null) return null;
+                var op = b.Groups["op"].Value.Trim().ToLowerInvariant();
+                bool upper = op is "<" or "<=" or "≤" or "=<" or "sub" or "max" or "max." or "pana la" or "până la" or "up to";
+                return (upper ? "le~" : "ge~") + v;
+            }
+
+            return null;
+        }
+
+        private static List<string> RangeNumbers(string range)
+        {
+            var flat = range.Replace(',', '.').Replace('–', ' ').Replace('—', ' ').Replace('-', ' ');
+            return Regex.Matches(flat, @"\d+(\.\d+)?")
+                .Select(m => Canonical(m.Value) ?? m.Value)
+                .ToList();
+        }
+
+        private static string? Canonical(string raw) =>
+            double.TryParse(raw.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
+                ? d.ToString("0.####", CultureInfo.InvariantCulture)
+                : null;
+
+        /// <summary>
+        /// Two reference ranges describe the same analyte when:
+        /// identical text, OR the same operative interval, OR (safety net) one
+        /// number list is a prefix of the other — a lab simply wrote more.
+        /// Operative intervals that differ are a real contradiction: never merged.
+        /// </summary>
+        private static bool RangesCompatible(RangeShape a, RangeShape b)
+        {
+            // An operative interval stated on BOTH sides decides alone: two
+            // different limits are a real contradiction, even when the plain
+            // text happens to normalize to the same numbers ("< 10" vs "> 10").
+            if (a.Operative != null && b.Operative != null)
+                return string.Equals(a.Operative, b.Operative, StringComparison.Ordinal);
+
+            if (string.Equals(a.Text, b.Text, StringComparison.Ordinal)) return true;
+
+            // Prefix / subset net, only when BOTH sides state numbers.
+            if (a.Numbers.Count > 0 && b.Numbers.Count > 0)
+            {
+                var shorter = a.Numbers.Count <= b.Numbers.Count ? a.Numbers : b.Numbers;
+                var longer = a.Numbers.Count <= b.Numbers.Count ? b.Numbers : a.Numbers;
+                return shorter.Where((t, i) => longer[i] == t).Count() == shorter.Count;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Groups results (already narrowed to one name + one unit) into
+        /// clusters of mutually compatible reference ranges.
+        /// </summary>
+        private static List<List<KeyResult>> ClusterByRange(List<KeyResult> sameNameAndUnit)
+        {
+            var buckets = new List<(RangeShape Shape, List<KeyResult> Items)>();
+
+            foreach (var kr in sameNameAndUnit)
+            {
+                var shape = ShapeOf(kr.ReferenceRange ?? "");
+                var hit = buckets.FirstOrDefault(b => RangesCompatible(b.Shape, shape));
+                if (hit.Items != null) hit.Items.Add(kr);
+                else buckets.Add((shape, new List<KeyResult> { kr }));
+            }
+
+            return buckets.Select(b => b.Items).ToList();
+        }
+
+        // ------------------------------------------------------------------
+        // LOINC dictionary veto (fail-open)
+        // ------------------------------------------------------------------
+
+        private static readonly HashSet<string> _nameStopWords = new(StringComparer.Ordinal)
+        {
+            "serum","plasma","blood","urine","fluid","mass","moles","volume","ratio","rate",
+            "presence","content","number","count","units","panel","auto","manual","poor","assay",
+            "identified","measured","calculated","estimated","platelet","specimen","standard","total"
+        };
+
+        /// <summary>
+        /// True only when both codes carry an official LOINC long name AND those
+        /// names have nothing meaningful in common — the sign that two genuinely
+        /// different analytes were written identically by the lab. Missing names
+        /// never block a merge (fail-open).
+        /// </summary>
+        internal static bool OfficialNamesConflict(string? a, string? b)
+        {
+            var ta = SignificantTokens(a);
+            var tb = SignificantTokens(b);
+            if (ta.Count == 0 || tb.Count == 0) return false;
+            return !ta.Overlaps(tb);
+        }
+
+        private static HashSet<string> SignificantTokens(string? name)
+        {
+            var set = new HashSet<string>(StringComparer.Ordinal);
+            if (string.IsNullOrWhiteSpace(name)) return set;
+
+            foreach (var raw in Regex.Split(name!, @"[^\p{L}\p{Nd}]+"))
+            {
+                if (raw.Length < 4) continue;
+                var t = Normalize(raw);
+                if (t.Length < 4 || _nameStopWords.Contains(t)) continue;
+                set.Add(t);
+            }
+            return set;
+        }
 
         /// <summary>
         /// Same LOINC code, DIFFERENT units of measure (Fibrinogen reported as
@@ -230,7 +432,8 @@ namespace MedicalApp.Services
                 .Replace("µ", "u").Replace("μ", "u")
                 .Replace("³", "3").Replace("⁶", "6").Replace("⁹", "9");
 
-            if (u is "mii" or "mil" or "103ul" or "103l" or "10e3ul" or "kul" or "thousul")
+            if (u is "mii" or "mil" or "103ul" or "103l" or "10e3ul" or "kul" or "thousul"
+                  or "miiul" or "miil" or "103mmc" or "miimmc")
                 return "10e3/ul";
             if (u is "mil6ul" or "106ul" or "10e6ul" or "milul")
                 return "10e6/ul";

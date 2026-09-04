@@ -1,0 +1,249 @@
+using MedicalApp.Models;
+using MedicalApp.Services;
+
+// Matrix probe for the reference-range rework in LoincUnifier:
+//   1. operative interval extracted from interpretive prose
+//   2. compatible (prefix/subset) ranges
+//   3. fail-open LOINC dictionary veto
+
+int fails = 0;
+void Check(string label, bool ok, string detail = "")
+{
+    Console.WriteLine((ok ? "PASS  " : "FAIL  ") + label + (detail.Length > 0 ? "  ->  " + detail : ""));
+    if (!ok) fails++;
+}
+
+static KeyResult K(string p, string? unit, string? range, string? code,
+                   string? src = "semantic", double? score = 0.9, string? longName = null)
+    => new KeyResult
+    {
+        Parameter = p, Value = "1", Unit = unit, ReferenceRange = range, Status = "normal",
+        LoincCode = code, LoincSource = src, LoincScore = score, LoincClass = "CHEM",
+        LoincLongName = longName ?? (code == null ? null : "Long name of " + code)
+    };
+
+const string A1cLong = "Interpretare rezultate conform ADA: - normal: 4.8-5.6% - risc crescut de a dezvolta " +
+                       "diabet: 5.7-6.4% - diabet zaharat: >=6.5% Tinta terapeutica la pacientii diabetici: <=7%";
+const string A1cShort = "Interpretare rezultate conform ADA: - normal: 4.8-5.6% - risc crescut de a dezvolta " +
+                        "diabet: 5.7-6.4% - diabet zaharat: >=6.5%";
+
+// ---------------------------------------------------------------- 1. reported bug
+var a1c = new[]
+{
+    K("Hemoglobina glicata (Hb A1c )", "%", A1cLong, "4548-4", src: "anchor", score: null),
+    K("Hemoglobina glicata (Hb A1c )", "%", A1cShort, "41995-2", src: "semantic", score: 0.84)
+};
+var uniA1c = LoincUnifier.Analyze(a1c);
+Check("1. HbA1c with different interpretive prose MERGES",
+    uniA1c.CodeMap.TryGetValue("41995-2", out var a1cWinner) && a1cWinner == "4548-4",
+    string.Join(",", uniA1c.CodeMap.Select(kv => kv.Key + "->" + kv.Value)));
+Check("1b. HbA1c gets no '!' hint after merging",
+    uniA1c.MissingAxisFor("Hemoglobina glicata (Hb A1c )") == null,
+    uniA1c.MissingAxisFor("Hemoglobina glicata (Hb A1c )") ?? "null");
+
+// ---------------------------------------------------------------- 2. legit unit split
+var lymph = new[]
+{
+    K("Limfocite", "%", "20-40", "736-9"),
+    K("Limfocite", "10^3/uL", "1.0-4.0", "731-0")
+};
+var uniLymph = LoincUnifier.Analyze(lymph);
+Check("2. Limfocite %/mii-uL NOT merged", uniLymph.CodeMap.Count == 0,
+    string.Join(",", uniLymph.CodeMap.Select(kv => kv.Key + "->" + kv.Value)));
+Check("2b. Limfocite gets NO false '!' hint", uniLymph.MissingAxisFor("Limfocite") == null,
+    uniLymph.MissingAxisFor("Limfocite") ?? "null");
+
+// ---------------------------------------------------------------- 3. same code, two units
+var fib = new[]
+{
+    K("Fibrinogen", "g/L", "2 - 4", "3255-7"),
+    K("Fibrinogen", "mg/dL", "200 - 400", "3255-7")
+};
+var uniFib = LoincUnifier.Analyze(fib);
+var scopeFib = LoincUnifier.UnitScope.Build(fib, uniFib.CodeMap);
+Check("3. Fibrinogen 3255-7 still split by unit", scopeFib.IsSplit("3255-7"));
+Check("3b. Fibrinogen suffixes differ per unit",
+    scopeFib.Suffix("3255-7", "g/L") != scopeFib.Suffix("3255-7", "mg/dL"));
+
+// ---------------------------------------------------------------- 4. dimensionless analyte
+var inr = new[]
+{
+    K("INR", null, "0.8-1.2", "34714-6", score: 0.64),
+    K("INR", null, "0,8 - 1,2", "6301-6", src: "anchor", score: null)
+};
+var uniInr = LoincUnifier.Analyze(inr);
+Check("4. INR (no unit anywhere) still merges",
+    uniInr.CodeMap.TryGetValue("34714-6", out var inrW) && inrW == "6301-6");
+Check("4b. INR no '!' hint", uniInr.MissingAxisFor("INR") == null);
+
+// ---------------------------------------------------------------- 5. missing axis stays prudent
+var fer = new[]
+{
+    K("Feritina", "ng/mL", "20-250", "2276-4"),
+    K("Feritina", null, "20-250", "24373-3")
+};
+var uniFer = LoincUnifier.Analyze(fer);
+Check("5. Feritina NOT merged when unit missing on one report", uniFer.CodeMap.Count == 0);
+Check("5b. Feritina flagged 'unit'", uniFer.MissingAxisFor("Feritina") == "unit",
+    uniFer.MissingAxisFor("Feritina") ?? "null");
+
+var noRange = new[]
+{
+    K("Magneziu", "mg/dL", "1.8-2.4", "2601-3"),
+    K("Magneziu", "mg/dL", null, "19123-9")
+};
+var uniNoRange = LoincUnifier.Analyze(noRange);
+Check("5c. Magneziu NOT merged when range missing on one report", uniNoRange.CodeMap.Count == 0);
+Check("5d. Magneziu flagged 'range'", uniNoRange.MissingAxisFor("Magneziu") == "range",
+    uniNoRange.MissingAxisFor("Magneziu") ?? "null");
+
+// ---------------------------------------------------------------- 6. contradicting ranges
+var contradict = new[]
+{
+    K("Analiza X", "mg/dL", "60-99", "1111-1"),
+    K("Analiza X", "mg/dL", "20-40", "2222-2")
+};
+var uniContradict = LoincUnifier.Analyze(contradict);
+Check("6. Contradicting ranges NOT merged", uniContradict.CodeMap.Count == 0,
+    string.Join(",", uniContradict.CodeMap.Select(kv => kv.Key + "->" + kv.Value)));
+Check("6b. Contradicting ranges flagged 'range'", uniContradict.MissingAxisFor("Analiza X") == "range",
+    uniContradict.MissingAxisFor("Analiza X") ?? "null");
+
+var sameCodeDifferentRanges = new[]
+{
+    K("Glicemie", "mg/dL", "60-99", "2345-7"),
+    K("Glicemie", "mg/dL", "70-105", "2345-7")
+};
+var uniSameCode = LoincUnifier.Analyze(sameCodeDifferentRanges);
+Check("6c. Same code + different lab ranges => no '!' noise",
+    uniSameCode.MissingAxisFor("Glicemie") == null, uniSameCode.MissingAxisFor("Glicemie") ?? "null");
+
+// ---------------------------------------------------------------- 7. pure text ranges
+var textDiff = new[]
+{
+    K("Anticorpi Y", null, "negativ", "3333-1"),
+    K("Anticorpi Y", null, "absent", "4444-2")
+};
+var uniTextDiff = LoincUnifier.Analyze(textDiff);
+Check("7. Different text ranges (negativ vs absent) NOT merged", uniTextDiff.CodeMap.Count == 0,
+    string.Join(",", uniTextDiff.CodeMap.Select(kv => kv.Key + "->" + kv.Value)));
+
+var textSame = new[]
+{
+    K("Anticorpi Z", null, "Negativ", "5555-1", src: "anchor", score: null),
+    K("Anticorpi Z", null, "negativ ", "6666-2")
+};
+var uniTextSame = LoincUnifier.Analyze(textSame);
+Check("7b. Identical text ranges merge",
+    uniTextSame.CodeMap.TryGetValue("6666-2", out var tz) && tz == "5555-1");
+
+// ---------------------------------------------------------------- 8. bounded ranges (< / <=)
+var ldl = new[]
+{
+    K("LDL colesterol", "mg/dL", "< 130", "13457-7", src: "anchor", score: null),
+    K("LDL colesterol", "mg/dL", "<130 optim; 130-159 moderat crescut; >=190 foarte crescut", "2089-1")
+};
+var uniLdl = LoincUnifier.Analyze(ldl);
+Check("8. '<130' and '<130 + prose' merge",
+    uniLdl.CodeMap.TryGetValue("2089-1", out var ldlW) && ldlW == "13457-7",
+    string.Join(",", uniLdl.CodeMap.Select(kv => kv.Key + "->" + kv.Value)));
+
+var oppositeBounds = new[]
+{
+    K("Marker B", "u", "< 10", "7777-1"),
+    K("Marker B", "u", "> 10", "8888-2")
+};
+var uniOpposite = LoincUnifier.Analyze(oppositeBounds);
+Check("8b. '<10' and '>10' NOT merged (opposite direction)", uniOpposite.CodeMap.Count == 0);
+
+// ---------------------------------------------------------------- 9. prefix/subset safety net
+var prefix = new[]
+{
+    K("Marker P", "u", "200", "9111-1", src: "anchor", score: null),
+    K("Marker P", "u", "200 400", "9222-2")
+};
+var uniPrefix = LoincUnifier.Analyze(prefix);
+Check("9. Prefix number lists merge (one lab wrote more)",
+    uniPrefix.CodeMap.TryGetValue("9222-2", out var pw) && pw == "9111-1",
+    string.Join(",", uniPrefix.CodeMap.Select(kv => kv.Key + "->" + kv.Value)));
+
+var notPrefix = new[]
+{
+    K("Marker Q", "u", "300", "9333-1"),
+    K("Marker Q", "u", "200 400", "9444-2")
+};
+Check("9b. Non-prefix number lists NOT merged", LoincUnifier.Analyze(notPrefix).CodeMap.Count == 0);
+
+// ---------------------------------------------------------------- 10. sex-specific ranges
+var hgb = new[]
+{
+    K("Hemoglobina", "g/dL", "B: 13.5-17.5  F: 12-15.5", "718-7", src: "anchor", score: null),
+    K("Hemoglobina", "g/dL", "13,5 - 17,5", "30313-1")
+};
+var uniHgb = LoincUnifier.Analyze(hgb);
+Check("10. Sex-specific range merges with the plain male range",
+    uniHgb.CodeMap.TryGetValue("30313-1", out var hw) && hw == "718-7",
+    string.Join(",", uniHgb.CodeMap.Select(kv => kv.Key + "->" + kv.Value)));
+
+// ---------------------------------------------------------------- 11. LOINC dictionary veto
+var veto = new[]
+{
+    K("Proteina", "mg/L", "0-5", "1988-5", src: "anchor", score: null,
+      longName: "C reactive protein [Mass/volume] in Serum or Plasma"),
+    K("Proteina", "mg/L", "0-5", "5964-2", longName: "Prothrombin time [Time] in Platelet poor plasma")
+};
+var uniVeto = LoincUnifier.Analyze(veto);
+Check("11. Conflicting official LOINC names block the merge", uniVeto.CodeMap.Count == 0,
+    string.Join(",", uniVeto.CodeMap.Select(kv => kv.Key + "->" + kv.Value)));
+
+var failOpen = new[]
+{
+    K("Proteina", "mg/L", "0-5", "1988-5", src: "anchor", score: null,
+      longName: "C reactive protein [Mass/volume] in Serum or Plasma"),
+    K("Proteina", "mg/L", "0-5", "5964-2", longName: null)
+};
+// longName null => helper substitutes "Long name of <code>"; force a real null:
+failOpen[1].LoincLongName = null;
+var uniFailOpen = LoincUnifier.Analyze(failOpen);
+Check("11b. Missing official name does NOT block the merge (fail-open)",
+    uniFailOpen.CodeMap.TryGetValue("5964-2", out var fw) && fw == "1988-5",
+    string.Join(",", uniFailOpen.CodeMap.Select(kv => kv.Key + "->" + kv.Value)));
+
+var relatedNames = new[]
+{
+    K("Colesterol total", "mg/dL", "0-200", "2093-3",
+      longName: "Cholesterol [Mass/volume] in Serum or Plasma"),
+    K("Colesterol Total", "mg/dL", "0 - 200", "14647-2", src: "anchor", score: null,
+      longName: "Cholesterol [Moles/volume] in Serum or Plasma")
+};
+var uniRelated = LoincUnifier.Analyze(relatedNames);
+Check("11c. Related official names still merge",
+    uniRelated.CodeMap.TryGetValue("2093-3", out var rw) && rw == "14647-2");
+
+// ---------------------------------------------------------------- 12. unit normalization untouched
+var unitSpellings = new[]
+{
+    K("Leucocite", "mii/uL", "4-10", "6690-2"),
+    K("Leucocite", "10^3/µL", "4 - 10", "6690-2"),
+    K("Leucocite", "g/L", "4-10", "6690-2")
+};
+var uniUnits = LoincUnifier.Analyze(unitSpellings);
+var scopeUnits = LoincUnifier.UnitScope.Build(unitSpellings, uniUnits.CodeMap);
+Check("12. 'mii/uL' and '10^3/µL' are the same bucket",
+    scopeUnits.Suffix("6690-2", "mii/uL") == scopeUnits.Suffix("6690-2", "10^3/µL"),
+    scopeUnits.Suffix("6690-2", "mii/uL") + " vs " + scopeUnits.Suffix("6690-2", "10^3/µL"));
+Check("12b. 'g/L' is a different bucket",
+    scopeUnits.Suffix("6690-2", "g/L") != scopeUnits.Suffix("6690-2", "mii/uL"));
+
+// Bound written differently but meaning the same upper limit.
+var boundSpellings = new[]
+{
+    K("Marker C", "u", "<= 5", "9555-1", src: "anchor", score: null),
+    K("Marker C", "u", "≤5 (valoare de referinta)", "9666-2")
+};
+Check("12c. '<= 5' and '≤5 + text' merge",
+    LoincUnifier.Analyze(boundSpellings).CodeMap.TryGetValue("9666-2", out var bw) && bw == "9555-1",
+    string.Join(",", LoincUnifier.Analyze(boundSpellings).CodeMap.Select(kv => kv.Key + "->" + kv.Value)));
+
+Console.WriteLine(fails == 0 ? "\nALL CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
+return fails == 0 ? 0 : 1;

@@ -174,6 +174,33 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   avertisment, forma nouă = 0, valori agregate identice). Confirmat de testing agent:
   `/app/test_reports/iteration_20.json` — 0 probleme, regresie B2C 66/66 PASS.
 
+- **Fix duplicare rânduri la același analit cu intervale de referință „proză”** (iunie 2026):
+  cauza — `LoincUnifier.NormalizeRange` compara TOATE numerele din câmpul „interval de referință”,
+  deci HbA1c cu „…normal: 4.8-5.6% … >=6.5%” vs același text + „Ținta terapeutică ≤7%” avea
+  semnături diferite ⇒ codurile `4548-4` și `41995-2` nu se uneau (2 rânduri, aceeași UM `%`).
+  Trei straturi noi în `LoincUnifier`:
+  1. **Interval operativ** (`OperativeRange`): se extrage PRIMUL interval real din text
+     (`4.8-5.6`, `< 130`, `≤ 7`, `până la 200`, `13.5-17.5` din intervale pe sexe) și se ignoră
+     proza interpretativă. Fallback conservator: fără interval operativ ⇒ comportamentul vechi
+     (toate numerele / text normalizat) ⇒ zero regresie.
+  2. **Compatibilitate în loc de identitate**: gruparea se face acum pe nume → unitate →
+     *clustere de intervale compatibile* (`ClusterByRange`). Compatibil = același interval
+     operativ, sau text identic, sau o listă de numere e prefixul celeilalte (un lab a scris mai
+     mult). Intervale operative diferite = contradicție reală ⇒ NU se unifică, iar dacă și codurile
+     diferă rândurile primesc semnul „!” (`MissingAxis = "range"`).
+  3. **Veto fail-open pe dicționarul LOINC**: fuziunea e blocată doar dacă AMBELE coduri au
+     `LoincLongName` oficial și denumirile nu au nici un cuvânt semnificativ comun
+     (`OfficialNamesConflict`). Lipsa denumirii nu blochează niciodată.
+  - Bonus: `NormalizeUnit` recunoaște acum și `mii/µL` (`miiul`, `mii/L`, `mii/mmc`) ca `10e3/ul`.
+  - Se aplică retroactiv (display-only) în Dosar Medical, Comparații, Grafice și PDF-uri — nu e
+    nevoie de reprocesarea buletinelor.
+  - Testat: probă nouă `/app/memory/probes/LoincRangeUnificationProbe.cs.txt` — **28/28 PASS**
+    (HbA1c cu proză diferită unește; Limfocite %/mii-µL NU; Fibrinogen g/L vs mg/dL separate prin
+    `UnitScope`; INR fără unitate unește; unitate/interval lipsă pe un buletin ⇒ „!”; intervale
+    contradictorii NU unesc; `<10` vs `>10` NU unesc; „negativ” vs „absent” NU unesc; prefix de
+    numere unește; veto LOINC blochează CRP vs timp de protrombină, dar e fail-open fără denumire).
+    Regresie: `LoincUnifierProbe` **24/24 PASS**, suita B2C **66/66 PASS**, build 0 warning-uri.
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard
