@@ -267,6 +267,25 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   - **Rămas pentru hostare (pasul 3)**: 2+ instanțe de aplicație și 2 replici LOINC —
     doar configurație Azure, codul e pregătit.
 
+- **Panou diagnostic infrastructură în Admin** (iunie 2026) — `GET /Admin/Diagnostics`
+  (`AdminController.Diagnostics`, `Models/InfrastructureDiagnosticsViewModel.cs`,
+  `Views/Admin/Diagnostics.cshtml`, link din `Views/Admin/Index.cshtml`):
+  - **Cotă Gemini** (memoria instanței, prin `GeminiRateLimiter.Stats()`): apeluri în ultimul minut
+    / rpm configurat, apeluri simultane permise, câte apeluri au așteptat din total, refuzuri
+    Google 429/503, timp total de așteptare, badge „în pauză” la cooldown.
+  - **Coadă durabilă**: la rând / în lucru (din `MaxConcurrent` sloturi) / reluate după pană /
+    vechimea celei mai vechi lucrări + tabel cu ultimele 50 de lucrări (istoric, user, stare,
+    încercări, instanță) și alertă pentru lease-urile expirate care vor fi recuperate.
+  - **Cache LOINC**: mapări învățate pe versiunea activă a pipeline-ului, refolosiri însumate
+    (analize necalculate), rânduri rămase din versiuni vechi, ultima mapare nouă, top 15 mapări
+    refolosite, plus cache-ul in-process al serviciului Python (`GET /loinc/cache`: size/capacity/
+    hit rate) și starea vocabularului salvat. Serviciul Python oprit ⇒ mesaj clar, pagina NU cade.
+  - Reîmprospătare **manuală** (buton `diag-refresh-btn`, decizia utilizatorului — fără polling).
+  - Testat: probă nouă `/app/memory/probes/DiagnosticsPanelProbe.cs.txt` (proiect `/app/probe_diag`)
+    — **13/13 PASS** (cotă reală, refuz Google, coadă cu lease expirat, filtrare pe versiunea de
+    pipeline, top mapări, vocabular, serviciu Python picat). Build `MedicalApp`: **0 warning-uri**
+    (CS0414 nu mai apare).
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard

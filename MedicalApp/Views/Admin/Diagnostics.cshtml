@@ -1,0 +1,257 @@
+@model MedicalApp.Models.InfrastructureDiagnosticsViewModel
+@{
+    ViewData["Title"] = "Diagnostic infrastructură";
+
+    Func<DateTime?, string> ago = t => t == null
+        ? "—"
+        : (DateTime.UtcNow - t.Value).TotalMinutes < 1
+            ? "acum câteva secunde"
+            : (DateTime.UtcNow - t.Value).TotalHours < 1
+                ? $"acum {(int)(DateTime.UtcNow - t.Value).TotalMinutes} min"
+                : (DateTime.UtcNow - t.Value).TotalDays < 1
+                    ? $"acum {(int)(DateTime.UtcNow - t.Value).TotalHours} h"
+                    : $"acum {(int)(DateTime.UtcNow - t.Value).TotalDays} zile";
+}
+
+<div class="container py-4" data-testid="diagnostics-page">
+    <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+        <h2 class="text-primary fw-bold mb-0">Diagnostic infrastructură</h2>
+        <a asp-action="Index" class="btn btn-sm btn-outline-secondary ms-auto" data-testid="diag-back-btn">
+            &larr; Admin Dashboard
+        </a>
+        <a asp-action="Diagnostics" class="btn btn-sm btn-primary" data-testid="diag-refresh-btn">
+            Reîmprospătează
+        </a>
+    </div>
+
+    <p class="text-muted">
+        Cele trei mecanisme care decid câți utilizatori simultani suportă aplicația.
+        Cotele Gemini se numără <strong>per instanță</strong> (memoria procesului) și se
+        resetează la repornire; coada și cache-ul LOINC se citesc din baza de date.
+    </p>
+
+    <!-- ================= Gemini quota ================= -->
+    <div class="card shadow-sm mb-4" data-testid="diag-quota-card">
+        <div class="card-header bg-white d-flex align-items-center gap-2">
+            <strong>Cotă Gemini</strong>
+            @if (!Model.QuotaEnabled)
+            {
+                <span class="badge bg-secondary" data-testid="diag-quota-off">dezactivată</span>
+            }
+            else if (Model.CoolingDown)
+            {
+                <span class="badge bg-danger" data-testid="diag-quota-cooldown">în pauză (Google a refuzat)</span>
+            }
+            else
+            {
+                <span class="badge bg-success" data-testid="diag-quota-on">activă</span>
+            }
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-6 col-md-3">
+                    <div class="text-muted small">Apeluri în ultimul minut</div>
+                    <div class="fs-4 fw-bold @(Model.RequestsPerMinute > 0 && Model.CallsInLastMinute >= Model.RequestsPerMinute ? "text-danger" : "")"
+                         data-testid="diag-calls-last-minute">
+                        @Model.CallsInLastMinute / @(Model.RequestsPerMinute > 0 ? Model.RequestsPerMinute.ToString() : "∞")
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="text-muted small">Apeluri simultane permise</div>
+                    <div class="fs-4 fw-bold" data-testid="diag-max-concurrent">@Model.MaxConcurrentCalls</div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="text-muted small">Apeluri care au așteptat</div>
+                    <div class="fs-4 fw-bold @(Model.ThrottledCalls > 0 ? "text-warning" : "")"
+                         data-testid="diag-throttled">
+                        @Model.ThrottledCalls <span class="fs-6 text-muted">din @Model.TotalCalls</span>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="text-muted small">Refuzuri Google (429/503)</div>
+                    <div class="fs-4 fw-bold @(Model.Rejections > 0 ? "text-danger" : "")"
+                         data-testid="diag-rejections">@Model.Rejections</div>
+                </div>
+            </div>
+            <hr />
+            <p class="mb-0 small text-muted">
+                Timp total petrecut așteptând cota: <strong>@(Model.TotalWaitMs / 1000) s</strong>.
+                @if (Model.Rejections > 0)
+                {
+                    <span class="text-danger">
+                        Google a refuzat apeluri — scade <code>MaxConcurrent</code> sau mărește cota contului.
+                    </span>
+                }
+                else if (Model.ThrottledCalls > 0)
+                {
+                    <span>Aplicația a frânat singură, deci nu s-a pierdut nicio interpretare.</span>
+                }
+                else
+                {
+                    <span>Nicio frânare: ești confortabil sub cotă.</span>
+                }
+            </p>
+        </div>
+    </div>
+
+    <!-- ================= Durable queue ================= -->
+    <div class="card shadow-sm mb-4" data-testid="diag-queue-card">
+        <div class="card-header bg-white"><strong>Coadă durabilă (interpretări)</strong></div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-6 col-md-3">
+                    <div class="text-muted small">La rând</div>
+                    <div class="fs-4 fw-bold" data-testid="diag-jobs-queued">@Model.JobsQueued</div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="text-muted small">În lucru</div>
+                    <div class="fs-4 fw-bold" data-testid="diag-jobs-running">
+                        @Model.JobsRunning <span class="fs-6 text-muted">/ @Model.QueueMaxConcurrent sloturi</span>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="text-muted small">Reluate după o pană</div>
+                    <div class="fs-4 fw-bold @(Model.JobsRetried > 0 ? "text-warning" : "")"
+                         data-testid="diag-jobs-retried">@Model.JobsRetried</div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="text-muted small">Cea mai veche</div>
+                    <div class="fs-6 fw-semibold" data-testid="diag-jobs-oldest">@ago(Model.OldestJobEnqueuedAt)</div>
+                </div>
+            </div>
+
+            @if (Model.JobsStale > 0)
+            {
+                <div class="alert alert-warning mt-3 mb-0" data-testid="diag-jobs-stale">
+                    @Model.JobsStale lucrare(-ări) au lease-ul expirat — vor fi reluate automat la
+                    următoarea scanare (maxim un minut).
+                </div>
+            }
+
+            @if (Model.Jobs.Count == 0)
+            {
+                <p class="text-success mt-3 mb-0" data-testid="diag-queue-empty">
+                    Coada e goală: nicio interpretare în așteptare sau în lucru.
+                </p>
+            }
+            else
+            {
+                <div class="table-responsive mt-3">
+                    <table class="table table-sm align-middle" data-testid="diag-queue-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Istoric</th><th>Utilizator</th><th>Stare</th>
+                                <th>Încercări</th><th>În coadă de</th><th>Instanță</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var j in Model.Jobs)
+                        {
+                            <tr>
+                                <td>@j.HistoryId</td>
+                                <td class="small">@j.UserEmail</td>
+                                <td>
+                                    <span class="badge @(j.Status == "running" ? "bg-primary" : "bg-secondary")">
+                                        @j.Status
+                                    </span>
+                                </td>
+                                <td class="@(j.Attempts > 1 ? "text-warning fw-bold" : "")">@j.Attempts</td>
+                                <td class="small">@ago(j.EnqueuedAt)</td>
+                                <td class="small text-muted">@(j.Owner ?? "—")</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- ================= LOINC cache ================= -->
+    <div class="card shadow-sm mb-4" data-testid="diag-loinc-card">
+        <div class="card-header bg-white d-flex align-items-center gap-2">
+            <strong>Cache LOINC</strong>
+            <span class="badge bg-info text-dark" data-testid="diag-pipeline-version">@Model.PipelineVersion</span>
+            @if (!Model.LoincCacheEnabled)
+            {
+                <span class="badge bg-secondary">dezactivat</span>
+            }
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-6 col-md-3">
+                    <div class="text-muted small">Mapări învățate</div>
+                    <div class="fs-4 fw-bold" data-testid="diag-mappings-count">@Model.MappingsCurrentVersion</div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="text-muted small">Refolosiri (analize necalculate)</div>
+                    <div class="fs-4 fw-bold text-success" data-testid="diag-mapping-reuses">@Model.MappingReuses</div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="text-muted small">Rânduri de versiuni vechi</div>
+                    <div class="fs-4 fw-bold text-muted" data-testid="diag-mappings-old">@Model.MappingsOtherVersions</div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="text-muted small">Ultima mapare nouă</div>
+                    <div class="fs-6 fw-semibold" data-testid="diag-last-mapping">@ago(Model.LastMappingLearnedAt)</div>
+                </div>
+            </div>
+
+            <hr />
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="text-muted small">Serviciul LOINC (Python)</div>
+                    @if (Model.ServiceReachable)
+                    {
+                        <div class="fw-semibold text-success" data-testid="diag-service-up">
+                            disponibil — cache intern @Model.ServiceCacheSize / @Model.ServiceCacheCapacity,
+                            hit rate @Model.ServiceCacheHitRate.ToString("0.0")%
+                            (@Model.ServiceCacheHits din @(Model.ServiceCacheHits + Model.ServiceCacheMisses))
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="fw-semibold text-danger" data-testid="diag-service-down">
+                            nu răspunde — analizele deja cunoscute se codifică în continuare din cache-ul SQL
+                        </div>
+                    }
+                </div>
+                <div class="col-md-6">
+                    <div class="text-muted small">Vocabular specimen/metodă (multilingv)</div>
+                    <div class="fw-semibold" data-testid="diag-vocabulary">
+                        @if (Model.VocabularyPhrases > 0)
+                        {
+                            @($"{Model.VocabularyPhrases} fraze, salvate {ago(Model.VocabularyFetchedAt)}")
+                        }
+                        else
+                        {
+                            <span class="text-warning">încă nesalvat — cheia de cache rulează în mod prudent</span>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            @if (Model.TopMappings.Count > 0)
+            {
+                <div class="table-responsive mt-3">
+                    <table class="table table-sm align-middle" data-testid="diag-top-mappings">
+                        <thead class="table-light">
+                            <tr><th>Analiză</th><th>UM</th><th>Cod LOINC</th><th class="text-end">Refolosiri</th></tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var t in Model.TopMappings)
+                        {
+                            <tr>
+                                <td class="small">@t.TestName</td>
+                                <td class="small text-muted">@(string.IsNullOrWhiteSpace(t.Unit) ? "—" : t.Unit)</td>
+                                <td><code>@t.LoincCode</code></td>
+                                <td class="text-end fw-semibold">@t.HitCount</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>

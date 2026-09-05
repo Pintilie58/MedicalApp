@@ -505,6 +505,120 @@ namespace MedicalApp.Controllers
         }
 
         // =====================================================================
+        //  Infrastructure diagnostics — is the plumbing earning its keep?
+        //  Gemini quota, the durable interpretation queue and both levels of
+        //  the LOINC cache, on one page. Read-only.
+        // =====================================================================
+        [HttpGet]
+        public async Task<IActionResult> Diagnostics(
+            [FromServices] GeminiRateLimiter rateLimiter,
+            [FromServices] IOptions<InterpretationQueueSettings> queueSettings)
+        {
+            var m = new InfrastructureDiagnosticsViewModel();
+
+            // ---- Gemini quota (this instance's memory) ----
+            var cfg = _geminiSettings.RateLimit ?? new GeminiRateLimitSettings();
+            var s = rateLimiter.Stats();
+            m.QuotaEnabled = cfg.Enabled;
+            m.RequestsPerMinute = cfg.RequestsPerMinute;
+            m.MaxConcurrentCalls = cfg.MaxConcurrentCalls;
+            m.CallsInLastMinute = s.InLastMinute;
+            m.TotalCalls = s.Calls;
+            m.ThrottledCalls = s.Throttled;
+            m.TotalWaitMs = s.WaitMs;
+            m.Rejections = s.Rejections;
+            m.CoolingDown = s.CoolingDown;
+
+            // ---- Durable queue ----
+            var now = DateTime.UtcNow;
+            m.QueueMaxConcurrent = queueSettings.Value.MaxConcurrent;
+            var jobs = await _db.InterpretationJobs.AsNoTracking()
+                .OrderBy(j => j.EnqueuedAt)
+                .Take(50)
+                .Select(j => new InfrastructureDiagnosticsViewModel.JobRow
+                {
+                    HistoryId = j.HistoryId,
+                    UserEmail = j.UserEmail,
+                    Status = j.Status,
+                    Attempts = j.Attempts,
+                    EnqueuedAt = j.EnqueuedAt,
+                    LeaseUntil = j.LeaseUntil,
+                    Owner = j.Owner
+                })
+                .ToListAsync();
+            m.Jobs = jobs;
+            m.JobsQueued = jobs.Count(j => j.Status == "queued");
+            m.JobsRunning = jobs.Count(j => j.Status == "running");
+            m.JobsRetried = jobs.Count(j => j.Attempts > 1);
+            m.JobsStale = jobs.Count(j => j.Status == "running"
+                                          && (j.LeaseUntil == null || j.LeaseUntil < now));
+            m.OldestJobEnqueuedAt = jobs.Count > 0 ? jobs.Min(j => j.EnqueuedAt) : null;
+
+            // ---- LOINC mapping cache (SQL) ----
+            var cacheCfg = _loincSettings.Cache ?? new LoincMatchCacheSettings();
+            m.LoincCacheEnabled = cacheCfg.Enabled;
+            m.PipelineVersion = string.IsNullOrWhiteSpace(cacheCfg.PipelineVersion)
+                ? "v1" : cacheCfg.PipelineVersion.Trim();
+
+            var cacheRows = _db.LoincMatchCache.AsNoTracking();
+            m.MappingsCurrentVersion = await cacheRows
+                .CountAsync(e => e.PipelineVersion == m.PipelineVersion);
+            m.MappingsOtherVersions = await cacheRows
+                .CountAsync(e => e.PipelineVersion != m.PipelineVersion);
+            m.MappingReuses = await cacheRows
+                .Where(e => e.PipelineVersion == m.PipelineVersion)
+                .SumAsync(e => (long)e.HitCount);
+            m.LastMappingLearnedAt = await cacheRows
+                .Where(e => e.PipelineVersion == m.PipelineVersion)
+                .OrderByDescending(e => e.CreatedAt)
+                .Select(e => (DateTime?)e.CreatedAt)
+                .FirstOrDefaultAsync();
+            m.TopMappings = await cacheRows
+                .Where(e => e.PipelineVersion == m.PipelineVersion)
+                .OrderByDescending(e => e.HitCount)
+                .ThenBy(e => e.TestName)
+                .Take(15)
+                .Select(e => new InfrastructureDiagnosticsViewModel.MappingRow
+                {
+                    TestName = e.TestName,
+                    Unit = e.Unit,
+                    LoincCode = e.LoincCode,
+                    HitCount = e.HitCount
+                })
+                .ToListAsync();
+
+            var vocab = await _db.LoincVocabulary.AsNoTracking()
+                .OrderBy(v => v.Id).FirstOrDefaultAsync();
+            m.VocabularyPhrases = vocab?.PhraseCount ?? 0;
+            m.VocabularyFetchedAt = vocab?.FetchedAt;
+
+            // ---- LOINC service (its own in-process cache) ----
+            try
+            {
+                var http = _httpClientFactory.CreateClient();
+                http.BaseAddress = new Uri(_loincSettings.BaseUrl);
+                http.Timeout = TimeSpan.FromSeconds(3);
+                var stats = await http.GetFromJsonAsync<Dictionary<string, double>>("/loinc/cache");
+                if (stats != null)
+                {
+                    m.ServiceReachable = true;
+                    m.ServiceCacheSize = (int)stats.GetValueOrDefault("size");
+                    m.ServiceCacheCapacity = (int)stats.GetValueOrDefault("capacity");
+                    m.ServiceCacheHits = (long)stats.GetValueOrDefault("hits");
+                    m.ServiceCacheMisses = (long)stats.GetValueOrDefault("misses");
+                    m.ServiceCacheHitRate = stats.GetValueOrDefault("hit_rate_pct");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogInformation(ex,
+                    "Diagnostics: the LOINC service did not answer (it may simply be stopped).");
+            }
+
+            return View(m);
+        }
+
+        // =====================================================================
         //  Performance panel — where do the minutes of an interpretation go?
         //  Reads the per-stage timings persisted by StageTimer on each history
         //  row. Purely diagnostic: no writes, no side effects.
