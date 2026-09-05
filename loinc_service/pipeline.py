@@ -288,6 +288,59 @@ _PROPERTY_KEYWORDS = {
     "ratio":            {"ratio"},
 }
 
+# -------------------------------------------------------------------------
+# Cache-key vocabulary (exported to the C# side via /loinc/context-keywords)
+# -------------------------------------------------------------------------
+# These phrases are NEVER used by the matching algorithm — they exist only so
+# the persistent cache in the C# app can build a STABLE key out of the PDF's
+# own words. The rule is: a phrase here makes the key MORE discriminating, so
+# the worst thing an inaccurate entry can do is cause a cache miss (a
+# recomputation). It can never cause two different analytes to share a key.
+#
+# Why they are needed: _SPECIMEN_KEYWORDS above is English-only (it matches
+# Gemini's English normalization, which we deliberately keep OUT of the cache
+# key because the model rephrases it between runs). The lab's PDF, however,
+# names the specimen in its own language — and specimen changes the LOINC
+# code. So the native words live here, in ONE place, for all supported
+# languages. Diacritics are already stripped (see _strip_diacritics).
+_CACHE_KEY_EXTRA_PHRASES = (
+    # --- specimen, native spellings -------------------------------------
+    "ser", "serica", "seric", "serum", "serique", "suero", "soro", "siero",
+    "szerum", "surowica", "syvorotka", "serumsko",
+    "plasma", "plazma", "plasme", "osocze",
+    "sange", "sanguin", "sang", "sangre", "sangue", "blood", "blut", "bloed",
+    "blod", "krev", "krew", "kri", "ver", "veri", "aima", "kan", "verre",
+    "urina", "urine", "urin", "orina", "mocz", "moc", "vizelet", "ourine",
+    "ouron", "ura", "idrar",
+    "scaun", "materii fecale", "feces", "faeces", "selles", "heces", "fezes",
+    "feci", "stuhl", "ontlasting", "stolice", "kal", "szeklet",
+    "saliva", "salive", "speichel",
+    "lcr", "csf", "liquide cephalo", "liquor", "likvor",
+    "sputa", "sputum", "expectoratie",
+    # --- method / property, native spellings not already covered above ---
+    "automat", "automate", "automatique", "automatico", "automatisch",
+    "automatyczny", "automatikus",
+    "manual", "manuala", "manuel", "manuell", "manuale", "reczne",
+    "microscop", "microscopio", "mikroskop", "mikroszkop",
+    "citometria in flusso", "citometria de flujo", "citometria de fluxo",
+    "przeplywowa", "aramlasi citometria",
+    "calculat", "calcule", "calculado", "calcolato", "berechnet", "obliczony",
+    "estimat", "estime", "estimado", "geschatzt",
+)
+
+
+def context_key_phrases() -> List[str]:
+    """Phrases the C# cache uses to distil a STABLE key out of the PDF text.
+
+    Union of every rules-layer trigger (so a difference that matters to the
+    matcher also matters to the key) and the native-language additions above.
+    Exported by ``/loinc/context-keywords``; the C# side never keeps its own
+    copy, so adding a language here is enough for both sides.
+    """
+    phrases = set(_SPECIMEN_KEYWORDS) | set(_METHOD_KEYWORDS) | set(_PROPERTY_KEYWORDS)
+    phrases |= set(_CACHE_KEY_EXTRA_PHRASES)
+    return sorted(p for p in (x.strip().lower() for x in phrases) if p)
+
 
 def _normalize(s: str) -> str:
     return re.sub(r"\s+", " ", s.lower()).strip()

@@ -46,6 +46,7 @@ services.AddSingleton<FakeEmail>();
 services.AddSingleton<IEmailService>(sp => sp.GetRequiredService<FakeEmail>());
 services.AddScoped<IAiUsageLogger, AiUsageLogger>();
 services.AddScoped<PdfReportGenerator>();
+services.AddSingleton<LoincContextVocabulary>();
 services.AddSingleton<LoincMatchCacheStore>();
 services.AddHttpClient<LoincMatcherClient>();
 services.AddSingleton<InterpretationProgressTracker>();

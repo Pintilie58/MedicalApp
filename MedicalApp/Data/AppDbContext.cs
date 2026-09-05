@@ -14,6 +14,7 @@ namespace MedicalApp.Data
         public DbSet<Profile> Profiles { get; set; } = null!;
         public DbSet<LoincEntry> LoincDictionary { get; set; } = null!;
         public DbSet<LoincMatchCacheEntry> LoincMatchCache { get; set; } = null!;
+        public DbSet<LoincVocabularySnapshot> LoincVocabulary { get; set; } = null!;
         public DbSet<AiUsageLog> AiUsageLogs { get; set; } = null!;
 
         // ----- CAM module (Clinici de Analize Medicale) -----
@@ -113,6 +114,7 @@ namespace MedicalApp.Data
                 entity.ToTable("LoincMatchCache");
                 entity.HasKey(e => e.CacheKey);
                 entity.Property(e => e.CacheKey).HasMaxLength(64);
+                entity.Property(e => e.KeyMaterial).HasMaxLength(1000);
                 entity.Property(e => e.TestName).HasMaxLength(500);
                 entity.Property(e => e.Unit).HasMaxLength(64);
                 entity.Property(e => e.PipelineVersion).HasMaxLength(20);
@@ -124,6 +126,15 @@ namespace MedicalApp.Data
                 entity.Property(e => e.LastUsedAt).HasColumnType("datetime2");
                 // Admin views: "which mappings do we know for this version?"
                 entity.HasIndex(e => e.PipelineVersion);
+            });
+
+            // Durable copy of the matcher's specimen/method vocabulary, so cache
+            // keys remain reproducible while the Python service is unreachable.
+            modelBuilder.Entity<LoincVocabularySnapshot>(entity =>
+            {
+                entity.ToTable("LoincVocabulary");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.FetchedAt).HasColumnType("datetime2");
             });
 
             // ===== AI usage log (separate from InterpretationHistories) =====            // Indexed on CreatedAt (admin dashboard queries always filter by it)

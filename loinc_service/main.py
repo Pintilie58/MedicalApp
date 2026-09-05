@@ -31,7 +31,15 @@ from pydantic import BaseModel, Field
 
 from loinc_store import STORE
 from canonical_anchors import all_anchors, anchor_count
-from pipeline import cache_key, cache_lookup, cache_stats, encode_queries, find_loinc, get_model
+from pipeline import (
+    cache_key,
+    cache_lookup,
+    cache_stats,
+    context_key_phrases,
+    encode_queries,
+    find_loinc,
+    get_model,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -288,6 +296,20 @@ async def cache_info():
     """In-process result cache: size, hit rate. Useful to confirm at a glance
     that repeats are being served from memory instead of recomputed."""
     return cache_stats()
+
+
+@app.get("/loinc/context-keywords")
+async def context_keywords():
+    """Vocabulary the C# app uses to build a STABLE persistent-cache key.
+
+    The app must NOT keep its own copy of these phrases: this service is the
+    single source of truth, so adding a language here is enough for both
+    sides. Only specimen/method/property markers are exported — the words
+    that actually change a LOINC code — so a lab rephrasing the rest of the
+    line does not invalidate a remembered mapping.
+    """
+    phrases = context_key_phrases()
+    return {"count": len(phrases), "phrases": phrases}
 
 
 @app.get("/loinc/anchors")

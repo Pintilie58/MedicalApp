@@ -193,8 +193,54 @@ Verificat: probă Python **20/20 PASS** (`loinc_cache_probe.py`), probă C# **33
 Rezultatul fazelor 0+1: **serviciul LOINC încetează să fie gâtuire** înainte de a atinge
 infrastructura — pentru că 9 din 10 analize nici nu mai ajung la el.
 
-## 6. Cost estimativ (Azure Container Apps, Europa de Vest)
+### Corecție iunie 2026: cheia de cache trebuie să fie STABILĂ
 
+Prima versiune a cheii hașura și **normalizarea în engleză produsă de Gemini**. Măsurat pe două
+interpretări ale aceluiași buletin: **hit rate 0%** și 122 de rânduri în loc de 61, pentru că
+modelul reformulează la fiecare rulare — *„Hematocrit [Volume Fraction] in Blood”* vs
+*„…in Blood by Automated count”*, *„Carcinoembryonic Ag”* vs *„…antigen … immunoassay”* —
+ajungând totuși la **același cod LOINC**.
+
+Cheia actuală conține doar ce e stabil:
+1. **numele analizei exact cum e tipărit în buletin**, în limba lui (`Glicemie`, `Glukose`,
+   `Glycémie`) — cache-ul se partiționează astfel singur pe limbă;
+2. **unitatea canonizată** (`µL` = `uL`, fără spații, case-insensitive);
+3. **markerii decisivi de specimen și metodă** găsiți în titlul secțiunii și în linia
+   analitului — și NIMIC din restul textului liber;
+4. versiunea pipeline-ului (`LoincMatcher:Cache:PipelineVersion`, acum `v2`).
+
+**Multilingvismul (20+ limbi) — o singură sursă de adevăr.** Vocabularul de markeri NU e
+duplicat în C#. Serviciul Python îl expune la **`GET /loinc/context-keywords`** (160 de fraze:
+uniunea declanșatorilor din stratul de reguli plus `_CACHE_KEY_EXTRA_PHRASES`, adăugările în
+limbile native pentru specimen). C# îl ia o dată per proces (`LoincContextVocabulary`), îl
+**persistă în tabelul `LoincVocabulary`** și îl restaurează de acolo dacă serviciul Python e
+oprit — altfel un restart al aplicației în timpul unei pene ar schimba forma tuturor cheilor
+exact când cache-ul e singurul care mai poate coda un buletin. Fără vocabular nicăieri, cheia
+include tot textul de context (`full:…`): mai puține hit-uri, niciodată o refolosire greșită.
+
+Potrivirea frazelor: prefix de cuvânt pentru frazele ≥ 5 caractere (`sange` prinde `sangele`,
+`urina` prinde `urinar`), cuvânt întreg pentru cele scurte (`ser` NU se mai găsește în `seria`),
+secvență de cuvinte pentru frazele compuse (`cytometrie en flux`). Diacriticele sunt eliminate cu
+același algoritm ca în Python, deci `impedanță` = `impedanta`, `sérique` = `serique`.
+
+Principiu de proiectare: **cheia e exact la fel de discriminantă ca stratul de reguli al
+potrivitorului** — nici mai mult, nici mai puțin. Dacă un marker nu e văzut de Python, nu schimbă
+codul LOINC, deci nu are ce căuta în cheie.
+
+Coloană nouă `LoincMatchCache.KeyMaterial`: exact textul hașurat, lizibil
+(`v2|hemoglobina|g/dl|impedanta|sange`). Orice nepotrivire viitoare se diagnostichează cu o
+singură interogare SQL.
+
+Migrare EF: **`AddLoincCacheKeyMaterialAndVocabulary`**.
+
+Verificat: probă C# **55/55 PASS** (inclusiv reformulare Gemini ⇒ HIT; impedanță vs citometrie în
+flux RO/FR/DE/PL ⇒ MISS; ser vs urină RO/FR ⇒ MISS; Westergren vs microfotometric ⇒ MISS; altă
+limbă ⇒ MISS; diacritice și reformulări nesemnificative ⇒ HIT; vocabular indisponibil ⇒ prudent;
+Python oprit de la start ⇒ vocabular restaurat din baza de date; cache oprit ⇒ ca înainte),
+regresie B2C **66/66**, unificator **24/24**, suita de aur LOINC **56/56**, cache Python
+**21/21**, build 0 warning-uri.
+
+## 6. Cost estimativ (Azure Container Apps, Europa de Vest)
 | Configurație | Cost lunar aproximativ |
 |---|---|
 | 1 replică 2 vCPU / 4 GiB, mereu pornită | ~55-70 € |

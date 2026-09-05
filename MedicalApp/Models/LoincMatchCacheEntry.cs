@@ -20,10 +20,17 @@ namespace MedicalApp.Models
     /// </summary>
     public class LoincMatchCacheEntry
     {
-        /// <summary>SHA-256 (hex) of version + name + unit + raw name + panel header + analyte line.</summary>
+        /// <summary>SHA-256 (hex) of version + printed analyte name + unit + decisive context markers.</summary>
         [Key]
         [StringLength(64)]
         public string CacheKey { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Exactly what was hashed, human-readable (fields separated by '|').
+        /// Kept so a cache miss can be diagnosed with one SQL query.
+        /// </summary>
+        [StringLength(1000)]
+        public string? KeyMaterial { get; set; }
 
         /// <summary>Kept for humans reading the table; never part of the lookup.</summary>
         [StringLength(500)]

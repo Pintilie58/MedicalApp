@@ -31,17 +31,20 @@ namespace MedicalApp.Services
         private readonly HttpClient _http;
         private readonly LoincMatcherSettings _settings;
         private readonly LoincMatchCacheStore _cache;
+        private readonly LoincContextVocabulary _vocabulary;
         private readonly ILogger<LoincMatcherClient> _logger;
 
         public LoincMatcherClient(
             HttpClient http,
             Microsoft.Extensions.Options.IOptions<LoincMatcherSettings> settings,
             LoincMatchCacheStore cache,
+            LoincContextVocabulary vocabulary,
             ILogger<LoincMatcherClient> logger)
         {
             _http = http;
             _settings = settings.Value;
             _cache = cache;
+            _vocabulary = vocabulary;
             _logger = logger;
         }
 
@@ -114,17 +117,23 @@ namespace MedicalApp.Services
             // again — and a report built only of known analytes gets its codes
             // even while the Python service is down.
             // ---------------------------------------------------------------
+            var vocabulary = _cache.Enabled
+                ? await _vocabulary.GetAsync(ct)
+                : LoincContextVocabulary.Snapshot.Unavailable;
+
             var keys = pending
-                .Select(kr => _cache.BuildKey(kr.ParameterNormalizedEn!, kr.Unit,
-                                              kr.Parameter, kr.PanelHeaderRaw, kr.AnalyteLineRaw))
+                .Select(kr => _cache.BuildKey(vocabulary, kr.Parameter, kr.Unit,
+                                              kr.ParameterNormalizedEn, kr.PanelHeaderRaw,
+                                              kr.AnalyteLineRaw))
                 .ToList();
 
-            var known = await _cache.GetAsync(keys.Distinct(StringComparer.Ordinal).ToList(), ct);
+            var known = await _cache.GetAsync(
+                keys.Select(k => k.Key).Distinct(StringComparer.Ordinal).ToList(), ct);
 
             var misses = new List<int>();
             for (int i = 0; i < pending.Count; i++)
             {
-                if (known.TryGetValue(keys[i], out var entry))
+                if (known.TryGetValue(keys[i].Key, out var entry))
                     ApplyMatch(pending[i], FromCache(entry), stats);
                 else
                     misses.Add(i);
@@ -204,14 +213,16 @@ namespace MedicalApp.Services
 
         /// <summary>Queues a freshly computed mapping for the persistent cache.</summary>
         private void Remember(
-            List<Models.LoincMatchCacheEntry> sink, string key, KeyResult kr, MatcherResponse? match)
+            List<Models.LoincMatchCacheEntry> sink, LoincMatchCacheStore.CacheKey key,
+            KeyResult kr, MatcherResponse? match)
         {
             if (!_cache.Enabled || match == null || string.IsNullOrWhiteSpace(match.Loinc)) return;
 
             var now = DateTime.UtcNow;
             sink.Add(new Models.LoincMatchCacheEntry
             {
-                CacheKey = key,
+                CacheKey = key.Key,
+                KeyMaterial = Trim(key.Material.Replace('\u001f', '|'), 1000),
                 TestName = Trim(kr.ParameterNormalizedEn, 500),
                 Unit = Trim(kr.Unit, 64),
                 PipelineVersion = _cache.PipelineVersion,

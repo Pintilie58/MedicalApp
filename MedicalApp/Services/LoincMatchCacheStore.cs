@@ -24,15 +24,18 @@ namespace MedicalApp.Services
     public class LoincMatchCacheStore
     {
         private readonly IServiceScopeFactory _scopes;
+        private readonly LoincContextVocabulary _vocabulary;
         private readonly LoincMatcherSettings _settings;
         private readonly ILogger<LoincMatchCacheStore> _logger;
 
         public LoincMatchCacheStore(
             IServiceScopeFactory scopes,
+            LoincContextVocabulary vocabulary,
             IOptions<LoincMatcherSettings> settings,
             ILogger<LoincMatchCacheStore> logger)
         {
             _scopes = scopes;
+            _vocabulary = vocabulary;
             _settings = settings.Value;
             _logger = logger;
         }
@@ -45,26 +48,71 @@ namespace MedicalApp.Services
                 : _settings.Cache.PipelineVersion.Trim();
 
         /// <summary>
-        /// The lookup key. Contains every input the matcher's decision depends
-        /// on — the normalized English term, the unit, the raw analyte name and
-        /// the two verbatim source-context strings — plus the pipeline version.
+        /// The lookup key — deliberately built ONLY from what is stable:
+        ///
+        ///   • the analyte name exactly as printed in the lab report (the
+        ///     PDF's own language: "Glucoza", "Glukose", "Glycémie"),
+        ///   • the unit, canonicalised (µL = uL),
+        ///   • the specimen/method markers found in the section header and the
+        ///     analyte line, using the vocabulary owned by the Python matcher,
+        ///   • the pipeline version.
+        ///
+        /// What is deliberately EXCLUDED: Gemini's English normalization. The
+        /// model rephrases it between runs ("Hematocrit [Volume Fraction] in
+        /// Blood" vs "…in Blood by Automated count", "Carcinoembryonic Ag" vs
+        /// "…antigen … immunoassay") while resolving to the SAME LOINC code, so
+        /// hashing it produced a 0% hit rate and duplicate rows. Keying on the
+        /// printed name also makes the app's output reproducible: the same
+        /// report always yields the same codes.
+        ///
+        /// A real difference still separates entries: another unit, another
+        /// printed method (impedance vs flow cytometry) or another specimen
+        /// (serum vs urine) changes the tokens, hence the key.
         /// </summary>
-        public string BuildKey(
-            string testName, string? unit, string? rawParameterName,
+        public string BuildKeyMaterial(
+            LoincContextVocabulary.Snapshot vocabulary,
+            string? printedName, string? unit, string? normalizedEn,
             string? panelHeaderRaw, string? analyteLineRaw)
         {
-            static string N(string? s) =>
-                s == null ? string.Empty : string.Join(' ', s.ToLowerInvariant().Split(
-                    (char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+            // The printed name is the analyte's identity. Only if the extractor
+            // gave us nothing do we fall back to the English normalization.
+            var identity = LoincContextVocabulary.Normalize(printedName);
+            if (identity.Length == 0)
+                identity = LoincContextVocabulary.Normalize(normalizedEn);
 
-            var material = string.Join('\u001f', new[]
+            return string.Join('\u001f', new[]
             {
-                PipelineVersion, N(testName), N(unit), N(rawParameterName),
-                N(panelHeaderRaw), N(analyteLineRaw)
+                PipelineVersion,
+                identity,
+                CanonicalUnit(unit),
+                _vocabulary.DecisiveTokens(vocabulary, panelHeaderRaw, analyteLineRaw)
             });
+        }
 
-            return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material)))
-                          .ToLowerInvariant();
+        /// <summary>Key + the exact material it was hashed from (persisted for diagnostics).</summary>
+        public readonly record struct CacheKey(string Key, string Material);
+
+        public CacheKey BuildKey(
+            LoincContextVocabulary.Snapshot vocabulary,
+            string? printedName, string? unit, string? normalizedEn,
+            string? panelHeaderRaw, string? analyteLineRaw)
+        {
+            var material = BuildKeyMaterial(
+                vocabulary, printedName, unit, normalizedEn, panelHeaderRaw, analyteLineRaw);
+
+            var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material)))
+                             .ToLowerInvariant();
+
+            return new CacheKey(key, material);
+        }
+
+        /// <summary>"10^3/µL", "10^3/uL" and " 10^3/UL " are the same unit.</summary>
+        private static string CanonicalUnit(string? unit)
+        {
+            var n = LoincContextVocabulary.Normalize(unit)
+                .Replace("µ", "u", StringComparison.Ordinal)
+                .Replace("μ", "u", StringComparison.Ordinal);
+            return string.Concat(n.Where(c => !char.IsWhiteSpace(c)));
         }
 
         /// <summary>Reads the known mappings. Returns an empty map when disabled or on any error.</summary>

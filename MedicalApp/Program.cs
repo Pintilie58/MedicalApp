@@ -186,6 +186,10 @@ builder.Services.Configure<LoincMatcherSettings>(
 // Python matcher so it is only asked about analyte names never seen before.
 // KILL SWITCH: "LoincMatcher:Cache:Enabled" = false ⇒ every analyte is matched
 // live, exactly as before.
+// Specimen/method vocabulary for the cache key, fetched from the Python
+// matcher so the 20+ supported languages live in ONE place (see
+// LoincContextVocabulary).
+builder.Services.AddSingleton<LoincContextVocabulary>();
 builder.Services.AddSingleton<LoincMatchCacheStore>();
 builder.Services.AddHttpClient<LoincMatcherClient>((sp, http) =>
 {

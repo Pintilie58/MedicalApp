@@ -224,6 +224,18 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
     suita de aur LOINC **56/56 PASS** (neschimbată față de baseline), regresie B2C **66/66 PASS**,
     build 0 warning-uri.
 
+- **Cheie de cache LOINC stabilă + multilingvism** (iunie 2026, detalii în
+  `/app/memory/LOINC_SCALING.md` §5): prima versiune a cheii includea normalizarea engleză a lui
+  Gemini, care se schimbă la fiecare rulare ⇒ hit rate **0%** și 122 de rânduri pentru 61 de
+  analize. Cheia nouă = versiune + **numele tipărit în buletin** (limba nativă) + **unitatea
+  canonizată** + **markerii decisivi de specimen/metodă** din contextul PDF. Vocabularul acestor
+  markeri e servit de Python (`GET /loinc/context-keywords`, 160 de fraze, ~30 de limbi), luat o
+  dată per proces și **persistat în tabelul `LoincVocabulary`** ca să funcționeze și când Python e
+  oprit. Coloană nouă `LoincMatchCache.KeyMaterial` (diagnostic dintr-o interogare).
+  Migrare: `AddLoincCacheKeyMaterialAndVocabulary`; `PipelineVersion` → `v2`.
+  Testat: probă C# **55/55**, B2C **66/66**, unificator **24/24**, suita de aur LOINC **56/56**,
+  cache Python **21/21**, build 0 warning-uri.
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard
