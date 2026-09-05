@@ -61,9 +61,24 @@ deci una ar sta degeaba în timp ce alta e sufocată.
 | `Services/InterpretationQueueWorker` | `MarkRunning` la start, ștergerea rândului la final (succes sau eșec) |
 | `Services/StartupSeed.FailOrphaned…` | **nu** mai eșuează rândurile „processing” care au încă lucrare durabilă |
 
-**Ciclul de viață:** `queued` → `running` (cu *lease* de 20 min, proprietar =
-`Mașină/PID`) → rândul e **șters** la finalul interpretării. Tabelul rămâne mic; PDF-ul
-(≤10 MB) dispare împreună cu rândul.
+**Ciclul de viață:** `queued` → `running` (cu *lease* de **2 minute**, reînnoit prin
+heartbeat la fiecare 30 s, proprietar = `Mașină/PID`) → rândul e **șters** la finalul
+interpretării. Tabelul rămâne mic; PDF-ul (≤10 MB) dispare împreună cu rândul.
+
+**Cât durează recuperarea** (corecție iunie 2026, după testul real al utilizatorului):
+prima versiune folosea un lease de 20 de minute, deci după un restart lucrarea rămânea
+„îngheţată” până expira — utilizatorul a măsurat **12 minute** de așteptare. Acum:
+- lease-ul e de **2 minute**, ținut în viață de un heartbeat cât timp lucrarea rulează
+  (`RenewLeaseAsync` la 30 s, din propriul scope de DbContext);
+- cu **o singură instanță** (`ScaleOut:Enabled = false` — dezvoltare locală și hostarea
+  de start) orice rând rămas `running` de la un proces anterior e abandonat **prin
+  definiție**, deci se reia imediat, fără să se aștepte lease-ul;
+- niciodată nu se fură o lucrare al cărei `Owner` e procesul curent (altfel același
+  buletin ar fi interpretat de două ori);
+- cu mai multe instanțe, lucrarea unui frate viu (lease valid) nu se atinge.
+
+Rezultat: reluare în **~10 secunde** local (prima trecere a workerului) și în cel mult
+~2 minute + intervalul de scanare într-un scenariu multi-instanță.
 
 **Recuperare** — o lucrare e considerată abandonată dacă e `queued` sau `running` cu
 lease expirat. Revendicarea e optimistă (`RowVersion`): dacă două instanțe încearcă
@@ -77,7 +92,7 @@ bucla la infinit.
 
 ## Testare
 
-`/app/memory/probes/QuotaAndDurableQueueProbe.cs.txt` — **32/32 PASS**:
+`/app/memory/probes/QuotaAndDurableQueueProbe.cs.txt` — **39/39 PASS**:
 cotă depășită ⇒ așteaptă (nu eșuează); sub cotă ⇒ zero întârziere; plafon de apeluri
 simultane respectat și eliberat; `Retry-After` respectat; refuz fără `Retry-After` ⇒
 cooldown din config; `Retry-After` absurd (3 ore) ⇒ plafonat; `Enabled=false` ⇒

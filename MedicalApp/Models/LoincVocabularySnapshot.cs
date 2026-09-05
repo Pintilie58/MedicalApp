@@ -10,7 +10,7 @@ namespace MedicalApp.Models
     public class LoincVocabularySnapshot
     {
         [Key]
-        public int Id { get; set; } = 1;
+        public int Id { get; set; }
 
         /// <summary>JSON array of the phrases, already normalized.</summary>
         public string PhrasesJson { get; set; } = "[]";

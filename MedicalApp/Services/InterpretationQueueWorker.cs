@@ -48,6 +48,7 @@ namespace MedicalApp.Services
 
                     _ = Task.Run(async () =>
                     {
+                        using var heartbeat = new CancellationTokenSource();
                         try
                         {
                             using var scope = _scopeFactory.CreateScope();
@@ -56,6 +57,13 @@ namespace MedicalApp.Services
                             // Durable queue: take ownership + start the lease, so
                             // a sibling instance does not pick the job up too.
                             await store.MarkRunningAsync(job.HistoryId);
+
+                            // Heartbeat: keeps the (deliberately short) lease
+                            // alive while we work. If this process dies, the
+                            // lease lapses in ~2 minutes and the job is picked
+                            // up again — instead of being frozen for as long as
+                            // the longest imaginable interpretation.
+                            _ = KeepLeaseAliveAsync(job.HistoryId, heartbeat.Token);
 
                             var runner = scope.ServiceProvider
                                 .GetRequiredService<B2cInterpretationRunner>();
@@ -77,6 +85,7 @@ namespace MedicalApp.Services
                         }
                         finally
                         {
+                            heartbeat.Cancel();
                             _queue.ReleaseUser(job.UserEmail);
                             gate.Release();
                         }
@@ -87,6 +96,30 @@ namespace MedicalApp.Services
             {
                 // App is shutting down. Jobs still in flight are recovered on
                 // the next start by StartupSeed.FailOrphanedInterpretationsAsync.
+            }
+        }
+
+        /// <summary>
+        /// Renews the durable job's lease while the interpretation runs, in its
+        /// own scope so it never touches the runner's DbContext.
+        /// </summary>
+        private async Task KeepLeaseAliveAsync(int historyId, CancellationToken ct)
+        {
+            try
+            {
+                while (!ct.IsCancellationRequested)
+                {
+                    await Task.Delay(InterpretationJobStore.RenewInterval, ct);
+
+                    using var scope = _scopeFactory.CreateScope();
+                    var store = scope.ServiceProvider.GetRequiredService<InterpretationJobStore>();
+                    if (!await store.RenewLeaseAsync(historyId, ct)) return; // row already gone
+                }
+            }
+            catch (OperationCanceledException) { /* job finished */ }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not renew the lease for job {HistoryId}.", historyId);
             }
         }
 

@@ -116,12 +116,13 @@ Check("6. an absurd Retry-After is capped (never parks the app)", rl7.Stats().Co
 // =====================================================================
 //  PART 2 — durable interpretation queue
 // =====================================================================
-static (AppDbContext db, InterpretationJobStore store, IServiceProvider sp) Db(string name)
+static (AppDbContext db, InterpretationJobStore store, IServiceProvider sp) Db(string name, bool scaleOut = false)
 {
     var services = new ServiceCollection();
     services.AddLogging(b => b.SetMinimumLevel(LogLevel.Warning));
     services.AddDbContext<AppDbContext>(o => o.UseInMemoryDatabase(name));
     services.Configure<InterpretationQueueSettings>(s => { s.MaxConcurrent = 3; s.MaxPerUser = 1; });
+    services.Configure<ScaleOutSettings>(s => { s.Enabled = scaleOut; });
     services.AddSingleton<InterpretationJobQueue>();
     services.AddScoped<InterpretationJobStore>();
     var sp = services.BuildServiceProvider();
@@ -158,6 +159,7 @@ Check("7c. a job with a LIVE lease is left alone",
     (await store.FindAbandonedAsync(10)).Count == 0);
 
 row.LeaseUntil = DateTime.UtcNow.AddMinutes(-1);   // the instance died
+row.Owner = "PREVIOUS-PROCESS/1";                 // ...and came back with a new PID
 await db.SaveChangesAsync();
 var abandoned = await store.FindAbandonedAsync(10);
 Check("7d. a job whose lease expired is considered abandoned",
@@ -292,6 +294,79 @@ Check("12. first job of a user is accepted", queue6.TryEnqueue(Job(600, "s@x.ro"
 Check("12b. a second simultaneous job of the SAME user is refused (MaxPerUser=1)",
     !queue6.TryEnqueue(Job(601, "s@x.ro")));
 Check("12c. another user is accepted", queue6.TryEnqueue(Job(602, "other@x.ro")));
+
+
+// ---------------------------------------------------------------------
+//  Recovery speed: this is what made a restart look "frozen" for 12 min
+// ---------------------------------------------------------------------
+Check("13. the lease is short (a dead instance freezes work for ~2 min, not 20)",
+    InterpretationJobStore.LeaseDuration <= TimeSpan.FromMinutes(3)
+    && InterpretationJobStore.RenewInterval < InterpretationJobStore.LeaseDuration,
+    $"lease={InterpretationJobStore.LeaseDuration.TotalMinutes} min renew={InterpretationJobStore.RenewInterval.TotalSeconds} s");
+
+// Single instance (ScaleOut off): after a restart there is nobody else who
+// could be running the job, so it must be recovered AT ONCE.
+var (db7, store7, _) = Db("q7", scaleOut: false);
+db7.InterpretationJobs.Add(new InterpretationJobRecord
+{
+    HistoryId = 700, UserEmail = "z@x.ro", ProfileId = 4, ProfileName = "Eu",
+    PdfBytes = new byte[] { 7 }, OriginalFileName = "b.pdf", LanguageCode = "ro",
+    Status = "running", Attempts = 1, EnqueuedAt = DateTime.UtcNow.AddMinutes(-1),
+    StartedAt = DateTime.UtcNow.AddMinutes(-1), Owner = "OTHER-MACHINE/999",
+    LeaseUntil = DateTime.UtcNow.AddMinutes(19)          // lease still "valid"
+});
+await db7.SaveChangesAsync();
+Check("14. single instance: a job left 'running' by the previous process is recovered at once, without waiting for the lease",
+    (await store7.FindAbandonedAsync(10)).Count == 1);
+
+// Several instances: a live sibling's job must NOT be stolen.
+var (db8, store8, _) = Db("q8", scaleOut: true);
+db8.InterpretationJobs.Add(new InterpretationJobRecord
+{
+    HistoryId = 800, UserEmail = "z@x.ro", ProfileId = 4, ProfileName = "Eu",
+    PdfBytes = new byte[] { 8 }, OriginalFileName = "b.pdf", LanguageCode = "ro",
+    Status = "running", Attempts = 1, EnqueuedAt = DateTime.UtcNow.AddMinutes(-1),
+    Owner = "SIBLING/123", LeaseUntil = DateTime.UtcNow.AddMinutes(1)
+});
+await db8.SaveChangesAsync();
+Check("14b. several instances: a sibling with a LIVE lease is left alone",
+    (await store8.FindAbandonedAsync(10)).Count == 0);
+db8.InterpretationJobs.First().LeaseUntil = DateTime.UtcNow.AddSeconds(-1);
+await db8.SaveChangesAsync();
+Check("14c. several instances: once the sibling's lease lapses, the job is taken over",
+    (await store8.FindAbandonedAsync(10)).Count == 1);
+
+// Never steal our own running job (that would interpret the same report twice).
+var (db9, store9, _) = Db("q9", scaleOut: false);
+db9.InterpretationJobs.Add(new InterpretationJobRecord
+{
+    HistoryId = 900, UserEmail = "z@x.ro", ProfileId = 4, ProfileName = "Eu",
+    PdfBytes = new byte[] { 9 }, OriginalFileName = "b.pdf", LanguageCode = "ro",
+    Status = "running", Attempts = 1, EnqueuedAt = DateTime.UtcNow,
+    Owner = InterpretationJobStore.Instance, LeaseUntil = DateTime.UtcNow.AddSeconds(-1)
+});
+await db9.SaveChangesAsync();
+Check("15. a job THIS process is running is never re-taken (no double interpretation)",
+    (await store9.FindAbandonedAsync(10)).Count == 0);
+
+// Heartbeat pushes the lease forward.
+var (db10, store10, _) = Db("q10", scaleOut: true);
+db10.InterpretationJobs.Add(new InterpretationJobRecord
+{
+    HistoryId = 1000, UserEmail = "z@x.ro", ProfileId = 4, ProfileName = "Eu",
+    PdfBytes = new byte[] { 1 }, OriginalFileName = "b.pdf", LanguageCode = "ro",
+    Status = "running", Attempts = 1, EnqueuedAt = DateTime.UtcNow,
+    Owner = "SIBLING/1", LeaseUntil = DateTime.UtcNow.AddSeconds(5)
+});
+await db10.SaveChangesAsync();
+var before = db10.InterpretationJobs.First().LeaseUntil;
+Check("16. the heartbeat extends the lease of a long interpretation",
+    await store10.RenewLeaseAsync(1000) && db10.InterpretationJobs.First().LeaseUntil > before);
+Check("16b. renewing a finished job is harmless", !await store10.RenewLeaseAsync(999999));
+
+// The vocabulary row must not force its identity value (SQL: IDENTITY_INSERT).
+Check("17. the vocabulary snapshot lets the database assign its Id",
+    new LoincVocabularySnapshot().Id == 0, new LoincVocabularySnapshot().Id.ToString());
 
 Console.WriteLine(fails == 0 ? "\nALL CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
 return fails == 0 ? 0 : 1;

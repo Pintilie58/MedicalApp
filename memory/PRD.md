@@ -252,8 +252,13 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
     coada, abandon după 3 încercări cu restituirea creditului.
     `StartupSeed.FailOrphanedInterpretationsAsync` nu mai eșuează rândurile recuperabile.
   - Migrare: `AddDurableInterpretationQueue`.
-  - Testat: probă nouă **32/32**, B2C **66/66**, DI **1/1**, cache LOINC **55/55**,
+  - Testat: probă nouă **39/39**, B2C **66/66**, DI **1/1**, cache LOINC **55/55**,
     build 0 warning-uri.
+  - **Corecție (după testul real)**: lease-ul a coborât de la 20 min la **2 min** cu
+    heartbeat la 30 s, plus reluare imediată când `ScaleOut:Enabled = false` (o singură
+    instanță) — reluarea după restart a scăzut de la **12 minute la ~10 secunde**. Reparat
+    și `LoincVocabulary`: rândul nu-și mai impune `Id` (eroarea `IDENTITY_INSERT is OFF`
+    împiedica persistarea vocabularului).
   - **Rămas pentru hostare (pasul 3)**: 2+ instanțe de aplicație și 2 replici LOINC —
     doar configurație Azure, codul e pregătit.
 

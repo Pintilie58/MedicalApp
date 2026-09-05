@@ -1,6 +1,7 @@
 using MedicalApp.Data;
 using MedicalApp.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace MedicalApp.Services
 {
@@ -16,8 +17,15 @@ namespace MedicalApp.Services
     /// </summary>
     public class InterpretationJobStore
     {
-        /// <summary>A job may not run longer than this before it is considered abandoned.</summary>
-        public static readonly TimeSpan LeaseDuration = TimeSpan.FromMinutes(20);
+        /// <summary>
+        /// How long a claim is trusted without a heartbeat. Short on purpose:
+        /// this is exactly how long a dead instance's work stays frozen. The
+        /// running job renews it every <see cref="RenewInterval"/>.
+        /// </summary>
+        public static readonly TimeSpan LeaseDuration = TimeSpan.FromMinutes(2);
+
+        /// <summary>Heartbeat period — comfortably shorter than the lease.</summary>
+        public static readonly TimeSpan RenewInterval = TimeSpan.FromSeconds(30);
 
         /// <summary>How many times a job is retried after a crash before giving up.</summary>
         public const int MaxAttempts = 3;
@@ -26,11 +34,16 @@ namespace MedicalApp.Services
             $"{Environment.MachineName}/{Environment.ProcessId}";
 
         private readonly AppDbContext _db;
+        private readonly ScaleOutSettings _scaleOut;
         private readonly ILogger<InterpretationJobStore> _logger;
 
-        public InterpretationJobStore(AppDbContext db, ILogger<InterpretationJobStore> logger)
+        public InterpretationJobStore(
+            AppDbContext db,
+            IOptions<ScaleOutSettings> scaleOut,
+            ILogger<InterpretationJobStore> logger)
         {
             _db = db;
+            _scaleOut = scaleOut.Value;
             _logger = logger;
         }
 
@@ -83,16 +96,41 @@ namespace MedicalApp.Services
         }
 
         /// <summary>
+        /// Heartbeat: the job is alive, push the lease forward. Without this a
+        /// long interpretation would look abandoned after two minutes.
+        /// </summary>
+        public async Task<bool> RenewLeaseAsync(int historyId, CancellationToken ct = default)
+        {
+            var row = await _db.InterpretationJobs.FirstOrDefaultAsync(j => j.HistoryId == historyId, ct);
+            if (row == null) return false;
+
+            row.LeaseUntil = DateTime.UtcNow.Add(LeaseDuration);
+            await _db.SaveChangesAsync(ct);
+            return true;
+        }
+
+        /// <summary>
         /// Jobs nobody is working on: queued, or running with an expired lease
         /// (the instance died mid-flight). Oldest first, so nobody starves.
+        ///
+        /// With a SINGLE instance (ScaleOut disabled — local development and
+        /// today's hosting) there is nobody else who could be running a job, so
+        /// every "running" row found after a start-up is abandoned by
+        /// definition and is picked up immediately instead of waiting for the
+        /// lease to expire.
         /// </summary>
         public async Task<List<InterpretationJobRecord>> FindAbandonedAsync(
             int take, CancellationToken ct = default)
         {
             var now = DateTime.UtcNow;
+            var singleInstance = !_scaleOut.Enabled;
+
             return await _db.InterpretationJobs
                 .Where(j => j.Status == "queued"
-                            || (j.Status == "running" && (j.LeaseUntil == null || j.LeaseUntil < now)))
+                            || (j.Status == "running"
+                                // Never steal a job THIS process is running.
+                                && j.Owner != InstanceId
+                                && (singleInstance || j.LeaseUntil == null || j.LeaseUntil < now)))
                 .OrderBy(j => j.EnqueuedAt)
                 .Take(take)
                 .ToListAsync(ct);
