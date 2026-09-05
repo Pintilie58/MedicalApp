@@ -69,6 +69,10 @@ namespace MedicalApp.Services
                                 .GetRequiredService<B2cInterpretationRunner>();
                             await runner.RunAsync(job, stoppingToken);
 
+                            // Stop the heartbeat BEFORE deleting the row, so the
+                            // two never race over the same record.
+                            heartbeat.Cancel();
+
                             // Finished (success OR handled failure): the durable
                             // row has done its job and must not be replayed.
                             await store.RemoveAsync(job.HistoryId);

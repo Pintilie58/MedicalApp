@@ -92,7 +92,7 @@ bucla la infinit.
 
 ## Testare
 
-`/app/memory/probes/QuotaAndDurableQueueProbe.cs.txt` — **39/39 PASS**:
+`/app/memory/probes/QuotaAndDurableQueueProbe.cs.txt` — **42/42 PASS**:
 cotă depășită ⇒ așteaptă (nu eșuează); sub cotă ⇒ zero întârziere; plafon de apeluri
 simultane respectat și eliberat; `Retry-After` respectat; refuz fără `Retry-After` ⇒
 cooldown din config; `Retry-After` absurd (3 ore) ⇒ plafonat; `Enabled=false` ⇒

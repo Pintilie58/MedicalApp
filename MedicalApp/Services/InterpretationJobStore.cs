@@ -92,7 +92,23 @@ namespace MedicalApp.Services
             if (row == null) return;
 
             _db.InterpretationJobs.Remove(row);
-            await _db.SaveChangesAsync(ct);
+            try
+            {
+                await _db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // Someone touched the row between our read and our delete (the
+                // heartbeat renewing the lease, typically). Deleting a finished
+                // job must never fail: reload and try once more.
+                _db.ChangeTracker.Clear();
+                var again = await _db.InterpretationJobs
+                    .FirstOrDefaultAsync(j => j.HistoryId == historyId, ct);
+                if (again == null) return;   // already gone — that is the goal
+
+                _db.InterpretationJobs.Remove(again);
+                await _db.SaveChangesAsync(ct);
+            }
         }
 
         /// <summary>
@@ -105,8 +121,18 @@ namespace MedicalApp.Services
             if (row == null) return false;
 
             row.LeaseUntil = DateTime.UtcNow.Add(LeaseDuration);
-            await _db.SaveChangesAsync(ct);
-            return true;
+            try
+            {
+                await _db.SaveChangesAsync(ct);
+                return true;
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // The interpretation finished (or was taken over) between our
+                // read and our write, so the row is already gone. Nothing to
+                // renew and nothing to report — stop the heartbeat quietly.
+                return false;
+            }
         }
 
         /// <summary>

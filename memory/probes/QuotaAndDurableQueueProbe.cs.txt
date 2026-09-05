@@ -368,6 +368,27 @@ Check("16b. renewing a finished job is harmless", !await store10.RenewLeaseAsync
 Check("17. the vocabulary snapshot lets the database assign its Id",
     new LoincVocabularySnapshot().Id == 0, new LoincVocabularySnapshot().Id.ToString());
 
+
+// The end of an interpretation must never be disturbed by the heartbeat.
+var (db11, store11, _) = Db("q11", scaleOut: false);
+db11.InterpretationJobs.Add(new InterpretationJobRecord
+{
+    HistoryId = 1100, UserEmail = "z@x.ro", ProfileId = 4, ProfileName = "Eu",
+    PdfBytes = new byte[] { 1 }, OriginalFileName = "b.pdf", LanguageCode = "ro",
+    Status = "running", Attempts = 1, EnqueuedAt = DateTime.UtcNow,
+    Owner = InterpretationJobStore.Instance, LeaseUntil = DateTime.UtcNow.AddMinutes(2)
+});
+await db11.SaveChangesAsync();
+await store11.RemoveAsync(1100);
+Check("18. deleting a finished job works", await db11.InterpretationJobs.CountAsync() == 0);
+var threw = false;
+try { await store11.RemoveAsync(1100); } catch { threw = true; }
+Check("18b. deleting it twice (heartbeat race) is harmless, never throws", !threw);
+var renewedGone = true;
+try { renewedGone = await store11.RenewLeaseAsync(1100); } catch { threw = true; }
+Check("18c. renewing the lease of an already finished job is harmless",
+    !threw && !renewedGone);
+
 Console.WriteLine(fails == 0 ? "\nALL CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
 return fails == 0 ? 0 : 1;
 

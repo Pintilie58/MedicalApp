@@ -259,6 +259,11 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
     instanță) — reluarea după restart a scăzut de la **12 minute la ~10 secunde**. Reparat
     și `LoincVocabulary`: rândul nu-și mai impune `Id` (eroarea `IDENTITY_INSERT is OFF`
     împiedica persistarea vocabularului).
+  - **Corecție 2 (după al doilea test real)**: `DbUpdateConcurrencyException` la finalul
+    interpretării — heartbeat-ul prelungea lease-ul exact când rândul era șters. Acum
+    heartbeat-ul e oprit ÎNAINTE de ștergere, iar `RenewLeaseAsync` și `RemoveAsync`
+    tolerează cursa (reîncercare o dată la ștergere, ieșire silențioasă la reînnoire).
+    Probă **42/42**.
   - **Rămas pentru hostare (pasul 3)**: 2+ instanțe de aplicație și 2 replici LOINC —
     doar configurație Azure, codul e pregătit.
 
