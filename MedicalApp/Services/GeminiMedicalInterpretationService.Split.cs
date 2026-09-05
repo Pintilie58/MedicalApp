@@ -902,6 +902,10 @@ Emit ONLY these fields, STRICT JSON, no markdown fences:
             _logger.LogInformation("Calling Gemini {Model} for {Language} ({Context}).",
                 modelName, languageCode, logContext);
 
+            // Quota gate: waits its turn instead of being refused with a 429,
+            // and pauses if Google recently pushed back (see GeminiRateLimiter).
+            using var lease = await _rateLimiter.AcquireAsync(ct);
+
             using var response = await http.PostAsync(url, content, ct);
             var responseString = await response.Content.ReadAsStringAsync(ct);
 
@@ -915,8 +919,17 @@ Emit ONLY these fields, STRICT JSON, no markdown fences:
                 var statusInt = (int)response.StatusCode;
                 if (statusInt == 429 || statusInt == 503)
                 {
+                    // Honour Google's own "come back in N seconds" and make ALL
+                    // callers respect it, so we stop hammering a spent quota.
+                    var retryAfter = response.Headers.RetryAfter?.Delta
+                        ?? (response.Headers.RetryAfter?.Date is { } when
+                                ? when - DateTimeOffset.UtcNow
+                                : (TimeSpan?)null);
+                    _rateLimiter.NoteRejected(statusInt, retryAfter);
+
                     throw new GeminiTransientException(statusInt,
-                        $"Gemini API transient error {statusInt}: {Truncate(responseString, 300)}");
+                        $"Gemini API transient error {statusInt}: {Truncate(responseString, 300)}",
+                        retryAfter);
                 }
 
                 // 404 + "no longer available" / "NOT_FOUND" means Google retired the

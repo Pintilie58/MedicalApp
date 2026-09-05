@@ -1,0 +1,306 @@
+using System.Diagnostics;
+using MedicalApp.Data;
+using MedicalApp.Models;
+using MedicalApp.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+
+// Probe for the two scale-out steps of June 2026:
+//   1. Gemini quota guard (GeminiRateLimiter)
+//   2. Durable interpretation queue (InterpretationJobRecord + store + recovery)
+
+int fails = 0;
+void Check(string label, bool ok, string detail = "")
+{
+    Console.WriteLine((ok ? "PASS  " : "FAIL  ") + label + (detail.Length > 0 ? "  ->  " + detail : ""));
+    if (!ok) fails++;
+}
+
+// =====================================================================
+//  PART 1 — Gemini quota guard
+// =====================================================================
+static GeminiRateLimiter Limiter(GeminiRateLimitSettings cfg)
+{
+    var settings = new GeminiSettings { RateLimit = cfg };
+    return new GeminiRateLimiter(
+        new StaticMonitor<GeminiSettings>(settings),
+        NullLogger<GeminiRateLimiter>.Instance);
+}
+
+// Window: 3 calls per 2-second window. The 4th must WAIT for the window.
+var rl = Limiter(new GeminiRateLimitSettings
+{
+    Enabled = true, RequestsPerMinute = 3, WindowSeconds = 2, MaxConcurrentCalls = 10
+});
+for (int i = 0; i < 3; i++) (await rl.AcquireAsync(default)).Dispose();
+var sw = Stopwatch.StartNew();
+(await rl.AcquireAsync(default)).Dispose();
+sw.Stop();
+Check("1. the 4th call over quota WAITS for the window instead of failing",
+    sw.ElapsedMilliseconds >= 1200 && sw.ElapsedMilliseconds < 4000, $"{sw.ElapsedMilliseconds} ms");
+var st = rl.Stats();
+Check("1b. the wait is counted as throttled, not lost",
+    st.Calls == 4 && st.Throttled == 1 && st.WaitMs > 0,
+    $"calls={st.Calls} throttled={st.Throttled} waitMs={st.WaitMs}");
+
+// Under quota => no delay at all.
+var rl2 = Limiter(new GeminiRateLimitSettings
+{
+    Enabled = true, RequestsPerMinute = 100, WindowSeconds = 60, MaxConcurrentCalls = 10
+});
+sw.Restart();
+for (int i = 0; i < 20; i++) (await rl2.AcquireAsync(default)).Dispose();
+sw.Stop();
+Check("2. under quota there is no delay", sw.ElapsedMilliseconds < 300, $"{sw.ElapsedMilliseconds} ms");
+
+// Ceiling on calls in flight.
+var rl3 = Limiter(new GeminiRateLimitSettings
+{
+    Enabled = true, RequestsPerMinute = 0, MaxConcurrentCalls = 2
+});
+var a = await rl3.AcquireAsync(default);
+var b = await rl3.AcquireAsync(default);
+var third = rl3.AcquireAsync(default);
+await Task.Delay(150);
+Check("3. only MaxConcurrentCalls are in flight at once", !third.IsCompleted);
+a.Dispose();
+var got = await Task.WhenAny(third, Task.Delay(2000));
+Check("3b. the slot is freed when a call finishes", got == third);
+(await third).Dispose();
+b.Dispose();
+
+// Google pushed back: everybody pauses for the requested delay.
+var rl4 = Limiter(new GeminiRateLimitSettings
+{
+    Enabled = true, RequestsPerMinute = 0, MaxConcurrentCalls = 10, CooldownSecondsOnReject = 30
+});
+rl4.NoteRejected(429, TimeSpan.FromSeconds(1));
+sw.Restart();
+(await rl4.AcquireAsync(default)).Dispose();
+sw.Stop();
+Check("4. after a 429 the next call obeys Retry-After",
+    sw.ElapsedMilliseconds >= 700 && sw.ElapsedMilliseconds < 3000, $"{sw.ElapsedMilliseconds} ms");
+Check("4b. the rejection is counted", rl4.Stats().Rejections == 1);
+
+// A 429 without Retry-After falls back to the configured cool-down.
+var rl5 = Limiter(new GeminiRateLimitSettings
+{
+    Enabled = true, RequestsPerMinute = 0, MaxConcurrentCalls = 10, CooldownSecondsOnReject = 1
+});
+rl5.NoteRejected(503, null);
+sw.Restart();
+(await rl5.AcquireAsync(default)).Dispose();
+sw.Stop();
+Check("4c. a 429/503 without Retry-After uses CooldownSecondsOnReject",
+    sw.ElapsedMilliseconds >= 700, $"{sw.ElapsedMilliseconds} ms");
+
+// Kill switch: previous behaviour, no waiting, no bookkeeping.
+var rl6 = Limiter(new GeminiRateLimitSettings { Enabled = false, RequestsPerMinute = 1 });
+sw.Restart();
+for (int i = 0; i < 50; i++) (await rl6.AcquireAsync(default)).Dispose();
+rl6.NoteRejected(429, TimeSpan.FromMinutes(5));
+sw.Restart();
+(await rl6.AcquireAsync(default)).Dispose();
+sw.Stop();
+Check("5. Enabled=false => no throttling at all (old behaviour)",
+    sw.ElapsedMilliseconds < 100 && rl6.Stats().Calls == 0, $"{sw.ElapsedMilliseconds} ms");
+
+// A cool-down can never park the app for hours.
+var rl7 = Limiter(new GeminiRateLimitSettings { Enabled = true, RequestsPerMinute = 0, MaxConcurrentCalls = 5 });
+rl7.NoteRejected(429, TimeSpan.FromHours(3));
+Check("6. an absurd Retry-After is capped (never parks the app)", rl7.Stats().CoolingDown);
+
+// =====================================================================
+//  PART 2 — durable interpretation queue
+// =====================================================================
+static (AppDbContext db, InterpretationJobStore store, IServiceProvider sp) Db(string name)
+{
+    var services = new ServiceCollection();
+    services.AddLogging(b => b.SetMinimumLevel(LogLevel.Warning));
+    services.AddDbContext<AppDbContext>(o => o.UseInMemoryDatabase(name));
+    services.Configure<InterpretationQueueSettings>(s => { s.MaxConcurrent = 3; s.MaxPerUser = 1; });
+    services.AddSingleton<InterpretationJobQueue>();
+    services.AddScoped<InterpretationJobStore>();
+    var sp = services.BuildServiceProvider();
+    return (sp.GetRequiredService<AppDbContext>(), sp.GetRequiredService<InterpretationJobStore>(), sp);
+}
+
+static InterpretationJob Job(int historyId, string email = "u@x.ro") => new(
+    HistoryId: historyId, UserEmail: email, ProfileId: 4, ProfileName: "Eu",
+    PdfBytes: new byte[] { 1, 2, 3, 4, 5 }, OriginalFileName: "buletin.pdf",
+    PdfHash: "hash-" + historyId, LanguageCode: "ro", Force: false,
+    ProgressToken: "tok-" + historyId);
+
+var (db, store, sp) = Db("q1");
+db.Users.Add(new User { Email = "u@x.ro", Parola = "x", Credite = 1, CreditConsum = 1, CreditRest = 0 });
+db.InterpretationHistories.Add(new InterpretationHistory
+{
+    Id = 100, UserEmail = "u@x.ro", Status = "processing", CreditsConsumed = 1,
+    ProfileId = 4, CreatedAt = DateTime.UtcNow
+});
+await db.SaveChangesAsync();
+
+await store.AddAsync(Job(100));
+var row = await db.InterpretationJobs.FirstAsync(j => j.HistoryId == 100);
+Check("7. the job is written to SQL as 'queued'",
+    row.Status == "queued" && row.Attempts == 0 && row.PdfBytes.Length == 5, row.Status);
+
+await store.MarkRunningAsync(100);
+row = await db.InterpretationJobs.FirstAsync(j => j.HistoryId == 100);
+Check("7b. starting the job takes ownership and opens a lease",
+    row.Status == "running" && row.Attempts == 1 && row.LeaseUntil > DateTime.UtcNow
+    && row.Owner == InterpretationJobStore.Instance, $"{row.Status}/{row.Attempts}/{row.Owner}");
+
+Check("7c. a job with a LIVE lease is left alone",
+    (await store.FindAbandonedAsync(10)).Count == 0);
+
+row.LeaseUntil = DateTime.UtcNow.AddMinutes(-1);   // the instance died
+await db.SaveChangesAsync();
+var abandoned = await store.FindAbandonedAsync(10);
+Check("7d. a job whose lease expired is considered abandoned",
+    abandoned.Count == 1 && abandoned[0].HistoryId == 100, abandoned.Count.ToString());
+
+var reclaimed = await store.TryClaimAsync(abandoned[0]);
+Check("7e. claiming rebuilds the job exactly, PDF included",
+    reclaimed != null && reclaimed!.HistoryId == 100 && reclaimed.UserEmail == "u@x.ro"
+    && reclaimed.ProfileId == 4 && reclaimed.PdfBytes.Length == 5
+    && reclaimed.OriginalFileName == "buletin.pdf" && reclaimed.PdfHash == "hash-100"
+    && reclaimed.LanguageCode == "ro" && reclaimed.ProgressToken == "tok-100");
+Check("7f. the attempt counter went up", (await db.InterpretationJobs.FirstAsync()).Attempts == 2);
+
+await store.RemoveAsync(100);
+Check("7g. finishing the interpretation deletes the durable row",
+    await db.InterpretationJobs.CountAsync() == 0);
+
+// A poison job must not loop forever: refund and stop.
+var (db2, store2, _) = Db("q2");
+db2.Users.Add(new User { Email = "p@x.ro", Parola = "x", Credite = 1, CreditConsum = 1, CreditRest = 0 });
+db2.InterpretationHistories.Add(new InterpretationHistory
+{
+    Id = 200, UserEmail = "p@x.ro", Status = "processing", CreditsConsumed = 1,
+    ProfileId = 4, CreatedAt = DateTime.UtcNow
+});
+await db2.SaveChangesAsync();
+await store2.AddAsync(Job(200, "p@x.ro"));
+var poison = await db2.InterpretationJobs.FirstAsync();
+poison.Attempts = InterpretationJobStore.MaxAttempts;
+poison.Status = "running";
+poison.LeaseUntil = DateTime.UtcNow.AddMinutes(-5);
+await db2.SaveChangesAsync();
+
+var claimed = await store2.TryClaimAsync(poison);
+var h200 = await db2.InterpretationHistories.FirstAsync(h => h.Id == 200);
+var p200 = await db2.Users.FirstAsync(u => u.Email == "p@x.ro");
+Check("8. a job that failed too many times is given up, not retried forever", claimed == null);
+Check("8b. its row is deleted", await db2.InterpretationJobs.CountAsync() == 0);
+Check("8c. the user is told and the credit is refunded",
+    h200.Status == "error" && h200.CreditsConsumed == 0 && p200.CreditConsum == 0 && p200.CreditRest == 1,
+    $"{h200.Status}/{h200.CreditsConsumed}/consum={p200.CreditConsum} rest={p200.CreditRest}");
+
+// The recovery worker puts abandoned work back in line.
+var (db3, store3, sp3) = Db("q3");
+db3.Users.Add(new User { Email = "r@x.ro", Parola = "x", Credite = 1, CreditConsum = 1, CreditRest = 0 });
+for (int id = 300; id <= 302; id++)
+    db3.InterpretationHistories.Add(new InterpretationHistory
+    {
+        Id = id, UserEmail = "r@x.ro", Status = "processing", CreditsConsumed = 1,
+        ProfileId = 4, CreatedAt = DateTime.UtcNow
+    });
+await db3.SaveChangesAsync();
+for (int id = 300; id <= 302; id++) await store3.AddAsync(Job(id, "r@x.ro"));
+
+var queue3 = sp3.GetRequiredService<InterpretationJobQueue>();
+var recovery = new InterpretationJobRecoveryWorker(
+    sp3.GetRequiredService<IServiceScopeFactory>(), queue3,
+    sp3.GetRequiredService<IOptionsMonitor<InterpretationQueueSettings>>(),
+    NullLogger<InterpretationJobRecoveryWorker>.Instance);
+
+var recovered = await recovery.RecoverOnceAsync(default);
+Check("9. jobs left behind by a restart are put back in line",
+    recovered == 3 && queue3.QueuedCount == 3, $"recovered={recovered} queued={queue3.QueuedCount}");
+Check("9b. the per-user limit does NOT block a recovered job (credit already spent)",
+    queue3.ActiveCount == 3, queue3.ActiveCount.ToString());
+Check("9c. recovered jobs are marked running with a lease",
+    await db3.InterpretationJobs.CountAsync(j => j.Status == "running" && j.LeaseUntil > DateTime.UtcNow) == 3);
+
+var again = await recovery.RecoverOnceAsync(default);
+Check("9d. a second pass does not duplicate work", again == 0 && queue3.QueuedCount == 3,
+    $"again={again} queued={queue3.QueuedCount}");
+
+// Budget: one instance must not hoard the queue.
+var (db4, store4, sp4) = Db("q4");
+db4.Users.Add(new User { Email = "b@x.ro", Parola = "x", Credite = 1, CreditConsum = 1, CreditRest = 0 });
+for (int id = 400; id <= 409; id++)
+    db4.InterpretationHistories.Add(new InterpretationHistory
+    {
+        Id = id, UserEmail = "b@x.ro", Status = "processing", CreditsConsumed = 1,
+        ProfileId = 4, CreatedAt = DateTime.UtcNow
+    });
+await db4.SaveChangesAsync();
+for (int id = 400; id <= 409; id++) await store4.AddAsync(Job(id, "b@x.ro"));
+
+var recovery4 = new InterpretationJobRecoveryWorker(
+    sp4.GetRequiredService<IServiceScopeFactory>(),
+    sp4.GetRequiredService<InterpretationJobQueue>(),
+    sp4.GetRequiredService<IOptionsMonitor<InterpretationQueueSettings>>(),
+    NullLogger<InterpretationJobRecoveryWorker>.Instance);
+var taken = await recovery4.RecoverOnceAsync(default);
+Check("10. one instance takes at most what it can process (3), leaving the rest",
+    taken == 3 && await db4.InterpretationJobs.CountAsync(j => j.Status == "queued") == 7,
+    $"taken={taken}");
+Check("10b. the oldest job is taken first (nobody starves)",
+    await db4.InterpretationJobs.AnyAsync(j => j.HistoryId == 400 && j.Status == "running"));
+
+// Startup cleanup must not kill jobs the recovery worker will run.
+var (db5, _, sp5) = Db("q5");
+db5.Users.Add(new User { Email = "o@x.ro", Parola = "x", Credite = 2, CreditConsum = 2, CreditRest = 0 });
+db5.InterpretationHistories.AddRange(
+    new InterpretationHistory
+    {
+        Id = 500, UserEmail = "o@x.ro", Status = "processing", CreditsConsumed = 1,
+        ProfileId = 4, CreatedAt = DateTime.UtcNow.AddHours(-2)
+    },
+    new InterpretationHistory
+    {
+        Id = 501, UserEmail = "o@x.ro", Status = "processing", CreditsConsumed = 1,
+        ProfileId = 4, CreatedAt = DateTime.UtcNow.AddHours(-2)
+    });
+db5.InterpretationJobs.Add(new InterpretationJobRecord
+{
+    HistoryId = 500, UserEmail = "o@x.ro", ProfileId = 4, ProfileName = "Eu",
+    PdfBytes = new byte[] { 9 }, OriginalFileName = "with-job.pdf", LanguageCode = "ro",
+    Status = "queued", EnqueuedAt = DateTime.UtcNow.AddHours(-2)
+});
+await db5.SaveChangesAsync();
+
+await StartupSeed.FailOrphanedInterpretationsAsync(sp5, NullLogger.Instance);
+db5.ChangeTracker.Clear();   // the cleanup ran in its own scope; re-read from the store
+var h500 = await db5.InterpretationHistories.FirstAsync(h => h.Id == 500);
+var h501 = await db5.InterpretationHistories.FirstAsync(h => h.Id == 501);
+Check("11. a 'processing' row that still has a durable job is NOT failed at startup",
+    h500.Status == "processing" && h500.CreditsConsumed == 1, $"{h500.Status}/{h500.CreditsConsumed}");
+Check("11b. a truly orphaned row is still failed and refunded",
+    h501.Status == "error" && h501.CreditsConsumed == 0, $"{h501.Status}/{h501.CreditsConsumed}");
+
+// The normal (non-recovery) path still enforces the per-user limit.
+var (_, _, sp6) = Db("q6");
+var queue6 = sp6.GetRequiredService<InterpretationJobQueue>();
+Check("12. first job of a user is accepted", queue6.TryEnqueue(Job(600, "s@x.ro")));
+Check("12b. a second simultaneous job of the SAME user is refused (MaxPerUser=1)",
+    !queue6.TryEnqueue(Job(601, "s@x.ro")));
+Check("12c. another user is accepted", queue6.TryEnqueue(Job(602, "other@x.ro")));
+
+Console.WriteLine(fails == 0 ? "\nALL CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
+return fails == 0 ? 0 : 1;
+
+sealed class StaticMonitor<T> : IOptionsMonitor<T>
+{
+    public StaticMonitor(T value) => CurrentValue = value;
+    public T CurrentValue { get; }
+    public T Get(string? name) => CurrentValue;
+    public IDisposable OnChange(Action<T, string?> listener) => new Dummy();
+    private sealed class Dummy : IDisposable { public void Dispose() { } }
+}

@@ -78,6 +78,26 @@ namespace MedicalApp.Services
         public void MarkStarted(int historyId) => _waiting.TryRemove(historyId, out _);
 
         /// <summary>
+        /// Puts a RECOVERED job back in line (durable queue: a restart or a
+        /// dead instance left it behind). The per-user limit is deliberately
+        /// NOT enforced here — the user already had their slot and their credit
+        /// is already spent; refusing the job would lose the work for good.
+        /// </summary>
+        public bool TryRequeue(InterpretationJob job)
+        {
+            _perUser.AddOrUpdate(job.UserEmail, 1, (_, n) => n + 1);
+
+            if (!_channel.Writer.TryWrite(job))
+            {
+                ReleaseUser(job.UserEmail);
+                return false;
+            }
+
+            _waiting[job.HistoryId] = Interlocked.Increment(ref _sequence);
+            return true;
+        }
+
+        /// <summary>
         /// 1-based place in line, or 0 when the job is already running (or
         /// unknown). "Position 1" = next to start.
         /// </summary>

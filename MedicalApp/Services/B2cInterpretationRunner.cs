@@ -272,6 +272,12 @@ namespace MedicalApp.Services
 
                     int[] delaysMs = { 5_000, 15_000, 30_000, 60_000 };
                     int wait = delaysMs[Math.Min(transientAttempts - 1, delaysMs.Length - 1)];
+
+                    // Google sometimes says exactly how long to wait. Obey it
+                    // (never less than our own backoff, never more than 2 min).
+                    if (ex.RetryAfter is { TotalMilliseconds: > 0 } advised)
+                        wait = (int)Math.Min(Math.Max(wait, advised.TotalMilliseconds), 120_000);
+
                     _logger.LogWarning(
                         "Gemini transient {Status} (try {N}/{Max}). Backing off {Wait} ms. Model: {Model}.",
                         ex.HttpStatusCode, transientAttempts, maxAttemptsTransient, wait,

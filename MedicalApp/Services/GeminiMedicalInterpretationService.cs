@@ -22,6 +22,7 @@ namespace MedicalApp.Services
     {
         private readonly GeminiSettings _settings;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly GeminiRateLimiter _rateLimiter;
         private readonly ILogger<GeminiMedicalInterpretationService> _logger;
 
         /// <summary>
@@ -42,10 +43,12 @@ namespace MedicalApp.Services
         public GeminiMedicalInterpretationService(
             IOptions<GeminiSettings> options,
             IHttpClientFactory httpClientFactory,
+            GeminiRateLimiter rateLimiter,
             ILogger<GeminiMedicalInterpretationService> logger)
         {
             _settings = options.Value;
             _httpClientFactory = httpClientFactory;
+            _rateLimiter = rateLimiter;
             _logger = logger;
         }
 

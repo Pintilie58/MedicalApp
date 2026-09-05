@@ -19,5 +19,12 @@ namespace MedicalApp.Services
 
         /// <summary>Jobs (queued + running) allowed per user.</summary>
         public int MaxPerUser { get; set; } = 1;
+
+        /// <summary>
+        /// How often the durable queue is scanned for work nobody is doing:
+        /// jobs left behind by a restart, by an instance that died mid-flight,
+        /// or waiting on a busy sibling instance. Minimum 15 s.
+        /// </summary>
+        public int RecoveryIntervalSeconds { get; set; } = 60;
     }
 }

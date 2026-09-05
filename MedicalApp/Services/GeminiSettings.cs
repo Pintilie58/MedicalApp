@@ -20,6 +20,9 @@ namespace MedicalApp.Services
         /// </summary>
         public string BaseUrl { get; set; } = "https://generativelanguage.googleapis.com/v1beta";
 
+        /// <summary>Quota guard: see <see cref="GeminiRateLimiter"/> ("Gemini:RateLimit").</summary>
+        public GeminiRateLimitSettings RateLimit { get; set; } = new();
+
         /// <summary>
         /// Optional fallback model used by the controller AFTER the primary
         /// <see cref="Model"/> has produced repeated HTTP 503 (server overload)

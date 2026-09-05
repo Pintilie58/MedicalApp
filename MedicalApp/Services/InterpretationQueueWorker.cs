@@ -51,9 +51,19 @@ namespace MedicalApp.Services
                         try
                         {
                             using var scope = _scopeFactory.CreateScope();
+                            var store = scope.ServiceProvider
+                                .GetRequiredService<InterpretationJobStore>();
+                            // Durable queue: take ownership + start the lease, so
+                            // a sibling instance does not pick the job up too.
+                            await store.MarkRunningAsync(job.HistoryId);
+
                             var runner = scope.ServiceProvider
                                 .GetRequiredService<B2cInterpretationRunner>();
                             await runner.RunAsync(job, stoppingToken);
+
+                            // Finished (success OR handled failure): the durable
+                            // row has done its job and must not be replayed.
+                            await store.RemoveAsync(job.HistoryId);
                         }
                         catch (Exception ex)
                         {
@@ -96,6 +106,10 @@ namespace MedicalApp.Services
 
                 var user = await db.Users.FirstOrDefaultAsync(u => u.Email == job.UserEmail);
                 if (user != null) CreditLedger.RefundOne(user);
+
+                var durable = await db.InterpretationJobs
+                    .FirstOrDefaultAsync(j => j.HistoryId == job.HistoryId);
+                if (durable != null) db.InterpretationJobs.Remove(durable);
 
                 await db.SaveChangesAsync();
             }

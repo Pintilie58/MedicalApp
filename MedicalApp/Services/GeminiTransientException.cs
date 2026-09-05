@@ -11,10 +11,15 @@ namespace MedicalApp.Services
     {
         public int HttpStatusCode { get; }
 
-        public GeminiTransientException(int statusCode, string message)
+        /// <summary>How long Google asked us to wait, when it said so.</summary>
+        public System.TimeSpan? RetryAfter { get; }
+
+        public GeminiTransientException(int statusCode, string message,
+                                        System.TimeSpan? retryAfter = null)
             : base(message)
         {
             HttpStatusCode = statusCode;
+            RetryAfter = retryAfter;
         }
     }
 }

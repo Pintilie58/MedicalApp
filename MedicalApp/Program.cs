@@ -112,6 +112,10 @@ builder.Services.Configure<OpenAISettings>(builder.Configuration.GetSection("Ope
 
 // Gemini service configuration (primary interpretation provider)
 builder.Services.Configure<GeminiSettings>(builder.Configuration.GetSection("Gemini"));
+// Stays inside the Google quota instead of discovering it through HTTP 429:
+// sliding one-minute window + ceiling on calls in flight + shared cool-down
+// when Google does push back. KILL SWITCH: "Gemini:RateLimit:Enabled" = false.
+builder.Services.AddSingleton<GeminiRateLimiter>();
 builder.Services.Configure<GeminiPricing>(builder.Configuration.GetSection("GeminiPricing"));
 
 // Interpretation provider toggle (Gemini default, OpenAI fallback)
@@ -226,6 +230,11 @@ builder.Services.AddSingleton<PendingRegistrationStore>();
 builder.Services.Configure<InterpretationQueueSettings>(
     builder.Configuration.GetSection("InterpretationQueue"));
 builder.Services.AddSingleton<InterpretationJobQueue>();
+// Durable side of the queue: jobs live in SQL, so a restart, a deploy or a
+// dead instance cannot lose a paid interpretation. The recovery worker puts
+// abandoned jobs back in line (also how two instances help each other).
+builder.Services.AddScoped<InterpretationJobStore>();
+builder.Services.AddHostedService<InterpretationJobRecoveryWorker>();
 builder.Services.AddScoped<B2cInterpretationRunner>();
 builder.Services.AddHostedService<InterpretationQueueWorker>();
 

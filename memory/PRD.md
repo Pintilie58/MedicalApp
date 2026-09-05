@@ -236,6 +236,27 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   Testat: probă C# **55/55**, B2C **66/66**, unificator **24/24**, suita de aur LOINC **56/56**,
   cache Python **21/21**, build 0 warning-uri.
 
+- **Cotă Gemini gestionată + coadă durabilă** (iunie 2026, document complet în
+  `/app/memory/QUOTA_AND_DURABLE_QUEUE.md`) — pașii 1 și 2 pentru 50 de utilizatori
+  simultani:
+  - `GeminiRateLimiter`: fereastră glisantă pe minut + plafon de apeluri simultane +
+    pauză comună la 429/503 cu respectarea `Retry-After` (transportat acum prin
+    `GeminiTransientException` și folosit de backoff-ul din runner). Config:
+    `Gemini:RateLimit` (implicit 60 rpm / 6 simultane; `Enabled=false` = comportamentul
+    vechi). **Înainte de a urca `InterpretationQueue:MaxConcurrent` peste 3, setează aici
+    cota reală a contului Google.**
+  - Coadă durabilă: tabel `InterpretationJobs` + `InterpretationJobStore` +
+    `InterpretationJobRecoveryWorker` (scanare la 60 s). Lucrările supraviețuiesc
+    restartului/deploy-ului, o instanță moartă e preluată după expirarea lease-ului de 20
+    min, revendicare optimistă prin `RowVersion`, buget per instanță ca să nu monopolizeze
+    coada, abandon după 3 încercări cu restituirea creditului.
+    `StartupSeed.FailOrphanedInterpretationsAsync` nu mai eșuează rândurile recuperabile.
+  - Migrare: `AddDurableInterpretationQueue`.
+  - Testat: probă nouă **32/32**, B2C **66/66**, DI **1/1**, cache LOINC **55/55**,
+    build 0 warning-uri.
+  - **Rămas pentru hostare (pasul 3)**: 2+ instanțe de aplicație și 2 replici LOINC —
+    doar configurație Azure, codul e pregătit.
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard

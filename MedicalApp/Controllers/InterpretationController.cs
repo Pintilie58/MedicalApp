@@ -19,6 +19,7 @@ namespace MedicalApp.Controllers
         private readonly IAiUsageLogger _aiUsage;
         private readonly InterpretationProgressTracker _progress;
         private readonly InterpretationJobQueue _queue;
+        private readonly InterpretationJobStore _jobStore;
         private readonly ILogger<InterpretationController> _logger;
 
         private const long MaxFileSize = 10 * 1024 * 1024; // 10 MB
@@ -36,6 +37,7 @@ namespace MedicalApp.Controllers
             IAiUsageLogger aiUsage,
             InterpretationProgressTracker progress,
             InterpretationJobQueue queue,
+            InterpretationJobStore jobStore,
             ILogger<InterpretationController> logger)
         {
             _db = db;
@@ -45,6 +47,7 @@ namespace MedicalApp.Controllers
             _aiUsage = aiUsage;
             _progress = progress;
             _queue = queue;
+            _jobStore = jobStore;
             _logger = logger;
         }
 
@@ -427,6 +430,12 @@ namespace MedicalApp.Controllers
                 TempData["ErrorMessage"] = Loc.T("InterpretationAlreadyRunning");
                 return RedirectToAction(nameof(Upload));
             }
+
+            // Durable queue: the job is now also on disk, so a restart or a
+            // crashed instance cannot silently lose a paid interpretation.
+            // Written AFTER the in-memory enqueue succeeded, so a rejected job
+            // never leaves a row behind.
+            await _jobStore.AddAsync(job);
 
             _logger.LogInformation(
                 "Interpretation queued: history={Id}, user={Email}, profile={Pid}, file={File}.",

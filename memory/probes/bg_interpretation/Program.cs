@@ -52,6 +52,8 @@ services.AddHttpClient<LoincMatcherClient>();
 services.AddSingleton<InterpretationProgressTracker>();
 services.Configure<InterpretationQueueSettings>(o => { o.MaxConcurrent = 3; o.MaxPerUser = 1; });
 services.AddSingleton<InterpretationJobQueue>();
+services.AddScoped<InterpretationJobStore>();
+services.AddSingleton<GeminiRateLimiter>();
 services.AddScoped<B2cInterpretationRunner>();
 services.AddSingleton<InterpretationQueueWorker>();
 
@@ -263,6 +265,7 @@ InterpretationJob Job(int historyId, string token) => new(
         scope.ServiceProvider.GetRequiredService<LoincMatcherClient>(),
         scope.ServiceProvider.GetRequiredService<IAiUsageLogger>(),
         tracker, queue,
+        scope.ServiceProvider.GetRequiredService<InterpretationJobStore>(),
         scope.ServiceProvider.GetRequiredService<ILogger<MedicalApp.Controllers.InterpretationController>>());
 
     var http = new Microsoft.AspNetCore.Http.DefaultHttpContext();
@@ -320,6 +323,7 @@ InterpretationJob Job(int historyId, string token) => new(
         scope.ServiceProvider.GetRequiredService<LoincMatcherClient>(),
         scope.ServiceProvider.GetRequiredService<IAiUsageLogger>(),
         tracker, queue,
+        scope.ServiceProvider.GetRequiredService<InterpretationJobStore>(),
         scope.ServiceProvider.GetRequiredService<ILogger<MedicalApp.Controllers.InterpretationController>>());
     var anonHttp = new Microsoft.AspNetCore.Http.DefaultHttpContext();
     anonHttp.Session = new FakeSession(null);

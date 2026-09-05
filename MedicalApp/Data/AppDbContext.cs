@@ -15,6 +15,7 @@ namespace MedicalApp.Data
         public DbSet<LoincEntry> LoincDictionary { get; set; } = null!;
         public DbSet<LoincMatchCacheEntry> LoincMatchCache { get; set; } = null!;
         public DbSet<LoincVocabularySnapshot> LoincVocabulary { get; set; } = null!;
+        public DbSet<InterpretationJobRecord> InterpretationJobs { get; set; } = null!;
         public DbSet<AiUsageLog> AiUsageLogs { get; set; } = null!;
 
         // ----- CAM module (Clinici de Analize Medicale) -----
@@ -126,6 +127,19 @@ namespace MedicalApp.Data
                 entity.Property(e => e.LastUsedAt).HasColumnType("datetime2");
                 // Admin views: "which mappings do we know for this version?"
                 entity.HasIndex(e => e.PipelineVersion);
+            });
+
+            // Durable side of the B2C queue: the job survives restarts and can
+            // be picked up by a sibling instance.
+            modelBuilder.Entity<InterpretationJobRecord>(entity =>
+            {
+                entity.ToTable("InterpretationJobs");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.HistoryId).IsUnique();
+                entity.HasIndex(e => new { e.Status, e.EnqueuedAt });
+                entity.Property(e => e.EnqueuedAt).HasColumnType("datetime2");
+                entity.Property(e => e.StartedAt).HasColumnType("datetime2");
+                entity.Property(e => e.LeaseUntil).HasColumnType("datetime2");
             });
 
             // Durable copy of the matcher's specimen/method vocabulary, so cache

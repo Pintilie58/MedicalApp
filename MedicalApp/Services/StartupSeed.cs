@@ -348,6 +348,11 @@ END;");
 
             var query = db.InterpretationHistories.Where(h => h.Status == "processing");
 
+            // DURABLE QUEUE: a "processing" row that still has a job record is
+            // NOT orphaned — the recovery worker will run it. Failing it here
+            // would throw away work the user already paid for.
+            query = query.Where(h => !db.InterpretationJobs.Any(j => j.HistoryId == h.Id));
+
             // MULTI-INSTANCE SAFETY: with siblings alive, "processing" does not
             // mean "orphaned" — the job may be running right now on another
             // instance. Only rows older than the grace period are ours to fail
