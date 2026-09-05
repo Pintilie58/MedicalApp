@@ -286,6 +286,25 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
     pipeline, top mapări, vocabular, serviciu Python picat). Build `MedicalApp`: **0 warning-uri**
     (CS0414 nu mai apare).
 
+- **Audit indexuri SQL (pregătire hostare, pasul 4)** — iunie 2026, migrare `AddScaleOutIndexes`,
+  document complet în **`/app/memory/SQL_INDEXES.md`**:
+  - `InterpretationHistories`: `CreatedAt DESC` adăugat în cheia `(UserEmail, ProfileId, Status)`
+    (arhiva/graficele/comparațiile nu mai sortează tot profilul); index acoperitor nou
+    `(UserEmail, Id DESC) INCLUDE (Status)` pentru pastila de job (cea mai frecventă interogare);
+    `(Status, Id DESC) INCLUDE (DurationMs)` pentru scanarea „processing” + ETA;
+    `(ProfileId, Status)` pentru numărătoarea per profil; **șters** indexul redundant pe `UserEmail`.
+  - `AiUsageLogs`: un singur `(CreatedAt, Status) INCLUDE (Source, ModelUsed, InputTokens, OutputTokens)`;
+    **șterse** cele trei indexuri pe o coloană (nefolosite ca primă coloană, costau o scriere după
+    fiecare apel Gemini).
+  - `Purchases`: `PurchasedAt INCLUDE (AmountEur)` ⇒ cifrele de venit devin index-only.
+  - `ClinicAnalyses`: nou `(ClinicId, ProcessedAt) INCLUDE (PatientId)` pentru CAM Dashboard;
+    **șters** indexul redundant pe `ClinicId`.
+  - Testat: probă nouă `/app/memory/probes/SqlIndexAuditProbe.cs.txt` (proiect `/app/probe_indexes`)
+    — **17/17 PASS** (potrivire exactă cheie + direcție + coloane incluse pentru fiecare interogare
+    fierbinte, dispariția indexurilor redundante, nicio cheie pe `nvarchar(max)`, limita de 1700 B);
+    `dotnet ef migrations has-pending-model-changes` ⇒ „No changes”; build 0 warning-uri.
+    Script T-SQL de deploy: `/app/memory/probes/AddScaleOutIndexes.sql`.
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard

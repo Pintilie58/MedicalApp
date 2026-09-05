@@ -45,18 +45,43 @@ namespace MedicalApp.Data
             {
                 entity.ToTable("InterpretationHistories");
                 entity.HasKey(h => h.Id);
-                entity.HasIndex(h => h.UserEmail);
 
                 // Composite indexes for the hot paths (added June 2026 after the
                 // query audit). With millions of rows, filtering on UserEmail
                 // alone forced SQL Server to read every row of that user — and
                 // each row carries the large RawJsonResult column.
-                //   1) profile archive + charts + comparisons
-                entity.HasIndex(h => new { h.UserEmail, h.ProfileId, h.Status })
+                // The standalone IX on UserEmail was dropped: UserEmail is the
+                // leading column of the indexes below, so SQL Server uses them
+                // for the same filter and we stop paying for a 4th write per row.
+                //   1) profile archive + charts + comparisons. CreatedAt is part
+                //      of the key (descending) because every one of those screens
+                //      ends with ORDER BY CreatedAt DESC — without it SQL Server
+                //      sorted the whole archive of the profile on each page view.
+                entity.HasIndex(h => new { h.UserEmail, h.ProfileId, h.Status, h.CreatedAt })
+                      .IsDescending(false, false, false, true)
                       .HasDatabaseName("IX_InterpretationHistories_User_Profile_Status");
                 //   2) "have I already interpreted this exact PDF?" on every upload
                 entity.HasIndex(h => new { h.UserEmail, h.PdfSha256 })
                       .HasDatabaseName("IX_InterpretationHistories_User_PdfSha256");
+                //   3) the job pill polls "my newest row" every 6-30 s per logged-in
+                //      user — by far the most frequent query in the app. Covering
+                //      (Status is carried in the leaf) so the poll never touches the
+                //      table itself, where RawJsonResult lives.
+                entity.HasIndex(h => new { h.UserEmail, h.Id })
+                      .IsDescending(false, true)
+                      .IncludeProperties(h => h.Status)
+                      .HasDatabaseName("IX_InterpretationHistories_User_Id_Desc");
+                //   4) global status scans: the admin queue widget and the start-up
+                //      orphan sweep count Status == "processing", and the ETA reads
+                //      the last 20 successful durations.
+                entity.HasIndex(h => new { h.Status, h.Id })
+                      .IsDescending(false, true)
+                      .IncludeProperties(h => h.DurationMs)
+                      .HasDatabaseName("IX_InterpretationHistories_Status_Id_Desc");
+                //   5) "interpretations per profile" on the profiles list — filters
+                //      by a set of ProfileIds without the user's email.
+                entity.HasIndex(h => new { h.ProfileId, h.Status })
+                      .HasDatabaseName("IX_InterpretationHistories_Profile_Status");
                 entity.Property(h => h.CreatedAt).HasColumnType("datetime2");
             });
 
@@ -65,7 +90,11 @@ namespace MedicalApp.Data
                 entity.ToTable("Purchases");
                 entity.HasKey(p => p.Id);
                 entity.HasIndex(p => p.UserEmail);
-                entity.HasIndex(p => p.PurchasedAt);
+                // Every revenue figure on the admin dashboard is "since <date>":
+                // sum(AmountEur) / count / group by day. Carrying AmountEur in the
+                // index leaf makes those queries index-only.
+                entity.HasIndex(p => p.PurchasedAt)
+                      .IncludeProperties(p => p.AmountEur);
                 entity.Property(p => p.PurchasedAt).HasColumnType("datetime2");
                 entity.Property(p => p.AmountEur).HasColumnType("decimal(10,2)");
             });
@@ -151,16 +180,21 @@ namespace MedicalApp.Data
                 entity.Property(e => e.FetchedAt).HasColumnType("datetime2");
             });
 
-            // ===== AI usage log (separate from InterpretationHistories) =====            // Indexed on CreatedAt (admin dashboard queries always filter by it)
-            // and on Status (so we can split success vs error vs rejected fast).
+            // ===== AI usage log (separate from InterpretationHistories) =====
+            // Every dashboard query starts with "CreatedAt >= last 30 days" and
+            // then groups by Source / ModelUsed / Status, so ONE composite index
+            // starting with CreatedAt serves all of them. The old standalone
+            // indexes on Status and Source were never used as a leading column
+            // (nothing filters on them alone) and only slowed the write that
+            // happens after every Gemini call — they were dropped.
             modelBuilder.Entity<AiUsageLog>(entity =>
             {
                 entity.ToTable("AiUsageLogs");
                 entity.HasKey(a => a.Id);
                 entity.Property(a => a.CreatedAt).HasColumnType("datetime2");
-                entity.HasIndex(a => a.CreatedAt);
-                entity.HasIndex(a => a.Status);
-                entity.HasIndex(a => a.Source);
+                entity.HasIndex(a => new { a.CreatedAt, a.Status })
+                      .IncludeProperties(a => new { a.Source, a.ModelUsed, a.InputTokens, a.OutputTokens })
+                      .HasDatabaseName("IX_AiUsageLogs_CreatedAt_Status");
             });
 
             // ===== CAM module entities =====
@@ -191,12 +225,17 @@ namespace MedicalApp.Data
                 entity.ToTable("ClinicAnalyses");
                 entity.HasKey(a => a.Id);
                 entity.HasIndex(a => a.PatientId);
-                entity.HasIndex(a => a.ClinicId);
                 // B2B comparisons filter on BOTH columns at once (all analyses of
                 // one patient inside one clinic) — a composite index serves that
-                // in a single seek instead of intersecting two indexes.
+                // in a single seek instead of intersecting two indexes. The
+                // standalone IX on ClinicId was dropped: it is the leading column
+                // of both composites below.
                 entity.HasIndex(a => new { a.ClinicId, a.PatientId })
                       .HasDatabaseName("IX_ClinicAnalyses_Clinic_Patient");
+                // CAM dashboard: "how many distinct patients in this period?"
+                entity.HasIndex(a => new { a.ClinicId, a.ProcessedAt })
+                      .IncludeProperties(a => a.PatientId)
+                      .HasDatabaseName("IX_ClinicAnalyses_Clinic_ProcessedAt");
                 entity.Property(a => a.ProcessedAt).HasColumnType("datetime2");
                 entity.Property(a => a.SamplingDate).HasColumnType("datetime2");
             });

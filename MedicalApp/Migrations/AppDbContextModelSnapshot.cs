@@ -67,11 +67,10 @@ namespace MedicalApp.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatedAt");
+                    b.HasIndex("CreatedAt", "Status")
+                        .HasDatabaseName("IX_AiUsageLogs_CreatedAt_Status");
 
-                    b.HasIndex("Source");
-
-                    b.HasIndex("Status");
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("CreatedAt", "Status"), new[] { "Source", "ModelUsed", "InputTokens", "OutputTokens" });
 
                     b.ToTable("AiUsageLogs", (string)null);
                 });
@@ -152,12 +151,15 @@ namespace MedicalApp.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ClinicId");
-
                     b.HasIndex("PatientId");
 
                     b.HasIndex("ClinicId", "PatientId")
                         .HasDatabaseName("IX_ClinicAnalyses_Clinic_Patient");
+
+                    b.HasIndex("ClinicId", "ProcessedAt")
+                        .HasDatabaseName("IX_ClinicAnalyses_Clinic_ProcessedAt");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("ClinicId", "ProcessedAt"), new[] { "PatientId" });
 
                     b.ToTable("ClinicAnalyses", (string)null);
                 });
@@ -383,12 +385,26 @@ namespace MedicalApp.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserEmail");
+                    b.HasIndex("ProfileId", "Status")
+                        .HasDatabaseName("IX_InterpretationHistories_Profile_Status");
+
+                    b.HasIndex("Status", "Id")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("IX_InterpretationHistories_Status_Id_Desc");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("Status", "Id"), new[] { "DurationMs" });
+
+                    b.HasIndex("UserEmail", "Id")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("IX_InterpretationHistories_User_Id_Desc");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("UserEmail", "Id"), new[] { "Status" });
 
                     b.HasIndex("UserEmail", "PdfSha256")
                         .HasDatabaseName("IX_InterpretationHistories_User_PdfSha256");
 
-                    b.HasIndex("UserEmail", "ProfileId", "Status")
+                    b.HasIndex("UserEmail", "ProfileId", "Status", "CreatedAt")
+                        .IsDescending(false, false, false, true)
                         .HasDatabaseName("IX_InterpretationHistories_User_Profile_Status");
 
                     b.ToTable("InterpretationHistories", (string)null);
@@ -737,6 +753,8 @@ namespace MedicalApp.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("PurchasedAt");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("PurchasedAt"), new[] { "AmountEur" });
 
                     b.HasIndex("UserEmail");
 
