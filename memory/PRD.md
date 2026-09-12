@@ -351,6 +351,34 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   modificări în view sau traduceri. Achizițiile vechi rămân corecte (Purchases păstrează sumele
   la momentul cumpărării).
 
+- **Afișare progresivă a interpretării B2C** (iunie 2026):
+  - `InterpretationProgressTracker` publică acum secțiuni, nu doar etape: `SetPatient()`,
+    `SetNarrative()` (rezumat + recomandări + valori anormale), `UpdateTable()` (reîmprospătează
+    tabelul fără să dea etapa în urmă). `Get()` citește local, iar dacă tokenul e al altei
+    instanțe, din `IDistributedCache`.
+  - **Scale-out**: fiecare mutație se scrie write-through în `IDistributedCache` (în producție
+    tabelul de cache SQL configurat de ScaleOut; local `AddDistributedMemoryCache`), altfel un
+    poll trimis de load balancer altei instanțe ar arăta ecranul înghețat. **Zero modificări de
+    schemă, zero migrări, zero coloane noi.**
+  - `GeminiMedicalInterpretationService`: hook nou `OnPartialResult`, invocat cu „extract”
+    (date pacient + tabel, la finalul etapei A) și „narrative” (rezumat + recomandări, în clipa
+    în care răspunde etapa C — fără să aștepte etapa B).
+  - `B2cInterpretationRunner` leagă hook-urile și republică secțiunile după pasajele locale
+    (StatusValidator / AbnormalFindingsCompleter), astfel încât valorile preliminare să nu
+    contrazică raportul final. Pe calea monolitică publică tot imediat după răspunsul AI.
+  - `GET /Interpretation/Progress` întoarce `patient`, `summary`, `recommendations`, `findings`.
+  - Overlay-ul din `Views/Interpretation/Upload.cshtml` are 4 secțiuni care se completează pe rând
+    (date pacient / analize citite / valori în afara normalului / rezumat + recomandări), fiecare
+    randată doar când apare și repictată doar când se schimbă. Chei noi în **7 limbi**:
+    `ProgressSectionPatient`, `ProgressSectionAnalytes`, `ProgressSectionOutOfRange`,
+    `ProgressSectionSummary`, `ProgressSectionRecommendations`, `ProgressSectionPending`.
+  - Testat: `GeminiSplitPipelineProbe` extinsă (49 checks, inclusiv ordinea extract → narrative →
+    final și partajarea între instanțe) și suita B2C `bg_interpretation` extinsă (**80/80**, cu
+    pipeline-ul blocat pe pasul de email pentru a inspecta exact ce vede utilizatorul la 2/3 din
+    drum). Regresie verde: DI 10/10 controllere, plafon profile 21/21, indexuri 17/17, panou
+    diagnostic 13/13, cache LOINC, unificator LOINC. ScaleOutProbe: 2 eșecuri strict de mediu
+    (Azurite nu rulează în container). Layout verificat prin screenshot la 390 px și 1920 px.
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard

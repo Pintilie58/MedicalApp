@@ -186,6 +186,7 @@ namespace MedicalApp.Services
             int modelAttempts = 0;
 
             if (_ai is GeminiMedicalInterpretationService progressAware)
+            {
                 progressAware.OnStage = (stage, analytes) =>
                 {
                     if (stage == "ai_extract_done" && analytes != null)
@@ -193,6 +194,14 @@ namespace MedicalApp.Services
                     else
                         _progress.SetStage(token, stage);
                 };
+                // Partial sections: who the report belongs to (end of stage A) and
+                // the summary / recommendations (the moment stage C answers).
+                progressAware.OnPartialResult = (stage, partial) =>
+                {
+                    if (stage == "extract") _progress.SetPatient(token, partial.PatientInfo);
+                    else if (stage == "narrative") _progress.SetNarrative(token, partial);
+                };
+            }
 
             string? currentModelOverride = null;
             string? modelsUsedLabel = null;
@@ -423,6 +432,14 @@ namespace MedicalApp.Services
 
             bool resultMutated = false;
 
+            // The monolithic path has no per-stage hooks, so publish everything
+            // we have now: on that path this is still ~30 s before the report is
+            // finished. On the split path these values were already published and
+            // this call only confirms them.
+            _progress.SetPatient(token, result.PatientInfo);
+            _progress.UpdateTable(token, result.KeyResults ?? new List<KeyResult>());
+            _progress.SetNarrative(token, result);
+
             // 3) Local clean-up / verification passes. Each one is optional and
             // must never break the flow.
             try { if (LabMarkerSanitizer.Clean(result) > 0) resultMutated = true; }
@@ -470,6 +487,12 @@ namespace MedicalApp.Services
             }
 
             _progress.SetStage(token, "loinc_match");
+
+            // The local passes may have flipped a status or added an omitted
+            // out-of-range analyte: refresh the preliminary sections so they do
+            // not contradict the final report.
+            _progress.UpdateTable(token, result.KeyResults ?? new List<KeyResult>());
+            _progress.SetNarrative(token, result);
 
             // 4) Deterministic LOINC mapping (Python FastAPI microservice).
             try

@@ -217,11 +217,43 @@
                 <span class="partial-badge" data-testid="upload-partial-badge">@Loc.T("ProgressPreliminaryTitle")</span>
                 <span id="partialSummary" class="partial-summary" data-testid="upload-partial-summary"></span>
             </div>
-            <div class="partial-table-wrap">
-                <table class="partial-table" data-testid="upload-partial-table">
-                    <tbody id="partialTableBody"></tbody>
-                </table>
+
+            @* Each section stays hidden until the pipeline produces it, so the
+               screen fills in progressively instead of all at once at the end. *@
+            <div id="partialPatient" class="partial-section" data-testid="upload-partial-patient" hidden>
+                <div class="partial-section-title">@Loc.T("ProgressSectionPatient")</div>
+                <div id="partialPatientBody" class="partial-patient"></div>
             </div>
+
+            <div id="partialTableSection" class="partial-section" data-testid="upload-partial-table-section" hidden>
+                <div class="partial-section-title">@Loc.T("ProgressSectionAnalytes")</div>
+                <div class="partial-table-wrap">
+                    <table class="partial-table" data-testid="upload-partial-table">
+                        <tbody id="partialTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="partialFindings" class="partial-section" data-testid="upload-partial-findings" hidden>
+                <div class="partial-section-title">@Loc.T("ProgressSectionOutOfRange")</div>
+                <ul id="partialFindingsBody" class="partial-list"></ul>
+            </div>
+
+            <div id="partialNarrative" class="partial-section" data-testid="upload-partial-narrative" hidden>
+                <div id="partialSummaryBlock" hidden>
+                    <div class="partial-section-title">@Loc.T("ProgressSectionSummary")</div>
+                    <p id="partialNarrativeSummary" class="partial-text"></p>
+                </div>
+                <div id="partialRecoBlock" hidden>
+                    <div class="partial-section-title">@Loc.T("ProgressSectionRecommendations")</div>
+                    <p id="partialNarrativeReco" class="partial-text"></p>
+                </div>
+            </div>
+
+            <div id="partialPending" class="partial-pending" data-testid="upload-partial-pending">
+                @Loc.T("ProgressSectionPending")
+            </div>
+
             <p class="partial-note">@Loc.T("ProgressPreliminaryNote")</p>
         </div>
     </div>
@@ -428,10 +460,68 @@
     }
 
     .partial-table-wrap {
-        max-height: 38vh;
+        max-height: 26vh;
         overflow-y: auto;
         border: 1px solid #eceff1;
         border-radius: 10px;
+    }
+
+    /* ---- Progressive sections (patient / analytes / out of range / narrative) ---- */
+    .partial-section {
+        margin-top: 14px;
+        animation: fadeIn 0.35s ease;
+    }
+
+    .partial-section-title {
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #0d47a1;
+        margin-bottom: 6px;
+    }
+
+    .partial-patient {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 10px;
+        font-size: 0.82rem;
+        color: #37474f;
+    }
+
+        .partial-patient span {
+            background: #f1f6ff;
+            border-radius: 8px;
+            padding: 3px 9px;
+        }
+
+    .partial-list {
+        margin: 0;
+        padding-left: 18px;
+        font-size: 0.82rem;
+        color: #37474f;
+    }
+
+        .partial-list li {
+            margin-bottom: 3px;
+        }
+
+        .partial-list li.is-high { color: #c62828; }
+        .partial-list li.is-low { color: #1565c0; }
+
+    .partial-text {
+        font-size: 0.84rem;
+        color: #37474f;
+        line-height: 1.5;
+        margin: 0 0 6px;
+        white-space: pre-line;
+    }
+
+    .partial-pending {
+        margin-top: 12px;
+        font-size: 0.78rem;
+        color: #1976d2;
+        font-style: italic;
     }
 
     .partial-table {
@@ -581,10 +671,28 @@
                 });
             }
 
-            function paintTable(rows, outOfRange) {
+            // ---- Progressive rendering ------------------------------------
+            // Each section is painted the moment the server has it, and repainted
+            // only when its content actually changed (the poll runs every 1.5 s).
+            var lastPaint = { table: '', patient: '', findings: '', narrative: '' };
+
+            function revealBox() {
                 var box = document.getElementById('partialResults');
+                if (box && box.hidden) box.hidden = false;
+            }
+
+            function show(id) {
+                var el = document.getElementById(id);
+                if (el && el.hidden) el.hidden = false;
+            }
+
+            function paintTable(rows, outOfRange) {
                 var body = document.getElementById('partialTableBody');
-                if (!box || !body || !rows || !rows.length || !box.hidden) return;
+                if (!body || !rows || !rows.length) return;
+
+                var sig = JSON.stringify(rows);
+                if (sig === lastPaint.table) return;
+                lastPaint.table = sig;
 
                 var html = '';
                 for (var i = 0; i < rows.length; i++) {
@@ -605,7 +713,100 @@
                         .replace('{0}', rows.length)
                         .replace('{1}', outOfRange || 0);
                 }
-                box.hidden = false;
+                revealBox();
+                show('partialTableSection');
+            }
+
+            function paintPatient(p) {
+                if (!p) return;
+                var sig = JSON.stringify(p);
+                if (sig === lastPaint.patient) return;
+                lastPaint.patient = sig;
+
+                var parts = [
+                    [@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("PatientName"))), p.name],
+                    [@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("PatientAge"))), p.age],
+                    [@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("PatientSex"))), p.sex],
+                    [@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("DateTaken"))), p.dateTaken],
+                    [@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("Laboratory"))), p.laboratory]
+                ];
+                var html = '';
+                for (var i = 0; i < parts.length; i++) {
+                    if (!parts[i][1]) continue;
+                    html += '<span><strong>' + escapeHtml(parts[i][0]) + ':</strong> '
+                          + escapeHtml(parts[i][1]) + '</span>';
+                }
+                if (!html) return;
+
+                document.getElementById('partialPatientBody').innerHTML = html;
+                revealBox();
+                show('partialPatient');
+            }
+
+            // "Out of range" = the flagged rows of the table, plus anything the
+            // model listed as an abnormal finding but did not flag in the table.
+            function paintFindings(rows, findings) {
+                var out = [];
+                var seen = {};
+                (rows || []).forEach(function (r) {
+                    if (r.status === 'high' || r.status === 'low' || r.status === 'borderline') {
+                        seen[(r.parameter || '').toLowerCase()] = true;
+                        out.push({
+                            text: (r.parameter || '') + ': ' + (r.value || '') + ' ' + (r.unit || ''),
+                            status: r.status
+                        });
+                    }
+                });
+                (findings || []).forEach(function (f) {
+                    var name = (f.parameter || '');
+                    if (!name || seen[name.toLowerCase()]) return;
+                    out.push({ text: name, status: '' });
+                });
+                if (!out.length) return;
+
+                var sig = JSON.stringify(out);
+                if (sig === lastPaint.findings) return;
+                lastPaint.findings = sig;
+
+                var html = '';
+                for (var i = 0; i < out.length; i++) {
+                    var cls = out[i].status === 'high' ? 'is-high'
+                            : (out[i].status === 'low' ? 'is-low' : '');
+                    html += '<li class="' + cls + '">' + escapeHtml(out[i].text.trim()) + '</li>';
+                }
+                document.getElementById('partialFindingsBody').innerHTML = html;
+                revealBox();
+                show('partialFindings');
+            }
+
+            function paintNarrative(summaryText, recoText) {
+                var sig = (summaryText || '') + '|' + (recoText || '');
+                if (sig === '|' || sig === lastPaint.narrative) return;
+                lastPaint.narrative = sig;
+
+                if (summaryText) {
+                    document.getElementById('partialNarrativeSummary').textContent = summaryText;
+                    show('partialSummaryBlock');
+                }
+                if (recoText) {
+                    document.getElementById('partialNarrativeReco').textContent = recoText;
+                    show('partialRecoBlock');
+                }
+                revealBox();
+                show('partialNarrative');
+            }
+
+            function paintPartials(d) {
+                if (d.table && d.table.length) {
+                    paintTable(d.table, d.outOfRange);
+                    paintFindings(d.table, d.findings);
+                }
+                paintPatient(d.patient);
+                paintNarrative(d.summary, d.recommendations);
+
+                // Hide the "still being written" line once the narrative landed.
+                var pending = document.getElementById('partialPending');
+                if (pending && d.recommendations) pending.hidden = true;
             }
 
             function escapeHtml(s) {
@@ -634,7 +835,7 @@
                         .then(function (d) {
                             if (!d) return;
                             paintStage(d.stage);
-                            if (d.table && d.table.length) paintTable(d.table, d.outOfRange);
+                            paintPartials(d);
 
                             if (d.stage === 'done' && d.redirectUrl) {
                                 clearInterval(pollTimer);

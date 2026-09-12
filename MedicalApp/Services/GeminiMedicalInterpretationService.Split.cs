@@ -55,6 +55,24 @@ namespace MedicalApp.Services
         /// </summary>
         public Action<string, IReadOnlyList<KeyResult>?>? OnStage { get; set; }
 
+        /// <summary>
+        /// Optional hook for PARTIAL RESULTS (June 2026). Fired with a snapshot of
+        /// the result as soon as a stage produces something the user can read:
+        ///   "extract"   — patient data + the analyte table (end of stage A);
+        ///   "narrative" — summary / recommendations / abnormal findings, the
+        ///                 moment stage C answers, without waiting for stage B.
+        /// The runner forwards it to the progress tracker so the upload screen
+        /// fills in section by section.
+        /// </summary>
+        public Action<string, InterpretationResult>? OnPartialResult { get; set; }
+
+        private void ReportPartial(string stage, InterpretationResult? partial)
+        {
+            if (partial == null) return;
+            try { OnPartialResult?.Invoke(stage, partial); }
+            catch { /* progress reporting must never break an interpretation */ }
+        }
+
         private void Report(string stage, IReadOnlyList<KeyResult>? analytes = null)
         {
             try { OnStage?.Invoke(stage, analytes); }
@@ -159,6 +177,7 @@ namespace MedicalApp.Services
 
             // The table is ready — let the browser show it now.
             Report("ai_extract_done", analytes);
+            ReportPartial("extract", result);
 
             var patientBlock = BuildPatientContextBlock(patientContext);
 
@@ -170,7 +189,11 @@ namespace MedicalApp.Services
                 ? RunCompletenessSweepAsync(analytes, languageCode, fileName, patientContext,
                                             pdfBase64, pdfBytesLength, extractedText, ct)
                 : Task.FromResult((new List<KeyResult>(), 0, 0));
-            await Task.WhenAll(explainTask, narrativeTask, sweepTask);
+            // Stage C usually answers before the explanation batches do — publish
+            // the summary and the recommendations the moment it lands instead of
+            // making the user wait for B as well.
+            var narrativeProgress = PublishNarrativeWhenReadyAsync(narrativeTask);
+            await Task.WhenAll(explainTask, narrativeTask, sweepTask, narrativeProgress);
             swBC.Stop();
 
             var (explanations, inB, outB, batches) = explainTask.Result;
@@ -662,6 +685,22 @@ part so you can read the table). Another call handles the other part.
         // =====================================================================
         //  Stage C — clinical narrative
         // =====================================================================
+        /// <summary>
+        /// Publishes the narrative as a partial result as soon as stage C lands,
+        /// independently of the explanation batches. Never rethrows: stage C's own
+        /// failure is handled where its result is consumed.
+        /// </summary>
+        private async Task PublishNarrativeWhenReadyAsync(
+            Task<(InterpretationResult? Narrative, int InputTokens, int OutputTokens, int Thoughts)> narrativeTask)
+        {
+            try
+            {
+                var (narrative, _, _, _) = await narrativeTask;
+                ReportPartial("narrative", narrative);
+            }
+            catch { /* the caller handles stage C failures */ }
+        }
+
         private async Task<(InterpretationResult? Narrative, int InputTokens, int OutputTokens, int Thoughts)>
             RunNarrativeStageAsync(List<KeyResult> analytes, string languageCode, string languageName,
                                    string patientBlock, CancellationToken ct)

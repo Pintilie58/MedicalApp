@@ -158,6 +158,12 @@ namespace MedicalApp.Controllers
                 outOfRange = state.OutOfRangeCount,
                 analytes = state.Table?.Count ?? 0,
                 table = state.Table,
+                // Progressive sections — each one is null until the pipeline
+                // produces it, and the overlay reveals it the moment it arrives.
+                patient = state.Patient,
+                summary = state.Summary,
+                recommendations = state.Recommendations,
+                findings = state.Findings,
                 redirectUrl = state.RedirectUrl,
                 historyId = state.HistoryId
             });
