@@ -305,6 +305,16 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
     `dotnet ef migrations has-pending-model-changes` ⇒ „No changes”; build 0 warning-uri.
     Script T-SQL de deploy: `/app/memory/probes/AddScaleOutIndexes.sql`.
 
+- **Buton „Înregistrare/Autentificare” pe landing** (iunie 2026): butonul din dreapta sus
+  (`data-testid="land-signin"`, cheia `NavSignIn`) deschidea deja panoul cu AMBELE taburi
+  (Autentificare + Înregistrare), dar se numea doar „Autentificare”. Redenumit în toate cele
+  **7 limbi** (`Sign up / Sign in`, `Înregistrare/Autentificare`, `Inscription / Connexion`,
+  `Registro / Iniciar sesión`, `Registrieren / Anmelden`, `Registrati / Accedi`,
+  `Registo / Iniciar sessão`). Fiind `white-space: nowrap`, eticheta mai lungă risca să împingă
+  navbarul în scroll orizontal pe telefon ⇒ în `landing.css`, sub 768 px pastilele de acțiune au
+  font/padding reduse și rândul are `flex-wrap: wrap`. Verificat cu screenshot pe 390 px și 1920 px:
+  **zero overflow orizontal** (`scrollWidth == 390`).
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard

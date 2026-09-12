@@ -156,6 +156,16 @@ body.landing-body a:hover { color: var(--land-coral); }
         padding: 0 1rem 0.7rem;
         justify-content: center;
         gap: 0.5rem;
+        /* Guarantee: if the two pills still don't fit, they stack instead of
+           pushing the page into horizontal scroll. */
+        flex-wrap: wrap;
+    }
+    /* The auth pill now reads "Sign up / Sign in" (and the German/Spanish
+       equivalents are even longer). Without shrinking it, the two pills
+       overflow a 390 px screen — .land-btn is white-space: nowrap. */
+    .land-nav-inner .land-btn {
+        padding: 0.6rem 0.95rem;
+        font-size: 0.82rem;
     }
 }
 

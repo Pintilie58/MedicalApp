@@ -19,7 +19,7 @@ namespace MedicalApp.Services
                 ["NavFeatures"] = "Features",
                 ["NavClinics"] = "For Clinics",
                 ["NavPricing"] = "Pricing",
-                ["NavSignIn"] = "Sign in",
+                ["NavSignIn"] = "Sign up / Sign in",
                 ["NavGetStarted"] = "Get started free",
 
                 ["HeroEyebrow"] = "Medical-grade AI · 30 languages",
@@ -1189,7 +1189,7 @@ namespace MedicalApp.Services
                 ["NavFeatures"] = "Funcționalități",
                 ["NavClinics"] = "Pentru Clinici",
                 ["NavPricing"] = "Prețuri",
-                ["NavSignIn"] = "Autentificare",
+                ["NavSignIn"] = "Înregistrare/Autentificare",
                 ["NavGetStarted"] = "Începe gratuit",
 
                 ["HeroEyebrow"] = "AI medical · 30 de limbi",
@@ -2361,7 +2361,7 @@ namespace MedicalApp.Services
                 ["NavFeatures"] = "Fonctionnalités",
                 ["NavClinics"] = "Pour les cliniques",
                 ["NavPricing"] = "Tarifs",
-                ["NavSignIn"] = "Se connecter",
+                ["NavSignIn"] = "Inscription / Connexion",
                 ["NavGetStarted"] = "Commencer gratuitement",
                 // ----- Hero -----
                 ["HeroEyebrow"] = "IA de qualité médicale · 30 langues",
@@ -3511,7 +3511,7 @@ namespace MedicalApp.Services
                 ["NavFeatures"] = "Funcionalidades",
                 ["NavClinics"] = "Para clínicas",
                 ["NavPricing"] = "Precios",
-                ["NavSignIn"] = "Iniciar sesión",
+                ["NavSignIn"] = "Registro / Iniciar sesión",
                 ["NavGetStarted"] = "Empezar gratis",
                 // ----- Hero -----
                 ["HeroEyebrow"] = "IA de grado médico · 30 idiomas",
@@ -4661,7 +4661,7 @@ namespace MedicalApp.Services
                 ["NavFeatures"] = "Funktionen",
                 ["NavClinics"] = "Für Kliniken",
                 ["NavPricing"] = "Preise",
-                ["NavSignIn"] = "Anmelden",
+                ["NavSignIn"] = "Registrieren / Anmelden",
                 ["NavGetStarted"] = "Kostenlos starten",
                 // ----- Hero -----
                 ["HeroEyebrow"] = "Medizinische KI · 30 Sprachen",
@@ -5816,7 +5816,7 @@ namespace MedicalApp.Services
                 ["NavFeatures"] = "Funzionalità",
                 ["NavClinics"] = "Per le cliniche",
                 ["NavPricing"] = "Prezzi",
-                ["NavSignIn"] = "Accedi",
+                ["NavSignIn"] = "Registrati / Accedi",
                 ["NavGetStarted"] = "Inizia gratis",
                 ["HeroEyebrow"] = "AI di livello medico · 30 lingue",
                 ["HeroEyebrow2"] = "Addestrata per interpretare analisi mediche",
@@ -6897,7 +6897,7 @@ namespace MedicalApp.Services
                 ["NavFeatures"] = "Funcionalidades",
                 ["NavClinics"] = "Para clínicas",
                 ["NavPricing"] = "Preços",
-                ["NavSignIn"] = "Iniciar sessão",
+                ["NavSignIn"] = "Registo / Iniciar sessão",
                 ["NavGetStarted"] = "Começar grátis",
                 ["HeroEyebrow"] = "IA de nível médico · 30 idiomas",
                 ["HeroEyebrow2"] = "Treinada para interpretar análises clínicas",
