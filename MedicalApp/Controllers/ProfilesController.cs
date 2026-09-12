@@ -48,21 +48,62 @@ namespace MedicalApp.Controllers
 
         private string? CurrentEmail => HttpContext.Session.GetString("UserEmail");
 
+        /// <summary>Patients per page on the Cabinet Medical list (user's choice).</summary>
+        private const int PatientsPerPage = 24;
+
         // ====================================================================
         // LIST
         // ====================================================================
         [HttpGet]
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string? q = null, int page = 1)
         {
             if (string.IsNullOrEmpty(CurrentEmail))
                 return RedirectToAction("Index", "Home");
 
-            var profiles = await _db.Profiles
-                .AsNoTracking()
-                .Where(p => p.UserEmail == CurrentEmail)
+            // Cabinet Medical accounts can hold up to 2000 patients, so their
+            // list is searched and paged server-side. B2C accounts (20 profiles
+            // max) keep the exact screen they had: one query, no paging.
+            var user = await _db.Users.AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Email == CurrentEmail);
+            var isPaged = AccountTypes.IsCabinet(user?.UserType);
+
+            var owned = _db.Profiles.AsNoTracking().Where(p => p.UserEmail == CurrentEmail);
+
+            var search = isPaged ? q?.Trim() : null;
+            var matches = owned;
+            if (!string.IsNullOrEmpty(search))
+            {
+                // Name OR notes: a practice keeps the file number / ID in notes.
+                var needle = search.ToLower();
+                matches = matches.Where(p => p.Name.ToLower().Contains(needle)
+                                             || (p.Notes != null && p.Notes.ToLower().Contains(needle)));
+            }
+
+            var ordered = matches
                 .OrderByDescending(p => p.IsDefault)
-                .ThenBy(p => p.Name)
-                .ToListAsync();
+                .ThenBy(p => p.Name);
+
+            int ownedCount, matchingCount;
+            List<Profile> profiles;
+            if (isPaged)
+            {
+                matchingCount = await matches.CountAsync();
+                ownedCount = string.IsNullOrEmpty(search) ? matchingCount : await owned.CountAsync();
+
+                var lastPage = Math.Max(1, (int)Math.Ceiling(matchingCount / (double)PatientsPerPage));
+                page = Math.Clamp(page, 1, lastPage);
+
+                profiles = await ordered
+                    .Skip((page - 1) * PatientsPerPage)
+                    .Take(PatientsPerPage)
+                    .ToListAsync();
+            }
+            else
+            {
+                profiles = await ordered.ToListAsync();
+                ownedCount = matchingCount = profiles.Count;
+                page = 1;
+            }
 
             // Interpretation counts per profile (successful ones only).
             var profileIds = profiles.Select(p => p.Id).ToList();
@@ -77,6 +118,12 @@ namespace MedicalApp.Controllers
 
             var vm = new ProfilesIndexViewModel
             {
+                IsPaged = isPaged,
+                Query = search,
+                Page = page,
+                PageSize = isPaged ? PatientsPerPage : 0,
+                MatchingCount = matchingCount,
+                TotalCount = ownedCount,
                 Profiles = profiles.Select(p => new ProfilesIndexViewModel.ProfileRow
                 {
                     Id = p.Id,
@@ -94,14 +141,14 @@ namespace MedicalApp.Controllers
             // "+ Profil nou" gate (Feb 2026 anti-abuse). B2C users must have at
             // least 1 PAID credit to add extra family profiles; bonus credits
             // don't count. See ProfileGateService for the full rationale.
-            var user = await _db.Users.AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Email == CurrentEmail);
+            // NOTE: the gate and the counter use the TOTAL owned count, never the
+            // rows of the current page.
             ViewBag.CanCreateProfile =
-                ProfileGateService.CanCreateAdditionalProfile(user, profiles.Count);
+                ProfileGateService.CanCreateAdditionalProfile(user, ownedCount);
             ViewBag.ProfileLimitReached =
-                ProfileGateService.IsAtProfileLimit(user, profiles.Count);
+                ProfileGateService.IsAtProfileLimit(user, ownedCount);
             // "3 of 20 profiles used" — only where the cap actually applies.
-            ViewBag.ProfileCount = profiles.Count;
+            ViewBag.ProfileCount = ownedCount;
             ViewBag.ProfileCapApplies = ProfileGateService.IsCapped(user);
             ViewBag.ProfileLimit = ProfileGateService.LimitFor(user) ?? 0;
 

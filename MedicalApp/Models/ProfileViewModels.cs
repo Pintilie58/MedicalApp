@@ -8,6 +8,28 @@ namespace MedicalApp.Models
     {
         public List<ProfileRow> Profiles { get; set; } = new();
 
+        // ---- Search + paging (June 2026) --------------------------------
+        // Only Cabinet Medical accounts get these: with up to 2000 patients the
+        // card grid is unusable. For B2C (max 20 profiles) IsPaged stays false
+        // and the screen renders exactly as before.
+        public bool IsPaged { get; set; }
+
+        /// <summary>Current search text, echoed back into the box and the page links.</summary>
+        public string? Query { get; set; }
+
+        public int Page { get; set; } = 1;
+        public int PageSize { get; set; }
+
+        /// <summary>How many patients match the current search (all pages).</summary>
+        public int MatchingCount { get; set; }
+
+        /// <summary>How many patients the account owns, search or no search.</summary>
+        public int TotalCount { get; set; }
+
+        public int TotalPages => PageSize > 0
+            ? (int)Math.Ceiling(MatchingCount / (double)PageSize)
+            : 1;
+
         public class ProfileRow
         {
             public int Id { get; set; }

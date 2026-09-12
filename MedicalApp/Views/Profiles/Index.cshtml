@@ -15,7 +15,7 @@
             <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
                 <h2 class="text-primary fw-bold mb-0">&#128106; @Loc.T("ProfilesHeading")</h2>
                 <span class="badge bg-secondary align-self-center" data-testid="profiles-total-count">
-                    @Model.Profiles.Count @Loc.T("ProfilesTotalSuffix")
+                    @(Model.IsPaged ? Model.TotalCount : Model.Profiles.Count) @Loc.T("ProfilesTotalSuffix")
                 </span>
                 <partial name="_ProfileQuotaBadge" />
                 <div class="ms-auto d-flex gap-2">
@@ -79,9 +79,41 @@
                 <div class="alert alert-danger" data-testid="profile-error-msg">@errorMessage</div>
             }
 
-            @* Search bar - shows only when there are at least 4 profiles, to keep the
-               UI clean for small lists. Filters client-side (instant, no server calls). *@
-            @if (Model.Profiles.Count >= 4)
+            @* Cabinet Medical (up to 2000 patients): the list is searched and paged
+               on the SERVER, because a client-side filter can only see the current
+               page. B2C keeps the instant client-side filter below, untouched. *@
+            @if (Model.IsPaged)
+            {
+                <form method="get" asp-action="Index" class="mb-3" data-testid="patients-search-form">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white">&#128269;</span>
+                        <input type="search" name="q" value="@Model.Query" class="form-control"
+                               placeholder="@Loc.T("ProfilesSearchPlaceholderCabinet")"
+                               autocomplete="off" data-testid="patients-search-input" />
+                        <button type="submit" class="btn btn-primary" data-testid="patients-search-submit">
+                            @Loc.T("ProfilesSearchSubmit")
+                        </button>
+                        @if (!string.IsNullOrEmpty(Model.Query))
+                        {
+                            <a asp-action="Index" class="btn btn-outline-secondary"
+                               title="@Loc.T("ProfilesSearchClearTooltip")" data-testid="patients-search-clear">
+                                &times;
+                            </a>
+                        }
+                    </div>
+                    <div class="small text-muted mt-2" data-testid="patients-search-info">
+                        @if (string.IsNullOrEmpty(Model.Query))
+                        {
+                            @string.Format(Loc.T("ProfilesPagerInfo"), Model.Page, Math.Max(1, Model.TotalPages))
+                        }
+                        else
+                        {
+                            @string.Format(Loc.T("ProfilesSearchResults"), Model.MatchingCount, Model.TotalCount)
+                        }
+                    </div>
+                </form>
+            }
+            else if (Model.Profiles.Count >= 4)
             {
                 <div class="mb-4">
                     <div class="input-group">
@@ -101,9 +133,18 @@
 
             @if (!Model.Profiles.Any())
             {
-                <div class="alert alert-info">
-                    @Loc.T("ProfilesEmptyMsg")
-                </div>
+                @if (Model.IsPaged && !string.IsNullOrEmpty(Model.Query))
+                {
+                    <div class="alert alert-warning" data-testid="patients-search-empty">
+                        @Loc.T("ProfilesSearchEmpty")
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        @Loc.T("ProfilesEmptyMsg")
+                    </div>
+                }
             }
             else
             {
@@ -179,6 +220,38 @@
                         </div>
                     }
                 </div>
+            }
+
+                </div>
+            }
+
+            @* Pager — Cabinet Medical only, and only when there is more than one page. *@
+            @if (Model.IsPaged && Model.TotalPages > 1)
+            {
+                <nav class="mt-4 d-flex justify-content-center align-items-center gap-2 flex-wrap"
+                     data-testid="patients-pager">
+                    @if (Model.Page > 1)
+                    {
+                        <a asp-action="Index" asp-route-q="@Model.Query" asp-route-page="1"
+                           class="btn btn-sm btn-outline-secondary" data-testid="patients-pager-first">&laquo;</a>
+                        <a asp-action="Index" asp-route-q="@Model.Query" asp-route-page="@(Model.Page - 1)"
+                           class="btn btn-sm btn-outline-primary" data-testid="patients-pager-prev">
+                            &lsaquo; @Loc.T("ProfilesPagerPrev")
+                        </a>
+                    }
+                    <span class="small text-muted px-2" data-testid="patients-pager-info">
+                        @string.Format(Loc.T("ProfilesPagerInfo"), Model.Page, Model.TotalPages)
+                    </span>
+                    @if (Model.Page < Model.TotalPages)
+                    {
+                        <a asp-action="Index" asp-route-q="@Model.Query" asp-route-page="@(Model.Page + 1)"
+                           class="btn btn-sm btn-outline-primary" data-testid="patients-pager-next">
+                            @Loc.T("ProfilesPagerNext") &rsaquo;
+                        </a>
+                        <a asp-action="Index" asp-route-q="@Model.Query" asp-route-page="@Model.TotalPages"
+                           class="btn btn-sm btn-outline-secondary" data-testid="patients-pager-last">&raquo;</a>
+                    }
+                </nav>
             }
 
             <div class="mt-4">

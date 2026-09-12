@@ -79,18 +79,40 @@
                                 // June 2026: 20 profiles maximum — buying credits
                                 // does not lift this, so don't send them to /Credits.
                                 var atProfileLimit = ViewBag.ProfileLimitReached as bool? ?? false;
+                                // CM accounts search their patients; B2C keeps the dropdown.
+                                var profileSearchEnabled = ViewBag.ProfileSearchEnabled as bool? ?? false;
                             }
                             <div class="input-group profile-select-group">
-                                <select asp-for="ProfileId" class="form-select form-select-lg profile-select-input"
-                                        data-testid="interpret-profile-select" required>
-                                    <option value="">@Loc.T("InterpretSelectProfilePlaceholder")</option>
-                                    @foreach (var p in Model.AvailableProfiles)
-                                    {
-                                        <option value="@p.Id">
-                                            @p.Name@(p.IsDefault ? Loc.T("ProfileDefaultSuffix") : "")
-                                        </option>
-                                    }
-                                </select>
+                                @* Cabinet Medical (up to 2000 patients): a searchable picker
+                                   that queries the server, instead of a 2000-option dropdown.
+                                   B2C keeps the plain select — same markup as before. *@
+                                @if (profileSearchEnabled)
+                                {
+                                    <div class="patient-picker profile-select-input" data-testid="interpret-patient-picker">
+                                        <input type="hidden" asp-for="ProfileId" id="patientPickerId" />
+                                        <input type="text" id="patientPickerInput" class="form-control form-control-lg"
+                                               placeholder="@Loc.T("InterpretPatientSearchPlaceholder")"
+                                               autocomplete="off" role="combobox" aria-expanded="false"
+                                               aria-controls="patientPickerList"
+                                               value="@(Model.AvailableProfiles.FirstOrDefault(p => p.Id == Model.ProfileId)?.Name ?? "")"
+                                               data-testid="interpret-patient-search" />
+                                        <div id="patientPickerList" class="patient-picker-list d-none"
+                                             role="listbox" data-testid="interpret-patient-results"></div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <select asp-for="ProfileId" class="form-select form-select-lg profile-select-input"
+                                            data-testid="interpret-profile-select" required>
+                                        <option value="">@Loc.T("InterpretSelectProfilePlaceholder")</option>
+                                        @foreach (var p in Model.AvailableProfiles)
+                                        {
+                                            <option value="@p.Id">
+                                                @p.Name@(p.IsDefault ? Loc.T("ProfileDefaultSuffix") : "")
+                                            </option>
+                                        }
+                                    </select>
+                                }
                                 @if (canCreateProfile)
                                 {
                                     <a asp-controller="Profiles" asp-action="Create"
@@ -459,6 +481,50 @@
         color: #546e7a;
     }
 
+    /* ---- Cabinet Medical: searchable patient picker ---- */
+    .patient-picker {
+        position: relative;
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .patient-picker-list {
+        position: absolute;
+        z-index: 1060;
+        top: calc(100% + 4px);
+        left: 0;
+        right: 0;
+        max-height: 280px;
+        overflow-y: auto;
+        background: #fff;
+        border: 1px solid #cfd8dc;
+        border-radius: 10px;
+        box-shadow: 0 14px 34px rgba(13, 71, 161, 0.16);
+    }
+
+    .patient-picker-item {
+        display: block;
+        width: 100%;
+        text-align: left;
+        border: 0;
+        background: none;
+        padding: 9px 14px;
+        font-size: 0.95rem;
+        color: #263238;
+    }
+
+        .patient-picker-item:hover,
+        .patient-picker-item.is-active {
+            background: #e8f1ff;
+            color: #0d47a1;
+        }
+
+    .patient-picker-empty {
+        padding: 10px 14px;
+        font-size: 0.88rem;
+        color: #78909c;
+    }
+
     .partial-table-wrap {
         max-height: 26vh;
         overflow-y: auto;
@@ -659,6 +725,105 @@
                 e.preventDefault();
                 window.location.href = backgroundHref();
             });
+
+            // ---- Cabinet Medical: searchable patient picker ----------------
+            // Queries the server (max 20 matches) instead of shipping 2000 names
+            // to the browser. Only rendered for CM accounts.
+            (function () {
+                var input = document.getElementById('patientPickerInput');
+                var hidden = document.getElementById('patientPickerId');
+                var list = document.getElementById('patientPickerList');
+                if (!input || !hidden || !list) return;
+
+                var NO_RESULTS = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("InterpretPatientSearchNoResults")));
+                var timer = null;
+                var items = [];
+                var activeIndex = -1;
+
+                function close() {
+                    list.classList.add('d-none');
+                    input.setAttribute('aria-expanded', 'false');
+                    activeIndex = -1;
+                }
+
+                function pick(item) {
+                    hidden.value = item.id;
+                    input.value = item.name;
+                    close();
+                }
+
+                function render() {
+                    if (!items.length) {
+                        list.innerHTML = '<div class="patient-picker-empty">' + escapeHtml(NO_RESULTS) + '</div>';
+                    } else {
+                        list.innerHTML = items.map(function (it, i) {
+                            return '<button type="button" class="patient-picker-item" data-index="' + i + '">'
+                                 + escapeHtml(it.name) + '</button>';
+                        }).join('');
+                    }
+                    list.classList.remove('d-none');
+                    input.setAttribute('aria-expanded', 'true');
+                }
+
+                function search() {
+                    fetch('/Interpretation/SearchProfiles?q=' + encodeURIComponent(input.value.trim()), {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    })
+                        .then(function (r) { return r.ok ? r.json() : []; })
+                        .then(function (data) {
+                            items = data || [];
+                            activeIndex = -1;
+                            render();
+                        })
+                        .catch(function () { close(); });
+                }
+
+                input.addEventListener('input', function () {
+                    // Typing invalidates the previous choice, so the form cannot
+                    // submit a patient the doctor no longer sees on screen.
+                    hidden.value = '';
+                    clearTimeout(timer);
+                    timer = setTimeout(search, 250);
+                });
+
+                input.addEventListener('focus', function () {
+                    if (!list.classList.contains('d-none')) return;
+                    clearTimeout(timer);
+                    timer = setTimeout(search, 80);
+                });
+
+                input.addEventListener('keydown', function (e) {
+                    if (list.classList.contains('d-none')) return;
+                    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        if (!items.length) return;
+                        activeIndex = e.key === 'ArrowDown'
+                            ? Math.min(activeIndex + 1, items.length - 1)
+                            : Math.max(activeIndex - 1, 0);
+                        var buttons = list.querySelectorAll('.patient-picker-item');
+                        for (var i = 0; i < buttons.length; i++) {
+                            buttons[i].classList.toggle('is-active', i === activeIndex);
+                        }
+                    } else if (e.key === 'Enter') {
+                        if (items.length) {
+                            e.preventDefault();
+                            pick(items[activeIndex >= 0 ? activeIndex : 0]);
+                        }
+                    } else if (e.key === 'Escape') {
+                        close();
+                    }
+                });
+
+                list.addEventListener('click', function (e) {
+                    var btn = e.target.closest('.patient-picker-item');
+                    if (!btn) return;
+                    pick(items[parseInt(btn.getAttribute('data-index'), 10)]);
+                });
+
+                document.addEventListener('click', function (e) {
+                    if (!e.target.closest('.patient-picker')) close();
+                });
+            })();
 
             function paintStage(stage) {
                 var idx = STAGES.indexOf(stage);

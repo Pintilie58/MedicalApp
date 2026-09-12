@@ -53,6 +53,12 @@ namespace MedicalApp.Controllers
 
         private string? CurrentEmail => HttpContext.Session.GetString("UserEmail");
 
+        /// <summary>How many patients the Cabinet Medical picker is seeded with.</summary>
+        private const int ProfilePickerSeedSize = 24;
+
+        /// <summary>How many matches the patient search returns per keystroke.</summary>
+        private const int ProfileSearchLimit = 20;
+
         [HttpGet]
         public async Task<IActionResult> Upload([FromServices] ILoincHealthState loincHealth)
         {
@@ -99,8 +105,11 @@ namespace MedicalApp.Controllers
                 }
             }
 
-            // Load user's profiles for the dropdown.
-            var profiles = await _db.Profiles
+            // Load the profiles for the picker. A Cabinet Medical account can
+            // hold 2000 patients, so it gets a searchable picker seeded with the
+            // first page instead of a 2000-option dropdown.
+            var isCabinet = AccountTypes.IsCabinet(user.UserType);
+            var profileQuery = _db.Profiles
                 .AsNoTracking()
                 .Where(p => p.UserEmail == user.Email)
                 .OrderByDescending(p => p.IsDefault)
@@ -110,18 +119,27 @@ namespace MedicalApp.Controllers
                     Id = p.Id,
                     Name = p.Name,
                     IsDefault = p.IsDefault
-                })
-                .ToListAsync();
+                });
+
+            var profiles = isCabinet
+                ? await profileQuery.Take(ProfilePickerSeedSize).ToListAsync()
+                : await profileQuery.ToListAsync();
+
+            var ownedCount = isCabinet
+                ? await _db.Profiles.CountAsync(p => p.UserEmail == user.Email)
+                : profiles.Count;
+
+            ViewBag.ProfileSearchEnabled = isCabinet;
 
             // "+ Profil nou" gate — same rule as /Profiles: B2C users need paid
             // credits for extra family profiles. Passed to the view so it can
             // grey-out the button. Server-side enforcement lives in
             // ProfilesController.Create; this ViewBag is UI-only.
             ViewBag.CanCreateProfile =
-                ProfileGateService.CanCreateAdditionalProfile(user, profiles.Count);
+                ProfileGateService.CanCreateAdditionalProfile(user, ownedCount);
             ViewBag.ProfileLimitReached =
-                ProfileGateService.IsAtProfileLimit(user, profiles.Count);
-            ViewBag.ProfileCount = profiles.Count;
+                ProfileGateService.IsAtProfileLimit(user, ownedCount);
+            ViewBag.ProfileCount = ownedCount;
             ViewBag.ProfileCapApplies = ProfileGateService.IsCapped(user);
             ViewBag.ProfileLimit = ProfileGateService.LimitFor(user) ?? 0;
 
@@ -525,13 +543,49 @@ namespace MedicalApp.Controllers
         /// </summary>
         private sealed record CachedUpload(string UserEmail, int ProfileId, byte[] PdfBytes, string FileName);
 
+        /// <summary>
+        /// Patient search for the Cabinet Medical picker. Returns at most
+        /// <see cref="ProfileSearchLimit"/> matches of the CURRENT user, by name
+        /// or by notes (a practice keeps the file number there). Only ever reads
+        /// the caller's own profiles.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> SearchProfiles(string? q = null)
+        {
+            if (string.IsNullOrEmpty(CurrentEmail)) return Unauthorized();
+
+            var query = _db.Profiles.AsNoTracking()
+                .Where(p => p.UserEmail == CurrentEmail);
+
+            var needle = q?.Trim();
+            if (!string.IsNullOrEmpty(needle))
+            {
+                var lowered = needle.ToLower();
+                query = query.Where(p => p.Name.ToLower().Contains(lowered)
+                                         || (p.Notes != null && p.Notes.ToLower().Contains(lowered)));
+            }
+
+            var items = await query
+                .OrderByDescending(p => p.IsDefault)
+                .ThenBy(p => p.Name)
+                .Take(ProfileSearchLimit)
+                .Select(p => new { id = p.Id, name = p.Name, isDefault = p.IsDefault })
+                .ToListAsync();
+
+            return Json(items);
+        }
+
         /// <summary>Reload dropdown profile list + credit ViewBags when returning View(model) after a validation error.</summary>
         private async Task RepopulateFormViewBags(User user, InterpretationUploadViewModel model)
         {
             ViewBag.CreditRest = user.CreditRest;
             ViewBag.BonusCreditsRemaining = user.BonusCreditsRemaining;
             ViewBag.TotalAvailableCredits = user.TotalAvailableCredits;
-            model.AvailableProfiles = await _db.Profiles
+
+            var isCabinet = AccountTypes.IsCabinet(user.UserType);
+            ViewBag.ProfileSearchEnabled = isCabinet;
+
+            var query = _db.Profiles
                 .AsNoTracking()
                 .Where(p => p.UserEmail == user.Email)
                 .OrderByDescending(p => p.IsDefault)
@@ -539,8 +593,26 @@ namespace MedicalApp.Controllers
                 .Select(p => new InterpretationUploadViewModel.ProfileOption
                 {
                     Id = p.Id, Name = p.Name, IsDefault = p.IsDefault
-                })
-                .ToListAsync();
+                });
+
+            model.AvailableProfiles = isCabinet
+                ? await query.Take(ProfilePickerSeedSize).ToListAsync()
+                : await query.ToListAsync();
+
+            // The patient they had picked may sit outside the seeded page — keep
+            // it in the list so the form does not silently lose the selection.
+            if (isCabinet && model.ProfileId is int picked
+                && model.AvailableProfiles.All(p => p.Id != picked))
+            {
+                var kept = await _db.Profiles.AsNoTracking()
+                    .Where(p => p.Id == picked && p.UserEmail == user.Email)
+                    .Select(p => new InterpretationUploadViewModel.ProfileOption
+                    {
+                        Id = p.Id, Name = p.Name, IsDefault = p.IsDefault
+                    })
+                    .FirstOrDefaultAsync();
+                if (kept != null) model.AvailableProfiles.Insert(0, kept);
+            }
         }
 
     }

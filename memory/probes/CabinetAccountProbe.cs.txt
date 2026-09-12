@@ -82,6 +82,20 @@ CreditsController Credits(string sessionEmail)
     };
 }
 
+InterpretationController Interpretation(string? sessionEmail)
+{
+    var http = new DefaultHttpContext { Session = new FakeSession(sessionEmail) };
+    return new InterpretationController(db,
+        Options.Create(new GeminiSettings()),
+        null!, null!, null!, null!, null!, null!,
+        NullLogger<InterpretationController>.Instance)
+    {
+        ControllerContext = Ctx(http),
+        TempData = new Microsoft.AspNetCore.Mvc.ViewFeatures.TempDataDictionary(
+            http, new FakeTempDataProvider())
+    };
+}
+
 ProfilesController Profiles(string sessionEmail)
 {
     var http = new DefaultHttpContext { Session = new FakeSession(sessionEmail) };
@@ -293,6 +307,102 @@ Check("6i. the profiles page publishes the 2000 cap for the badge",
     && (pc.ViewBag.ProfileCapApplies as bool?) == true
     && (pc.ViewBag.ProfileCount as int?) == 1,
     $"{pc.ViewBag.ProfileLimit}/{pc.ViewBag.ProfileCount}");
+
+// =====================================================================
+//  6j. Etapa 2: search + paging for the cabinet, nothing for B2C
+// =====================================================================
+{
+    // 60 patients for the cabinet: 3 pages of 24.
+    var extra = new List<Profile>();
+    for (int i = 1; i <= 59; i++)
+    {
+        extra.Add(new Profile
+        {
+            UserEmail = "cab@test.ro",
+            Name = $"Pacient {i:D3}",
+            Notes = i == 7 ? "fisa 12345 diabet" : (i == 8 ? "fisa 99999" : null),
+            IsDefault = false,
+            CreatedAt = DateTime.UtcNow
+        });
+    }
+    db.Profiles.AddRange(extra);
+    await db.SaveChangesAsync();
+
+    var cabList = Profiles("cab@test.ro");
+    var page1 = ((await cabList.Index()) as ViewResult)?.Model as ProfilesIndexViewModel;
+    Check("6j. cabinet list is paged: 24 patients on page 1 of 3",
+        page1 != null && page1.IsPaged && page1.Profiles.Count == 24
+        && page1.Page == 1 && page1.TotalPages == 3 && page1.TotalCount == 60,
+        page1 == null ? "null" : $"{page1.Profiles.Count}/{page1.TotalPages}/{page1.TotalCount}");
+    Check("6k. the default patient stays first on page 1",
+        page1!.Profiles[0].IsDefault);
+
+    var page3 = ((await Profiles("cab@test.ro").Index(null, 3)) as ViewResult)?.Model as ProfilesIndexViewModel;
+    Check("6l. the last page holds the remaining 12 patients",
+        page3 != null && page3.Page == 3 && page3.Profiles.Count == 12,
+        page3 == null ? "null" : $"{page3.Page}/{page3.Profiles.Count}");
+    Check("6m. no patient appears on two pages",
+        !page1!.Profiles.Select(x => x.Id).Intersect(page3!.Profiles.Select(x => x.Id)).Any());
+
+    var tooFar = ((await Profiles("cab@test.ro").Index(null, 99)) as ViewResult)?.Model as ProfilesIndexViewModel;
+    Check("6n. a page number past the end lands on the last page, not on an empty screen",
+        tooFar != null && tooFar.Page == 3 && tooFar.Profiles.Count == 12,
+        tooFar == null ? "null" : $"{tooFar.Page}/{tooFar.Profiles.Count}");
+
+    var byName = ((await Profiles("cab@test.ro").Index("pacient 01")) as ViewResult)?.Model as ProfilesIndexViewModel;
+    Check("6o. search by name finds only the matching patients",
+        byName != null && byName.MatchingCount == 10
+        && byName.Profiles.All(x => x.Name.StartsWith("Pacient 01")),
+        (byName?.MatchingCount ?? -1).ToString());
+    Check("6p. search keeps the real owned total for the counter",
+        byName!.TotalCount == 60, byName.TotalCount.ToString());
+
+    var byNotes = ((await Profiles("cab@test.ro").Index("12345")) as ViewResult)?.Model as ProfilesIndexViewModel;
+    Check("6q. search also looks into the notes (file number)",
+        byNotes != null && byNotes.MatchingCount == 1 && byNotes.Profiles[0].Name == "Pacient 007",
+        byNotes == null ? "null" : $"{byNotes.MatchingCount}");
+
+    var noHit = ((await Profiles("cab@test.ro").Index("zzz-nu-exista")) as ViewResult)?.Model as ProfilesIndexViewModel;
+    Check("6r. a search with no hit returns an empty page, not an error",
+        noHit != null && noHit.MatchingCount == 0 && noHit.Profiles.Count == 0);
+
+    var caseInsensitive = ((await Profiles("cab@test.ro").Index("PACIENT 007")) as ViewResult)?.Model as ProfilesIndexViewModel;
+    Check("6s. search is case-insensitive",
+        caseInsensitive != null && caseInsensitive.MatchingCount == 1);
+
+    // B2C: the screen must stay EXACTLY as it was — no paging, no server search.
+    db.Profiles.AddRange(Enumerable.Range(1, 30).Select(i => new Profile
+    {
+        UserEmail = "b2c@test.ro", Name = $"Membru {i:D2}", CreatedAt = DateTime.UtcNow
+    }));
+    await db.SaveChangesAsync();
+    var b2cList = ((await Profiles("b2c@test.ro").Index("membru 01")) as ViewResult)?.Model as ProfilesIndexViewModel;
+    Check("6t. B2C list is NOT paged and ignores the search box (regression)",
+        b2cList != null && !b2cList.IsPaged && b2cList.Query == null
+        && b2cList.Profiles.Count == 30 && b2cList.PageSize == 0,
+        b2cList == null ? "null" : $"{b2cList.IsPaged}/{b2cList.Profiles.Count}");
+
+    // The patient picker endpoint used by the interpretation screen.
+    var interp = Interpretation("cab@test.ro");
+    var found = ((await interp.SearchProfiles("pacient")) as JsonResult)?.Value;
+    var foundCount = ((System.Collections.IEnumerable)found!).Cast<object>().Count();
+    Check("6u. the patient picker returns at most 20 matches per keystroke",
+        foundCount == 20, foundCount.ToString());
+
+    var pickedByNotes = ((await Interpretation("cab@test.ro").SearchProfiles("99999")) as JsonResult)?.Value;
+    var pickedNames = ((System.Collections.IEnumerable)pickedByNotes!).Cast<object>()
+        .Select(o => o.GetType().GetProperty("name")!.GetValue(o) as string).ToList();
+    Check("6v. the picker also searches the notes",
+        pickedNames.Count == 1 && pickedNames[0] == "Pacient 008",
+        string.Join(",", pickedNames));
+
+    var otherAccount = ((await Interpretation("b2c@test.ro").SearchProfiles("Pacient")) as JsonResult)?.Value;
+    Check("6w. the picker never leaks another account's patients",
+        !((System.Collections.IEnumerable)otherAccount!).Cast<object>().Any());
+
+    var anon = await Interpretation(null).SearchProfiles("x");
+    Check("6x. the picker refuses anonymous callers", anon is UnauthorizedResult);
+}
 
 // =====================================================================
 //  7. Texts in all 7 languages

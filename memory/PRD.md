@@ -413,6 +413,30 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   - **Etapa 2 rămasă** (cerută de utilizator): căutare + paginare pe pagina de profile și selector
     de pacient cu căutare în ecranul de interpretare, pentru volume de ordinul a 2000 de pacienți.
 
+- **Cabinet Medical — etapa 2: căutare + paginare pacienți** (iunie 2026):
+  - `/Profiles` pentru conturile Cabinet: căutare **pe server** (nume SAU notițe, case-insensitive)
+    și paginare **24 pacienți/pagină** (`ProfilesController.Index(q, page)`, `PatientsPerPage`).
+    Pagina cerută e limitată în interval, deci `?page=99` aterizează pe ultima pagină, nu pe un
+    ecran gol. Contorul „X profile create — max 2000”, plafonul și gate-ul creditelor folosesc
+    **totalul deținut**, niciodată rândurile paginii curente.
+  - **B2C rămâne identic**: `IsPaged = false`, o singură interogare, filtrul instant din browser
+    exact ca înainte (verificat prin test de regresie cu 30 de profile).
+  - Ecranul de interpretare pentru Cabinet: **selector de pacient cu căutare**
+    (`GET /Interpretation/SearchProfiles?q=` → maxim 20 potriviri, doar pacienții contului),
+    debounce 250 ms, navigare cu ↑/↓/Enter/Escape, închidere la click în afară. Lista nu se mai
+    încarcă cu 2000 de nume: se face seed cu 24, iar la revenirea din eroare de validare pacientul
+    ales e păstrat în listă chiar dacă nu e în primele 24. B2C păstrează `<select>`-ul clasic.
+  - Chei noi în **7 limbi**: `ProfilesSearchPlaceholderCabinet`, `ProfilesSearchSubmit`,
+    `ProfilesSearchResults`, `ProfilesSearchEmpty`, `ProfilesPagerInfo`, `ProfilesPagerPrev`,
+    `ProfilesPagerNext`, `InterpretPatientSearchPlaceholder`, `InterpretPatientSearchNoResults`.
+  - **Zero modificări în baza de date.** (Indexul `(UserEmail)` pe `Profiles` acoperă deja
+    filtrarea; căutarea în notițe rămâne un scan pe cele ≤2000 de rânduri ale contului.)
+  - Testat: `CabinetAccountProbe` extinsă — **57/57 PASS** (paginare 24/24/12, fără duplicate
+    între pagini, page clamp, căutare pe nume și pe notiță „fisa 12345”, case-insensitive, zero
+    rezultate, B2C nepaginat, endpointul de căutare: limita de 20, căutare în notițe, refuz pentru
+    anonimi, izolare între conturi). Regresie verde: B2C 80/80, split 49/49, plafon 21/21, DI,
+    indexuri; build 0 warning-uri; UI verificat la 390 px și 1920 px, fără overflow.
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard
