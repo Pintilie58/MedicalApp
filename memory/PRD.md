@@ -315,6 +315,25 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   font/padding reduse și rândul are `flex-wrap: wrap`. Verificat cu screenshot pe 390 px și 1920 px:
   **zero overflow orizontal** (`scrollWidth == 390`).
 
+- **Plafon de 20 de profile per cont B2C** (iunie 2026, cerere utilizator — siguranță în
+  funcționare): `ProfileGateService.MaxProfilesPerUser = 20` + `IsAtProfileLimit()`;
+  `CanCreateAdditionalProfile()` refuză la plafon **chiar și cu credite plătite**.
+  - Profilele existente NU sunt atinse: un cont care are deja peste 20 le păstrează pe toate,
+    doar crearea unuia nou e refuzată (clauză de „grandfathering”).
+  - Refuzul e aplicat server-side în `ProfilesController.Create` (GET **și** POST), deci nu se
+    poate ocoli cu un POST direct; mesajul diferă după motiv: plafon atins vs. lipsa creditelor
+    plătite (regula veche, neschimbată sub plafon).
+  - UI: `ViewBag.ProfileLimitReached` duce în `Views/Profiles/Index.cshtml` (banner de avertizare
+    + buton blocat `btn-create-profile-maxed`) și în `Views/Interpretation/Upload.cshtml`
+    (`interpret-add-profile-btn-maxed`). La plafon butonul NU mai trimite la /Credits — plata nu
+    schimbă nimic.
+  - Chei noi în **7 limbi**: `ProfileLimitReached`, `ProfileLimitTooltip` (ambele cu `{0}` = 20).
+  - Clinicile (CAM/B2B) nu sunt afectate.
+  - Testat: probă nouă `/app/memory/probes/ProfileLimitProbe.cs.txt` (proiect
+    `/app/probe_profile_limit`) — **18/18 PASS** (regula, POST-ul real refuzat fără scriere în DB,
+    creare permisă la 19, contul „grandfathered” intact, mesajul corect pe fiecare motiv,
+    ViewBag-urile, cele 7 traduceri cu placeholder). Build 0 warning-uri.
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard

@@ -76,6 +76,9 @@
                                 // Feb 2026 anti-abuse gate — B2C users need paid credits
                                 // to add extra family profiles (see ProfileGateService).
                                 var canCreateProfile = ViewBag.CanCreateProfile as bool? ?? true;
+                                // June 2026: 20 profiles maximum — buying credits
+                                // does not lift this, so don't send them to /Credits.
+                                var atProfileLimit = ViewBag.ProfileLimitReached as bool? ?? false;
                             }
                             <div class="input-group profile-select-group">
                                 <select asp-for="ProfileId" class="form-select form-select-lg profile-select-input"
@@ -96,6 +99,14 @@
                                        data-testid="interpret-add-profile-btn">
                                         &#43; @Loc.T("InterpretAddProfileBtn")
                                     </a>
+                                }
+                                else if (atProfileLimit)
+                                {
+                                    <span class="btn btn-outline-secondary disabled"
+                                          title="@string.Format(Loc.T("ProfileLimitTooltip"), MedicalApp.Services.ProfileGateService.MaxProfilesPerUser)"
+                                          data-testid="interpret-add-profile-btn-maxed">
+                                        &#128274; @Loc.T("InterpretAddProfileBtn")
+                                    </span>
                                 }
                                 else
                                 {

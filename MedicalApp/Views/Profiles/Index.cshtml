@@ -28,12 +28,23 @@
                         // rendered as a locked variant that redirects to /Credits
                         // instead of the create form.
                         var canCreate = ViewBag.CanCreateProfile as bool? ?? true;
+                        // June 2026: hard cap of 20 profiles. The locked button must
+                        // NOT point to /Credits in that case — paying changes nothing.
+                        var atProfileLimit = ViewBag.ProfileLimitReached as bool? ?? false;
                     }
                     @if (canCreate)
                     {
                         <a asp-action="Create" class="btn btn-primary" data-testid="btn-create-profile">
                             &#43; @Loc.T("ProfileFormHeadingNew")
                         </a>
+                    }
+                    else if (atProfileLimit)
+                    {
+                        <span class="btn btn-outline-secondary disabled"
+                              data-testid="btn-create-profile-maxed"
+                              title="@string.Format(Loc.T("ProfileLimitTooltip"), MedicalApp.Services.ProfileGateService.MaxProfilesPerUser)">
+                            &#128274; @Loc.T("ProfileFormHeadingNew")
+                        </span>
                     }
                     else
                     {
@@ -51,6 +62,13 @@
                 @Loc.T("ProfilesIntro")
             </p>
 
+            @if (atProfileLimit)
+            {
+                <div class="alert alert-warning" data-testid="profile-limit-notice">
+                    &#128274; @string.Format(Loc.T("ProfileLimitReached"),
+                        MedicalApp.Services.ProfileGateService.MaxProfilesPerUser)
+                </div>
+            }
             @if (!string.IsNullOrEmpty(successMessage))
             {
                 <div class="alert alert-success" data-testid="profile-success-msg">@successMessage</div>

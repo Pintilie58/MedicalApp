@@ -98,6 +98,8 @@ namespace MedicalApp.Controllers
                 .FirstOrDefaultAsync(u => u.Email == CurrentEmail);
             ViewBag.CanCreateProfile =
                 ProfileGateService.CanCreateAdditionalProfile(user, profiles.Count);
+            ViewBag.ProfileLimitReached =
+                ProfileGateService.IsAtProfileLimit(user, profiles.Count);
 
             return View(vm);
         }
@@ -1862,11 +1864,12 @@ namespace MedicalApp.Controllers
                 return RedirectToAction("Index", "Home");
 
             // Anti-abuse gate (Feb 2026): B2C users need paid credits to add
-            // extra profiles. Bypassed by direct URL navigation without this
-            // check. See ProfileGateService for details.
-            if (!await UserCanCreateAnotherProfileAsync())
+            // extra profiles; hard cap of 20 profiles since June 2026.
+            // Bypassed by direct URL navigation without this check.
+            var gate = await UserCanCreateAnotherProfileAsync();
+            if (!gate.Ok)
             {
-                TempData["ErrorMessage"] = Loc.T("ProfileLockRequirePaidCredits");
+                TempData["ErrorMessage"] = ProfileRefusalMessage(gate.AtLimit);
                 return RedirectToAction(nameof(Index));
             }
 
@@ -1884,9 +1887,10 @@ namespace MedicalApp.Controllers
             // guard so an attacker cannot bypass the disabled button by
             // POSTing directly (curl/Postman/DevTools). Must never be removed
             // even if the view-level check is refactored away.
-            if (!await UserCanCreateAnotherProfileAsync())
+            var gate = await UserCanCreateAnotherProfileAsync();
+            if (!gate.Ok)
             {
-                TempData["ErrorMessage"] = Loc.T("ProfileLockRequirePaidCredits");
+                TempData["ErrorMessage"] = ProfileRefusalMessage(gate.AtLimit);
                 return RedirectToAction(nameof(Index));
             }
 
@@ -2041,15 +2045,24 @@ namespace MedicalApp.Controllers
         /// they already own. Returns false when the current user context is
         /// broken (session cleared, user row deleted) — safest default.
         /// </summary>
-        private async Task<bool> UserCanCreateAnotherProfileAsync()
+        private async Task<(bool Ok, bool AtLimit)> UserCanCreateAnotherProfileAsync()
         {
-            if (string.IsNullOrEmpty(CurrentEmail)) return false;
+            if (string.IsNullOrEmpty(CurrentEmail)) return (false, false);
             var user = await _db.Users.AsNoTracking()
                 .FirstOrDefaultAsync(u => u.Email == CurrentEmail);
-            if (user == null) return false;
+            if (user == null) return (false, false);
             var profileCount = await _db.Profiles
                 .CountAsync(p => p.UserEmail == CurrentEmail);
-            return ProfileGateService.CanCreateAdditionalProfile(user, profileCount);
+            return (ProfileGateService.CanCreateAdditionalProfile(user, profileCount),
+                    ProfileGateService.IsAtProfileLimit(user, profileCount));
         }
+
+        /// <summary>
+        /// The message that explains WHY a new profile was refused: the hard cap
+        /// of 20 profiles, or the missing paid credits.
+        /// </summary>
+        private static string ProfileRefusalMessage(bool atLimit) => atLimit
+            ? string.Format(Loc.T("ProfileLimitReached"), ProfileGateService.MaxProfilesPerUser)
+            : Loc.T("ProfileLockRequirePaidCredits");
     }
 }

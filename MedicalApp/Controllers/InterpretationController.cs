@@ -119,6 +119,8 @@ namespace MedicalApp.Controllers
             // ProfilesController.Create; this ViewBag is UI-only.
             ViewBag.CanCreateProfile =
                 ProfileGateService.CanCreateAdditionalProfile(user, profiles.Count);
+            ViewBag.ProfileLimitReached =
+                ProfileGateService.IsAtProfileLimit(user, profiles.Count);
 
             // A background job from an earlier visit may still be running — tell
             // the user instead of letting them start a second one and get refused.

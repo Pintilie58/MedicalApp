@@ -1145,6 +1145,8 @@ namespace MedicalApp.Services
                 ["DragDropHint"] = "or drag & drop the PDF here",
                 // --- Profile creation gate (Feb 2026 anti-abuse) ---
                 ["ProfileLockRequirePaidCredits"] = "Adding family profiles requires paid credits. Buy credits to unlock this feature.",
+                ["ProfileLimitReached"] = "You have reached the maximum of {0} profiles per account. Delete a profile you no longer use in order to add a new one.",
+                ["ProfileLimitTooltip"] = "Maximum {0} profiles per account",
                 ["ProfileLockTooltip"] = "Buy credits to unlock family profiles",
                 // --- Admin/Index LOINC health widget (inline JS labels) ---
                 ["AdminBtnDailySummaryTitle"] = "Send the daily summary to all admins now",
@@ -2316,6 +2318,8 @@ namespace MedicalApp.Services
                 ["DragDropHint"] = "sau trage & plasează PDF-ul aici",
                 // --- Profile creation gate (Feb 2026 anti-abuse) ---
                 ["ProfileLockRequirePaidCredits"] = "Adăugarea de profile pentru familie necesită credite plătite. Cumpără credite pentru a debloca această funcție.",
+                ["ProfileLimitReached"] = "Ai atins numărul maxim de {0} profile pe cont. Șterge un profil pe care nu îl mai folosești ca să poți adăuga unul nou.",
+                ["ProfileLimitTooltip"] = "Maximum {0} profile pe cont",
                 ["ProfileLockTooltip"] = "Cumpără credite pentru a debloca profile de familie",
                 // --- Admin/Index LOINC health widget ---
                 ["AdminBtnDailySummaryTitle"] = "Trimite acum rezumatul zilnic către toți adminii",
@@ -3466,6 +3470,8 @@ namespace MedicalApp.Services
                 ["DragDropHint"] = "ou glissez-déposez le PDF ici",
                 // --- Profile creation gate (Feb 2026 anti-abuse) ---
                 ["ProfileLockRequirePaidCredits"] = "L'ajout de profils familiaux nécessite des crédits payés. Achetez des crédits pour débloquer cette fonction.",
+                ["ProfileLimitReached"] = "Vous avez atteint le maximum de {0} profils par compte. Supprimez un profil que vous n'utilisez plus pour en ajouter un nouveau.",
+                ["ProfileLimitTooltip"] = "Maximum {0} profils par compte",
                 ["ProfileLockTooltip"] = "Achetez des crédits pour débloquer les profils familiaux",
                 // --- Admin/Index LOINC health widget ---
                 ["AdminBtnDailySummaryTitle"] = "Envoyer maintenant le résumé quotidien à tous les admins",
@@ -4616,6 +4622,8 @@ namespace MedicalApp.Services
                 ["DragDropHint"] = "o arrastra y suelta el PDF aquí",
                 // --- Profile creation gate (Feb 2026 anti-abuse) ---
                 ["ProfileLockRequirePaidCredits"] = "Añadir perfiles familiares requiere créditos de pago. Compra créditos para desbloquear esta función.",
+                ["ProfileLimitReached"] = "Has alcanzado el máximo de {0} perfiles por cuenta. Elimina un perfil que ya no uses para poder añadir uno nuevo.",
+                ["ProfileLimitTooltip"] = "Máximo {0} perfiles por cuenta",
                 ["ProfileLockTooltip"] = "Compra créditos para desbloquear perfiles familiares",
                 // --- Admin/Index LOINC health widget ---
                 ["AdminBtnDailySummaryTitle"] = "Enviar ahora el resumen diario a todos los administradores",
@@ -5766,6 +5774,8 @@ namespace MedicalApp.Services
                 ["DragDropHint"] = "oder PDF hierher ziehen",
                 // --- Profile creation gate (Feb 2026 anti-abuse) ---
                 ["ProfileLockRequirePaidCredits"] = "Das Hinzufügen von Familienprofilen erfordert bezahlte Credits. Kaufe Credits, um diese Funktion freizuschalten.",
+                ["ProfileLimitReached"] = "Du hast das Maximum von {0} Profilen pro Konto erreicht. Lösche ein Profil, das du nicht mehr brauchst, um ein neues anzulegen.",
+                ["ProfileLimitTooltip"] = "Maximal {0} Profile pro Konto",
                 ["ProfileLockTooltip"] = "Credits kaufen, um Familienprofile freizuschalten",
                 // --- Admin/Index LOINC health widget ---
                 ["AdminBtnDailySummaryTitle"] = "Tageszusammenfassung jetzt an alle Admins senden",
@@ -6851,6 +6861,8 @@ namespace MedicalApp.Services
                 ["DragDropHint"] = "oppure trascina qui il PDF",
                 // --- Profile creation gate (Feb 2026 anti-abuse) ---
                 ["ProfileLockRequirePaidCredits"] = "L'aggiunta di profili familiari richiede crediti a pagamento. Acquista crediti per sbloccare questa funzionalità.",
+                ["ProfileLimitReached"] = "Hai raggiunto il massimo di {0} profili per account. Elimina un profilo che non usi più per aggiungerne uno nuovo.",
+                ["ProfileLimitTooltip"] = "Massimo {0} profili per account",
                 ["ProfileLockTooltip"] = "Acquista crediti per sbloccare i profili familiari",
                 ["AdminBtnDailySummaryTitle"] = "Invia ora il riepilogo giornaliero a tutti gli amministratori",
                 ["AdminLoincHealthChecking"] = "Verifica in corso...",
@@ -7932,6 +7944,8 @@ namespace MedicalApp.Services
                 ["DragDropHint"] = "ou arraste o PDF para aqui",
                 // --- Profile creation gate (Feb 2026 anti-abuse) ---
                 ["ProfileLockRequirePaidCredits"] = "Adicionar perfis familiares requer créditos pagos. Compra créditos para desbloquear esta funcionalidade.",
+                ["ProfileLimitReached"] = "Atingiste o máximo de {0} perfis por conta. Elimina um perfil que já não usas para poderes adicionar um novo.",
+                ["ProfileLimitTooltip"] = "Máximo de {0} perfis por conta",
                 ["ProfileLockTooltip"] = "Compra créditos para desbloquear perfis familiares",
                 ["AdminBtnDailySummaryTitle"] = "Enviar agora o resumo diário a todos os administradores",
                 ["AdminLoincHealthChecking"] = "A verificar...",

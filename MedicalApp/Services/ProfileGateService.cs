@@ -26,9 +26,32 @@ namespace MedicalApp.Services
     ///
     /// Grandfather clause (2a): existing users with multiple profiles created
     /// before this rule existed keep them. Only NEW profile creation is gated.
+    ///
+    /// Hard cap (June 2026): a B2C account may hold at most
+    /// <see cref="MaxProfilesPerUser"/> profiles, paid credits or not. This is
+    /// an operational safety limit (every profile multiplies the archive,
+    /// charts and dossier queries), not a monetisation gate. Accounts that
+    /// somehow already exceed it keep every profile they have — only creating
+    /// a NEW one is refused.
     /// </summary>
     public static class ProfileGateService
     {
+        /// <summary>Maximum number of profiles a B2C account may own.</summary>
+        public const int MaxProfilesPerUser = 20;
+
+        /// <summary>
+        /// True when the account has reached (or passed) the hard cap, so the
+        /// caller can show the "20 profiles maximum" message instead of the
+        /// "buy credits" one. Clinic accounts are never capped here.
+        /// </summary>
+        public static bool IsAtProfileLimit(User? user, int currentProfileCount)
+        {
+            if (user == null) return false;
+            if (!string.Equals(user.UserType, "Individual", StringComparison.OrdinalIgnoreCase))
+                return false;
+            return currentProfileCount >= MaxProfilesPerUser;
+        }
+
         /// <summary>
         /// Returns <c>true</c> when the given user is allowed to create ANOTHER
         /// profile beyond the ones they already own.
@@ -45,6 +68,9 @@ namespace MedicalApp.Services
             // own billing model and are out of scope for this rule.
             if (!string.Equals(user.UserType, "Individual", StringComparison.OrdinalIgnoreCase))
                 return true;
+
+            // Hard cap first: it applies even to users with paid credits.
+            if (IsAtProfileLimit(user, currentProfileCount)) return false;
 
             // Defensive: a B2C user with zero profiles shouldn't exist in
             // production (registration seeds "Eu"), but if the seed ever fails
