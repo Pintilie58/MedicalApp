@@ -57,6 +57,11 @@
                    data-testid="users-filter-clinic">
                     <i class="bi bi-hospital"></i> Clinics
                 </a>
+                <a asp-action="Users" asp-route-q="@query" asp-route-type="cabinet"
+                   class="btn btn-sm @(typeFilter == "cabinet" ? "btn-success" : "btn-outline-success")"
+                   data-testid="users-filter-cabinet">
+                    <i class="bi bi-clipboard2-pulse"></i> Cabinets
+                </a>
             </div>
         </div>
     </form>
@@ -102,6 +107,19 @@
                                     {
                                         <div class="small text-muted mt-1" data-testid="user-clinic-name">
                                             @item.ClinicName
+                                        </div>
+                                    }
+                                }
+                                else if (MedicalApp.Services.AccountTypes.IsCabinet(u.UserType))
+                                {
+                                    <span class="badge bg-success" data-testid="user-type-badge"
+                                          title="CM account (Cabinet Medical / family doctor)">
+                                        <i class="bi bi-clipboard2-pulse"></i> Cabinet
+                                    </span>
+                                    @if (!string.IsNullOrWhiteSpace(u.CabinetName))
+                                    {
+                                        <div class="small text-muted mt-1" data-testid="user-cabinet-name">
+                                            @u.CabinetName
                                         </div>
                                     }
                                 }

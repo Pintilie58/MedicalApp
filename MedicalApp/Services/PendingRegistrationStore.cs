@@ -24,8 +24,11 @@ namespace MedicalApp.Services
         // Carried verbatim from the register form so we can create the
         // matching Clinic row right after the user verifies their email.
 
-        /// <summary>"Individual" (default) or "Clinic".</summary>
+        /// <summary>"Individual" (default), "Clinic" or "Cabinet".</summary>
         public string UserType { get; set; } = "Individual";
+
+        /// <summary>Practice name, carried through for "Cabinet" sign-ups.</summary>
+        public string? CabinetName { get; set; }
 
         public string? ClinicName { get; set; }
         public string? ClinicCity { get; set; }

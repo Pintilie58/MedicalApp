@@ -719,7 +719,8 @@ namespace MedicalApp.Controllers
             // Normalize the type filter so the view can reuse it for the
             // active-button highlight without re-parsing.
             var typeFilter = (type ?? "all").Trim().ToLowerInvariant();
-            if (typeFilter != "individual" && typeFilter != "clinic") typeFilter = "all";
+            if (typeFilter != "individual" && typeFilter != "clinic" && typeFilter != "cabinet")
+                typeFilter = "all";
 
             IQueryable<User> query = _db.Users.OrderByDescending(u => u.DataC);
             if (!string.IsNullOrWhiteSpace(q))
@@ -734,6 +735,10 @@ namespace MedicalApp.Controllers
             else if (typeFilter == "clinic")
             {
                 query = query.Where(u => u.UserType == "Clinic");
+            }
+            else if (typeFilter == "cabinet")
+            {
+                query = query.Where(u => u.UserType == "Cabinet");
             }
 
             var total = await query.CountAsync();

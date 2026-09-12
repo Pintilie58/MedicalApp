@@ -28,33 +28,48 @@ namespace MedicalApp.Services
     /// before this rule existed keep them. Only NEW profile creation is gated.
     ///
     /// Hard cap (June 2026): a B2C account may hold at most
-    /// <see cref="MaxProfilesPerUser"/> profiles, paid credits or not. This is
-    /// an operational safety limit (every profile multiplies the archive,
-    /// charts and dossier queries), not a monetisation gate. Accounts that
-    /// somehow already exceed it keep every profile they have — only creating
-    /// a NEW one is refused.
+    /// <see cref="MaxProfilesPerUser"/> profiles and a Cabinet Medical account
+    /// at most <see cref="MaxProfilesPerCabinet"/> patients, paid credits or
+    /// not. This is an operational safety limit (every profile multiplies the
+    /// archive, charts and dossier queries), not a monetisation gate. Accounts
+    /// that somehow already exceed it keep every profile they have — only
+    /// creating a NEW one is refused.
     /// </summary>
     public static class ProfileGateService
     {
         /// <summary>Maximum number of profiles a B2C account may own.</summary>
         public const int MaxProfilesPerUser = 20;
 
-        /// <summary>
-        /// True for the accounts the cap applies to: B2C ("Individual") only —
-        /// clinics run on a different model. Used by the views to decide whether
-        /// the "X of 20 profiles used" counter makes any sense for this account.
-        /// </summary>
-        public static bool IsCapped(User? user) =>
-            user != null
-            && string.Equals(user.UserType, "Individual", StringComparison.OrdinalIgnoreCase);
+        /// <summary>Maximum number of patients a Cabinet Medical account may own.</summary>
+        public const int MaxProfilesPerCabinet = 2000;
 
         /// <summary>
-        /// True when the account has reached (or passed) the hard cap, so the
-        /// caller can show the "20 profiles maximum" message instead of the
-        /// "buy credits" one. Clinic accounts are never capped here.
+        /// The cap that applies to this account, or <c>null</c> when there is
+        /// none (clinics run on the CAM model and are not capped here).
+        /// </summary>
+        public static int? LimitFor(User? user)
+        {
+            if (user == null) return null;
+            if (AccountTypes.IsClinic(user.UserType)) return null;
+            return AccountTypes.IsCabinet(user.UserType)
+                ? MaxProfilesPerCabinet
+                : MaxProfilesPerUser;
+        }
+
+        /// <summary>
+        /// True for the accounts a cap applies to (B2C and Cabinet Medical).
+        /// Used by the views to decide whether the "X of N profiles used"
+        /// counter makes any sense for this account.
+        /// </summary>
+        public static bool IsCapped(User? user) => LimitFor(user) != null;
+
+        /// <summary>
+        /// True when the account has reached (or passed) its cap, so the caller
+        /// can show the "N profiles maximum" message instead of the "buy
+        /// credits" one. Clinic accounts are never capped here.
         /// </summary>
         public static bool IsAtProfileLimit(User? user, int currentProfileCount)
-            => IsCapped(user) && currentProfileCount >= MaxProfilesPerUser;
+            => LimitFor(user) is int max && currentProfileCount >= max;
 
         /// <summary>
         /// Returns <c>true</c> when the given user is allowed to create ANOTHER
@@ -68,10 +83,11 @@ namespace MedicalApp.Services
         {
             if (user == null) return false;
 
-            // 3a — Only B2C (Individual) is gated. Clinic accounts have their
-            // own billing model and are out of scope for this rule.
-            if (!string.Equals(user.UserType, "Individual", StringComparison.OrdinalIgnoreCase))
-                return true;
+            // 3a — Clinic accounts have their own billing model and are out of
+            // scope for this rule. Cabinet Medical accounts ARE gated: the paid
+            // credit requirement applies to them exactly like to B2C
+            // (user decision, June 2026).
+            if (AccountTypes.IsClinic(user.UserType)) return true;
 
             // Hard cap first: it applies even to users with paid credits.
             if (IsAtProfileLimit(user, currentProfileCount)) return false;

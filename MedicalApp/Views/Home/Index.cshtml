@@ -136,10 +136,10 @@
                                    a single Individual pill — B2B signup is blocked for that flow. *@
                                 <div class="mb-3" data-testid="register-usertype-group">
                                     <label class="form-label fw-semibold">@Loc.T("UserTypeLabel")</label>
-                                    <div class="btn-group w-100" role="group" aria-label="User type">
+                                    <div class="btn-group w-100 flex-wrap" role="group" aria-label="User type">
                                         <input type="radio" class="btn-check" name="UserType" id="userTypeIndividual"
                                                value="Individual" autocomplete="off"
-                                               @(isFreeFlow || !string.Equals(registerModel.UserType, "Clinic", System.StringComparison.OrdinalIgnoreCase) ? "checked" : "")
+                                               @(isFreeFlow || AccountTypes.Normalize(registerModel.UserType) == AccountTypes.Individual ? "checked" : "")
                                                data-testid="register-usertype-individual" />
                                         <label class="btn btn-outline-primary" for="userTypeIndividual">
                                             &#128106; @Loc.T("UserTypeIndividual")
@@ -149,17 +149,39 @@
                                         {
                                             <input type="radio" class="btn-check" name="UserType" id="userTypeClinic"
                                                    value="Clinic" autocomplete="off"
-                                                   @(string.Equals(registerModel.UserType, "Clinic", System.StringComparison.OrdinalIgnoreCase) ? "checked" : "")
+                                                   @(AccountTypes.IsClinic(registerModel.UserType) ? "checked" : "")
                                                    data-testid="register-usertype-clinic" />
                                             <label class="btn btn-outline-primary" for="userTypeClinic">
                                                 &#127973; @Loc.T("UserTypeClinic")
+                                            </label>
+
+                                            <input type="radio" class="btn-check" name="UserType" id="userTypeCabinet"
+                                                   value="Cabinet" autocomplete="off"
+                                                   @(AccountTypes.IsCabinet(registerModel.UserType) ? "checked" : "")
+                                                   data-testid="register-usertype-cabinet" />
+                                            <label class="btn btn-outline-primary" for="userTypeCabinet">
+                                                &#129658; @Loc.T("UserTypeCabinet")
                                             </label>
                                         }
                                     </div>
                                 </div>
 
+                                @* CM: singurul câmp suplimentar al cabinetului — numele cabinetului *@
+                                <div id="cabinetFields" style="display:@(AccountTypes.IsCabinet(registerModel.UserType) ? "block" : "none");">
+                                    <div class="alert alert-info py-2 small mb-3" data-testid="register-cabinet-note">
+                                        &#8505; @Loc.T("RegisterCabinetNote")
+                                    </div>
+                                    <div class="mb-3">
+                                        <label asp-for="@registerModel.CabinetName" class="form-label">@Loc.T("CabinetNameLabel")</label>
+                                        <input asp-for="@registerModel.CabinetName" name="CabinetName" class="form-control"
+                                               autocomplete="off" placeholder="@Loc.T("CabinetNamePlaceholder")"
+                                               data-testid="register-cabinet-name" />
+                                        <span asp-validation-for="@registerModel.CabinetName" class="text-danger small"></span>
+                                    </div>
+                                </div>
+
                                 @* CAM: câmpurile suplimentare pentru clinică — vizibile doar când UserType=Clinic *@
-                                <div id="clinicFields" style="display:@(string.Equals(registerModel.UserType, "Clinic", StringComparison.OrdinalIgnoreCase) ? "block" : "none");">
+                                <div id="clinicFields" style="display:@(AccountTypes.IsClinic(registerModel.UserType) ? "block" : "none");">
                                     <div class="alert alert-info py-2 small mb-3" data-testid="register-clinic-gdpr-note">
                                         &#9888; @Loc.T("RegisterClinicGdprNote")
                                         <div class="mt-2 d-flex align-items-start gap-2" data-testid="register-clinic-windows-note">
@@ -299,17 +321,22 @@
             });
         })();
 
-        // CAM: arată/ascunde câmpurile clinică în funcție de tipul de cont selectat.
+        // CAM/CM: arată câmpurile clinicii sau ale cabinetului, după tipul de cont.
         (function () {
-            var rIndividual = document.getElementById('userTypeIndividual');
-            var rClinic = document.getElementById('userTypeClinic');
+            var radios = document.querySelectorAll('input[name="UserType"]');
             var clinicFields = document.getElementById('clinicFields');
-            if (!rIndividual || !rClinic || !clinicFields) return;
-            function refresh() {
-                clinicFields.style.display = rClinic.checked ? 'block' : 'none';
+            var cabinetFields = document.getElementById('cabinetFields');
+            if (!radios.length) return;
+            function selected() {
+                for (var i = 0; i < radios.length; i++) if (radios[i].checked) return radios[i].value;
+                return 'Individual';
             }
-            rIndividual.addEventListener('change', refresh);
-            rClinic.addEventListener('change', refresh);
+            function refresh() {
+                var type = selected();
+                if (clinicFields) clinicFields.style.display = (type === 'Clinic') ? 'block' : 'none';
+                if (cabinetFields) cabinetFields.style.display = (type === 'Cabinet') ? 'block' : 'none';
+            }
+            radios.forEach(function (r) { r.addEventListener('change', refresh); });
             refresh();
         })();
     </script>

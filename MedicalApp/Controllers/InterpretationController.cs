@@ -123,6 +123,7 @@ namespace MedicalApp.Controllers
                 ProfileGateService.IsAtProfileLimit(user, profiles.Count);
             ViewBag.ProfileCount = profiles.Count;
             ViewBag.ProfileCapApplies = ProfileGateService.IsCapped(user);
+            ViewBag.ProfileLimit = ProfileGateService.LimitFor(user) ?? 0;
 
             // A background job from an earlier visit may still be running — tell
             // the user instead of letting them start a second one and get refused.

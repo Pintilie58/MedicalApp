@@ -776,6 +776,10 @@ namespace MedicalApp.Migrations
                     b.Property<int>("BonusCreditsConsumed")
                         .HasColumnType("int");
 
+                    b.Property<string>("CabinetName")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
                     b.Property<int>("CreditConsum")
                         .HasColumnType("int");
 

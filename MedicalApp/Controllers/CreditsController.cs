@@ -48,10 +48,10 @@ namespace MedicalApp.Controllers
             ViewBag.BonusRemaining = user?.BonusCreditsRemaining ?? 0;
             ViewBag.TotalAvailable = user?.TotalAvailableCredits ?? 0;
 
-            // CAM users see CAM packages, Individual users see B2C packages.
-            // Defaults to "Individual" if the field is missing for any reason.
-            var audience = string.Equals(user?.UserType, "Clinic", StringComparison.OrdinalIgnoreCase)
-                ? "Clinic" : "Individual";
+            // Each account type sees only its own offer: CAM packages for
+            // clinics, the single cabinet package for a practice, the four B2C
+            // tiers for everyone else.
+            var audience = AccountTypes.Normalize(user?.UserType);
             ViewBag.Audience = audience;
             return View(CreditPackages.ForAudience(audience).ToList());
         }
@@ -59,9 +59,10 @@ namespace MedicalApp.Controllers
         // ---------- Checkout: show simulated card form ----------
 
         [HttpGet]
-        public IActionResult Checkout(string? package)
+        public async Task<IActionResult> Checkout(string? package)
         {
-            if (string.IsNullOrEmpty(HttpContext.Session.GetString("UserEmail")))
+            var email = HttpContext.Session.GetString("UserEmail");
+            if (string.IsNullOrEmpty(email))
                 return RedirectToAction("Index", "Home");
 
             if (string.IsNullOrEmpty(package))
@@ -71,9 +72,22 @@ namespace MedicalApp.Controllers
             if (selected == null)
                 return RedirectToAction(nameof(Buy));
 
+            // A package belongs to ONE audience: a cabinet must not buy the B2C
+            // tiers by typing a URL, and vice versa.
+            var userType = await _db.Users.AsNoTracking()
+                .Where(u => u.Email == email)
+                .Select(u => u.UserType)
+                .FirstOrDefaultAsync();
+            if (!PackageMatchesAccount(selected, userType))
+                return RedirectToAction(nameof(Buy));
+
             ViewBag.Package = selected;
             return View(new CheckoutViewModel { PackageKey = selected.Key });
         }
+
+        private static bool PackageMatchesAccount(CreditPackage package, string? userType) =>
+            string.Equals(package.Audience, AccountTypes.Normalize(userType),
+                          StringComparison.OrdinalIgnoreCase);
 
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -99,6 +113,11 @@ namespace MedicalApp.Controllers
                 HttpContext.Session.Clear();
                 return RedirectToAction("Index", "Home");
             }
+
+            // Same guard as the GET: money is only taken for a package this
+            // account type is actually allowed to buy.
+            if (!PackageMatchesAccount(selected, user.UserType))
+                return RedirectToAction(nameof(Buy));
 
             // Evaluated BEFORE the Purchase row below is inserted: the freemium
             // ("DEMO") report is unlocked+emailed only on the very FIRST purchase.

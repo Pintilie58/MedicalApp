@@ -45,7 +45,13 @@ namespace MedicalApp.Services
             // care le conține se afișează corect pe baza credit/eur snapshot-uite.
             new("cam_starter",    "PackageCamStarter",    50m,   17,  "Clinic"),
             new("cam_business",   "PackageCamBusiness",   500m,  183, "Clinic"),
-            new("cam_enterprise", "PackageCamEnterprise", 1000m, 390, "Clinic")
+            new("cam_enterprise", "PackageCamEnterprise", 1000m, 390, "Clinic"),
+
+            // ----- CM (Cabinet Medical, iunie 2026) -----
+            // Un singur pachet: 89 EUR → 45 credite (~1.98 EUR/credit). Aceeași
+            // valoare ca "Premium" B2C, dar ofertă SEPARATĂ, ca prețul/creditele
+            // cabinetului să poată fi schimbate fără să atingă persoanele fizice.
+            new("cabinet_premium", "PackageCabinetPremium", 89m, 45, "Cabinet")
         };
 
         public static CreditPackage? GetByKey(string key) =>

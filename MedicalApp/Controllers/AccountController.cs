@@ -87,17 +87,22 @@ namespace MedicalApp.Controllers
             var isFreeFlow = string.Equals(Request.Form["flow"], "free", StringComparison.OrdinalIgnoreCase);
             if (isFreeFlow)
             {
-                model.UserType = "Individual";
+                model.UserType = AccountTypes.Individual;
                 model.ClinicName = null;
                 model.ClinicCity = null;
                 model.ClinicAddress = null;
+                model.CabinetName = null;
                 ViewData["Flow"] = "free";
             }
+
+            // Anything unrecognised becomes "Individual" (see AccountTypes), so a
+            // hand-crafted POST cannot invent an account type.
+            model.UserType = AccountTypes.Normalize(model.UserType);
 
             // CAM: dacă userul a ales "Clinic", numele clinicii / localitatea /
             // adresa devin obligatorii. Validăm aici pentru că [Required] pe
             // ViewModel ar bloca și fluxul "Individual".
-            if (string.Equals(model.UserType, "Clinic", StringComparison.OrdinalIgnoreCase))
+            if (AccountTypes.IsClinic(model.UserType))
             {
                 if (string.IsNullOrWhiteSpace(model.ClinicName))
                     ModelState.AddModelError(nameof(model.ClinicName), Loc.T("ClinicNameRequired"));
@@ -105,11 +110,20 @@ namespace MedicalApp.Controllers
                     ModelState.AddModelError(nameof(model.ClinicCity), Loc.T("ClinicCityRequired"));
                 if (string.IsNullOrWhiteSpace(model.ClinicAddress))
                     ModelState.AddModelError(nameof(model.ClinicAddress), Loc.T("ClinicAddressRequired"));
+                model.CabinetName = null;
+            }
+            else if (AccountTypes.IsCabinet(model.UserType))
+            {
+                // CM: the practice name is the only extra field, and it is required.
+                if (string.IsNullOrWhiteSpace(model.CabinetName))
+                    ModelState.AddModelError(nameof(model.CabinetName), Loc.T("CabinetNameRequired"));
+                model.ClinicName = null;
+                model.ClinicCity = null;
+                model.ClinicAddress = null;
             }
             else
             {
-                // Forțează "Individual" pentru orice valoare neașteptată.
-                model.UserType = "Individual";
+                model.CabinetName = null;
             }
 
             if (!ModelState.IsValid)
@@ -156,8 +170,10 @@ namespace MedicalApp.Controllers
                 // CAM: carry the clinic-specific fields through email verification
                 // so we can create the matching Clinic row right after the user
                 // confirms their email.
-                UserType = string.Equals(model.UserType, "Clinic", StringComparison.OrdinalIgnoreCase)
-                    ? "Clinic" : "Individual",
+                UserType = AccountTypes.Normalize(model.UserType),
+                CabinetName = AccountTypes.IsCabinet(model.UserType)
+                    ? model.CabinetName?.Trim()
+                    : null,
                 ClinicName = model.ClinicName?.Trim(),
                 ClinicCity = model.ClinicCity?.Trim(),
                 ClinicAddress = model.ClinicAddress?.Trim()
@@ -245,8 +261,10 @@ namespace MedicalApp.Controllers
                 CreditRest = 0,
                 FreeArchiveUntil = DateTime.UtcNow.Add(MedicalApp.Services.ArchiveAccessService.FreePeriod),
                 IsAdmin = _adminSettings.IsAdminEmail(pending.Email),
-                UserType = string.Equals(pending.UserType, "Clinic", StringComparison.OrdinalIgnoreCase)
-                    ? "Clinic" : "Individual"
+                UserType = AccountTypes.Normalize(pending.UserType),
+                CabinetName = AccountTypes.IsCabinet(pending.UserType)
+                    ? pending.CabinetName?.Trim()
+                    : null
             };
 
             // Apply promo code (if any and valid) - case-insensitive lookup.

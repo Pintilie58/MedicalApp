@@ -379,6 +379,40 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
     diagnostic 13/13, cache LOINC, unificator LOINC. ScaleOutProbe: 2 eșecuri strict de mediu
     (Azurite nu rulează în container). Layout verificat prin screenshot la 390 px și 1920 px.
 
+- **Tip de cont nou „Cabinet Medical” (CM) — etapa 1** (iunie 2026, plan în `/app/plan/plan.md`):
+  - `Services/AccountTypes.cs` (nou): cele trei tipuri într-un singur loc — `Individual`,
+    `Clinic`, `Cabinet`; `Normalize()` duce orice valoare necunoscută la `Individual`.
+  - **Înregistrare**: a treia opțiune „Cabinet Medical”, cu un singur câmp suplimentar
+    obligatoriu — **Numele cabinetului** (max 150). Fluxul „interpretare gratuită” (`flow=free`)
+    continuă să forțeze `Individual`, deci nu se poate crea un cabinet pe acolo.
+  - **După confirmarea emailului**: 1 credit bonus (ca la B2C) și aterizare direct pe ecranul de
+    interpretare. Nu se creează rând în `Clinics` și nu se folosesc ecranele CAM.
+  - **Preț**: pachet propriu, separat de B2C — `cabinet_premium`, **89 € = 45 credite**. Cabinetul
+    nu vede pachetele B2C sau CAM. Nou: `Checkout` (GET și POST) refuză un pachet care nu aparține
+    tipului de cont, deci nimeni nu mai poate cumpăra alt pachet scriind URL-ul.
+  - **Plafon**: 2000 de pacienți (`MaxProfilesPerCabinet`), B2C rămâne la 20, clinicile
+    neplafonate. Regula „profile suplimentare doar cu credite plătite” se aplică și cabinetului
+    (decizia utilizatorului). Contorul devine „X profile create — max 2000”.
+  - **Blurare**: neschimbată — raportul pe creditul bonus e blurat până la prima achiziție, iar la
+    prima achiziție se debluează retroactiv și se trimite pe email (mecanismul B2C existent, care
+    exclude doar clinicile).
+  - **Admin**: badge verde „Cabinet” cu numele cabinetului + filtru nou „Cabinets” în lista de
+    utilizatori. NU s-a adăugat migrarea manuală a conturilor existente (decizia utilizatorului).
+  - Chei noi în **7 limbi**: `UserTypeCabinet`, `CabinetNameLabel`, `CabinetNamePlaceholder`,
+    `CabinetNameRequired`, `RegisterCabinetNote`, `PackageCabinetPremium`.
+  - **DB**: migrare `AddCabinetAccountType` — o singură coloană nouă, `Users.CabinetName`
+    `nvarchar(150) NULL`. Aditivă, reversibilă, fără atingerea datelor existente.
+  - Testat: probă nouă `/app/memory/probes/CabinetAccountProbe.cs.txt` (proiect
+    `/app/probe_cabinet`) — **42/42 PASS** (înregistrare completă până la cont creat, validarea
+    numelui, fluxul free forțat pe Individual, pachetul unic, refuzul cumpărării unui pachet
+    străin, achiziția reală cu deblurare retroactivă, plafonul 1999/2000/2500, regula creditelor,
+    ViewBag-urile pentru contor, cele 7 limbi, filtrele din admin, plus regresii B2C și CAM).
+    Regresie verde: B2C 80/80, split 49/49, plafon profile 21/21, DI, indexuri 17/17, diagnostic
+    13/13; `has-pending-model-changes` ⇒ „No changes”; build 0 warning-uri; UI verificat la 390 px
+    și 1920 px.
+  - **Etapa 2 rămasă** (cerută de utilizator): căutare + paginare pe pagina de profile și selector
+    de pacient cu căutare în ecranul de interpretare, pentru volume de ordinul a 2000 de pacienți.
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard

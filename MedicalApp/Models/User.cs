@@ -44,13 +44,25 @@ namespace MedicalApp.Models
 
         // ----- CAM module (Clinici de Analize Medicale) -----
         /// <summary>
-        /// Type of account: "Individual" (default, regular B2C user) or
-        /// "Clinic" (B2B medical analysis laboratory user). Set at registration
-        /// and never changed afterwards. Drives navigation, dashboard,
-        /// available credit packages, and access to /CAM/* area.
+        /// Type of account: "Individual" (default, regular B2C user),
+        /// "Clinic" (B2B medical analysis laboratory) or "Cabinet"
+        /// (Cabinet Medical / family doctor's practice, June 2026). Set at
+        /// registration and never changed afterwards. Drives navigation,
+        /// dashboard, available credit packages, the profile cap and access to
+        /// the /CAM/* area. See <see cref="Services.AccountTypes"/>.
         /// </summary>
         [StringLength(20)]
         public string UserType { get; set; } = "Individual";
+
+        /// <summary>
+        /// Name of the medical practice, for "Cabinet" accounts only
+        /// ("DR. Ionescu Felicia — Medic de familie"). NULL for every other
+        /// account type. Clinics keep their data in the Clinics table instead,
+        /// because CAM needs a city, an address and its own folders; a cabinet
+        /// needs nothing but a name.
+        /// </summary>
+        [StringLength(150)]
+        public string? CabinetName { get; set; }
 
         // ----- Bonus credits tracking (separate from paid credits) -----
 

@@ -103,6 +103,7 @@ namespace MedicalApp.Controllers
             // "3 of 20 profiles used" — only where the cap actually applies.
             ViewBag.ProfileCount = profiles.Count;
             ViewBag.ProfileCapApplies = ProfileGateService.IsCapped(user);
+            ViewBag.ProfileLimit = ProfileGateService.LimitFor(user) ?? 0;
 
             return View(vm);
         }
@@ -1872,7 +1873,7 @@ namespace MedicalApp.Controllers
             var gate = await UserCanCreateAnotherProfileAsync();
             if (!gate.Ok)
             {
-                TempData["ErrorMessage"] = ProfileRefusalMessage(gate.AtLimit);
+                TempData["ErrorMessage"] = ProfileRefusalMessage(gate.AtLimit, gate.Limit);
                 return RedirectToAction(nameof(Index));
             }
 
@@ -1893,7 +1894,7 @@ namespace MedicalApp.Controllers
             var gate = await UserCanCreateAnotherProfileAsync();
             if (!gate.Ok)
             {
-                TempData["ErrorMessage"] = ProfileRefusalMessage(gate.AtLimit);
+                TempData["ErrorMessage"] = ProfileRefusalMessage(gate.AtLimit, gate.Limit);
                 return RedirectToAction(nameof(Index));
             }
 
@@ -2048,24 +2049,26 @@ namespace MedicalApp.Controllers
         /// they already own. Returns false when the current user context is
         /// broken (session cleared, user row deleted) — safest default.
         /// </summary>
-        private async Task<(bool Ok, bool AtLimit)> UserCanCreateAnotherProfileAsync()
+        private async Task<(bool Ok, bool AtLimit, int Limit)> UserCanCreateAnotherProfileAsync()
         {
-            if (string.IsNullOrEmpty(CurrentEmail)) return (false, false);
+            if (string.IsNullOrEmpty(CurrentEmail)) return (false, false, 0);
             var user = await _db.Users.AsNoTracking()
                 .FirstOrDefaultAsync(u => u.Email == CurrentEmail);
-            if (user == null) return (false, false);
+            if (user == null) return (false, false, 0);
             var profileCount = await _db.Profiles
                 .CountAsync(p => p.UserEmail == CurrentEmail);
             return (ProfileGateService.CanCreateAdditionalProfile(user, profileCount),
-                    ProfileGateService.IsAtProfileLimit(user, profileCount));
+                    ProfileGateService.IsAtProfileLimit(user, profileCount),
+                    ProfileGateService.LimitFor(user) ?? 0);
         }
 
         /// <summary>
-        /// The message that explains WHY a new profile was refused: the hard cap
-        /// of 20 profiles, or the missing paid credits.
+        /// The message that explains WHY a new profile was refused: the cap of
+        /// the account type (20 for B2C, 2000 for a medical practice), or the
+        /// missing paid credits.
         /// </summary>
-        private static string ProfileRefusalMessage(bool atLimit) => atLimit
-            ? string.Format(Loc.T("ProfileLimitReached"), ProfileGateService.MaxProfilesPerUser)
+        private static string ProfileRefusalMessage(bool atLimit, int limit) => atLimit
+            ? string.Format(Loc.T("ProfileLimitReached"), limit)
             : Loc.T("ProfileLockRequirePaidCredits");
     }
 }

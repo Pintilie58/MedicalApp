@@ -103,7 +103,7 @@
                                 else if (atProfileLimit)
                                 {
                                     <span class="btn btn-outline-secondary disabled"
-                                          title="@string.Format(Loc.T("ProfileLimitTooltip"), MedicalApp.Services.ProfileGateService.MaxProfilesPerUser)"
+                                          title="@string.Format(Loc.T("ProfileLimitTooltip"), (ViewBag.ProfileLimit as int? ?? 0))"
                                           data-testid="interpret-add-profile-btn-maxed">
                                         &#128274; @Loc.T("InterpretAddProfileBtn")
                                     </span>

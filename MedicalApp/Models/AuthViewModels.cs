@@ -31,9 +31,14 @@ namespace MedicalApp.Models
         // Set to "Clinic" via the radio button on the register page; default
         // "Individual" preserves the original B2C flow untouched.
 
-        /// <summary>"Individual" (default, persoană fizică) or "Clinic" (CAM).</summary>
+        /// <summary>"Individual" (default, persoană fizică), "Clinic" (CAM) sau "Cabinet" (CM).</summary>
         [StringLength(20)]
         public string UserType { get; set; } = "Individual";
+
+        /// <summary>Numele cabinetului — obligatoriu doar pentru UserType = "Cabinet".</summary>
+        [StringLength(150)]
+        [Display(Name = "Cabinet Name")]
+        public string? CabinetName { get; set; }
 
         [StringLength(200)]
         [Display(Name = "Clinic Name")]
