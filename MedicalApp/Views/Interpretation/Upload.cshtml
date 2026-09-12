@@ -119,8 +119,9 @@
                                 }
                             </div>
                             <span asp-validation-for="ProfileId" class="text-danger small"></span>
-                            <div class="form-text">
-                                @Loc.T("InterpretProfileHelp")
+                            <div class="form-text d-flex align-items-center gap-2 flex-wrap">
+                                <span>@Loc.T("InterpretProfileHelp")</span>
+                                <partial name="_ProfileQuotaBadge" />
                             </div>
                         </div>
 

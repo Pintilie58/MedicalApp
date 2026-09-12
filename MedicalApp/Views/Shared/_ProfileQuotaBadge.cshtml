@@ -1,0 +1,21 @@
+@*
+    "3 of 20 profiles used" — shown only for the accounts the 20-profile cap
+    applies to (B2C). Turns amber two profiles before the cap and red at it.
+    Needs ViewBag.ProfileCount + ViewBag.ProfileCapApplies from the action.
+*@
+@{
+    var _quotaApplies = ViewBag.ProfileCapApplies as bool? ?? false;
+    var _quotaUsed = ViewBag.ProfileCount as int? ?? 0;
+    var _quotaMax = ProfileGateService.MaxProfilesPerUser;
+    var _quotaClass = _quotaUsed >= _quotaMax
+        ? "bg-danger"
+        : _quotaUsed >= _quotaMax - 2
+            ? "bg-warning text-dark"
+            : "bg-light text-secondary border";
+}
+@if (_quotaApplies)
+{
+    <span class="badge @_quotaClass fw-semibold" data-testid="profile-quota-badge">
+        @string.Format(Loc.T("ProfileQuotaBadge"), _quotaUsed, _quotaMax)
+    </span>
+}

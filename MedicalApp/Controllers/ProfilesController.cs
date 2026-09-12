@@ -100,6 +100,9 @@ namespace MedicalApp.Controllers
                 ProfileGateService.CanCreateAdditionalProfile(user, profiles.Count);
             ViewBag.ProfileLimitReached =
                 ProfileGateService.IsAtProfileLimit(user, profiles.Count);
+            // "3 of 20 profiles used" — only where the cap actually applies.
+            ViewBag.ProfileCount = profiles.Count;
+            ViewBag.ProfileCapApplies = ProfileGateService.IsCapped(user);
 
             return View(vm);
         }

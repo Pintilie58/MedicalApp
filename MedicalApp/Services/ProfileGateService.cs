@@ -40,17 +40,21 @@ namespace MedicalApp.Services
         public const int MaxProfilesPerUser = 20;
 
         /// <summary>
+        /// True for the accounts the cap applies to: B2C ("Individual") only —
+        /// clinics run on a different model. Used by the views to decide whether
+        /// the "X of 20 profiles used" counter makes any sense for this account.
+        /// </summary>
+        public static bool IsCapped(User? user) =>
+            user != null
+            && string.Equals(user.UserType, "Individual", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
         /// True when the account has reached (or passed) the hard cap, so the
         /// caller can show the "20 profiles maximum" message instead of the
         /// "buy credits" one. Clinic accounts are never capped here.
         /// </summary>
         public static bool IsAtProfileLimit(User? user, int currentProfileCount)
-        {
-            if (user == null) return false;
-            if (!string.Equals(user.UserType, "Individual", StringComparison.OrdinalIgnoreCase))
-                return false;
-            return currentProfileCount >= MaxProfilesPerUser;
-        }
+            => IsCapped(user) && currentProfileCount >= MaxProfilesPerUser;
 
         /// <summary>
         /// Returns <c>true</c> when the given user is allowed to create ANOTHER

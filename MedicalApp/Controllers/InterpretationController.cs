@@ -121,6 +121,8 @@ namespace MedicalApp.Controllers
                 ProfileGateService.CanCreateAdditionalProfile(user, profiles.Count);
             ViewBag.ProfileLimitReached =
                 ProfileGateService.IsAtProfileLimit(user, profiles.Count);
+            ViewBag.ProfileCount = profiles.Count;
+            ViewBag.ProfileCapApplies = ProfileGateService.IsCapped(user);
 
             // A background job from an earlier visit may still be running — tell
             // the user instead of letting them start a second one and get refused.

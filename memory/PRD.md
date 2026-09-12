@@ -334,6 +334,16 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
     creare permisă la 19, contul „grandfathered” intact, mesajul corect pe fiecare motiv,
     ViewBag-urile, cele 7 traduceri cu placeholder). Build 0 warning-uri.
 
+- **Contor „X profile create — max 20”** (iunie 2026): partial nou
+  `Views/Shared/_ProfileQuotaBadge.cshtml`, randat pe pagina Profile (lângă titlu) și pe ecranul
+  de upload (sub selectorul de profil). Afișat **mereu**, dar numai pentru conturile cărora li se
+  aplică plafonul (`ProfileGateService.IsCapped` ⇒ doar „Individual”), ca un cont de Clinic/Admin
+  să nu vadă „28 din 20”. Culori: neutru sub 18, galben la 18-19, roșu la 20+. Cheie nouă
+  `ProfileQuotaBadge` în **7 limbi** (două placeholdere: folosite/maxim).
+  Clarificare: plafonul rămâne, prin decizia utilizatorului, **doar pe B2C („Individual”)** — de
+  aceea un cont de tip Clinic (inclusiv adminul) poate depăși 20 de profile.
+  Testat: probă extinsă `/app/memory/probes/ProfileLimitProbe.cs.txt` — **21/21 PASS**.
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard

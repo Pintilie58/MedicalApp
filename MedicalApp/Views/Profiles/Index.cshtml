@@ -17,6 +17,7 @@
                 <span class="badge bg-secondary align-self-center" data-testid="profiles-total-count">
                     @Model.Profiles.Count @Loc.T("ProfilesTotalSuffix")
                 </span>
+                <partial name="_ProfileQuotaBadge" />
                 <div class="ms-auto d-flex gap-2">
                     <a asp-controller="Account" asp-action="Dashboard"
                        class="btn btn-outline-secondary" data-testid="btn-back-dashboard">

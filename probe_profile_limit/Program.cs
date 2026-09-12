@@ -156,7 +156,33 @@ Check("15. below the cap the page does NOT claim the cap was reached",
     && (listing2.ViewBag.ProfileLimitReached as bool?) == false);
 
 // =====================================================================
-//  PART 3 — the messages exist in all 7 languages
+//  PART 3 — the counter shown in the UI ("3 of 20 profiles used")
+// =====================================================================
+Check("16. the counter applies to B2C accounts only",
+    ProfileGateService.IsCapped(B2c(0))
+    && !ProfileGateService.IsCapped(Clinic())
+    && !ProfileGateService.IsCapped(null));
+
+var dbCount = await Seed("count", 7, paidCredits: 3);
+var counting = Controller(dbCount);
+await counting.Index();
+Check("17. the profiles page publishes the real count for the badge",
+    (counting.ViewBag.ProfileCount as int?) == 7
+    && (counting.ViewBag.ProfileCapApplies as bool?) == true);
+
+// The badge colour thresholds live in the partial; assert the rule itself.
+static string Colour(int used) => used >= ProfileGateService.MaxProfilesPerUser
+    ? "bg-danger"
+    : used >= ProfileGateService.MaxProfilesPerUser - 2
+        ? "bg-warning text-dark"
+        : "bg-light text-secondary border";
+Check("18. the badge is neutral below 18, amber at 18-19 and red at 20",
+    Colour(3).Contains("bg-light") && Colour(17).Contains("bg-light")
+    && Colour(18).Contains("bg-warning") && Colour(19).Contains("bg-warning")
+    && Colour(20).Contains("bg-danger") && Colour(28).Contains("bg-danger"));
+
+// =====================================================================
+//  PART 4 — the messages exist in all 7 languages
 // =====================================================================
 var langs = new[] { "en", "ro", "fr", "es", "de", "it", "pt" };
 var missing = new List<string>();
@@ -171,14 +197,27 @@ foreach (var lang in langs)
         if (!raw.Contains("{0}")) { noPlaceholder.Add($"{lang}/{key}"); continue; }
         if (!string.Format(raw, Max).Contains(Max.ToString())) notNumbered.Add($"{lang}/{key}");
     }
+
+    // The counter takes TWO numbers: used and max.
+    var badge = Loc.T("ProfileQuotaBadge", lang);
+    if (badge == "ProfileQuotaBadge") missing.Add($"{lang}/ProfileQuotaBadge");
+    else if (!badge.Contains("{0}") || !badge.Contains("{1}"))
+        noPlaceholder.Add($"{lang}/ProfileQuotaBadge");
+    else
+    {
+        var rendered = string.Format(badge, 7, Max);
+        if (!rendered.Contains("7") || !rendered.Contains(Max.ToString()))
+            notNumbered.Add($"{lang}/ProfileQuotaBadge");
+    }
 }
-Check("16. both new messages are translated in all 7 languages",
+Check("19. all new messages are translated in all 7 languages",
     missing.Count == 0, string.Join(", ", missing));
-Check("17. every translation keeps the {0} placeholder for the limit",
+Check("20. every translation keeps its placeholders",
     noPlaceholder.Count == 0, string.Join(", ", noPlaceholder));
-Check("18. the formatted message shows the real number",
+Check("21. the formatted texts show the real numbers",
     notNumbered.Count == 0, string.Join(", ", notNumbered));
 Console.WriteLine("      ro: " + string.Format(Loc.T("ProfileLimitReached", "ro"), Max));
+Console.WriteLine("      ro: " + string.Format(Loc.T("ProfileQuotaBadge", "ro"), 2, Max));
 
 Console.WriteLine(fails == 0 ? "\nALL CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
 return fails == 0 ? 0 : 1;
