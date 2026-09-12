@@ -344,6 +344,13 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   aceea un cont de tip Clinic (inclusiv adminul) poate depăși 20 de profile.
   Testat: probă extinsă `/app/memory/probes/ProfileLimitProbe.cs.txt` — **21/21 PASS**.
 
+- **Prețuri B2C recalibrate** (iunie 2026, `Services/CreditPackages.cs`): Super **50 → 39 EUR**
+  (18 credite ⇒ 2,17 €/credit), Premium **100 → 89 EUR cu 45 credite** în loc de 38
+  (⇒ 1,98 €/credit). Normal (6 €/2) și Standard (11 €/4) neschimbate; pachetele CAM neatinse.
+  `Views/Credits/Buy.cshtml` calculează prețul/credit din pachet, deci nu a fost nevoie de
+  modificări în view sau traduceri. Achizițiile vechi rămân corecte (Purchases păstrează sumele
+  la momentul cumpărării).
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard

@@ -27,12 +27,14 @@ namespace MedicalApp.Services
             // Stabilit cu utilizatorul Feb 2026 — paliere accesibile + discount progresiv:
             //    6 EUR  →   2 credite  (~3.00 EUR/credit) — pachet "Normal" pentru încercare
             //   11 EUR  →   4 credite  (~2.75 EUR/credit) — pachet "Standard" uzual
-            //   50 EUR  →  18 credite  (~2.78 EUR/credit) — pachet "Super" pentru familie
-            //  100 EUR  →  38 credite  (~2.63 EUR/credit) — pachet "Premium" volum
+            //   39 EUR  →  18 credite  (~2.17 EUR/credit) — pachet "Super" pentru familie
+            //   89 EUR  →  45 credite  (~1.98 EUR/credit) — pachet "Premium" volum
+            // (Preț Super/Premium recalibrat iunie 2026 la cererea utilizatorului:
+            //  50→39 EUR, 100→89 EUR cu 45 credite în loc de 38.)
             new("normal",   "PackageNormal",   6m,   2),
             new("standard", "PackageStandard", 11m,  4),
-            new("super",    "PackageSuper",    50m,  18),
-            new("premium",  "PackagePremium",  100m, 38),
+            new("super",    "PackageSuper",    39m,  18),
+            new("premium",  "PackagePremium",  89m,  45),
 
             // ----- B2B (Clinici de Analize Medicale) -----
             // Stabilit cu utilizatorul Feb 2026. Discount progresiv:
