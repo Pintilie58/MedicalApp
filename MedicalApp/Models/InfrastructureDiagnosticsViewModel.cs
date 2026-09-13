@@ -5,8 +5,15 @@ namespace MedicalApp.Models
     {
         // ---- Gemini quota (in-memory, per instance) ----
         public bool QuotaEnabled { get; set; }
+        /// <summary>Quota available to THIS instance (project quota / instance count).</summary>
         public int RequestsPerMinute { get; set; }
         public int MaxConcurrentCalls { get; set; }
+
+        /// <summary>The whole Google project quota, as configured.</summary>
+        public int ProjectRequestsPerMinute { get; set; }
+
+        /// <summary>How many instances share that quota (Gemini:RateLimit:InstanceCount).</summary>
+        public int InstanceCount { get; set; } = 1;
         public int CallsInLastMinute { get; set; }
         public long TotalCalls { get; set; }
         public long ThrottledCalls { get; set; }

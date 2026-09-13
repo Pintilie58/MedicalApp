@@ -49,6 +49,18 @@ namespace MedicalApp.Services
 
         public static string Instance => InstanceId;
 
+        /// <summary>
+        /// True when this user already has an interpretation queued or running,
+        /// ANYWHERE (June 2026). The in-memory check in InterpretationJobQueue
+        /// only knows about the current instance, so on Azure the same user
+        /// could start two interpretations at once — two Gemini bills, two
+        /// reserved credits — simply by hitting two instances.
+        /// </summary>
+        public Task<bool> HasActiveForUserAsync(string email, CancellationToken ct = default) =>
+            _db.InterpretationJobs.AsNoTracking().AnyAsync(
+                j => j.UserEmail == email
+                     && (j.Status == "queued" || j.Status == "running"), ct);
+
         /// <summary>Writes the job. Called inside the same request that reserved the credit.</summary>
         public async Task AddAsync(InterpretationJob job, CancellationToken ct = default)
         {

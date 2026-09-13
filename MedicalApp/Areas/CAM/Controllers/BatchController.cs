@@ -1,8 +1,10 @@
 ﻿using MedicalApp.Data;
 using MedicalApp.Models;
 using MedicalApp.Services;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 
 namespace MedicalApp.Areas.CAM.Controllers
 {
@@ -16,7 +18,8 @@ namespace MedicalApp.Areas.CAM.Controllers
         private readonly AppDbContext _db;
         private readonly ICamFileStore _files;
         private readonly CamBatchRegistry _registry;
-        private readonly CamBatchService _runner;
+        private readonly CamBatchQueueStore _queue;
+        private readonly IDistributedCache _cache;
         private readonly CamRetentionService _retention;
         private readonly ILogger<BatchController> _logger;
 
@@ -24,14 +27,16 @@ namespace MedicalApp.Areas.CAM.Controllers
             AppDbContext db,
             ICamFileStore files,
             CamBatchRegistry registry,
-            CamBatchService runner,
+            CamBatchQueueStore queue,
+            IDistributedCache cache,
             CamRetentionService retention,
             ILogger<BatchController> logger)
         {
             _db = db;
             _files = files;
             _registry = registry;
-            _runner = runner;
+            _queue = queue;
+            _cache = cache;
             _retention = retention;
             _logger = logger;
         }
@@ -56,12 +61,17 @@ namespace MedicalApp.Areas.CAM.Controllers
                 .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            bool alreadyRunning = _registry.HasRunningForClinic(clinic.Id);
+            // Durable check (June 2026): the in-memory registry only knew about
+            // THIS instance, so on Azure a second instance happily started a
+            // parallel batch for the same clinic.
+            bool alreadyRunning = await _queue.HasActiveForClinicAsync(clinic.Id);
             int? runningId = null;
             if (alreadyRunning)
             {
-                runningId = (await _db.ClinicBatchRuns
-                    .Where(b => b.ClinicId == clinic.Id && b.Status == "Running")
+                runningId = (await _db.ClinicBatchRuns.AsNoTracking()
+                    .Where(b => b.ClinicId == clinic.Id
+                                && (b.Status == "Running" || b.Status == "Queued")
+                                && b.FinishedAt == null)
                     .OrderByDescending(b => b.StartedAt)
                     .FirstOrDefaultAsync())?.Id;
             }
@@ -93,8 +103,9 @@ namespace MedicalApp.Areas.CAM.Controllers
             var clinic = await _db.Clinics.FirstOrDefaultAsync(c => c.UserEmail == CurrentEmail);
             if (clinic == null) return RedirectToAction("Index", "Dashboard", new { area = "CAM" });
 
-            // Concurrency guard: only one Running batch per clinic at a time.
-            if (_registry.HasRunningForClinic(clinic.Id))
+            // Concurrency guard: only one active batch per clinic at a time,
+            // checked in the DATABASE so it holds across Azure instances.
+            if (await _queue.HasActiveForClinicAsync(clinic.Id))
             {
                 TempData["ErrorMessage"] = Loc.T("ErrBatchAlreadyRunning");
                 return RedirectToAction(nameof(Start));
@@ -122,37 +133,26 @@ namespace MedicalApp.Areas.CAM.Controllers
 
             // Create the ClinicBatchRun row up-front so we have a stable id
             // to share with the background task and the progress UI.
+            // The row IS the queue entry. "Queued" means: nobody is working on
+            // it yet, any instance may claim it. Writing it here (instead of
+            // starting a Task.Run) is what stops a batch from dying together
+            // with the instance that served this request.
+            var lang0 = System.Globalization.CultureInfo.CurrentUICulture.Name;
             var batch = new ClinicBatchRun
             {
                 ClinicId = clinic.Id,
                 StartedAt = DateTime.UtcNow,
-                Status = "Running",
-                TotalFiles = 0
+                Status = "Queued",
+                TotalFiles = 0,
+                LanguageCode = string.IsNullOrEmpty(lang0) ? "ro" : lang0.Split('-')[0].ToLowerInvariant()
             };
             _db.ClinicBatchRuns.Add(batch);
             await _db.SaveChangesAsync();
 
-            // SYNC pre-populate the in-memory progress entry BEFORE we kick
-            // off the background Task.Run. Otherwise the first few polls from
-            // /Progress/{id} race the background task and find _registry.Get
-            // returning null — UI freezes on "0 / 0 fișiere" until the runner
-            // gets past its DI scope setup (~200-500ms, can be longer on a
-            // cold first request after IIS recycle). Seeding it here makes
-            // the UI live from the very first poll. The runner then re-uses
-            // the same entry via GetOrCreate (idempotent).
-            // Capture the current UI language so the background batch can
-            // localize its progress log AND the redirect flash message using
-            // the operator's preferred language. The batch runs in a fresh
-            // DI scope without HttpContext, so we must pass it explicitly.
-            var lang = System.Globalization.CultureInfo.CurrentUICulture.Name;
-            var langShort = string.IsNullOrEmpty(lang) ? "ro" : lang.Split('-')[0].ToLowerInvariant();
-
-            var seeded = _registry.GetOrCreate(batch.Id, clinic.Id, total: 0);
-            seeded.Log(Loc.T("CamBatchLogInitialized", langShort));
-
-            // Fire & forget. The runner uses its own DI scope, so it survives
-            // the disposal of THIS controller's scope when the request returns.
-            _ = Task.Run(() => _runner.RunAsync(batch.Id, langShort));
+            // CamBatchQueueWorker (this instance or another one) picks it up
+            // within a few seconds, claims a lease and runs it. Until then the
+            // progress page shows "waiting to start" instead of a frozen 0/0.
+            var langShort = batch.LanguageCode ?? "ro";
 
             TempData["SuccessMessage"] = Loc.T("CamBatchStartFlash", langShort);
             return RedirectToAction(nameof(Progress), new { id = batch.Id });
@@ -239,8 +239,9 @@ namespace MedicalApp.Areas.CAM.Controllers
                 });
             }
 
-            // SLOW PATH: batch is finished (registry entry purged) or never started
-            // — fall back to DB for the persisted final counts.
+            // SLOW PATH: the batch is finished, has not started yet, or is
+            // running on ANOTHER instance (Azure). Authorize against the DB,
+            // then prefer the snapshot published by the instance doing the work.
             var clinic = await _db.Clinics.AsNoTracking()
                 .FirstOrDefaultAsync(c => c.UserEmail == CurrentEmail);
             if (clinic == null) return NotFound();
@@ -249,17 +250,38 @@ namespace MedicalApp.Areas.CAM.Controllers
                 .FirstOrDefaultAsync(b => b.Id == id && b.ClinicId == clinic.Id);
             if (batch == null) return NotFound();
 
+            CamBatchSnapshot? snap = null;
+            if (p == null && batch.FinishedAt == null)
+            {
+                try
+                {
+                    var json = await _cache.GetStringAsync(CamBatchQueueWorker.SnapshotKey(id));
+                    if (!string.IsNullOrEmpty(json))
+                        snap = JsonSerializer.Deserialize<CamBatchSnapshot>(json);
+                    if (snap != null && snap.ClinicId != clinic.Id) snap = null;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "CAM batch {Id}: shared progress snapshot unavailable.", id);
+                }
+            }
+
+            // A queued batch is NOT finished — it is waiting for a worker.
+            var stillActive = batch.FinishedAt == null
+                              && (batch.Status == "Queued" || batch.Status == "Running");
+
             return Json(new
             {
-                status = p?.Status ?? batch.Status,
-                processed = p?.Processed ?? batch.TotalFiles,
-                total = p?.Total ?? batch.TotalFiles,
-                sent = p?.Sent ?? batch.FilesSent,
-                compared = p?.Compared ?? batch.FilesCompared,
-                notSends = p?.NotSends ?? batch.NotSends,
-                currentFile = p?.CurrentFile ?? string.Empty,
-                log = p?.LogSnapshot() ?? new List<string>(),
-                finished = batch.FinishedAt != null || p?.Status != "Running"
+                status = p?.Status ?? snap?.Status ?? batch.Status,
+                processed = p?.Processed ?? snap?.Processed
+                            ?? (stillActive ? batch.FilesInterpreted + batch.NotSends : batch.TotalFiles),
+                total = p?.Total ?? snap?.Total ?? batch.TotalFiles,
+                sent = p?.Sent ?? snap?.Sent ?? batch.FilesSent,
+                compared = p?.Compared ?? snap?.Compared ?? batch.FilesCompared,
+                notSends = p?.NotSends ?? snap?.NotSends ?? batch.NotSends,
+                currentFile = p?.CurrentFile ?? snap?.CurrentFile ?? string.Empty,
+                log = p?.LogSnapshot() ?? snap?.Log ?? new List<string>(),
+                finished = !stillActive
             });
         }
 
@@ -286,12 +308,32 @@ namespace MedicalApp.Areas.CAM.Controllers
                 .FirstOrDefaultAsync(c => c.UserEmail == CurrentEmail);
             if (clinic == null) return RedirectToAction("Index", "Dashboard", new { area = "CAM" });
 
+            // Durable cancel: the batch may be running on another instance, so
+            // the flag goes into the row and the worker's heartbeat picks it up
+            // within a few seconds. The local cancel below stays as the instant
+            // path for the (usual) case where we ARE the owner.
+            var row = await _db.ClinicBatchRuns
+                .FirstOrDefaultAsync(b => b.Id == id && b.ClinicId == clinic.Id);
+            if (row == null) return RedirectToAction(nameof(Progress), new { id });
+
+            if (row.FinishedAt == null && (row.Status == "Running" || row.Status == "Queued"))
+            {
+                row.CancelRequested = true;
+                // Never claimed by anyone: cancel it right here, nothing to stop.
+                if (row.Status == "Queued")
+                {
+                    row.Status = "Cancelled";
+                    row.FinishedAt = DateTime.UtcNow;
+                }
+                await _db.SaveChangesAsync();
+                TempData["SuccessMessage"] = Loc.T("OkBatchCancelRequested");
+            }
+
             var p = _registry.Get(id);
             if (p != null && p.ClinicId == clinic.Id && p.Status == "Running")
             {
                 p.Cts.Cancel();
                 p.Log(Loc.T("CamBatchLogCancelRequested"));
-                TempData["SuccessMessage"] = Loc.T("OkBatchCancelRequested");
             }
             return RedirectToAction(nameof(Progress), new { id });
         }

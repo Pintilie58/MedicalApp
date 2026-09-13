@@ -74,10 +74,74 @@
                 </div>
 
                 <button type="submit" class="btn btn-primary btn-lg"
-                        onclick="return confirm('Send email to ' + @Model.RecipientsCount + ' recipients?');">
+                        onclick="return confirm('Queue email for ' + @Model.RecipientsCount + ' recipients?');">
                     <i class="bi bi-send"></i> Send to @Model.RecipientsCount users
                 </button>
             </form>
+
+            @* June 2026: the send runs in a background worker, so the admin can
+               leave this page. These rows are the progress. *@
+            @{
+                var recentJobs = ViewBag.RecentJobs as List<MedicalApp.Models.BulkEmailJob>
+                                 ?? new List<MedicalApp.Models.BulkEmailJob>();
+            }
+            @if (recentJobs.Count > 0)
+            {
+                <div class="card mt-4" data-testid="bulk-email-jobs">
+                    <div class="card-header d-flex align-items-center">
+                        <strong>Background sends</strong>
+                        <a asp-action="SendEmail" asp-route-filter="@Model.Filter"
+                           class="btn btn-sm btn-outline-secondary ms-auto"
+                           data-testid="bulk-email-refresh">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </a>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Started</th>
+                                    <th>Subject</th>
+                                    <th>Filter</th>
+                                    <th>Status</th>
+                                    <th class="text-end">Sent</th>
+                                    <th class="text-end">Failed</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var j in recentJobs)
+                                {
+                                    <tr data-testid="bulk-email-job-row">
+                                        <td class="small text-muted">@j.CreatedAt.ToLocalTime().ToString("dd MMM HH:mm")</td>
+                                        <td class="small">@j.Subject</td>
+                                        <td class="small text-muted">@j.Filter</td>
+                                        <td>
+                                            @if (j.Status == "running")
+                                            {
+                                                <span class="badge bg-primary">running</span>
+                                            }
+                                            else if (j.Status == "queued")
+                                            {
+                                                <span class="badge bg-secondary">queued</span>
+                                            }
+                                            else if (j.Status == "done")
+                                            {
+                                                <span class="badge bg-success">done</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger" title="@j.LastError">failed</span>
+                                            }
+                                        </td>
+                                        <td class="text-end fw-semibold">@j.Sent / @j.Total</td>
+                                        <td class="text-end @(j.Failed > 0 ? "text-danger fw-semibold" : "text-muted")">@j.Failed</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
         </div>
     </div>
 </div>

@@ -468,6 +468,41 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   și **placeholderele `{0}`/`{1}` identice cu EN** în fiecare limbă (o cheie cu placeholder greșit
   ar arunca excepție la `string.Format` în producție). Build 0 warning-uri.
 
+- **Pregătire găzduire Azure: procesarea grea scoasă din request-uri** (iunie 2026, analiză +
+  implementare; document complet în **`memory/AZURE_HOSTING.md`**):
+  - **CAM: loturile nu mai pornesc cu `Task.Run` din request.** Butonul „Start” scrie rândul cu
+    `Status="Queued"` + limba operatorului; `CamBatchQueueWorker` (orice instanță) revendică cu
+    lease de 3 min, heartbeat 30 s, publică un snapshot de progres în `IDistributedCache` la 3 s,
+    iar **Cancel** merge prin rând (`CancelRequested`), deci funcționează și de pe altă instanță.
+    Garda „un lot per clinică” e acum în baza de date. `CamBatchQueueStore` + `CamBatchQueueWorker`.
+  - **Bug multi-instanță reparat**: `StartupSeed.FailOrphanedBatchesAsync` marca TOATE loturile
+    `Running` ca `Failed` la pornire — pe Azure, a doua instanță omora lotul care rula pe prima.
+    Acum decide după lease; rândurile `Queued` nu se ating. Decizia de business (fără auto-resume
+    pentru loturi întrerupte, ca să nu se retrimită emailuri) rămâne.
+  - **O interpretare per utilizator, verificată în baza de date**
+    (`InterpretationJobStore.HasActiveForUserAsync`): înainte, verificarea era doar în memoria
+    instanței, deci un user putea porni două interpretări simultan de pe două instanțe.
+  - **Cota Gemini împărțită pe instanțe**: `Gemini:RateLimit:InstanceCount` ⇒ fiecare instanță
+    folosește `RequestsPerMinute / InstanceCount` și `MaxConcurrentCalls / InstanceCount`
+    (minim 1). Panoul de diagnostic arată cota instanței + cota totală.
+  - **Emailul în masă din Admin mutat în fundal**: bucla era în request și depășea limita Azure de
+    230 s la câteva sute de destinatari. Acum: tabel nou `BulkEmailJobs` (queued → running → done),
+    `BulkEmailWorker` cu lease, `NextIndex` (reluare exact de unde a rămas, fără duplicate),
+    contoare `Sent`/`Failed`/`LastError` și tabel de progres în ecranul Admin.
+  - **`GET /healthz`** (text `ok`, fără atingere de SQL/Gemini/Blob) pentru Health check-ul Azure.
+  - **DB**: migrare `AddAzureBackgroundQueues` — tabel nou `BulkEmailJobs` + 6 coloane pe
+    `ClinicBatchRuns` (`LanguageCode`, `OwnerInstance`, `LeaseUntil`, `Attempts`,
+    `CancelRequested`, `RowVersion`). Strict aditivă.
+  - Verificat și ce NU trebuia schimbat: nicio blocare sync-over-async pe calea unui request
+    (`.Result` apare doar pe task-uri deja finalizate după `Task.WhenAll`).
+  - Testat: probă nouă `/app/memory/probes/AzureHostingProbe.cs.txt` (proiect `/app/probe_azure`)
+    — **40/40 PASS** (lease/claim/renew/release CAM, lotul instanței vii neatins, lotul instanței
+    moarte închis, cancel prin rând, sweep-ul multi-instanță, garda per utilizator, împărțirea
+    cotei Gemini + limitarea reală la 1 apel, emailul în masă: coadă, trimitere, filtre, reluare
+    din `NextIndex`, owner viu neatins, destinatar cu eroare, audiență goală refuzată).
+    Regresie verde: B2C 80/80, cabinet 57/57, DI 10/10, scale-out (mai puțin 2 eșecuri de mediu —
+    Azurite nu rulează în container). `has-pending-model-changes` ⇒ „No changes”; build 0 warning-uri.
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard

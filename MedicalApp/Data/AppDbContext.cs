@@ -16,6 +16,7 @@ namespace MedicalApp.Data
         public DbSet<LoincMatchCacheEntry> LoincMatchCache { get; set; } = null!;
         public DbSet<LoincVocabularySnapshot> LoincVocabulary { get; set; } = null!;
         public DbSet<InterpretationJobRecord> InterpretationJobs { get; set; } = null!;
+        public DbSet<BulkEmailJob> BulkEmailJobs { get; set; } = null!;
         public DbSet<AiUsageLog> AiUsageLogs { get; set; } = null!;
 
         // ----- CAM module (Clinici de Analize Medicale) -----
@@ -178,6 +179,19 @@ namespace MedicalApp.Data
                 entity.ToTable("LoincVocabulary");
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.FetchedAt).HasColumnType("datetime2");
+            });
+
+            // ===== Bulk email jobs (admin "send to everybody", queued) =====
+            modelBuilder.Entity<BulkEmailJob>(entity =>
+            {
+                entity.ToTable("BulkEmailJobs");
+                entity.HasKey(j => j.Id);
+                entity.Property(j => j.CreatedAt).HasColumnType("datetime2");
+                entity.Property(j => j.FinishedAt).HasColumnType("datetime2");
+                entity.Property(j => j.LeaseUntil).HasColumnType("datetime2");
+                // The worker looks for "what can I claim?" — status first.
+                entity.HasIndex(j => new { j.Status, j.CreatedAt })
+                      .HasDatabaseName("IX_BulkEmailJobs_Status_CreatedAt");
             });
 
             // ===== AI usage log (separate from InterpretationHistories) =====

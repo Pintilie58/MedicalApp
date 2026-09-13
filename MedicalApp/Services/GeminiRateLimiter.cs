@@ -21,6 +21,12 @@ namespace MedicalApp.Services
     ///
     /// Defaults are deliberately generous (60 requests/minute, 6 in flight) so
     /// current behaviour is unchanged; set them to your real Google quota.
+    ///
+    /// AZURE / MULTIPLE INSTANCES (June 2026): the window lives in the memory
+    /// of ONE process, so 3 instances would each send the full quota — 3x the
+    /// real limit and 429s from Google. Set "Gemini:RateLimit:InstanceCount"
+    /// to the number of instances you run and every instance keeps only its
+    /// share of the quota. No extra infrastructure, no per-call round trip.
     /// KILL SWITCH: "Gemini:RateLimit:Enabled" = false.
     /// </summary>
     public sealed class GeminiRateLimiter
@@ -67,7 +73,7 @@ namespace MedicalApp.Services
             var cfg = Config;
             if (!cfg.Enabled) return NullLease.Instance;
 
-            var ceiling = Math.Max(1, cfg.MaxConcurrentCalls);
+            var ceiling = cfg.EffectiveMaxConcurrentCalls;
             var gate = EnsureGate(ceiling);
             await gate.WaitAsync(ct);
 
@@ -95,8 +101,9 @@ namespace MedicalApp.Services
 
                     if (waited == 0)
                         _logger.LogInformation(
-                            "Gemini rate limit: waiting {Wait:F1}s before the next call (quota {Rpm}/min).",
-                            wait.TotalSeconds, cfg.RequestsPerMinute);
+                            "Gemini rate limit: waiting {Wait:F1}s before the next call " +
+                            "(this instance may use {Rpm}/min of the {Total}/min project quota).",
+                            wait.TotalSeconds, cfg.EffectiveRequestsPerMinute, cfg.RequestsPerMinute);
 
                     await Task.Delay(wait, ct);
                     waited += (long)wait.TotalMilliseconds;
@@ -147,7 +154,7 @@ namespace MedicalApp.Services
 
             Trim();
 
-            var rpm = cfg.RequestsPerMinute;
+            var rpm = cfg.EffectiveRequestsPerMinute;
             if (rpm <= 0 || _recentCalls.Count < rpm) return TimeSpan.Zero;
 
             var oldest = _recentCalls.Peek();
@@ -201,8 +208,25 @@ namespace MedicalApp.Services
         /// <summary>False ⇒ no throttling at all (previous behaviour).</summary>
         public bool Enabled { get; set; } = true;
 
-        /// <summary>Your Google quota, in requests per minute. 0 = no window check.</summary>
+        /// <summary>Your Google quota, in requests per minute, for the WHOLE project. 0 = no window check.</summary>
         public int RequestsPerMinute { get; set; } = 60;
+
+        /// <summary>
+        /// How many app instances share that quota (Azure App Service instance
+        /// count / container replicas). 1 = single instance, previous
+        /// behaviour. Each instance then uses RequestsPerMinute / InstanceCount.
+        /// </summary>
+        public int InstanceCount { get; set; } = 1;
+
+        /// <summary>This instance's share of the per-minute quota (never below 1).</summary>
+        public int EffectiveRequestsPerMinute =>
+            RequestsPerMinute <= 0
+                ? 0
+                : Math.Max(1, RequestsPerMinute / Math.Max(1, InstanceCount));
+
+        /// <summary>This instance's share of the simultaneous-call ceiling (never below 1).</summary>
+        public int EffectiveMaxConcurrentCalls =>
+            Math.Max(1, Math.Max(1, MaxConcurrentCalls) / Math.Max(1, InstanceCount));
 
         /// <summary>Length of the sliding window in seconds. 60 = "per minute" (only changed in tests).</summary>
         public int WindowSeconds { get; set; } = 60;

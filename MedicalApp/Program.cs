@@ -174,6 +174,10 @@ else
 builder.Services.AddScoped<CamPdfMetadataExtractor>();
 builder.Services.AddSingleton<CamBatchRegistry>();
 builder.Services.AddScoped<CamBatchService>();
+// CAM batches are queued in the database and executed by a background worker,
+// never by the request that pressed the button (Azure: instances get recycled).
+builder.Services.AddScoped<CamBatchQueueStore>();
+builder.Services.AddHostedService<CamBatchQueueWorker>();
 builder.Services.AddScoped<CamRetentionService>();
 builder.Services.AddScoped<CamComparePdfGenerator>();
 builder.Services.AddScoped<ProfileComparePdfGenerator>();
@@ -237,6 +241,8 @@ builder.Services.AddScoped<InterpretationJobStore>();
 builder.Services.AddHostedService<InterpretationJobRecoveryWorker>();
 builder.Services.AddScoped<B2cInterpretationRunner>();
 builder.Services.AddHostedService<InterpretationQueueWorker>();
+// Admin "send email to everybody": queued, resumable, outside the request.
+builder.Services.AddHostedService<BulkEmailWorker>();
 
 // LOINC dictionary - configuration for the optional startup seed.
 builder.Services.Configure<LoincSettings>(builder.Configuration.GetSection("Loinc"));
@@ -309,6 +315,12 @@ app.UseRequestLocalization(locOptions);
 
 app.UseSession();
 app.UseAuthorization();
+
+// Health probe for Azure App Service (Configuration -> Health check path).
+// Deliberately dumb: it answers only "this process is alive and serving".
+// It must NOT touch SQL, Gemini or Blob, otherwise a slow dependency would make
+// Azure recycle healthy instances and take the whole site down.
+app.MapGet("/healthz", () => Results.Text("ok"));
 
 app.MapControllerRoute(
     name: "areas",

@@ -394,30 +394,40 @@ END;");
         }
 
         /// <summary>
-        /// CAM Faza 3 — decizie d)i: NU avem auto-resume pentru loturi în execuție.
-        /// Orice ClinicBatchRun rămas cu Status="Running" la pornirea aplicației
-        /// (după un crash/restart) e marcat ca "Failed" + FinishedAt = now. Operatorul
-        /// vede statusul real în history și relansează manual lotul.
+        /// CAM Faza 3 — decizie d)i: NU avem auto-resume pentru loturi în execuție
+        /// (fișierele deja trimise ar fi trimise a doua oară).
+        ///
+        /// MULTI-INSTANCE SAFETY (iunie 2026): înainte, orice ClinicBatchRun cu
+        /// Status="Running" era marcat "Failed" la pornire — pe Azure, a doua
+        /// instanță care pornea omora lotul care rula pe prima. Acum decizia se
+        /// ia după LEASE: un lot viu își reînnoiește lease-ul din 30 în 30 de
+        /// secunde, deci doar cele cu lease expirat (instanță moartă) sunt
+        /// marcate "Failed". Rândurile "Queued" nu se ating: nu a început nimic
+        /// pentru ele, iar CamBatchQueueWorker le va prelua.
         /// </summary>
         public static async Task FailOrphanedBatchesAsync(IServiceProvider services, ILogger logger)
         {
             using var scope = services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
+            var now = DateTime.UtcNow;
             var orphans = await db.ClinicBatchRuns
-                .Where(b => b.Status == "Running")
+                .Where(b => b.Status == "Running"
+                            && b.FinishedAt == null
+                            && (b.LeaseUntil == null || b.LeaseUntil < now))
                 .ToListAsync();
             if (orphans.Count == 0) return;
 
-            var now = DateTime.UtcNow;
             foreach (var b in orphans)
             {
                 b.Status = "Failed";
                 b.FinishedAt = now;
+                b.OwnerInstance = null;
+                b.LeaseUntil = null;
             }
             await db.SaveChangesAsync();
             logger.LogWarning(
-                "StartupSeed: flipped {Count} orphaned CAM batch(es) from Running → Failed.",
+                "StartupSeed: flipped {Count} abandoned CAM batch(es) (expired lease) from Running → Failed.",
                 orphans.Count);
         }
     }

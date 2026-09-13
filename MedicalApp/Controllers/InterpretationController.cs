@@ -409,7 +409,9 @@ namespace MedicalApp.Controllers
 
             // One interpretation at a time per user — keeps us far away from
             // Gemini's per-project rate limit and makes the credit math obvious.
-            if (_queue.IsUserBusy(user.Email))
+            // Checked in memory (instant) AND in the durable queue, because with
+            // several Azure instances the in-memory view only covers this one.
+            if (_queue.IsUserBusy(user.Email) || await _jobStore.HasActiveForUserAsync(user.Email))
             {
                 TempData["ErrorMessage"] = Loc.T("InterpretationAlreadyRunning");
                 return RedirectToAction(nameof(Upload));

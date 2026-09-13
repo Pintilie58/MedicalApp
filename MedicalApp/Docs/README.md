@@ -13,6 +13,7 @@
 - `QUOTA_AND_DURABLE_QUEUE.md` - cota Gemini si coada durabila de interpretari.
 - `LOINC_SCALING.md` - cache-ul si scalarea microserviciului LOINC.
 - `SCALE_OUT.md` / `AZURE_SCALING.md` - rularea pe mai multe instante in Azure.
+- `AZURE_HOSTING.md` - checklist de configurare Azure: Always On, health check, cota Gemini pe instante, ordinea la deploy.
 - `CAM_BLOB_STORAGE.md` - stocarea fisierelor pentru clinici.
 - `AUDIT.md` - auditul general al codului.
 

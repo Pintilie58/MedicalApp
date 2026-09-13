@@ -42,5 +42,46 @@ namespace MedicalApp.Models
 
         /// <summary>Total number of PDF files picked up from the Original folder at run start.</summary>
         public int TotalFiles { get; set; }
+
+        // ================================================================
+        //  Durable queue (June 2026) — Azure hosting
+        //  The batch used to be started with a fire-and-forget Task.Run inside
+        //  the request that pressed the button: an instance recycle killed it
+        //  silently and the row stayed "Running" until the next app start.
+        //  Now the row IS the queue: the operator's request only writes
+        //  Status="Queued", and CamBatchQueueWorker (on any instance) claims it
+        //  with a lease and renews that lease while it works.
+        // ================================================================
+
+        /// <summary>
+        /// UI language of the operator who started the batch. Persisted because
+        /// the worker runs without an HttpContext, possibly on another instance.
+        /// </summary>
+        [StringLength(10)]
+        public string? LanguageCode { get; set; }
+
+        /// <summary>Instance currently running the batch. NULL while queued or finished.</summary>
+        [StringLength(100)]
+        public string? OwnerInstance { get; set; }
+
+        /// <summary>
+        /// How long the owner's claim is trusted. Renewed by the heartbeat; once
+        /// it lapses, the batch is considered abandoned (the instance died).
+        /// </summary>
+        public DateTime? LeaseUntil { get; set; }
+
+        /// <summary>How many times this batch has been claimed (a retry counts).</summary>
+        public int Attempts { get; set; }
+
+        /// <summary>
+        /// Set by the Cancel button. Read by the worker's heartbeat, so cancelling
+        /// works even when the poll lands on a different instance than the one
+        /// doing the work.
+        /// </summary>
+        public bool CancelRequested { get; set; }
+
+        /// <summary>Optimistic concurrency: exactly one instance can win a claim.</summary>
+        [Timestamp]
+        public byte[]? RowVersion { get; set; }
     }
 }

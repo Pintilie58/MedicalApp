@@ -520,8 +520,12 @@ namespace MedicalApp.Controllers
             var cfg = _geminiSettings.RateLimit ?? new GeminiRateLimitSettings();
             var s = rateLimiter.Stats();
             m.QuotaEnabled = cfg.Enabled;
-            m.RequestsPerMinute = cfg.RequestsPerMinute;
-            m.MaxConcurrentCalls = cfg.MaxConcurrentCalls;
+            // What THIS instance may use, which is the number the counter next
+            // to it is compared against; the project quota is shown separately.
+            m.RequestsPerMinute = cfg.EffectiveRequestsPerMinute;
+            m.MaxConcurrentCalls = cfg.EffectiveMaxConcurrentCalls;
+            m.ProjectRequestsPerMinute = cfg.RequestsPerMinute;
+            m.InstanceCount = Math.Max(1, cfg.InstanceCount);
             m.CallsInLastMinute = s.InLastMinute;
             m.TotalCalls = s.Calls;
             m.ThrottledCalls = s.Throttled;
@@ -1104,6 +1108,12 @@ namespace MedicalApp.Controllers
         public async Task<IActionResult> SendEmail(string filter = "all")
         {
             var recipients = await ResolveRecipients(filter);
+            // Recent jobs, so the admin can watch a send that is still running
+            // in the background instead of staring at a spinning request.
+            ViewBag.RecentJobs = await _db.BulkEmailJobs.AsNoTracking()
+                .OrderByDescending(j => j.CreatedAt)
+                .Take(5)
+                .ToListAsync();
             return View(new BulkEmailViewModel
             {
                 Filter = filter,
@@ -1130,43 +1140,29 @@ namespace MedicalApp.Controllers
                 return View(model);
             }
 
-            int sent = 0, failed = 0;
-            foreach (var email in recipients)
+            // June 2026: the sending loop used to live right here. With a few
+            // hundred recipients the request passed Azure's 230-second limit and
+            // died half way through, with no way to tell what had been sent.
+            // Now we only queue the job; BulkEmailWorker does the sending and
+            // keeps the counters on the row.
+            var job = new BulkEmailJob
             {
-                try
-                {
-                    var wrappedBody = WrapBulkEmailHtml(model.HtmlBody);
-                    await _emailService.SendEmailAsync(email, model.Subject, wrappedBody);
-                    sent++;
-                }
-                catch (Exception ex)
-                {
-                    failed++;
-                    _logger.LogError(ex, "Bulk email failed for {Email}", email);
-                }
-            }
+                CreatedBy = HttpContext.Session.GetString("UserEmail") ?? "admin",
+                Filter = model.Filter,
+                Subject = model.Subject,
+                HtmlBody = model.HtmlBody,
+                Total = recipients.Count,
+                Status = "queued"
+            };
+            _db.BulkEmailJobs.Add(job);
+            await _db.SaveChangesAsync();
 
-            TempData["SuccessMessage"] = $"Email sent to {sent} users (failed: {failed}).";
+            TempData["SuccessMessage"] =
+                $"Queued: the email will be sent to {recipients.Count} users in the background. " +
+                "Progress is shown below.";
             return RedirectToAction(nameof(SendEmail), new { filter = model.Filter });
         }
 
-        /// <summary>
-        /// Wraps the admin-typed HTML body with a branded header and footer
-        /// so every bulk email looks consistent.
-        /// </summary>
-        private static string WrapBulkEmailHtml(string innerHtml) => $@"
-<div style=""font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:0 auto;padding:0;background:#ffffff;"">
-  <div style=""background:#0d47a1;color:#ffffff;padding:20px 24px;border-radius:10px 10px 0 0;"">
-    <h2 style=""margin:0;font-size:20px;font-weight:700;letter-spacing:0.3px;"">MyMedicalApp.NET</h2>
-    <div style=""font-size:13px;opacity:0.9;margin-top:4px;"">Intelligent interpretation of medical analyses</div>
-  </div>
-  <div style=""padding:24px;color:#212529;font-size:15px;line-height:1.55;border:1px solid #e9ecef;border-top:0;"">
-    {innerHtml}
-  </div>
-  <div style=""background:#f1f5fb;color:#0d47a1;padding:16px 24px;border-radius:0 0 10px 10px;text-align:center;font-size:13px;font-weight:600;border:1px solid #e9ecef;border-top:0;"">
-    Be smart, take care of your health!
-  </div>
-</div>";
 
         private async Task<List<string>> ResolveRecipients(string filter)
         {
