@@ -458,6 +458,16 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
     și a rândurilor fără dată, interzicerea scurtării, idempotența seed-ului, cele 7 limbi).
     Regresie verde: B2C 80/80, cabinet 57/57. Build 0 warning-uri.
 
+- **Acoperire traduceri 100% pe toate cele 7 limbi** (iunie 2026): IT și PT aveau 1093/1111 chei
+  (98,4%). Cele 18 chei lipsă — rămase din lucrările la coada de fundal, indicatorul de job și
+  avertismentul LOINC offline (`AdminQueue*`, `JobIndicator*`, `HistoryStatus*`,
+  `Interpretation*Background`, `LoincOfflineWarning*`, `LeaveInBackgroundBtn`) — au fost traduse în
+  italiană și portugheză. Acum toate cele 6 limbi non-EN au **1111/1111**.
+  Testat: probă nouă `/app/memory/probes/TranslationCoverageProbe.cs.txt` (proiect `/app/probe_i18n`)
+  — **30/30 PASS**: zero chei lipsă, zero chei „drift” pe care EN nu le are, zero traduceri goale
+  și **placeholderele `{0}`/`{1}` identice cu EN** în fiecare limbă (o cheie cu placeholder greșit
+  ar arunca excepție la `string.Format` în producție). Build 0 warning-uri.
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard
