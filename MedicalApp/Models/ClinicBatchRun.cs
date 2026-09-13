@@ -60,15 +60,13 @@ namespace MedicalApp.Models
         [StringLength(10)]
         public string? LanguageCode { get; set; }
 
-        /// <summary>Instance currently running the batch. NULL while queued or finished.</summary>
+        /// <summary>
+        /// Instance currently running the batch, for the operator's history and
+        /// for the logs. NULL while queued or finished. Informational only —
+        /// the real lock is the ClinicBatchClaim row.
+        /// </summary>
         [StringLength(100)]
         public string? OwnerInstance { get; set; }
-
-        /// <summary>
-        /// How long the owner's claim is trusted. Renewed by the heartbeat; once
-        /// it lapses, the batch is considered abandoned (the instance died).
-        /// </summary>
-        public DateTime? LeaseUntil { get; set; }
 
         /// <summary>How many times this batch has been claimed (a retry counts).</summary>
         public int Attempts { get; set; }
@@ -80,8 +78,11 @@ namespace MedicalApp.Models
         /// </summary>
         public bool CancelRequested { get; set; }
 
-        /// <summary>Optimistic concurrency: exactly one instance can win a claim.</summary>
-        [Timestamp]
-        public byte[]? RowVersion { get; set; }
+        // NOTE (bug fixed June 2026): do NOT put a [Timestamp] / concurrency
+        // token on this entity. The runner writes it continuously (per-file
+        // counters) from its own DbContext while the queue worker renews the
+        // lease from another one, so a row version made every counter save fail
+        // with DbUpdateConcurrencyException. The claim lives in
+        // ClinicBatchClaim, whose primary key provides the atomicity instead.
     }
 }

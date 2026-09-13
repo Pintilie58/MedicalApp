@@ -17,6 +17,7 @@ namespace MedicalApp.Data
         public DbSet<LoincVocabularySnapshot> LoincVocabulary { get; set; } = null!;
         public DbSet<InterpretationJobRecord> InterpretationJobs { get; set; } = null!;
         public DbSet<BulkEmailJob> BulkEmailJobs { get; set; } = null!;
+        public DbSet<ClinicBatchClaim> ClinicBatchClaims { get; set; } = null!;
         public DbSet<AiUsageLog> AiUsageLogs { get; set; } = null!;
 
         // ----- CAM module (Clinici de Analize Medicale) -----
@@ -179,6 +180,19 @@ namespace MedicalApp.Data
                 entity.ToTable("LoincVocabulary");
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.FetchedAt).HasColumnType("datetime2");
+            });
+
+            // ===== CAM batch claims (the lock of the batch queue) =====
+            // One row per batch being processed. The primary key IS the lock:
+            // two instances cannot insert the same BatchRunId.
+            modelBuilder.Entity<ClinicBatchClaim>(entity =>
+            {
+                entity.ToTable("ClinicBatchClaims");
+                entity.HasKey(c => c.BatchRunId);
+                entity.Property(c => c.BatchRunId).ValueGeneratedNever();
+                entity.Property(c => c.LeaseUntil).HasColumnType("datetime2");
+                entity.Property(c => c.ClaimedAt).HasColumnType("datetime2");
+                entity.HasIndex(c => c.LeaseUntil).HasDatabaseName("IX_ClinicBatchClaims_LeaseUntil");
             });
 
             // ===== Bulk email jobs (admin "send to everybody", queued) =====

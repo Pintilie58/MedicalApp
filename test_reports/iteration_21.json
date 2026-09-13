@@ -1,0 +1,29 @@
+{
+  "summary": "Backend-only regression verification for P0 CAM batch DbUpdateConcurrencyException fix (lease moved from ClinicBatchRuns.RowVersion/LeaseUntil to new ClinicBatchClaims table). MedicalApp.csproj builds clean (0 warn / 0 err). probe_azure runs end-to-end with 'ALL CHECKS PASSED' (all 40+ checks incl. new 6c-6i covering exactly the reported bug). Migration 20260913150020_AddCamBatchClaim is correct (creates ClinicBatchClaims with PK BatchRunId + IX on LeaseUntil, drops LeaseUntil+RowVersion from ClinicBatchRuns). ModelSnapshot has ClinicBatchClaim entity and ClinicBatchRun no longer has LeaseUntil/RowVersion (remaining hits are on unrelated BulkEmailJob and InterpretationJobRecord queues). Static grep: no residual references to ClinicBatchRun.LeaseUntil in Services/Controllers/Areas/Views; StartupSeed.FailOrphanedBatchesAsync now decides by live rows in ClinicBatchClaims. All 5 sibling probes (probe_diag, probe_scaleout, probe_cabinet, probe_bg, probe_indexes) still compile (probe_bg has 2 pre-existing EF1001 warnings on internal API usage at Program.cs:379, unrelated to this fix).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "probe_bg/Program.cs:379", "issue": "Pre-existing EF1001 warning: uses internal SqlServerOptionsExtension API. Unrelated to CAM batch fix but worth cleaning up."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/probe_azure/Program.cs"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fix is correct: INSERT into ClinicBatchClaims (PK=BatchRunId) is the lock, eliminating the concurrency-token contention on ClinicBatchRuns that caused DbUpdateConcurrencyException at file #1.",
+    "ClinicBatchRun no longer carries any [Timestamp]/RowVersion or LeaseUntil column — verified in AppDbContextModelSnapshot (entity block lines 306-363) and migration Down/Up.",
+    "StartupSeed.FailOrphanedBatchesAsync correctly filters by live claims (c.LeaseUntil >= now) instead of the removed row-level lease.",
+    "CamBatchQueueStore.ReleaseAsync is idempotent for already-terminal batches (probe check 6i confirms Completed is not flipped to Failed).",
+    "Suggestion (non-blocking): the FailAbandonedAsync sweep at CamBatchQueueStore.cs:60 loads expired claim rows then deletes; consider a single ExecuteDeleteAsync for atomicity under high load. Not a bug."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "N/A — no web/API surface reachable in this container; SQL Server connection string points to user's local PINTILIE\\SQLEXPRESS. Testing done via dotnet build + EF InMemory console probes as instructed.",
+  "seed_data_creation": "None — probe_azure builds its own in-memory fixtures.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "P0 CAM batch concurrency fix independently verified. Build clean, probe_azure ALL CHECKS PASSED including the four new checks 6e-6i that reproduce the exact reported bug (4-file batch with heartbeat renewals on a separate DbContext no longer throws DbUpdateConcurrencyException). Migration AddCamBatchClaim is idempotent-safe when combined with /app/memory/probes/AddCamBatchClaim.sql. Do not re-run supervisor — no HTTP surface in this container.",
+  "rca of the issue": "Original bug: ClinicBatchRuns row had [Timestamp] RowVersion + LeaseUntil. Runner (CamBatchService.RunAsync) attached the batch row in its own DbContext and saved counters after every processed PDF, while CamBatchQueueWorker.KeepAliveAsync renewed LeaseUntil on the same row from a different DbContext. First heartbeat between file #1's start and the runner's first SaveChanges bumped RowVersion, so the runner's save threw DbUpdateConcurrencyException on the very first file. Fix: introduced ClinicBatchClaims (PK=BatchRunId, OwnerInstance, LeaseUntil, ClaimedAt) — the row INSERT is the lock; ClinicBatchRun carries no concurrency token anymore, so the runner and the heartbeat can no longer collide. Renew/Release/FailAbandoned operate exclusively on ClinicBatchClaims. Verified by probe_azure checks 6c-6i and by static grep across the codebase."
+}

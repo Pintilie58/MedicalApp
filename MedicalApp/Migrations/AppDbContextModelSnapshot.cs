@@ -241,6 +241,30 @@ namespace MedicalApp.Migrations
                     b.ToTable("ClinicAnalyses", (string)null);
                 });
 
+            modelBuilder.Entity("MedicalApp.Models.ClinicBatchClaim", b =>
+                {
+                    b.Property<int>("BatchRunId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ClaimedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("LeaseUntil")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OwnerInstance")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("BatchRunId");
+
+                    b.HasIndex("LeaseUntil")
+                        .HasDatabaseName("IX_ClinicBatchClaims_LeaseUntil");
+
+                    b.ToTable("ClinicBatchClaims", (string)null);
+                });
+
             modelBuilder.Entity("MedicalApp.Models.ClinicBatchError", b =>
                 {
                     b.Property<int>("Id")
@@ -312,20 +336,12 @@ namespace MedicalApp.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<DateTime?>("LeaseUntil")
-                        .HasColumnType("datetime2");
-
                     b.Property<int>("NotSends")
                         .HasColumnType("int");
 
                     b.Property<string>("OwnerInstance")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
 
                     b.Property<DateTime>("StartedAt")
                         .HasColumnType("datetime2");

@@ -411,10 +411,18 @@ END;");
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
             var now = DateTime.UtcNow;
+
+            // Lease lives in ClinicBatchClaims now (see ClinicBatchClaim): a
+            // batch is alive only while a claim of its own is still valid.
+            var liveClaims = await db.ClinicBatchClaims.AsNoTracking()
+                .Where(c => c.LeaseUntil >= now)
+                .Select(c => c.BatchRunId)
+                .ToListAsync();
+
             var orphans = await db.ClinicBatchRuns
                 .Where(b => b.Status == "Running"
                             && b.FinishedAt == null
-                            && (b.LeaseUntil == null || b.LeaseUntil < now))
+                            && !liveClaims.Contains(b.Id))
                 .ToListAsync();
             if (orphans.Count == 0) return;
 
@@ -423,7 +431,6 @@ END;");
                 b.Status = "Failed";
                 b.FinishedAt = now;
                 b.OwnerInstance = null;
-                b.LeaseUntil = null;
             }
             await db.SaveChangesAsync();
             logger.LogWarning(

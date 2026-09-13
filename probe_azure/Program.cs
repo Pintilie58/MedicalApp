@@ -35,9 +35,28 @@ services.AddSingleton<IEmailService>(fakeEmail);
 var sp = services.BuildServiceProvider();
 var db = sp.GetRequiredService<AppDbContext>();
 
-CamBatchQueueStore NewStore() => new(
-    new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(dbName).Options),
-    NullLogger<CamBatchQueueStore>.Instance);
+AppDbContext NewCtx() =>
+    new(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(dbName).Options);
+
+CamBatchQueueStore NewStore() => new(NewCtx(), NullLogger<CamBatchQueueStore>.Instance);
+
+// The lease lives in ClinicBatchClaims, NOT on the batch row (June 2026 fix):
+// a [Timestamp] on ClinicBatchRuns made every counter save of the runner throw
+// DbUpdateConcurrencyException as soon as the first heartbeat renewed it.
+async Task Claim(int batchRunId, string owner, DateTime leaseUntil)
+{
+    db.ClinicBatchClaims.Add(new ClinicBatchClaim
+    {
+        BatchRunId = batchRunId,
+        OwnerInstance = owner,
+        LeaseUntil = leaseUntil,
+        ClaimedAt = DateTime.UtcNow
+    });
+    await db.SaveChangesAsync();
+}
+
+async Task<ClinicBatchClaim?> ClaimOf(int batchRunId) =>
+    await db.ClinicBatchClaims.AsNoTracking().FirstOrDefaultAsync(c => c.BatchRunId == batchRunId);
 
 async Task<ClinicBatchRun> Batch(int clinicId, string status,
     DateTime? leaseUntil = null, DateTime? started = null, bool cancel = false)
@@ -47,13 +66,13 @@ async Task<ClinicBatchRun> Batch(int clinicId, string status,
         ClinicId = clinicId,
         Status = status,
         StartedAt = started ?? DateTime.UtcNow,
-        LeaseUntil = leaseUntil,
         OwnerInstance = leaseUntil == null ? null : "other-instance/999",
         CancelRequested = cancel,
         LanguageCode = "ro"
     };
     db.ClinicBatchRuns.Add(b);
     await db.SaveChangesAsync();
+    if (leaseUntil != null) await Claim(b.Id, "other-instance/999", leaseUntil.Value);
     return b;
 }
 
@@ -83,12 +102,17 @@ Check("2. the worker claims the queued batch",
     claimed != null && claimed.Id == queued.Id, claimed?.Id.ToString() ?? "null");
 
 var afterClaim = await Reload(queued.Id);
-Check("2b. the claim writes Running + owner + lease + attempt",
+var claimRow = await ClaimOf(queued.Id);
+Check("2b. the claim writes Running + owner + attempt on the row",
     afterClaim.Status == "Running"
     && afterClaim.OwnerInstance == CamBatchQueueStore.Instance
-    && afterClaim.LeaseUntil > DateTime.UtcNow.AddMinutes(2)
     && afterClaim.Attempts == 1,
     $"{afterClaim.Status}/{afterClaim.Attempts}");
+Check("2b2. and the lease lives in its own claim row",
+    claimRow != null
+    && claimRow.OwnerInstance == CamBatchQueueStore.Instance
+    && claimRow.LeaseUntil > DateTime.UtcNow.AddMinutes(2),
+    claimRow?.OwnerInstance ?? "no claim");
 
 Check("2c. nothing else is claimable while the lease is fresh",
     await NewStore().TryClaimNextAsync() == null);
@@ -109,8 +133,9 @@ await NewStore().TryClaimNextAsync();
 var deadAfter = await Reload(dead.Id);
 Check("4. a batch with an expired lease is marked Failed (no double e-mails)",
     deadAfter.Status == "Failed" && deadAfter.FinishedAt != null
-    && deadAfter.OwnerInstance == null && deadAfter.LeaseUntil == null,
+    && deadAfter.OwnerInstance == null,
     deadAfter.Status);
+Check("4b. and its stale claim is deleted", await ClaimOf(dead.Id) == null);
 
 // Cancel travels through the row.
 var cancelMe = await Batch(5, "Running", leaseUntil: DateTime.UtcNow.AddMinutes(2), cancel: true);
@@ -123,18 +148,98 @@ Check("5b. a batch without a cancel is not reported as cancelled",
 await NewStore().ReleaseAsync(live.Id);
 var released = await Reload(live.Id);
 Check("6. releasing a still-Running row closes it instead of leaving it stuck",
-    released.Status == "Failed" && released.LeaseUntil == null && released.OwnerInstance == null,
+    released.Status == "Failed" && released.OwnerInstance == null,
     released.Status);
+Check("6b. releasing drops the claim so the row is not locked forever",
+    await ClaimOf(live.Id) == null);
+
+// =====================================================================
+//  6c. The lock is the claim's primary key: a second instance loses
+// =====================================================================
+var raced = await Batch(6, "Queued");
+await Claim(raced.Id, "other-instance/999", DateTime.UtcNow.AddMinutes(2));  // claimed first
+var lost = await NewStore().TryClaimNextAsync();
+Check("6c. a batch already claimed by another instance is not claimed twice",
+    lost == null || lost.Id != raced.Id, lost?.Id.ToString() ?? "null");
+var racedAfter = await Reload(raced.Id);
+Check("6d. and the losing instance leaves the row untouched",
+    racedAfter.Status == "Queued" && racedAfter.Attempts == 0
+    && racedAfter.OwnerInstance == null,
+    $"{racedAfter.Status}/{racedAfter.Attempts}");
+db.ClinicBatchClaims.RemoveRange(db.ClinicBatchClaims.Where(c => c.BatchRunId == raced.Id));
+racedAfter = await db.ClinicBatchRuns.FirstAsync(b => b.Id == raced.Id);
+racedAfter.Status = "Completed";
+racedAfter.FinishedAt = DateTime.UtcNow;
+await db.SaveChangesAsync();
+
+// =====================================================================
+//  6e. REGRESSION (June 2026): the runner's counter saves must survive the
+//      heartbeat. This is the bug the operator hit on the first file of a
+//      4-file batch: DbUpdateConcurrencyException.
+// =====================================================================
+var runEntity = db.Model.FindEntityType(typeof(ClinicBatchRun))!;
+var tokens = runEntity.GetProperties().Where(p => p.IsConcurrencyToken).Select(p => p.Name).ToList();
+Check("6e. ClinicBatchRun carries NO concurrency token", tokens.Count == 0, string.Join(",", tokens));
+
+var claimEntity = db.Model.FindEntityType(typeof(ClinicBatchClaim))!;
+Check("6f. the claim is keyed by BatchRunId (the INSERT is the lock)",
+    claimEntity.FindPrimaryKey()!.Properties.Count == 1
+    && claimEntity.FindPrimaryKey()!.Properties[0].Name == nameof(ClinicBatchClaim.BatchRunId));
+
+var hot = await Batch(7, "Queued");
+var hotClaimed = await NewStore().TryClaimNextAsync();
+string? concurrencyError = null;
+if (hotClaimed == null || hotClaimed.Id != hot.Id)
+{
+    concurrencyError = "the batch was not claimed";
+}
+else
+{
+    // The runner keeps its OWN DbContext for the whole batch (CamBatchService),
+    // the keep-alive loop renews the claim from a separate scope every 30 s.
+    var runnerDb = NewCtx();
+    var tracked = await runnerDb.ClinicBatchRuns.FirstAsync(b => b.Id == hot.Id);
+    try
+    {
+        for (var i = 0; i < 4; i++)                       // 4 files, like the report
+        {
+            await NewStore().RenewLeaseAsync(hot.Id);     // heartbeat, other context
+            tracked.FilesInterpreted++;
+            tracked.FilesSent++;
+            await runnerDb.SaveChangesAsync();            // used to throw here
+        }
+        tracked.Status = "Completed";
+        tracked.FinishedAt = DateTime.UtcNow;
+        await runnerDb.SaveChangesAsync();
+    }
+    catch (DbUpdateConcurrencyException ex)
+    {
+        concurrencyError = ex.Message;
+    }
+    await runnerDb.DisposeAsync();
+}
+Check("6g. counters saved by the runner while the claim is renewed do NOT throw",
+    concurrencyError == null, concurrencyError);
+
+var hotAfter = await Reload(hot.Id);
+Check("6h. all four files were counted and the batch completed",
+    hotAfter.FilesInterpreted == 4 && hotAfter.FilesSent == 4 && hotAfter.Status == "Completed",
+    $"{hotAfter.Status} {hotAfter.FilesInterpreted}/{hotAfter.FilesSent}");
+
+await NewStore().ReleaseAsync(hot.Id);
+Check("6i. the finished batch is released without being flipped to Failed",
+    (await Reload(hot.Id)).Status == "Completed" && await ClaimOf(hot.Id) == null);
 
 // =====================================================================
 //  7. The startup sweep is multi-instance safe
 // =====================================================================
 db.ClinicBatchRuns.RemoveRange(db.ClinicBatchRuns);
+db.ClinicBatchClaims.RemoveRange(db.ClinicBatchClaims);
 await db.SaveChangesAsync();
 
 var sweepLive = await Batch(10, "Running", leaseUntil: DateTime.UtcNow.AddMinutes(2));
 var sweepDead = await Batch(11, "Running", leaseUntil: DateTime.UtcNow.AddMinutes(-1));
-var sweepLegacy = await Batch(12, "Running");              // no lease at all (old rows)
+var sweepLegacy = await Batch(12, "Running");              // no claim at all (old rows)
 var sweepQueued = await Batch(13, "Queued");
 
 await StartupSeed.FailOrphanedBatchesAsync(sp, NullLogger.Instance);
@@ -143,7 +248,7 @@ Check("7. the sweep leaves a batch alive on another instance alone (the old bug)
     (await Reload(sweepLive.Id)).Status == "Running");
 Check("7b. it fails the batch of a dead instance",
     (await Reload(sweepDead.Id)).Status == "Failed");
-Check("7c. it still fails legacy rows with no lease (single-instance behaviour)",
+Check("7c. it still fails legacy rows with no claim (single-instance behaviour)",
     (await Reload(sweepLegacy.Id)).Status == "Failed");
 Check("7d. it does not touch queued batches — a worker will pick them up",
     (await Reload(sweepQueued.Id)).Status == "Queued");

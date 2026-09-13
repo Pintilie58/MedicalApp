@@ -1,6 +1,3 @@
-> **Copie pentru comoditate.** Originalul, cel care se actualizeaza in continuare, este `memory\PRD.md`
-> (in radacina repository-ului, langa folderul `MedicalApp`). Copie facuta la 2026-09-13.
-
 # MyMedicalApp — PRD
 
 ## Problem statement
@@ -503,7 +500,31 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
     Regresie verde: B2C 80/80, cabinet 57/57, DI 10/10, scale-out (mai puțin 2 eșecuri de mediu —
     Azurite nu rulează în container). `has-pending-model-changes` ⇒ „No changes”; build 0 warning-uri.
 
-## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
+## Backlog
+- **P0 raportat de utilizator și REPARAT** (13 iunie 2026): `DbUpdateConcurrencyException` la
+  primul fișier al unui lot CAM.
+  - Cauză reală: lease-ul cozii stătea pe rândul `ClinicBatchRuns` împreună cu un
+    `[Timestamp] RowVersion`. `CamBatchService` ține rândul lotului atașat în DbContext-ul lui
+    pe toată durata rulării și îi salvează contoarele după fiecare fișier, în timp ce
+    `CamBatchQueueWorker.KeepAliveAsync` reînnoia lease-ul **din alt DbContext** → prima
+    reînnoire schimba `RowVersion`, deci salvarea runner-ului nu mai găsea rândul.
+  - Fix: lock-ul s-a mutat în tabel propriu **`ClinicBatchClaims`** (`BatchRunId` = PK →
+    INSERT-ul *este* lock-ul, atomic între instanțe); `ClinicBatchRun` **nu mai are** niciun
+    token de concurență (`RowVersion` + `LeaseUntil` eliminate).
+    `RenewLeaseAsync`/`ReleaseAsync`/`FailAbandonedAsync` și
+    `StartupSeed.FailOrphanedBatchesAsync` lucrează exclusiv pe claim-uri.
+  - Reparat și ce lăsase sesiunea precedentă necompilabil: `ClinicBatchClaim.cs` trunchiat
+    (CS1022), `CamBatchQueueStore.RenewInterval` lipsă, `StartupSeed` pe `batch.LeaseUntil`.
+  - **DB**: migrare **`AddCamBatchClaim`** (creează `ClinicBatchClaims` + index pe `LeaseUntil`,
+    șterge `LeaseUntil` și `RowVersion` din `ClinicBatchRuns`). Pentru aplicare manuală în SSMS:
+    `memory/probes/AddCamBatchClaim.sql` (idempotent, copie și în `MedicalApp/Docs/`).
+    **Necesită `Update-Database` local înainte de a relansa un lot.**
+  - Testat: `probe_azure` extins cu checkurile 6c-6i (claim atomic — a doua instanță pierde și nu
+    atinge rândul; zero token de concurență pe `ClinicBatchRun`; 4 salvări de contoare intercalate
+    cu heartbeat din alt DbContext, fără excepție; Release nu mai trece un lot `Completed` pe
+    `Failed`) — **ALL CHECKS PASSED**; build 0 erori / 0 warning-uri; verificat independent de
+    testing agent (`/app/test_reports/iteration_21.json`, backend 100%).
+- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard
 - **P2**: buton de re-probe LOINC din UI (fără restart aplicație)

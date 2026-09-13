@@ -1,6 +1,3 @@
-> **Copie pentru comoditate.** Originalul, cel care se actualizeaza in continuare, este `memory\AZURE_HOSTING.md`
-> (in radacina repository-ului, langa folderul `MedicalApp`). Copie facuta la 2026-09-13.
-
 # Găzduire pe Azure — ghid de configurare
 
 Scris în iunie 2026, după lucrarea „procesare în fundal, nu în request”.
@@ -89,6 +86,30 @@ de instanță. Acum:
   lease, nu după simplul fapt că rândul e `Running`.
 
 Decizia de business rămâne: **loturile întrerupte NU se reia automat** (ar re-trimite emailuri).
+
+#### B.2.1 De ce lease-ul stă în tabel separat (`ClinicBatchClaims`) — bug reparat iunie 2026
+Prima versiune ținea lease-ul (`LeaseUntil`, `OwnerInstance`) direct pe `ClinicBatchRuns`,
+cu o coloană `RowVersion` (`[Timestamp]`) pentru revendicare optimistă. Rezultatul în
+producție: la **primul fișier** dintr-un lot apărea `DbUpdateConcurrencyException`.
+Cauza: `CamBatchService` ține rândul lotului atașat în DbContext-ul lui pe toată durata
+rulării și îi salvează contoarele după fiecare fișier, în timp ce bucla de heartbeat
+reînnoia lease-ul **din alt DbContext**. Prima reînnoire schimba `RowVersion`, deci
+următorul `SaveChangesAsync` al runner-ului nu mai găsea rândul cu versiunea lui.
+
+Soluția: lock-ul s-a mutat într-un rând propriu — `ClinicBatchClaims`
+(`BatchRunId` = cheie primară, `OwnerInstance`, `LeaseUntil`, `ClaimedAt`):
+- **revendicarea = INSERT**: cheia primară face operația atomică între instanțe, a doua
+  instanță pierde pur și simplu insertul (`DbUpdateException`) și trece la lotul următor;
+- **reînnoirea lease-ului nu mai atinge rândul lotului**, deci contoarele runner-ului nu
+  mai intră în coliziune;
+- `ClinicBatchRuns` **nu mai are** niciun token de concurență (`RowVersion` și `LeaseUntil`
+  au fost șterse prin migrarea `AddCamBatchClaim`);
+- „lot abandonat” = rând `Running` fără claim viu → marcat `Failed`
+  (`CamBatchQueueStore.FailAbandonedAsync`, `StartupSeed.FailOrphanedBatchesAsync`).
+
+Migrare necesară: `Update-Database` (migrarea `AddCamBatchClaim`) sau scriptul idempotent
+`memory/probes/AddCamBatchClaim.sql`. Regresia e acoperită de `probe_azure`
+(checkurile 6c-6i: claim atomic, contoare salvate în paralel cu heartbeat, release).
 
 ### B.3 Emailul în masă din Admin
 Bucla de trimitere era în request → la câteva sute de destinatari depășea limita Azure de
