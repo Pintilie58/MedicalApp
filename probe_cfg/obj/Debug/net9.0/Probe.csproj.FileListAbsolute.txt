@@ -1,0 +1,15 @@
+/app/probe_cfg/obj/Debug/net9.0/Probe.GeneratedMSBuildEditorConfig.editorconfig
+/app/probe_cfg/obj/Debug/net9.0/Probe.AssemblyInfoInputs.cache
+/app/probe_cfg/obj/Debug/net9.0/Probe.AssemblyInfo.cs
+/app/probe_cfg/obj/Debug/net9.0/Probe.csproj.CoreCompileInputs.cache
+/app/probe_cfg/obj/Debug/net9.0/Probe.sourcelink.json
+/app/probe_cfg/bin/Debug/net9.0/ProbeCfg
+/app/probe_cfg/bin/Debug/net9.0/ProbeCfg.deps.json
+/app/probe_cfg/bin/Debug/net9.0/ProbeCfg.runtimeconfig.json
+/app/probe_cfg/bin/Debug/net9.0/ProbeCfg.dll
+/app/probe_cfg/bin/Debug/net9.0/ProbeCfg.pdb
+/app/probe_cfg/obj/Debug/net9.0/ProbeCfg.dll
+/app/probe_cfg/obj/Debug/net9.0/refint/ProbeCfg.dll
+/app/probe_cfg/obj/Debug/net9.0/ProbeCfg.pdb
+/app/probe_cfg/obj/Debug/net9.0/Probe.genruntimeconfig.cache
+/app/probe_cfg/obj/Debug/net9.0/ref/ProbeCfg.dll

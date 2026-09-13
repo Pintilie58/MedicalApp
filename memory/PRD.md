@@ -501,6 +501,16 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
     Azurite nu rulează în container). `has-pending-model-changes` ⇒ „No changes”; build 0 warning-uri.
 
 ## Backlog
+- **Configurație de deploy pregătită** (13 iunie 2026): `MedicalApp/appsettings.Azure.json` +
+  ghidul `memory/AZURE_APP_SETTINGS.md` (copie în `MedicalApp/Docs/`).
+  - Fișierul este **suprapunere**, nu înlocuire: se citește doar când
+    `ASPNETCORE_ENVIRONMENT = Azure`, peste `appsettings.json`, iar Application settings din
+    portal bat ambele. Local (`Development`) nu e citit niciodată.
+  - Conține: `Storage = Blob` pentru CAM, `LoincAutoStart = false`, `AttachDebugJson = false`,
+    timeout LOINC 10 s, loguri pe `Warning` (aplicația pe `Information`), plafoanele Gemini și
+    cozile — cu **toate secretele goale**, de completat în portal.
+  - Testat: probă nouă `/app/memory/probes/AzureAppSettingsProbe.cs.txt` (proiect
+    `/app/probe_cfg`) — **17/17 PASS**; `dotnet publish` confirmă că fișierul ajunge în pachet.
 - **P0 raportat de utilizator și REPARAT** (13 iunie 2026): `DbUpdateConcurrencyException` la
   primul fișier al unui lot CAM.
   - Cauză reală: lease-ul cozii stătea pe rândul `ClinicBatchRuns` împreună cu un
