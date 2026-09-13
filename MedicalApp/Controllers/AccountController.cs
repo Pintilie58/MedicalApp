@@ -259,7 +259,7 @@ namespace MedicalApp.Controllers
                 DataC = DateTime.UtcNow,
                 CreditConsum = 0,
                 CreditRest = 0,
-                FreeArchiveUntil = DateTime.UtcNow.Add(MedicalApp.Services.ArchiveAccessService.FreePeriod),
+                FreeArchiveUntil = MedicalApp.Services.ArchiveAccessService.FreeUntilFrom(DateTime.UtcNow),
                 IsAdmin = _adminSettings.IsAdminEmail(pending.Email),
                 UserType = AccountTypes.Normalize(pending.UserType),
                 CabinetName = AccountTypes.IsCabinet(pending.UserType)

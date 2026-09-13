@@ -11,7 +11,8 @@ namespace MedicalApp.Services
     ///    (GDPR: user's right to their own paid medical data). Those paths MUST NOT
     ///    call this service.
     ///  - Premium features (compare two interpretations, parameter evolution chart,
-    ///    Excel/CSV export...) are free for 1 year after registration.
+    ///    Excel/CSV export...) are free for FreeYears years after registration
+    ///    (1 year until June 2026, extended to 3 by the owner).
     ///  - After the free period expires, the user pays 1 credit for every 3 premium
     ///    feature uses. Cumulative counter:
     ///      use #1 free (counter 0 -> 1)
@@ -28,8 +29,17 @@ namespace MedicalApp.Services
         /// <summary>How many premium uses are bundled per credit after the free period.</summary>
         public const int UsesPerCredit = 3;
 
-        /// <summary>Free-period duration from the user's registration date.</summary>
-        public static readonly TimeSpan FreePeriod = TimeSpan.FromDays(365);
+        /// <summary>How many years the premium archive features stay free.</summary>
+        public const int FreeYears = 3;
+
+        /// <summary>
+        /// End of the free period for someone who registered at
+        /// <paramref name="registrationUtc"/>. Uses AddYears, so it lands on the
+        /// same calendar day 3 years later (leap years included) instead of
+        /// drifting by a day like a fixed number of days would.
+        /// </summary>
+        public static DateTime FreeUntilFrom(DateTime registrationUtc)
+            => registrationUtc.AddYears(FreeYears);
 
         private readonly AppDbContext _db;
         private readonly ILogger<ArchiveAccessService> _logger;
@@ -54,7 +64,7 @@ namespace MedicalApp.Services
 
             // Defensive: if FreeArchiveUntil is null (legacy users) treat it as
             // "already expired" — the seed will populate it at startup.
-            var freeUntil = user.FreeArchiveUntil ?? user.DataC.Add(FreePeriod);
+            var freeUntil = user.FreeArchiveUntil ?? FreeUntilFrom(user.DataC);
 
             if (now < freeUntil)
             {
@@ -110,12 +120,12 @@ namespace MedicalApp.Services
             => Math.Max(0, UsesPerCredit - user.ArchivePremiumCounter);
 
         /// <summary>
-        /// Returns true when the user is still inside the 1-year free period.
+        /// Returns true when the user is still inside the free period.
         /// </summary>
         public static bool IsInFreePeriod(User user, DateTime? nowUtc = null)
         {
             var now = nowUtc ?? DateTime.UtcNow;
-            var freeUntil = user.FreeArchiveUntil ?? user.DataC.Add(FreePeriod);
+            var freeUntil = user.FreeArchiveUntil ?? FreeUntilFrom(user.DataC);
             return now < freeUntil;
         }
     }

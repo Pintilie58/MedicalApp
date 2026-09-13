@@ -437,6 +437,24 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
     anonimi, izolare între conturi). Regresie verde: B2C 80/80, split 49/49, plafon 21/21, DI,
     indexuri; build 0 warning-uri; UI verificat la 390 px și 1920 px, fără overflow.
 
+- **Perioada gratuită pentru funcțiile avansate: 1 an → 3 ani** (iunie 2026, cerere utilizator):
+  `ArchiveAccessService.FreeYears = 3` + `FreeUntilFrom(dataÎnscrierii)` (folosește `AddYears`,
+  deci cade pe aceeași zi calendaristică, inclusiv la 29 februarie). Înlocuiește
+  `FreePeriod = 365 zile` în toate locurile (înregistrare, seed, ecranul de istoric).
+  - **Conturile existente sunt extinse automat** la pornirea aplicației
+    (`StartupSeed.EnsureFreeArchiveUntilAsync`): orice cont cu `FreeArchiveUntil` mai mic decât
+    `DataC + 3 ani` primește data nouă, calculată **de la data înscrierii**. Nimeni nu e scurtat
+    (o perioadă de curtoazie mai lungă rămâne intactă), iar rularea repetată nu schimbă nimic.
+  - După expirare rămâne neschimbată regula 3 utilizări/credit.
+  - Mesajul din ecranul de istoric actualizat în **7 limbi** („3 ani de la înregistrare”).
+  - **Zero modificări de schemă**: coloana `Users.FreeArchiveUntil` exista deja; se schimbă doar
+    valorile, la primul start al aplicației.
+  - Testat: probă nouă `/app/memory/probes/FreePeriodProbe.cs.txt` (proiect `/app/probe_freeperiod`)
+    — **16/16 PASS** (perioada, 29 februarie, un cont de 2 ani care înainte plătea și acum are
+    gratuit, expirarea la 3 ani + 1 zi, regula 3/credit după expirare, extinderea conturilor vechi
+    și a rândurilor fără dată, interzicerea scurtării, idempotența seed-ului, cele 7 limbi).
+    Regresie verde: B2C 80/80, cabinet 57/57. Build 0 warning-uri.
+
 ## Backlog- **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard

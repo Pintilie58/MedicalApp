@@ -246,7 +246,7 @@ namespace MedicalApp.Controllers
             if (user != null)
             {
                 vm.IsInFreePeriod = ArchiveAccessService.IsInFreePeriod(user);
-                vm.FreeUntil = user.FreeArchiveUntil ?? user.DataC.Add(ArchiveAccessService.FreePeriod);
+                vm.FreeUntil = user.FreeArchiveUntil ?? ArchiveAccessService.FreeUntilFrom(user.DataC);
                 vm.FreeUsesLeftInBundle = ArchiveAccessService.FreeUsesLeftInBundle(user);
                 vm.IsFreemium = user.Credite == 0;
             }

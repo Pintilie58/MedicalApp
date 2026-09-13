@@ -7,7 +7,7 @@ namespace MedicalApp.Services
     /// <summary>
     /// Idempotent startup tasks. Runs once when the app starts:
     ///  - Ensures every existing User has a default profile named "Eu".
-    ///  - Ensures every existing User has FreeArchiveUntil set (1-year grace period
+    ///  - Ensures every existing User has FreeArchiveUntil set (free period
     ///    from the first time the app boots after the feature was introduced).
     ///  - Safe to run multiple times (checks before inserting/updating).
     /// </summary>
@@ -52,34 +52,44 @@ namespace MedicalApp.Services
 
         /// <summary>
         /// Backfills FreeArchiveUntil for users who registered BEFORE the premium-
-        /// archive policy existed. They get a fresh 1-year grace period from today
-        /// (we cannot retroactively punish them). New users set this at registration.
+        /// archive policy existed, and extends everybody to the current free period
+        /// (3 years from registration since June 2026). Nobody is ever shortened:
+        /// a date already further in the future is left alone.
+        /// New users set this at registration.
         /// </summary>
         public static async Task EnsureFreeArchiveUntilAsync(IServiceProvider services, ILogger logger)
         {
             using var scope = services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            var legacyUsers = await db.Users
-                .Where(u => u.FreeArchiveUntil == null)
+            // NOTE: AddYears is translated to SQL DATEADD; a call to
+            // FreeUntilFrom() would not be translatable, so it is inlined here.
+            var users = await db.Users
+                .Where(u => u.FreeArchiveUntil == null
+                            || u.FreeArchiveUntil < u.DataC.AddYears(ArchiveAccessService.FreeYears))
                 .ToListAsync();
 
-            if (legacyUsers.Count == 0)
+            if (users.Count == 0)
             {
-                logger.LogInformation("StartupSeed: all users already have FreeArchiveUntil set.");
+                logger.LogInformation("StartupSeed: every user already has the full free period.");
                 return;
             }
 
-            var graceUntil = DateTime.UtcNow.Add(ArchiveAccessService.FreePeriod);
-            foreach (var u in legacyUsers)
+            var extended = 0;
+            foreach (var u in users)
             {
-                u.FreeArchiveUntil = graceUntil;
+                var target = ArchiveAccessService.FreeUntilFrom(u.DataC);
+                // Never shorten: a legacy user may have been granted a grace
+                // period counted from the day of the backfill, not from DataC.
+                if (u.FreeArchiveUntil.HasValue && u.FreeArchiveUntil >= target) continue;
+                u.FreeArchiveUntil = target;
+                extended++;
             }
-            await db.SaveChangesAsync();
+            if (extended > 0) await db.SaveChangesAsync();
 
             logger.LogInformation(
-                "StartupSeed: granted 1-year FreeArchiveUntil={GraceUntil:u} to {Count} legacy user(s).",
-                graceUntil, legacyUsers.Count);
+                "StartupSeed: set FreeArchiveUntil to registration + {Years} years for {Count} user(s).",
+                ArchiveAccessService.FreeYears, extended);
         }
 
         /// <summary>
@@ -174,7 +184,7 @@ namespace MedicalApp.Services
                     TotalPaid = 500m,
                     DataC = DateTime.UtcNow,
                     UserType = "Clinic",
-                    FreeArchiveUntil = DateTime.UtcNow.Add(ArchiveAccessService.FreePeriod),
+                    FreeArchiveUntil = ArchiveAccessService.FreeUntilFrom(DateTime.UtcNow),
                 };
                 db.Users.Add(user);
                 createdUser = true;

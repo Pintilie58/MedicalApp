@@ -75,7 +75,7 @@ namespace MedicalApp.Models
         // ----- Archive premium features (P1.5.5 compare, P1.8 charts, exports) -----
         // Viewing the archive list and downloading a PDF stay FREE forever
         // (user's right to their own paid medical data).
-        // Premium archive features are free for 1 year after registration.
+        // Premium archive features are free for 3 years after registration.
         // After that, the user pays 1 credit for every 3 premium feature uses
         // (cumulative counter: uses 1,2,3 are free; use 4 consumes 1 credit and
         // the counter resets to 1; uses 5,6 free; use 7 consumes 1 credit; etc.).
