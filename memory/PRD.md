@@ -534,6 +534,33 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
     cu heartbeat din alt DbContext, fără excepție; Release nu mai trece un lot `Completed` pe
     `Failed`) — **ALL CHECKS PASSED**; build 0 erori / 0 warning-uri; verificat independent de
     testing agent (`/app/test_reports/iteration_21.json`, backend 100%).
+- **P0 Paralelizare lot CAM — IMPLEMENTAT** (14 iunie 2026), aprobat de utilizator după analiza
+  tabelului Admin/Performance (Gemini = 89% din timp; thinking = 70-80% din tokenii out;
+  Tier 1 = 1M TPM ⇒ cota Google NU e gâtuirea, ci procesarea secvențială din aplicație:
+  25 fișiere × 95 s ≈ 40 min).
+  - Setare nouă **`CamSettings:MaxParallelFiles`** (default **1** = comportament identic cu
+    înainte; Azure json: 4). Doar apelul Gemini al următoarelor N-1 fișiere pornește în avans
+    (`GeminiPrefetch` în `CamBatchService`); bucla rămâne strict în ordine, cu același DbContext:
+    contoare, credite, upsert pacient, PDF comparație și email — semantica secvențială păstrată.
+  - Fiecare prefetch are DI scope propriu (DbContext + provider Gemini nu sunt thread-safe);
+    eligibilitate identică pasului 1 (override sau bloc [MedicalApp]); plafon = creditele de la
+    startul lotului (niciodată mai multe apeluri AI decât credite); eșecul definitiv al
+    prefetch-ului NU se reîncearcă inline (7 încercări o singură dată); orice excepție a
+    prefetch-ului ⇒ fallback transparent pe apelul inline (comportamentul vechi).
+  - Chei Loc noi (7 limbi): `CamBatchLogParallelMode`, `CamBatchLogPrefetchStarted`.
+  - `appsettings.Azure.json`: `Gemini.RateLimit` 300 RPM / 20 apeluri concurente (calibrat
+    Tier 1), `CamSettings.MaxParallelFiles = 4`; documentat în `AZURE_APP_SETTINGS.md`.
+  - Testat: probă nouă `/app/probe_cam_parallel` (copie `memory/probes/CamParallelPrefetchProbe.cs.txt`):
+    7 scenarii / 30 checkuri — secvențial identic (max 1 în aer), paralel 4 (max 4 în aer,
+    emailuri în ordine, 8 apeluri exact, 2,7× mai rapid), plafon credite (3 credite ⇒ 3 apeluri),
+    eșec Gemini pe un fișier (1 singur apel, NotSends=1), fișier neeligibil (0 apeluri AI),
+    același pacient în 2 fișiere (1 PDF comparație, fără pacient duplicat), anulare în timpul
+    prefetch-ului (contoare consistente) — **ALL CHECKS PASSED**; build 0 erori / 0 warning-uri.
+  - **Utilizatorul validează local** (VS2026): întâi cu `MaxParallelFiles: 1`, apoi 4.
+- **P1 (următorul)**: poziție în coadă + ETA în UI-ul CAM (aprobat în principiu).
+- **P2 (experiment)**: `ThinkingBudget` configurabil pentru modul monolitic (azi -1 dinamic) —
+  potențial −30-40% timp/cost per fișier; de comparat calitatea pe 2-3 buletine cunoscute.
+- **P2**: 2-3 loturi CAM simultane per instanță (după validarea paralelizării).
 - **P1**: validare de către utilizator a pachetului anterior (JSON repair + batch encoding LOINC);
   revenire la `PipelineMode: "split"` după validare
 - **P2**: „Verdict pe axe” (Axis Verdict) în Admin Dashboard

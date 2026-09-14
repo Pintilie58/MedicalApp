@@ -38,6 +38,17 @@ namespace MedicalApp.Services
         public int RetentionDays { get; set; } = 30;
 
         /// <summary>
+        /// How many files of the SAME batch may have their AI (Gemini) call in
+        /// flight at once. 1 (default) = the historical strictly sequential
+        /// behaviour. With N &gt; 1 the runner keeps processing files in order
+        /// (DB writes, credits, compare PDF and email stay sequential) but
+        /// pre-launches the Gemini call of the next N-1 files, so the ~90 s of
+        /// waiting on the model overlap. Keep it below
+        /// <c>Gemini:RateLimit:MaxConcurrentCalls</c>.
+        /// </summary>
+        public int MaxParallelFiles { get; set; } = 1;
+
+        /// <summary>
         /// Where CAM files live: <c>"LocalDisk"</c> (default — development,
         /// Docker with a mounted volume) or <c>"Blob"</c> (Azure Blob Storage).
         /// Switching this value is the ONLY change needed to go to the cloud;

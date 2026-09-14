@@ -47,6 +47,8 @@ App Service → *Settings* → *Environment variables* → *App settings*.
 | `ScaleOut__Enabled` | `true` | **obligatoriu înainte** de a urca la 2+ instanțe |
 | `Gemini__RateLimit__InstanceCount` | numărul real de instanțe (la autoscale: maximul) | la 2+ instanțe |
 | `Gemini__RateLimit__RequestsPerMinute` | cota reală a contului Google | înainte de scale-out |
+| `CamSettings__MaxParallelFiles` | `4` (în `appsettings.Azure.json`); `1` = secvențial clasic | dacă un lot CAM dă erori 429 sau vrei să revii la comportamentul vechi, fără rebuild |
+| `Gemini__RateLimit__MaxConcurrentCalls` | `20` (Azure json, calibrat Tier 1); trebuie ≥ `InterpretationQueue__MaxConcurrent` + `CamSettings__MaxParallelFiles` | când urci paralelismul |
 | `InterpretationQueue__MaxConcurrent` | `8`-`10` | după ce măsori în *Admin → Performance* |
 
 ### În portal, nu în JSON

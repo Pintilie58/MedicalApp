@@ -20,14 +20,17 @@ namespace MedicalApp.Services
     ///   * Cancellable via CancellationToken — stops after current file finishes.
     ///   * No auto-resume on app restart: "Running" batches are flipped to
     ///     "Failed" on startup; the operator re-launches manually.
-    ///   * Processing is SEQUENTIAL (1 file at a time) — easier on Gemini's
-    ///     rate limit, easier to log, and reliable on a single-machine setup.
+    ///   * Processing is SEQUENTIAL (1 file at a time) for everything that
+    ///     touches the DB, credits, compare PDFs and email. Only the Gemini
+    ///     call of the next files may be pre-launched in parallel when
+    ///     <c>CamSettings:MaxParallelFiles</c> &gt; 1 (default 1 = fully sequential).
     /// </summary>
     public class CamBatchService
     {
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly CamBatchRegistry _registry;
         private readonly ILogger<CamBatchService> _logger;
+        private readonly int _maxParallelFiles;
         // Debug aid: when CamBatch:AttachDebugJson = true (Development only),
         // the full RawJsonResult (Gemini emissions + LOINC matcher decisions)
         // is attached to the interpretation email as a .json file so mapping
@@ -38,12 +41,14 @@ namespace MedicalApp.Services
             IServiceScopeFactory scopeFactory,
             CamBatchRegistry registry,
             ILogger<CamBatchService> logger,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IOptions<CamSettings> camSettings)
         {
             _scopeFactory = scopeFactory;
             _registry = registry;
             _logger = logger;
             _attachDebugJson = configuration.GetValue<bool>("CamBatch:AttachDebugJson");
+            _maxParallelFiles = Math.Max(1, camSettings.Value.MaxParallelFiles);
         }
 
         /// <summary>
@@ -152,13 +157,30 @@ namespace MedicalApp.Services
 
                 var ct = progress.Cts.Token;
 
-                foreach (var path in pdfPaths)
+                // Parallel Gemini prefetch (CamSettings:MaxParallelFiles > 1).
+                // null => exactly the historical sequential behaviour.
+                GeminiPrefetch? prefetch = null;
+                if (_maxParallelFiles > 1 && pdfPaths.Count > 1)
                 {
+                    prefetch = new GeminiPrefetch(pdfPaths.Count, user?.TotalAvailableCredits ?? 0);
+                    progress.Log(string.Format(Loc.T("CamBatchLogParallelMode", lang), _maxParallelFiles));
+                }
+
+                for (int i = 0; i < pdfPaths.Count; i++)
+                {
+                    var path = pdfPaths[i];
                     if (ct.IsCancellationRequested)
                     {
                         progress.Log(Loc.T("CamBatchLogCancelledStopping", lang));
                         batch.Status = "Cancelled";
                         break;
+                    }
+
+                    Task<PrefetchOutcome>? precomputed = null;
+                    if (prefetch != null)
+                    {
+                        EnsurePrefetchWindow(prefetch, i, pdfPaths, clinic, user, progress, lang, ct);
+                        precomputed = prefetch.Tasks[i];
                     }
 
                     progress.CurrentFile = Path.GetFileName(path);
@@ -168,7 +190,7 @@ namespace MedicalApp.Services
                     {
                         await ProcessOneFileAsync(
                             db, files, extractor, gemini, pdfGen, compareGen, loincMatcher, email,
-                            clinic, user, batch, progress, path, lang, ct);
+                            clinic, user, batch, progress, path, lang, ct, precomputed);
                     }
                     catch (Exception ex)
                     {
@@ -236,7 +258,8 @@ namespace MedicalApp.Services
             CamBatchProgress progress,
             string path,
             string lang,
-            CancellationToken ct)
+            CancellationToken ct,
+            Task<PrefetchOutcome>? precomputed = null)
         {
             var fileName = Path.GetFileName(path);
             byte[] bytes;
@@ -321,7 +344,12 @@ namespace MedicalApp.Services
             }
 
             // 3. Call Gemini with retry + Flash→Pro fallback (mirrors InterpretationController logic).
-            InterpretationResult? result = await CallGeminiWithRetryAsync(gemini, bytes, fileName, clinic, user, progress, lang, ct);
+            //    When the parallel prefetch already made this call, reuse its outcome
+            //    (including a definitive failure — never retry the 7 attempts twice).
+            var pre = precomputed != null ? await precomputed : new PrefetchOutcome(false, null);
+            InterpretationResult? result = pre.Attempted
+                ? pre.Result
+                : await CallGeminiWithRetryAsync(gemini, bytes, fileName, clinic, user, progress, lang, ct);
             if (result == null)
             {
                 await RecordErrorAsync(db, batch, path, meta!.PatientName, "AI exhausted retries (incl. fallback model)");
@@ -543,6 +571,86 @@ namespace MedicalApp.Services
                     ? Loc.T("CamBatchLogSentWithCompare", lang)
                     : Loc.T("CamBatchLogSent", lang),
                 patient.Email));
+        }
+
+        // -------------------------------------------------------------------
+        // Parallel Gemini prefetch. Only the AI call runs ahead; the loop above
+        // still consumes files strictly in order with the batch-scoped
+        // DbContext, so counters, credits, patient upsert and compare PDFs
+        // keep their sequential semantics. A prefetch that decides NOT to
+        // call Gemini (Attempted=false) is transparently handled by the
+        // inline path, exactly as before.
+        // -------------------------------------------------------------------
+        private readonly record struct PrefetchOutcome(bool Attempted, InterpretationResult? Result);
+
+        private sealed class GeminiPrefetch
+        {
+            public readonly Task<PrefetchOutcome>?[] Tasks;
+            public int CallsBudget;   // Gemini calls still allowed = credits at batch start
+
+            public GeminiPrefetch(int fileCount, int callsBudget)
+            {
+                Tasks = new Task<PrefetchOutcome>?[fileCount];
+                CallsBudget = callsBudget;
+            }
+        }
+
+        /// <summary>Starts the AI call for the current file and the next N-1 files (N = MaxParallelFiles).</summary>
+        private void EnsurePrefetchWindow(
+            GeminiPrefetch prefetch, int currentIndex, List<string> pdfPaths,
+            Clinic clinic, User? user, CamBatchProgress progress, string lang, CancellationToken ct)
+        {
+            int limit = Math.Min(pdfPaths.Count, currentIndex + _maxParallelFiles);
+            for (int j = currentIndex; j < limit; j++)
+            {
+                if (prefetch.Tasks[j] == null)
+                    prefetch.Tasks[j] = PrefetchOneAsync(prefetch, pdfPaths[j], clinic, user, progress, lang, ct);
+            }
+        }
+
+        private async Task<PrefetchOutcome> PrefetchOneAsync(
+            GeminiPrefetch prefetch, string path, Clinic clinic, User? user,
+            CamBatchProgress progress, string lang, CancellationToken ct)
+        {
+            var fileName = Path.GetFileName(path);
+            try
+            {
+                // Own DI scope: DbContext and the Gemini provider are NOT thread-safe,
+                // so nothing from the batch scope is touched here.
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var files = scope.ServiceProvider.GetRequiredService<ICamFileStore>();
+                var extractor = scope.ServiceProvider.GetRequiredService<CamPdfMetadataExtractor>();
+                var gemini = scope.ServiceProvider.GetRequiredService<IMedicalInterpretationProvider>();
+
+                var bytes = await files.ReadAsync(clinic, CamFolder.Original, fileName, ct);
+                if (bytes == null) return new PrefetchOutcome(false, null);
+
+                // Same eligibility rules as step 1 of ProcessOneFileAsync; every
+                // other case is left to the sequential path (no AI cost here).
+                var hasOverride = await db.ClinicPdfOverrides
+                    .AnyAsync(o => o.ClinicId == clinic.Id && o.FileName == fileName, ct);
+                if (!hasOverride)
+                {
+                    var probe = extractor.Extract(bytes, fileName, clinicDomainBlacklist: null);
+                    if (!(probe.MatchedExplicitBlock && probe.IsValid))
+                        return new PrefetchOutcome(false, null);
+                }
+
+                // Never spend more AI calls than the credits available at start.
+                if (Interlocked.Decrement(ref prefetch.CallsBudget) < 0)
+                    return new PrefetchOutcome(false, null);
+
+                progress.Log(string.Format(Loc.T("CamBatchLogPrefetchStarted", lang), fileName));
+                var result = await CallGeminiWithRetryAsync(gemini, bytes, fileName, clinic, user, progress, lang, ct);
+                return new PrefetchOutcome(true, result);
+            }
+            catch (Exception ex)
+            {
+                if (!ct.IsCancellationRequested)
+                    _logger.LogWarning(ex, "CAM prefetch failed for {File}; falling back to the inline AI call.", fileName);
+                return new PrefetchOutcome(false, null);
+            }
         }
 
         private async Task RecordErrorAsync(AppDbContext db, ClinicBatchRun batch, string filePath, string? patientName, string reason)
