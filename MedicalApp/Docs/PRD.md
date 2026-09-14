@@ -538,8 +538,8 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   tabelului Admin/Performance (Gemini = 89% din timp; thinking = 70-80% din tokenii out;
   Tier 1 = 1M TPM ⇒ cota Google NU e gâtuirea, ci procesarea secvențială din aplicație:
   25 fișiere × 95 s ≈ 40 min).
-  - Setare nouă **`CamSettings:MaxParallelFiles`** (default **1** = comportament identic cu
-    înainte; Azure json: 4). Doar apelul Gemini al următoarelor N-1 fișiere pornește în avans
+  - Setare nouă **`CamSettings:MaxParallelFiles`** (default cod **1** = comportament identic cu
+    înainte; appsettings.json local = **4** după validarea utilizatorului: 10 fișiere 16 min → 3,35 min; Azure json: 4). Doar apelul Gemini al următoarelor N-1 fișiere pornește în avans
     (`GeminiPrefetch` în `CamBatchService`); bucla rămâne strict în ordine, cu același DbContext:
     contoare, credite, upsert pacient, PDF comparație și email — semantica secvențială păstrată.
   - Fiecare prefetch are DI scope propriu (DbContext + provider Gemini nu sunt thread-safe);
