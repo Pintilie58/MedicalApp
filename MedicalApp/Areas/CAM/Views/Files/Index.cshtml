@@ -1,0 +1,271 @@
+@model MedicalApp.Areas.CAM.Models.CamFilesViewModel
+@using MedicalApp.Services
+@{
+    ViewData["Title"] = Loc.T("CamFilesHeading");
+    var folders = new[] { CamFolder.Original, CamFolder.Sends, CamFolder.Sumar, CamFolder.Errors };
+    string FormatBytes(long b)
+    {
+        double s = b;
+        string[] units = { "B", "KB", "MB", "GB" };
+        int i = 0;
+        while (s >= 1024 && i < units.Length - 1) { s /= 1024; i++; }
+        return $"{s:0.##} {units[i]}";
+    }
+    string Hint(CamFolder f) => f switch
+    {
+        CamFolder.Original => Loc.T("CamFilesHintOriginal"),
+        CamFolder.Sends => Loc.T("CamFilesHintSends"),
+        CamFolder.Sumar => Loc.T("CamFilesHintSumar"),
+        _ => Loc.T("CamFilesHintErrors")
+    };
+}
+
+<div class="container py-5" data-testid="cam-files-page">
+    <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
+        <h2 class="text-primary fw-bold mb-0" data-testid="cam-files-heading">
+            &#128193; @Loc.T("CamFilesHeading")
+            <span class="text-muted fs-6 fw-normal">&middot; @Model.ClinicName</span>
+        </h2>
+        <div class="ms-auto d-flex gap-2">
+            <a asp-controller="Batch" asp-action="Start" asp-area="CAM"
+               class="btn btn-primary fw-bold" data-testid="cam-files-go-batch">
+                @Loc.T("CamDashLaunchBatch")
+            </a>
+            <a asp-controller="Dashboard" asp-action="Index" asp-area="CAM"
+               class="btn btn-outline-secondary" data-testid="cam-back-dashboard">
+                &larr; @Loc.T("CamBackDashboard")
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger" data-testid="cam-files-error">@TempData["ErrorMessage"]</div>
+    }
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success" data-testid="cam-files-success">@TempData["SuccessMessage"]</div>
+    }
+
+    <ul class="nav nav-tabs mb-3" data-testid="cam-files-tabs">
+        @foreach (var f in folders)
+        {
+            var active = f == Model.Folder;
+            var badgeClass = f == CamFolder.Errors && Model.Counts[f] > 0 ? "bg-danger" : "bg-secondary";
+            <li class="nav-item">
+                <a class="nav-link @(active ? "active fw-bold" : "")"
+                   asp-action="Index" asp-route-folder="@f"
+                   data-testid="cam-files-tab-@f.ToString().ToLower()">
+                    @f <span class="badge @badgeClass ms-1">@Model.Counts[f]</span>
+                </a>
+            </li>
+        }
+    </ul>
+
+    <p class="small text-muted mb-3" data-testid="cam-files-hint">@Hint(Model.Folder)</p>
+
+    @if (Model.CanUpload)
+    {
+        <div class="card mb-3 border-info">
+            <div class="card-body">
+                <div id="camDropZone"
+                     class="border border-2 border-info rounded-3 p-4 text-center bg-info-subtle"
+                     style="cursor: pointer; border-style: dashed !important;"
+                     data-testid="cam-files-dropzone">
+                    <div class="fs-1">&#128229;</div>
+                    <div class="fw-semibold">@Loc.T("CamFilesDropZone")</div>
+                    <div class="small text-muted">@Loc.T("CamFilesOnlyPdf")</div>
+                    <input type="file" id="camUploadInput" accept="application/pdf,.pdf" multiple
+                           class="d-none" data-testid="cam-files-upload-input" />
+                </div>
+                <div id="camUploadProgress" class="mt-3 d-none" data-testid="cam-files-upload-progress">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span id="camUploadLabel"></span>
+                        <span id="camUploadPct">0%</span>
+                    </div>
+                    <div class="progress" style="height: 10px;">
+                        <div id="camUploadBar" class="progress-bar progress-bar-striped progress-bar-animated bg-info"
+                             role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <ul id="camUploadResults" class="small mt-2 mb-0 list-unstyled"></ul>
+                </div>
+            </div>
+        </div>
+        <form id="camAfToken">@Html.AntiForgeryToken()</form>
+    }
+
+    @if (Model.Items.Count == 0)
+    {
+        <div class="alert alert-light border text-center py-4" data-testid="cam-files-empty">
+            @Loc.T("CamFilesEmpty")
+        </div>
+    }
+    else
+    {
+        <div class="d-flex justify-content-end mb-2">
+            <a asp-action="DownloadZip" asp-route-folder="@Model.Folder"
+               class="btn btn-outline-primary btn-sm" data-testid="cam-files-download-zip">
+                &#128230; @string.Format(Loc.T("CamFilesDownloadZip"), Model.Items.Count)
+            </a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" data-testid="cam-files-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>@Loc.T("CamFilesColName")</th>
+                        <th class="text-end" style="width: 110px;">@Loc.T("CamFilesColSize")</th>
+                        <th style="width: 160px;">@Loc.T("CamFilesColDate")</th>
+                        @if (Model.Folder == CamFolder.Errors)
+                        {
+                            <th>@Loc.T("CamFilesColReason")</th>
+                        }
+                        <th class="text-end" style="width: 260px;">@Loc.T("CamFilesColActions")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Items)
+                    {
+                        <tr data-testid="cam-files-row">
+                            <td class="text-break"><code>@row.FileName</code></td>
+                            <td class="text-end text-muted small">@FormatBytes(row.SizeBytes)</td>
+                            <td class="text-muted small">@row.LastModifiedUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
+                            @if (Model.Folder == CamFolder.Errors)
+                            {
+                                <td class="small text-danger" data-testid="cam-files-reason">
+                                    @(string.IsNullOrWhiteSpace(row.Reason) ? Loc.T("CamFilesReasonUnknown") : row.Reason)
+                                </td>
+                            }
+                            <td class="text-end">
+                                <div class="d-inline-flex gap-1">
+                                    <a asp-action="Download" asp-route-folder="@Model.Folder" asp-route-name="@row.FileName"
+                                       class="btn btn-sm btn-outline-primary" data-testid="cam-files-download">
+                                        &#11015; @Loc.T("CamFilesDownload")
+                                    </a>
+                                    @if (Model.CanRestore)
+                                    {
+                                        <form asp-action="Restore" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="name" value="@row.FileName" />
+                                            <button type="submit" class="btn btn-sm btn-outline-success"
+                                                    data-testid="cam-files-restore">
+                                                &#8635; @Loc.T("CamFilesRestore")
+                                            </button>
+                                        </form>
+                                    }
+                                    @if (Model.CanDelete)
+                                    {
+                                        <form asp-action="Delete" method="post" class="d-inline js-confirm-form"
+                                              data-confirm-title="@Loc.T("CamCheckDeleteConfirmTitle")"
+                                              data-confirm-body="@string.Format(Loc.T("CamFilesDeleteConfirm"), row.FileName)"
+                                              data-confirm-ok-label="@Loc.T("CamCheckDeleteConfirmOk")"
+                                              data-confirm-ok-class="btn-danger">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="folder" value="@Model.Folder" />
+                                            <input type="hidden" name="name" value="@row.FileName" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                    data-testid="cam-files-delete">
+                                                &#128465; @Loc.T("CamFilesDelete")
+                                            </button>
+                                        </form>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <p class="small text-muted mt-4 mb-0" data-testid="cam-files-location">
+        @Loc.T("CamFilesLocation") <code>@Model.DisplayLocation</code>
+    </p>
+</div>
+
+<partial name="_ConfirmDialog" />
+
+@if (Model.CanUpload)
+{
+    <script>
+        (function () {
+            'use strict';
+            var zone = document.getElementById('camDropZone');
+            var input = document.getElementById('camUploadInput');
+            var box = document.getElementById('camUploadProgress');
+            var label = document.getElementById('camUploadLabel');
+            var pct = document.getElementById('camUploadPct');
+            var bar = document.getElementById('camUploadBar');
+            var results = document.getElementById('camUploadResults');
+            var tokenInput = document.querySelector('#camAfToken input[name="__RequestVerificationToken"]');
+            var uploadUrl = '@Url.Action("Upload", "Files", new { area = "CAM" })';
+            var T_UPLOADING = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamFilesUploading")));
+            var T_DONE = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamFilesUploadDone")));
+            var T_FAILED = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamFilesUploadFailed")));
+            var T_ONLY_PDF = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamFilesOnlyPdf")));
+            var busy = false;
+
+            zone.addEventListener('click', function () { if (!busy) input.click(); });
+            input.addEventListener('change', function () { start(Array.prototype.slice.call(input.files)); input.value = ''; });
+            ['dragenter', 'dragover'].forEach(function (ev) {
+                zone.addEventListener(ev, function (e) { e.preventDefault(); zone.classList.add('border-primary'); });
+            });
+            ['dragleave', 'drop'].forEach(function (ev) {
+                zone.addEventListener(ev, function (e) { e.preventDefault(); zone.classList.remove('border-primary'); });
+            });
+            zone.addEventListener('drop', function (e) {
+                if (busy || !e.dataTransfer) return;
+                start(Array.prototype.slice.call(e.dataTransfer.files));
+            });
+
+            function fmt(t, args) { return t.replace(/\{(\d)\}/g, function (_, i) { return args[i]; }); }
+
+            function uploadOne(file) {
+                return new Promise(function (resolve) {
+                    var fd = new FormData();
+                    fd.append('file', file, file.name);
+                    var xhr = new XMLHttpRequest();
+                    xhr.open('POST', uploadUrl);
+                    xhr.setRequestHeader('RequestVerificationToken', tokenInput ? tokenInput.value : '');
+                    xhr.upload.onprogress = function (e) {
+                        if (e.lengthComputable) pct.textContent = Math.round(e.loaded / e.total * 100) + '%';
+                    };
+                    xhr.onload = function () {
+                        var data = null;
+                        try { data = JSON.parse(xhr.responseText); } catch (_) { }
+                        resolve({ ok: xhr.status >= 200 && xhr.status < 300 && data && data.ok, name: (data && data.name) || file.name, error: data && data.error });
+                    };
+                    xhr.onerror = function () { resolve({ ok: false, name: file.name, error: 'network' }); };
+                    xhr.send(fd);
+                });
+            }
+
+            async function start(files) {
+                if (!files.length || busy) return;
+                busy = true;
+                box.classList.remove('d-none');
+                results.innerHTML = '';
+                var ok = 0, failed = 0;
+                for (var i = 0; i < files.length; i++) {
+                    var f = files[i];
+                    label.textContent = fmt(T_UPLOADING, [i + 1, files.length, f.name]);
+                    bar.style.width = Math.round(i / files.length * 100) + '%';
+                    pct.textContent = '0%';
+                    var res;
+                    if (!/\.pdf$/i.test(f.name)) res = { ok: false, name: f.name, error: T_ONLY_PDF };
+                    else res = await uploadOne(f);
+                    var li = document.createElement('li');
+                    li.textContent = (res.ok ? '\u2713 ' : '\u2718 ') + res.name + (res.ok ? '' : ' \u2014 ' + (res.error || ''));
+                    li.className = res.ok ? 'text-success' : 'text-danger';
+                    results.appendChild(li);
+                    if (res.ok) ok++; else failed++;
+                }
+                bar.style.width = '100%';
+                bar.classList.remove('progress-bar-animated');
+                pct.textContent = '100%';
+                label.textContent = fmt(T_DONE, [ok]) + (failed ? ' \u00b7 ' + fmt(T_FAILED, [failed]) : '');
+                busy = false;
+                if (ok > 0) setTimeout(function () { window.location.reload(); }, failed ? 2500 : 900);
+            }
+        })();
+    </script>
+}

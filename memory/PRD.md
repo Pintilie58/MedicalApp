@@ -557,7 +557,24 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
     același pacient în 2 fișiere (1 PDF comparație, fără pacient duplicat), anulare în timpul
     prefetch-ului (contoare consistente) — **ALL CHECKS PASSED**; build 0 erori / 0 warning-uri.
   - **Utilizatorul validează local** (VS2026): întâi cu `MaxParallelFiles: 1`, apoi 4.
-- **P1 (următorul)**: poziție în coadă + ETA în UI-ul CAM (aprobat în principiu).
+- **P1 (următorul)**: poziție în coadă + ETA în UI-ul CAM (aprobat în principiu, amânat de utilizator).
+- **Pagina CAM „Fișierele mele” — IMPLEMENTAT** (14 iunie 2026). Înlocuitorul Windows Explorer
+  pentru cele 4 foldere, necesar pe Azure (cabinetul nu vede discul serverului) și pentru orice
+  cabinet real. Totul prin `ICamFileStore` ⇒ identic pe disc local și pe Blob; zero atingere la
+  procesare / DB schema.
+  - `Areas/CAM/Controllers/FilesController.cs` + `Views/Files/Index.cshtml` + `Models/CamFilesViewModel.cs`:
+    tab-uri Original / Sends / Sumar / Errors cu contoare; upload drag-and-drop **un fișier per
+    request** (XHR, bară de progres, antiforgery prin header, 50 MB/fișier, doar .pdf, nume
+    dezambiguizat de store); Descarcă / **Descarcă tot (ZIP, streamed)**; Șterge (doar Original —
+    șterge și override-ul — și Errors — șterge și `.reasons.txt`); **Repune în Original** din
+    Errors; coloana Motiv la Errors (din `ClinicBatchErrors` potrivit pe nume, fallback
+    `.reasons.txt`); `.reasons.txt` ascunse din listă; Sends/Sumar read-only; izolare per clinică
+    din sesiune; nume de fișier doar „bare” (traversal respins).
+  - Dashboard: buton „Fișiere” în acțiuni rapide + „Deschide” pe fiecare rând din panoul Foldere.
+  - Chei Loc noi (7 limbi): `CamFiles*`, `CamDashGotoFiles`, `CamDashFolderOpen`.
+  - `CheckPdfs` (upload vechi, verificare, override) **neschimbat**.
+  - Testat: probă `/app/probe_cam_files` (copie `memory/probes/CamFilesControllerProbe.cs.txt`),
+    41 checkuri **ALL PASSED**; build 0 erori / 0 warning-uri. **Utilizatorul validează local.**
 - **P2 (experiment)**: `ThinkingBudget` configurabil pentru modul monolitic (azi -1 dinamic) —
   potențial −30-40% timp/cost per fișier; de comparat calitatea pe 2-3 buletine cunoscute.
 - **P2**: 2-3 loturi CAM simultane per instanță (după validarea paralelizării).

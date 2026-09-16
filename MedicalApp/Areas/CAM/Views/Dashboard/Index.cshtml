@@ -329,6 +329,10 @@
                                class="btn btn-primary fw-bold" data-testid="cam-go-batch">
                                 @Loc.T("CamDashLaunchBatch")
                             </a>
+                            <a asp-controller="Files" asp-action="Index" asp-area="CAM"
+                               class="btn btn-outline-primary" data-testid="cam-go-files">
+                                &#128193; @Loc.T("CamDashGotoFiles")
+                            </a>
                             <a asp-controller="Patients" asp-action="Index" asp-area="CAM"
                                class="btn btn-outline-primary" data-testid="cam-go-patients">
                                 @Loc.T("CamDashGotoPatients")
@@ -508,10 +512,22 @@
                 <div class="card-body">
                     <table class="table table-sm mb-0">
                         <tbody>
-                            <tr><td style="width: 120px;"><strong>Original</strong></td><td><code>@Model.OriginalFolder</code></td></tr>
-                            <tr><td><strong>Sends</strong></td><td><code>@Model.SendsFolder</code></td></tr>
-                            <tr><td><strong>Sumar</strong></td><td><code>@Model.SumarFolder</code></td></tr>
-                            <tr><td><strong>Errors</strong></td><td><code>@Model.ErrorsFolder</code></td></tr>
+                            @foreach (var (name, location) in new[] {
+                                ("Original", Model.OriginalFolder), ("Sends", Model.SendsFolder),
+                                ("Sumar", Model.SumarFolder), ("Errors", Model.ErrorsFolder) })
+                            {
+                                <tr>
+                                    <td style="width: 120px;"><strong>@name</strong></td>
+                                    <td><code class="small">@location</code></td>
+                                    <td class="text-end" style="width: 110px;">
+                                        <a asp-controller="Files" asp-action="Index" asp-area="CAM"
+                                           asp-route-folder="@name" class="btn btn-sm btn-outline-primary"
+                                           data-testid="cam-folder-open-@name.ToLower()">
+                                            @Loc.T("CamDashFolderOpen")
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
                         </tbody>
                     </table>
                 </div>

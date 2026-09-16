@@ -105,3 +105,15 @@ toate PASS:
 - **Pornirea automată la încărcare** (Event Grid → coadă) — opțional, ulterior.
 - Fișierele urcă prin aplicație; pentru volume mari se poate adăuga upload direct
   în Blob cu link SAS temporar.
+
+## 4. Ghișeul web: pagina CAM → „Fișierele mele” (iunie 2026)
+
+Pe Azure cabinetul nu vede discul serverului, deci Explorer-ul e înlocuit de
+`/CAM/Files` (tab-uri Original / Sends / Sumar / Errors): upload drag-and-drop
+(un fișier per request, cu progres), descărcare individuală și ZIP, ștergere în
+Original/Errors, „Repune în Original” din Errors, motivul erorii lângă fișier.
+Lucrează exclusiv prin `ICamFileStore`, deci se comportă identic pe disc și pe Blob —
+poate fi testată local înainte de hostare.
+
+Retenție pe Blob: `CamRetentionService` continuă să șteargă prin store; regula de
+Lifecycle management din pasul 8 este opțională și doar o dublează gratuit.
