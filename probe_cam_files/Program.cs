@@ -62,7 +62,12 @@ FilesController Ctl(string email, MemoryStream? body = null)
 {
     var http = new DefaultHttpContext { Session = new FakeSession(email) };
     if (body != null) http.Response.Body = body;
-    var c = new FilesController(db, store, NullLogger<FilesController>.Instance)
+    var workbench = new CamCheckPdfsBuilder(db, store,
+        new CamPdfMetadataExtractor(NullLogger<CamPdfMetadataExtractor>.Instance),
+        new EmailDeliverabilityChecker(new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
+            NullLogger<EmailDeliverabilityChecker>.Instance),
+        NullLogger<CamCheckPdfsBuilder>.Instance);
+    var c = new FilesController(db, store, workbench, NullLogger<FilesController>.Instance)
     {
         ControllerContext = new ControllerContext { HttpContext = http },
         TempData = new TempDataDictionary(http, new FakeTempDataProvider())
@@ -78,9 +83,25 @@ Check("1b counts: Original=2 Sends=3 Sumar=1 Errors=2 (.reasons.txt hidden)",
     vmO.Counts[CamFolder.Original] == 2 && vmO.Counts[CamFolder.Sends] == 3 && vmO.Counts[CamFolder.Sumar] == 1 && vmO.Counts[CamFolder.Errors] == 2,
     string.Join(",", vmO.Counts.Select(k => $"{k.Key}={k.Value}")));
 Check("1c CanUpload/CanDelete on Original, no restore", vmO.CanUpload && vmO.CanDelete && !vmO.CanRestore);
+Check("1c2 workbench built for Original with 2 rows", vmO.Workbench != null && vmO.Workbench.Items.Count == 2);
+var a1 = vmO.Workbench!.Items.First(r => r.FileName == "a1.pdf");
+var a2 = vmO.Workbench.Items.First(r => r.FileName == "a2.pdf");
+Check("1c3 a1 valid via manual override", a1.IsValid && a1.IsManualOverride && a1.PatientEmail == "p@x.ro");
+Check("1c4 a2 (fake pdf) blocked", !a2.IsValid);
+var legacy = new CheckPdfsController(db, store, NullLogger<CheckPdfsController>.Instance)
+{
+    ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { Session = new FakeSession("clinica.a@test.ro") } },
+    TempData = new TempDataDictionary(new DefaultHttpContext(), new FakeTempDataProvider())
+};
+var lg = legacy.Index() as RedirectToActionResult;
+Check("1c5 old /CAM/CheckPdfs redirects to Files/Original", lg != null && lg.ControllerName == "Files" && Equals(lg.RouteValues!["folder"], "Original"));
+await legacy.SaveOverride("a2.pdf", "Ion", "ion@gmail.com");
+var lg2 = await legacy.ClearOverride("a2.pdf") as RedirectToActionResult;
+Check("1c6 POST actions redirect back to Files/Original", lg2 != null && lg2.ControllerName == "Files");
 
 var vmS = (await Ctl("clinica.a@test.ro").Index("sends") as ViewResult)!.Model as CamFilesViewModel;
 Check("1d 'sends' (lowercase) parses, 3 rows, read-only", vmS!.Items.Count == 3 && !vmS.CanUpload && !vmS.CanDelete);
+Check("1d2 no workbench outside Original", vmS.Workbench == null);
 
 var vmE = (await Ctl("clinica.a@test.ro").Index("Errors") as ViewResult)!.Model as CamFilesViewModel;
 var bad = vmE!.Items.First(r => r.FileName.EndsWith("bad.pdf"));

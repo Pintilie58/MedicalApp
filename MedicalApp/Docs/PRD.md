@@ -575,6 +575,18 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   - `CheckPdfs` (upload vechi, verificare, override) **neschimbat**.
   - Testat: probă `/app/probe_cam_files` (copie `memory/probes/CamFilesControllerProbe.cs.txt`),
     41 checkuri **ALL PASSED**; build 0 erori / 0 warning-uri. **Utilizatorul validează local.**
+- **Unificare într-o singură pagină „Fișiere PDF”** (14 iunie 2026, decizie utilizator după test):
+  „Selectare PDF-uri” a dispărut din Dashboard; tab-ul **De trimis** (Original) randează masa de
+  lucru CheckPdfs (verificare identitate + email, Editează/override, Șterge, Lansează lot → pagina
+  de confirmare) prin partialul `Views/Files/_OriginalWorkbench.cshtml`, alimentat de serviciul nou
+  `Services/CamCheckPdfsBuilder.cs` (logica extrasă 1:1 din `CheckPdfsController.Index`).
+  `CheckPdfsController`: GET Index → redirect la Files/Original; POST-urile (SaveOverride,
+  ClearOverride, DeletePdf, SaveBlacklist, UploadFiles) neschimbate, redirecționează la Files/Original.
+  Vechea view `CheckPdfs/Index.cshtml` ștearsă. Tab-uri în limbaj de cabinet: **De trimis / Trimise /
+  Sumare / Netrimise** (`CamFilesTab*`), numele tehnic al folderului doar în linia „Locația de stocare”
+  și în panoul Foldere. Ajutorul (metodele 1/2) e pliat sub „Cum pregătesc PDF-urile?”.
+  Dashboard: acțiuni rapide = Lansează lot · Fișiere PDF · Pacienți; butonul „Corectează” de la
+  problemele de email duce la Files/Original. Probă extinsă la 48 checkuri **ALL PASSED**; build 0/0.
 - **P2 (experiment)**: `ThinkingBudget` configurabil pentru modul monolitic (azi -1 dinamic) —
   potențial −30-40% timp/cost per fișier; de comparat calitatea pe 2-3 buletine cunoscute.
 - **P2**: 2-3 loturi CAM simultane per instanță (după validarea paralelizării).

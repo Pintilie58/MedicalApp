@@ -1,0 +1,357 @@
+@model MedicalApp.Areas.CAM.Models.CamCheckPdfsViewModel
+@using MedicalApp.Services
+@{
+    // The former /CAM/CheckPdfs table, rendered inside /CAM/Files → "De trimis".
+    // POST actions still live on CheckPdfsController and redirect back here.
+    int okCount = Model.Items.Count(r => r.IsValid);
+    int notOkCount = Model.Items.Count - okCount;
+    int goldCount = Model.Items.Count(r => r.MatchedExplicitBlock);
+    int overrideCount = Model.Items.Count(r => r.IsManualOverride);
+    var blockedCount = notOkCount;
+}
+
+<div id="cam-checkpdfs-scroll-marker"
+     data-scroll-to="@(TempData["ScrollToFile"] as string ?? "")"
+     style="display:none;"></div>
+
+@* ===== Help (collapsed by default — the operator opens it only when needed) ===== *@
+<div class="mb-3">
+    <button class="btn btn-link btn-sm p-0 text-decoration-none" type="button"
+            data-bs-toggle="collapse" data-bs-target="#camWorkbenchHelp" aria-expanded="false"
+            data-testid="cam-checkpdfs-help-toggle">
+        &#10067; @Loc.T("CamFilesHelpToggle")
+    </button>
+    <div id="camWorkbenchHelp" class="collapse mt-2">
+        <div class="alert alert-info small mb-2" data-testid="cam-checkpdfs-help">
+            &#128161; @Html.Raw(Loc.T("CamCheckHelpInfo"))
+        </div>
+        <div class="card mb-2 border-warning">
+            <div class="card-header bg-warning-subtle fw-bold">&#9999; @Loc.T("CamCheckMethod1Title")</div>
+            <div class="card-body small">@Html.Raw(Loc.T("CamCheckMethod1Body"))</div>
+        </div>
+        <div class="card mb-2 border-success">
+            <div class="card-header bg-success-subtle fw-bold">&#11088; @Html.Raw(Loc.T("CamCheckMethod2Title"))</div>
+            <div class="card-body small">
+                @Html.Raw(Loc.T("CamCheckMethod2BodyPart1"))
+                <pre class="bg-light p-2 mb-2 mt-2" style="font-size:12px;border-radius:6px;">@Loc.T("CamCheckBlockExample")</pre>
+                @Html.Raw(Loc.T("CamCheckMethod2BodyPart2"))
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex gap-2 mb-3 flex-wrap" data-testid="cam-checkpdfs-summary">
+    <span class="badge bg-success fs-6 px-3 py-2">&#10003; @string.Format(Loc.T("CamCheckSummaryReady"), okCount)</span>
+    <span class="badge bg-warning fs-6 px-3 py-2 text-dark">&#9999; @string.Format(Loc.T("CamCheckSummaryManual"), overrideCount)</span>
+    <span class="badge bg-success-subtle fs-6 px-3 py-2 text-success border border-success">&#11088; @string.Format(Loc.T("CamCheckSummaryGold"), goldCount)</span>
+    @if (blockedCount > 0)
+    {
+        <span class="badge bg-danger fs-6 px-3 py-2">&#10007; @string.Format(Loc.T("CamCheckSummaryBlocked"), blockedCount)</span>
+    }
+    <span class="badge bg-secondary fs-6 px-3 py-2">@string.Format(Loc.T("CamCheckSummaryTotal"), Model.Items.Count)</span>
+    <div class="ms-auto d-flex gap-2">
+        <a asp-controller="Files" asp-action="Index" asp-area="CAM" asp-route-folder="Original"
+           class="btn btn-outline-primary btn-sm" data-testid="cam-checkpdfs-refresh">
+            &#10227; @Loc.T("CamCheckRescan")
+        </a>
+        @if (Model.HasBlockingEmailIssues)
+        {
+            <button type="button" class="btn btn-secondary btn-sm fw-bold" disabled
+                    data-testid="cam-checkpdfs-launch-batch-disabled"
+                    title="@Loc.T("CamCheckLaunchDisabledTitle")">
+                &#9658; @Loc.T("CamCheckLaunchBatch")
+            </button>
+        }
+        else
+        {
+            <a asp-controller="Batch" asp-action="Start" asp-area="CAM"
+               class="btn btn-success btn-sm fw-bold"
+               data-testid="cam-checkpdfs-launch-batch"
+               title="@Loc.T("CamCheckLaunchTooltip")">
+                &#9658; @Loc.T("CamCheckLaunchBatch")
+            </a>
+        }
+    </div>
+</div>
+
+@if (Model.HasBlockingEmailIssues)
+{
+    <div class="alert alert-warning d-flex align-items-center gap-2 mb-3" data-testid="cam-checkpdfs-email-warning">
+        <span class="fs-4">&#9888;</span>
+        <div class="small mb-0">
+            <strong>@Loc.T("CamCheckEmailWarningTitle")</strong>
+            @Html.Raw(Loc.T("CamCheckEmailWarningBody"))
+        </div>
+    </div>
+}
+
+@if (Model.Items.Count == 0)
+{
+    <div class="alert alert-info" data-testid="cam-checkpdfs-empty">
+        @Html.Raw(Loc.T("CamCheckEmpty"))
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle" data-testid="cam-checkpdfs-table">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:36px;">&nbsp;</th>
+                    <th>@Loc.T("CamCheckColFile")</th>
+                    <th>@Loc.T("CamCheckColName")</th>
+                    <th>@Loc.T("CamCheckColEmail")</th>
+                    <th>@Loc.T("CamCheckColSource")</th>
+                    <th>@Loc.T("CamCheckColStatus")</th>
+                    <th style="width:160px;">&nbsp;</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Model.Items)
+                {
+                    string rowClass;
+                    if (r.IsValid && r.MatchedExplicitBlock) rowClass = "table-success";
+                    else if (r.IsValid && r.IsManualOverride) rowClass = "table-warning";
+                    else if (r.IsValid) rowClass = "";
+                    else rowClass = "table-danger";
+
+                    <tr class="@rowClass" data-testid="cam-checkpdfs-row" data-filename="@r.FileName">
+                        <td class="text-center">
+                            @if (r.IsValid) { <span class="text-success fs-5">&#10003;</span> }
+                            else { <span class="text-danger fs-5">&#10007;</span> }
+                        </td>
+                        <td><code class="small">@r.FileName</code></td>
+                        <td>@(r.PatientName ?? "—")</td>
+                        <td>
+                            @if (string.IsNullOrWhiteSpace(r.PatientEmail))
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                            else
+                            {
+                                <div class="d-flex align-items-center gap-2">
+                                    <span>@r.PatientEmail</span>
+                                    @switch (r.EmailValidity)
+                                    {
+                                        case EmailValidity.Valid:
+                                            <span class="badge bg-success" data-testid="cam-email-validity-@r.FileName" title="@r.EmailValidityMessage">&#10003; @Loc.T("CamCheckEmailOk")</span>
+                                            break;
+                                        case EmailValidity.InvalidSyntax:
+                                            <span class="badge bg-danger" data-testid="cam-email-validity-@r.FileName" title="@r.EmailValidityMessage">&#10007; @Loc.T("CamCheckEmailInvalid")</span>
+                                            break;
+                                        case EmailValidity.NoMxRecord:
+                                            <span class="badge bg-danger" data-testid="cam-email-validity-@r.FileName" title="@r.EmailValidityMessage">&#9888; @Loc.T("CamCheckEmailNoMx")</span>
+                                            break;
+                                        case EmailValidity.DnsUnknown:
+                                            <span class="badge bg-secondary" data-testid="cam-email-validity-@r.FileName" title="@r.EmailValidityMessage">&hellip;</span>
+                                            break;
+                                    }
+                                </div>
+                                @if (!string.IsNullOrEmpty(r.EmailDomainSuggestion) && r.EmailValidity == EmailValidity.NoMxRecord)
+                                {
+                                    <div class="small text-warning mt-1" data-testid="cam-email-suggest-@r.FileName">
+                                        &#128172; @Loc.T("CamCheckEmailDidYouMean") <code>@@@r.EmailDomainSuggestion</code>?
+                                    </div>
+                                }
+                            }
+                        </td>
+                        <td class="small">
+                            @if (r.MatchedExplicitBlock) { <span class="badge bg-success">&#11088; [MedicalApp]</span> }
+                            else if (r.IsManualOverride) { <span class="badge bg-warning text-dark">&#9999; @Loc.T("CamCheckSourceManual")</span> }
+                            else if (r.IsValid) { <span class="badge bg-secondary">@Loc.T("CamCheckSourceAuto")</span> }
+                            else { <span class="badge bg-danger">@Loc.T("CamCheckSourceBlocked")</span> }
+                        </td>
+                        <td class="small">
+                            @if (r.IsValid) { <span class="text-success">@Loc.T("CamCheckRowReady")</span> }
+                            else { <span class="text-danger">@Html.Raw(Loc.T("CamCheckRowBlocked"))</span> }
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                    data-bs-toggle="modal" data-bs-target="#editModal"
+                                    data-filename="@r.FileName"
+                                    data-name="@(r.PatientName ?? "")"
+                                    data-email="@(r.PatientEmail ?? "")"
+                                    data-testid="cam-checkpdfs-edit-btn">
+                                &#9999; @Loc.T("CamCheckEditBtn")
+                            </button>
+                            @if (r.IsManualOverride)
+                            {
+                                <form asp-controller="CheckPdfs" asp-action="ClearOverride" asp-area="CAM" method="post" class="d-inline ms-1">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="fileName" value="@r.FileName" />
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                            title="@Loc.T("CamCheckClearTooltip")"
+                                            data-testid="cam-checkpdfs-clear-btn">&#10005;</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@* ===== Edit Override Modal (single modal reused for all rows) ===== *@
+<div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form asp-controller="CheckPdfs" asp-action="SaveOverride" asp-area="CAM" method="post" class="modal-content"
+              data-testid="cam-checkpdfs-edit-form">
+            @Html.AntiForgeryToken()
+            <div class="modal-header">
+                <h5 class="modal-title">&#9999; @Loc.T("CamCheckModalTitle")</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted">@Loc.T("CamCheckModalIntro")</p>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">@Loc.T("CamCheckModalFile")</label>
+                    <input type="text" id="editFileName" name="fileName" class="form-control bg-light" readonly
+                           data-testid="cam-checkpdfs-edit-filename" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">@Loc.T("CamCheckModalName")</label>
+                    <input type="text" id="editName" name="overrideName" required class="form-control"
+                           placeholder="@Loc.T("CamCheckModalNamePh")" data-testid="cam-checkpdfs-edit-name" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">@Loc.T("CamCheckModalEmail")</label>
+                    <input type="email" id="editEmail" name="overrideEmail" required class="form-control"
+                           placeholder="@Loc.T("CamCheckModalEmailPh")" data-testid="cam-checkpdfs-edit-email" />
+                    <div id="editEmailHint" class="small mt-1 d-none" data-testid="cam-checkpdfs-edit-hint">
+                        <span class="text-warning">&#128172; @Loc.T("CamCheckModalDidYouMean")</span>
+                        <button type="button" id="editEmailHintApply"
+                                class="btn btn-link btn-sm p-0 align-baseline fw-semibold"
+                                data-testid="cam-checkpdfs-edit-hint-apply"></button>
+                        <span class="text-muted">@Loc.T("CamCheckModalDidYouMeanAfter")</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="submit"
+                        formaction="@Url.Action("DeletePdf", "CheckPdfs", new { area = "CAM" })"
+                        formnovalidate
+                        class="btn btn-outline-danger me-auto fw-bold js-confirm-btn"
+                        data-testid="cam-checkpdfs-edit-delete"
+                        data-confirm-title="@Loc.T("CamCheckDeleteConfirmTitle")"
+                        data-confirm-body="@Loc.T("CamCheckDeleteConfirmBody")"
+                        data-confirm-ok-label="@Loc.T("CamCheckDeleteConfirmOk")"
+                        data-confirm-ok-class="btn-danger">
+                    &#128465; @Loc.T("CamCheckDeleteBtn")
+                </button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">@Loc.T("CamCheckCancel")</button>
+                <button type="submit" class="btn btn-primary fw-bold" data-testid="cam-checkpdfs-edit-save">@Loc.T("CamCheckSave")</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    var CAM_DELETE_CONFIRM_BODY_TPL = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamCheckDeleteConfirmBodyDynamic")));
+
+    document.addEventListener('DOMContentLoaded', function () {
+        // ---- Scroll-to-row after upload / save / clear ----
+        var scrollMarker = document.getElementById('cam-checkpdfs-scroll-marker');
+        if (scrollMarker) {
+            var targetName = scrollMarker.getAttribute('data-scroll-to') || '';
+            if (targetName) {
+                var rows = document.querySelectorAll('tr[data-filename]');
+                for (var i = 0; i < rows.length; i++) {
+                    if (rows[i].getAttribute('data-filename') === targetName) {
+                        var row = rows[i];
+                        setTimeout(function () {
+                            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            row.classList.add('cam-row-flash');
+                            setTimeout(function () { row.classList.remove('cam-row-flash'); }, 1600);
+                        }, 50);
+                        break;
+                    }
+                }
+            }
+        }
+
+        var editModal = document.getElementById('editModal');
+        if (!editModal) return;
+        editModal.addEventListener('show.bs.modal', function (event) {
+            var btn = event.relatedTarget;
+            var fname = btn.getAttribute('data-filename') || '';
+            document.getElementById('editFileName').value = fname;
+            document.getElementById('editName').value = btn.getAttribute('data-name') || '';
+            document.getElementById('editEmail').value = btn.getAttribute('data-email') || '';
+            var delBtn = document.querySelector('[data-testid="cam-checkpdfs-edit-delete"]');
+            if (delBtn) delBtn.dataset.confirmBody = CAM_DELETE_CONFIRM_BODY_TPL.replace('{0}', fname);
+            checkEmailTypo();
+        });
+
+        // ---- "Did you mean ...?" client-side typo hint (Levenshtein <= 2) ----
+        var KNOWN_DOMAINS = [
+            'gmail.com', 'yahoo.com', 'yahoo.co.uk', 'outlook.com', 'hotmail.com',
+            'icloud.com', 'live.com', 'msn.com', 'aol.com', 'protonmail.com',
+            'yandex.com', 'gmx.com', 'yahoo.ro', 'gmail.ro', 'outlook.ro'
+        ];
+        function levenshtein(a, b, maxAllowed) {
+            if (a === b) return 0;
+            if (!a.length) return b.length;
+            if (!b.length) return a.length;
+            if (Math.abs(a.length - b.length) > maxAllowed) return Infinity;
+            var prev = new Array(b.length + 1);
+            var curr = new Array(b.length + 1);
+            for (var j = 0; j <= b.length; j++) prev[j] = j;
+            for (var i = 1; i <= a.length; i++) {
+                curr[0] = i;
+                var rowMin = curr[0];
+                for (var j = 1; j <= b.length; j++) {
+                    var cost = a[i - 1] === b[j - 1] ? 0 : 1;
+                    curr[j] = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+                    if (curr[j] < rowMin) rowMin = curr[j];
+                }
+                if (rowMin > maxAllowed) return Infinity;
+                var tmp = prev; prev = curr; curr = tmp;
+            }
+            return prev[b.length];
+        }
+        function suggestDomain(domain) {
+            domain = (domain || '').toLowerCase();
+            if (!domain || KNOWN_DOMAINS.indexOf(domain) !== -1) return null;
+            var best = null, bestDist = Infinity;
+            for (var i = 0; i < KNOWN_DOMAINS.length; i++) {
+                var d = levenshtein(domain, KNOWN_DOMAINS[i], 2);
+                if (d < bestDist) { bestDist = d; best = KNOWN_DOMAINS[i]; }
+                if (bestDist === 1) break;
+            }
+            return bestDist <= 2 ? best : null;
+        }
+        var emailInput = document.getElementById('editEmail');
+        var hintBox = document.getElementById('editEmailHint');
+        var hintApply = document.getElementById('editEmailHintApply');
+        function checkEmailTypo() {
+            if (!emailInput || !hintBox || !hintApply) return;
+            var value = (emailInput.value || '').trim();
+            var at = value.lastIndexOf('@@');
+            if (at < 1 || at === value.length - 1) { hintBox.classList.add('d-none'); return; }
+            var domain = value.substring(at + 1);
+            var suggestion = suggestDomain(domain);
+            if (suggestion) {
+                hintApply.textContent = value.substring(0, at + 1) + suggestion;
+                hintBox.classList.remove('d-none');
+            } else {
+                hintBox.classList.add('d-none');
+            }
+        }
+        if (emailInput) emailInput.addEventListener('input', checkEmailTypo);
+        if (hintApply) hintApply.addEventListener('click', function () {
+            if (emailInput) {
+                emailInput.value = hintApply.textContent;
+                hintBox.classList.add('d-none');
+                emailInput.focus();
+            }
+        });
+    });
+</script>
+<style>
+    .cam-row-flash { animation: cam-row-flash 1.6s ease-out; }
+    @@keyframes cam-row-flash {
+        0%   { box-shadow: inset 0 0 0 3px rgba(40, 167, 69, 0.7); }
+        100% { box-shadow: inset 0 0 0 3px rgba(40, 167, 69, 0);   }
+    }
+</style>

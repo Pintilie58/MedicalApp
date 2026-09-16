@@ -106,7 +106,7 @@
                         }
                     </ul>
                 }
-                <a asp-controller="CheckPdfs" asp-action="Index" asp-area="CAM"
+                <a asp-controller="Files" asp-action="Index" asp-area="CAM" asp-route-folder="Original"
                    class="btn btn-warning btn-sm fw-bold"
                    data-testid="cam-recent-email-issues-fix">
                     &#9999; @Html.Raw(Loc.T("CamDashEmailIssuesFix"))
@@ -337,10 +337,6 @@
                                class="btn btn-outline-primary" data-testid="cam-go-patients">
                                 @Loc.T("CamDashGotoPatients")
                             </a>
-                            <a asp-controller="CheckPdfs" asp-action="Index" asp-area="CAM"
-                               class="btn btn-outline-secondary" data-testid="cam-go-checkpdfs">
-                                @Loc.T("CamDashGotoCheckPdfs")
-                            </a>
                         </div>
 
                         <hr class="my-2" />
@@ -512,12 +508,14 @@
                 <div class="card-body">
                     <table class="table table-sm mb-0">
                         <tbody>
-                            @foreach (var (name, location) in new[] {
-                                ("Original", Model.OriginalFolder), ("Sends", Model.SendsFolder),
-                                ("Sumar", Model.SumarFolder), ("Errors", Model.ErrorsFolder) })
+                            @foreach (var (name, label, location) in new[] {
+                                ("Original", Loc.T("CamFilesTabOriginal"), Model.OriginalFolder),
+                                ("Sends", Loc.T("CamFilesTabSends"), Model.SendsFolder),
+                                ("Sumar", Loc.T("CamFilesTabSumar"), Model.SumarFolder),
+                                ("Errors", Loc.T("CamFilesTabErrors"), Model.ErrorsFolder) })
                             {
                                 <tr>
-                                    <td style="width: 120px;"><strong>@name</strong></td>
+                                    <td style="width: 160px;"><strong>@label</strong> <span class="text-muted small">(@name)</span></td>
                                     <td><code class="small">@location</code></td>
                                     <td class="text-end" style="width: 110px;">
                                         <a asp-controller="Files" asp-action="Index" asp-area="CAM"

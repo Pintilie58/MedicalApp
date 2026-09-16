@@ -21,12 +21,15 @@ namespace MedicalApp.Areas.CAM.Controllers
 
         private readonly AppDbContext _db;
         private readonly ICamFileStore _files;
+        private readonly CamCheckPdfsBuilder _workbench;
         private readonly ILogger<FilesController> _logger;
 
-        public FilesController(AppDbContext db, ICamFileStore files, ILogger<FilesController> logger)
+        public FilesController(AppDbContext db, ICamFileStore files, CamCheckPdfsBuilder workbench,
+            ILogger<FilesController> logger)
         {
             _db = db;
             _files = files;
+            _workbench = workbench;
             _logger = logger;
         }
 
@@ -86,6 +89,11 @@ namespace MedicalApp.Areas.CAM.Controllers
 
             if (current == CamFolder.Errors && vm.Items.Count > 0)
                 await FillErrorReasonsAsync(clinic, vm.Items);
+
+            // "De trimis" is the operator's workbench: identity preview + override
+            // editing, exactly what /CAM/CheckPdfs used to render.
+            if (current == CamFolder.Original)
+                vm.Workbench = await _workbench.BuildAsync(clinic, HttpContext.RequestAborted);
 
             return View(vm);
         }

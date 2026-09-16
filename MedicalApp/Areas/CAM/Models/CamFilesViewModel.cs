@@ -10,6 +10,8 @@ namespace MedicalApp.Areas.CAM.Models
         public string DisplayLocation { get; set; } = string.Empty;
         public Dictionary<CamFolder, int> Counts { get; set; } = new();
         public List<Row> Items { get; set; } = new();
+        /// <summary>Filled only for Original — the CheckPdfs table (identity + email checks).</summary>
+        public CamCheckPdfsViewModel? Workbench { get; set; }
 
         public bool CanUpload => Folder == CamFolder.Original;
         public bool CanDelete => Folder == CamFolder.Original || Folder == CamFolder.Errors;

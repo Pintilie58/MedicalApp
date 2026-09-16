@@ -1,4 +1,4 @@
-using MedicalApp.Data;
+﻿using MedicalApp.Data;
 using MedicalApp.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Localization;
@@ -172,6 +172,7 @@ else
     builder.Services.AddSingleton<ICamFileStore, LocalDiskCamFileStore>();
 }
 builder.Services.AddScoped<CamPdfMetadataExtractor>();
+builder.Services.AddScoped<CamCheckPdfsBuilder>();
 builder.Services.AddSingleton<CamBatchRegistry>();
 builder.Services.AddScoped<CamBatchService>();
 // CAM batches are queued in the database and executed by a background worker,
