@@ -587,6 +587,23 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   și în panoul Foldere. Ajutorul (metodele 1/2) e pliat sub „Cum pregătesc PDF-urile?”.
   Dashboard: acțiuni rapide = Lansează lot · Fișiere PDF · Pacienți; butonul „Corectează” de la
   problemele de email duce la Files/Original. Probă extinsă la 48 checkuri **ALL PASSED**; build 0/0.
+- **Istoric + comparații + dedupe** (14 iunie 2026, cerute de utilizator):
+  - B2C/CM: plafon **24** interpretări reușite per (user, profil) — `B2cInterpretationRunner.MaxHistoryPerProfile`,
+    pruning după fiecare succes (cele mai vechi după `CreatedAt`; rândurile pending/error nu sunt atinse).
+  - B2C/CM „Compară interpretări”: **2–6** selecții (`CompareInterpretationsViewModel.MaxSelections = 6`);
+    JS-ul din History citește constanta; PDF-ul de comparație (A4 landscape) umple până la 6 coloane;
+    grila de carduri trece pe `col-xl-2` peste 4 coloane; textele `HistoryCompareHint`/`Feat4Body` 4→6 (7 limbi).
+  - B2B: **6** analize păstrate per pacient (`CamBatchService.MaxAnalysesPerPatient`), regula rămâne „cele mai
+    recente după data recoltării” (nu FIFO după sosire); PDF-ul de comparație CAM până la 6 coloane.
+  - B2B dedupe **byte-cu-byte**: coloană nouă `ClinicAnalyses.PdfSha256` (+ index `IX_ClinicAnalyses_Clinic_PdfSha256`),
+    migrare **`AddClinicAnalysisPdfSha256`** (utilizatorul rulează `Update-Database`). Înainte de orice apel AI,
+    hash-ul PDF-ului e căutat în analizele clinicii: dacă există ⇒ omis (fără cost AI, fără credit), NotSend cu
+    motiv „Duplicate PDF: identical to 'X' processed <data>”, mutat imediat în Errors (+ `.reasons.txt`,
+    header `CamBatchDuplicateHeader`). Prefetch-ul paralel sare și el duplicatele (DB + `SeenHashes` în lot).
+    Rândurile vechi (hash null) nu se potrivesc niciodată.
+  - Testat: probă paralelizare extinsă la 10 scenarii / **44 checkuri ALL PASSED** (dedupe în lot fără apel AI,
+    retenție 6 după data recoltării, rând legacy fără hash); build 0/0. Plafonul B2C 24 verificat prin citire
+    (nu are probă — runner-ul B2C are prea multe dependențe), **de validat local**.
 - **P2 (experiment)**: `ThinkingBudget` configurabil pentru modul monolitic (azi -1 dinamic) —
   potențial −30-40% timp/cost per fișier; de comparat calitatea pe 2-3 buletine cunoscute.
 - **P2**: 2-3 loturi CAM simultane per instanță (după validarea paralelizării).

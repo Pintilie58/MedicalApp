@@ -28,12 +28,13 @@ namespace MedicalApp.Services
 
         public byte[]? GenerateIfPossible(Clinic clinic, ClinicPatient patient, List<ClinicAnalysis> analyses)
         {
-            // ----- Take 2..4 analyses, oldest first (same as B2C compare) -----
+            // ----- Take 2..MaxAnalysesPerPatient analyses, oldest first (same as B2C compare) -----
             var sorted = analyses
                 .OrderBy(a => a.SamplingDate ?? a.ProcessedAt)
                 .ToList();
             if (sorted.Count < 2) return null;
-            if (sorted.Count > 4) sorted = sorted.Skip(sorted.Count - 4).ToList();
+            if (sorted.Count > CamBatchService.MaxAnalysesPerPatient)
+                sorted = sorted.Skip(sorted.Count - CamBatchService.MaxAnalysesPerPatient).ToList();
 
             // ----- Synthesise the (History, Result) tuples BuildComparison expects -----
             var feed = new List<(InterpretationHistory h, InterpretationResult r)>();
@@ -161,7 +162,7 @@ namespace MedicalApp.Services
                                 });
                             }
                             // Pad empty card slots so the 4-card grid stays uniform.
-                            for (int i = vm.Columns.Count; i < 4; i++)
+                            for (int i = vm.Columns.Count; i < CamBatchService.MaxAnalysesPerPatient; i++)
                                 row.RelativeItem();
                         });
 

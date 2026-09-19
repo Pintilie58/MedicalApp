@@ -29,6 +29,9 @@ namespace MedicalApp.Services
     /// </summary>
     public class B2cInterpretationRunner
     {
+        /// <summary>Max successful interpretations kept per (user, profile); older ones are pruned after each success.</summary>
+        public const int MaxHistoryPerProfile = 24;
+
         private readonly AppDbContext _db;
         private readonly IMedicalInterpretationProvider _ai;
         private readonly InterpretationSettings _interpretationSettings;
@@ -600,6 +603,25 @@ namespace MedicalApp.Services
                         "Force re-interpret OVERRIDE: removed {Count} stale row(s) for {Email}/profile={Pid}.",
                         stale.Count, user.Email, job.ProfileId);
                 }
+            }
+
+            // Retention: keep only the newest MaxHistoryPerProfile successful
+            // interpretations of this profile (the just-saved one is the newest).
+            var overflow = await _db.InterpretationHistories
+                .Where(h => h.UserEmail == user.Email
+                            && h.ProfileId == job.ProfileId
+                            && h.Status == "success"
+                            && h.Id != history.Id)
+                .OrderByDescending(h => h.CreatedAt)
+                .Skip(MaxHistoryPerProfile - 1)
+                .ToListAsync(CancellationToken.None);
+            if (overflow.Count > 0)
+            {
+                _db.InterpretationHistories.RemoveRange(overflow);
+                await _db.SaveChangesAsync(CancellationToken.None);
+                _logger.LogInformation(
+                    "History retention: removed {Count} old row(s) for {Email}/profile={Pid} (cap {Cap}).",
+                    overflow.Count, user.Email, job.ProfileId, MaxHistoryPerProfile);
             }
 
             // Where the browser should go when it sees stage = "done".

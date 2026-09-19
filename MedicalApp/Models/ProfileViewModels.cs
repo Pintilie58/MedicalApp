@@ -126,7 +126,7 @@ namespace MedicalApp.Models
     public class CompareInterpretationsViewModel
     {
         public const int MinSelections = 2;
-        public const int MaxSelections = 4;
+        public const int MaxSelections = 6;
 
         public int ProfileId { get; set; }
         public string ProfileName { get; set; } = string.Empty;

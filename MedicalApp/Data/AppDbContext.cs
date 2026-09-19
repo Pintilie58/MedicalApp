@@ -266,6 +266,9 @@ namespace MedicalApp.Data
                       .HasDatabaseName("IX_ClinicAnalyses_Clinic_ProcessedAt");
                 entity.Property(a => a.ProcessedAt).HasColumnType("datetime2");
                 entity.Property(a => a.SamplingDate).HasColumnType("datetime2");
+                // Duplicate-PDF guard: one seek per file before any AI call.
+                entity.HasIndex(a => new { a.ClinicId, a.PdfSha256 })
+                      .HasDatabaseName("IX_ClinicAnalyses_Clinic_PdfSha256");
             });
 
             modelBuilder.Entity<ClinicBatchRun>(entity =>

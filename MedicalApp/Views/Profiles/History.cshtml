@@ -358,7 +358,7 @@
             var counter = document.getElementById('compareSelCount');
             if (!btn || !form) return;
 
-            var MIN = 2, MAX = 4;
+            var MIN = @CompareInterpretationsViewModel.MinSelections, MAX = @CompareInterpretationsViewModel.MaxSelections;
 
             function selected() {
                 return Array.prototype.slice.call(

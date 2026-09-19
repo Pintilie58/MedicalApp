@@ -104,7 +104,7 @@ namespace MedicalApp.Services
                                         .FontSize(8).FontColor(Colors.Grey.Darken1);
                                 });
                             }
-                            for (int i = vm.Columns.Count; i < 4; i++)
+                            for (int i = vm.Columns.Count; i < CompareInterpretationsViewModel.MaxSelections; i++)
                                 row.RelativeItem();
                         });
 

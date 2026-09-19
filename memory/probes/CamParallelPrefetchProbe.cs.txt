@@ -21,11 +21,12 @@ void Check(string what, bool ok, string? detail = null)
 
 async Task<Scenario> RunScenario(string title, int parallel, int fileCount, int credits,
     int geminiDelayMs = 250, string? failFile = null, string? noOverrideFile = null,
-    bool samePatientPair = false, bool cancelAfterFirst = false)
+    bool samePatientPair = false, bool cancelAfterFirst = false,
+    bool duplicatePair = false, bool allSamePatient = false, bool legacyHashlessRow = false)
 {
     Console.WriteLine($"\n=== {title} (MaxParallelFiles={parallel}, files={fileCount}, credits={credits}) ===");
     var dbName = "campar-" + Guid.NewGuid();
-    var gemini = new FakeGemini { DelayMs = geminiDelayMs, FailFor = failFile };
+    var gemini = new FakeGemini { DelayMs = geminiDelayMs, FailFor = failFile, DatePerFile = allSamePatient };
     var store = new MemoryCamFileStore();
     var email = new FakeEmail();
 
@@ -71,9 +72,12 @@ async Task<Scenario> RunScenario(string title, int parallel, int fileCount, int 
         for (int i = 1; i <= fileCount; i++)
         {
             var name = $"file{i:00}.pdf";
-            store.Files[name] = System.Text.Encoding.UTF8.GetBytes("%PDF-1.4 fake " + name);
+            // duplicatePair: file02 has EXACTLY the bytes of file01 (different name)
+            var srcName = duplicatePair && i == 2 ? "file01.pdf" : name;
+            store.Files[name] = System.Text.Encoding.UTF8.GetBytes("%PDF-1.4 fake " + srcName);
             // samePatientPair: files 1 and 2 belong to the same patient (compare PDF expected on the 2nd)
-            var idx = samePatientPair && i == 2 ? 1 : i;
+            var idx = (samePatientPair || duplicatePair) && i == 2 ? 1 : i;
+            if (allSamePatient) idx = 1;
             var pEmail = $"patient{idx}@example.com";
             patientEmails.Add(pEmail);
             if (name != noOverrideFile)
@@ -82,6 +86,14 @@ async Task<Scenario> RunScenario(string title, int parallel, int fileCount, int 
                     ClinicId = clinic.Id, FileName = name,
                     OverrideName = $"Pacient {idx}", OverrideEmail = pEmail
                 });
+        }
+        if (legacyHashlessRow)
+        {
+            // Row created before the PdfSha256 column existed: must never match.
+            var legacyPatient = new ClinicPatient { ClinicId = clinic.Id, Name = "Pacient 1", NameKey = "pacient 1", Email = "patient1@example.com" };
+            db.ClinicPatients.Add(legacyPatient);
+            await db.SaveChangesAsync();
+            db.ClinicAnalyses.Add(new ClinicAnalysis { ClinicId = clinic.Id, PatientId = legacyPatient.Id, OriginalFileName = "old.pdf", RawJsonResult = "{}", PdfSha256 = null, ProcessedAt = DateTime.UtcNow.AddDays(-3) });
         }
         var batch = new ClinicBatchRun { ClinicId = clinic.Id, Status = "Running", LanguageCode = "ro" };
         db.ClinicBatchRuns.Add(batch);
@@ -111,6 +123,8 @@ async Task<Scenario> RunScenario(string title, int parallel, int fileCount, int 
     var u = await vdb.Users.AsNoTracking().FirstAsync(x => x.Email == clinicEmail);
     var patients = await vdb.ClinicPatients.AsNoTracking().CountAsync();
     var analyses = await vdb.ClinicAnalyses.AsNoTracking().CountAsync();
+    var hashed = await vdb.ClinicAnalyses.AsNoTracking().CountAsync(a => a.PdfSha256 != null);
+    var samplingDays = await vdb.ClinicAnalyses.AsNoTracking().Where(a => a.SamplingDate != null).OrderBy(a => a.SamplingDate).Select(a => a.SamplingDate!.Value.Day).ToListAsync();
     var errors = await vdb.ClinicBatchErrors.AsNoTracking().Where(e => e.BatchRunId == batchId).ToListAsync();
     var progress = registry.Get(batchId)!;
 
@@ -119,7 +133,7 @@ async Task<Scenario> RunScenario(string title, int parallel, int fileCount, int 
                       $"sendsFolder={store.Folder(CamFolder.Sends).Count} elapsed={sw.ElapsedMilliseconds}ms");
     foreach (var line in progress.LogSnapshot().Take(12)) Console.WriteLine("    " + line);
 
-    return new Scenario(b, u, gemini, email, store, patients, analyses, errors, sw.ElapsedMilliseconds, patientEmails, progress);
+    return new Scenario(b, u, gemini, email, store, patients, analyses, errors, sw.ElapsedMilliseconds, patientEmails, progress, hashed, samplingDays);
 }
 
 // ---------------------------------------------------------------- 1. baseline sequential
@@ -189,17 +203,48 @@ async Task<Scenario> RunScenario(string title, int parallel, int fileCount, int 
     Check("7c sent + notSends == processed, no counter corruption", s.Batch.FilesSent + s.Batch.NotSends == s.Progress.Processed, $"sent={s.Batch.FilesSent} notSends={s.Batch.NotSends} processed={s.Progress.Processed}");
 }
 
+// ---------------------------------------------------------------- 8. byte-identical duplicate (dedupe by SHA-256)
+{
+    var s = await RunScenario("Parallel 3, file02 is a byte-copy of file01", parallel: 3, fileCount: 4, credits: 10, duplicatePair: true);
+    Check("8a 3 sent, 1 notSend", s.Batch.FilesSent == 3 && s.Batch.NotSends == 1, $"sent={s.Batch.FilesSent} notSends={s.Batch.NotSends}");
+    Check("8b Gemini called exactly 3 times (never for the duplicate)", s.Gemini.Calls.Count == 3, $"calls={s.Gemini.Calls.Count}");
+    Check("8c only 3 credits consumed", s.User.CreditConsum == 3, $"consumed={s.User.CreditConsum}");
+    Check("8d error reason names the original file", s.Errors.Any(e => e.FileName == "file02.pdf" && e.Reason.Contains("Duplicate PDF") && e.Reason.Contains("file01.pdf")), string.Join(" | ", s.Errors.Select(e => e.Reason)));
+    Check("8e duplicate moved to Errors immediately (+ .reasons.txt), not in Original", s.Store.Folder(CamFolder.Errors).Any(n => n.EndsWith("file02.pdf")) && s.Store.Folder(CamFolder.Errors).Any(n => n.EndsWith("file02.pdf.reasons.txt")) && !s.Store.Folder(CamFolder.Original).Contains("file02.pdf"));
+    Check("8f no compare PDF generated for the duplicate", s.Batch.FilesCompared == 0, $"compared={s.Batch.FilesCompared}");
+    Check("8g analyses carry the SHA-256", s.Analyses == 3 && s.HashedAnalyses == 3, $"analyses={s.Analyses} hashed={s.HashedAnalyses}");
+    Check("8h log line mentions the duplicate", s.Progress.LogSnapshot().Any(l => l.Contains("Duplicat")));
+}
+
+// ---------------------------------------------------------------- 9. retention: keep newest 6 per patient, compare PDF at most 6 columns
+{
+    var s = await RunScenario("Sequential, 8 files same patient (distinct sampling dates)", parallel: 1, fileCount: 8, credits: 20, allSamePatient: true);
+    Check("9a 8 sent", s.Batch.FilesSent == 8, $"sent={s.Batch.FilesSent}");
+    Check("9b only 6 analyses kept for the patient", s.Analyses == 6, $"analyses={s.Analyses}");
+    Check("9c the 2 oldest sampling dates were dropped (01, 02)", s.SamplingDays.SequenceEqual(new[] { 3, 4, 5, 6, 7, 8 }), string.Join(",", s.SamplingDays));
+    Check("9d compare PDFs attached from the 2nd file onward", s.Batch.FilesCompared == 7, $"compared={s.Batch.FilesCompared}");
+}
+
+// ---------------------------------------------------------------- 10. legacy rows without hash never match
+{
+    var s = await RunScenario("Sequential, legacy hash-less analysis for same patient", parallel: 1, fileCount: 2, credits: 10, legacyHashlessRow: true);
+    Check("10a both files processed normally", s.Batch.FilesSent == 2 && s.Batch.NotSends == 0, $"sent={s.Batch.FilesSent} notSends={s.Batch.NotSends}");
+    Check("10b legacy row + 2 new analyses", s.Analyses == 3 && s.HashedAnalyses == 2, $"analyses={s.Analyses} hashed={s.HashedAnalyses}");
+}
+
 Console.WriteLine();
 Console.WriteLine(fails == 0 ? "ALL CHECKS PASSED" : $"{fails} CHECK(S) FAILED");
 return fails == 0 ? 0 : 1;
 
 sealed record Scenario(ClinicBatchRun Batch, User User, FakeGemini Gemini, FakeEmail Email, MemoryCamFileStore Store,
-    int Patients, int Analyses, List<ClinicBatchError> Errors, long ElapsedMs, List<string> PatientEmails, CamBatchProgress Progress);
+    int Patients, int Analyses, List<ClinicBatchError> Errors, long ElapsedMs, List<string> PatientEmails, CamBatchProgress Progress,
+    int HashedAnalyses, List<int> SamplingDays);
 
 sealed class FakeGemini : IMedicalInterpretationProvider
 {
     public int DelayMs { get; set; } = 250;
     public string? FailFor { get; set; }
+    public bool DatePerFile { get; set; }
     public ConcurrentBag<string> Calls { get; } = new();
     int _inFlight, _max, _completed;
     public int MaxInFlight => _max;
@@ -220,7 +265,7 @@ sealed class FakeGemini : IMedicalInterpretationProvider
             {
                 IsMedicalAnalysis = true,
                 Summary = "ok " + fileName,
-                PatientInfo = new PatientInfo { Name = "P", DateTaken = "2026-01-01" },
+                PatientInfo = new PatientInfo { Name = "P", DateTaken = DatePerFile ? $"2026-01-{int.Parse(fileName.Substring(4, 2)):00}" : "2026-01-01" },
                 KeyResults = new List<KeyResult>
                 {
                     new() { Parameter = "Glucoza", Value = "95", Unit = "mg/dL", ReferenceRange = "70-100", Status = "normal", Explanation = "ok" }

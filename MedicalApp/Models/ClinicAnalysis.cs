@@ -33,5 +33,11 @@ namespace MedicalApp.Models
         public DateTime? SamplingDate { get; set; }
 
         public DateTime ProcessedAt { get; set; } = DateTime.UtcNow;
+
+        /// <summary>SHA-256 (hex, upper) of the original PDF bytes — lets the CAM
+        /// runner refuse a byte-identical report that was already processed for
+        /// this clinic (no AI cost, no credit). Null for rows created before the column existed.</summary>
+        [StringLength(64)]
+        public string? PdfSha256 { get; set; }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text.Json;
 using MedicalApp.Data;
 using MedicalApp.Models;
@@ -31,6 +32,9 @@ namespace MedicalApp.Services
         private readonly CamBatchRegistry _registry;
         private readonly ILogger<CamBatchService> _logger;
         private readonly int _maxParallelFiles;
+
+        /// <summary>Analyses kept per patient (newest by sampling date); also the max columns of the compare PDF.</summary>
+        public const int MaxAnalysesPerPatient = 6;
         // Debug aid: when CamBatch:AttachDebugJson = true (Development only),
         // the full RawJsonResult (Gemini emissions + LOINC matcher decisions)
         // is attached to the interpretation email as a .json file so mapping
@@ -334,6 +338,21 @@ namespace MedicalApp.Services
                 }
             }
 
+            // 1b. Byte-identical PDF already processed for this clinic → skip
+            //     (no AI cost, no credit) and park it in Errors with the reason.
+            var pdfHash = Convert.ToHexString(SHA256.HashData(bytes));
+            var duplicateOf = await FindDuplicateAsync(db, clinic.Id, pdfHash, ct);
+            if (duplicateOf != null)
+            {
+                var when = duplicateOf.Value.ProcessedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm");
+                progress.Log(string.Format(Loc.T("CamBatchLogDuplicate", lang), duplicateOf.Value.OriginalFileName, when));
+                await RecordErrorAsync(db, batch, path, meta!.PatientName,
+                    $"Duplicate PDF: identical to '{duplicateOf.Value.OriginalFileName}' processed {when}");
+                batch.NotSends++; progress.NotSends++;
+                await MoveToErrorsIfRetriesExhaustedAsync(db, files, clinic, batch, path, force: true);
+                return;
+            }
+
             // 2. Check credit budget BEFORE we spend AI tokens
             if (user == null || user.TotalAvailableCredits <= 0)
             {
@@ -430,7 +449,7 @@ namespace MedicalApp.Services
                 progress.Log(string.Format(Loc.T("CamBatchLogNewPatient", lang), patient.Name, patient.Email));
             }
 
-            // 5. Persist this analysis + keep only last 4 per patient
+            // 5. Persist this analysis + keep only the newest MaxAnalysesPerPatient per patient
             var rawJson = JsonSerializer.Serialize(result, new JsonSerializerOptions
             {
                 WriteIndented = true,
@@ -443,7 +462,8 @@ namespace MedicalApp.Services
                 OriginalFileName = fileName,
                 RawJsonResult = rawJson,
                 SamplingDate = TryParseDate(result.PatientInfo?.DateTaken),
-                ProcessedAt = DateTime.UtcNow
+                ProcessedAt = DateTime.UtcNow,
+                PdfSha256 = pdfHash
             };
             db.ClinicAnalyses.Add(newAnalysis);
             await db.SaveChangesAsync();
@@ -452,12 +472,12 @@ namespace MedicalApp.Services
                 .Where(a => a.PatientId == patient.Id)
                 .OrderByDescending(a => a.SamplingDate ?? a.ProcessedAt)
                 .ToListAsync();
-            if (allForPatient.Count > 4)
+            if (allForPatient.Count > MaxAnalysesPerPatient)
             {
-                var toRemove = allForPatient.Skip(4).ToList();
+                var toRemove = allForPatient.Skip(MaxAnalysesPerPatient).ToList();
                 db.ClinicAnalyses.RemoveRange(toRemove);
                 await db.SaveChangesAsync();
-                allForPatient = allForPatient.Take(4).ToList();
+                allForPatient = allForPatient.Take(MaxAnalysesPerPatient).ToList();
             }
 
             // 6. Build interpretation PDF
@@ -587,6 +607,8 @@ namespace MedicalApp.Services
         {
             public readonly Task<PrefetchOutcome>?[] Tasks;
             public int CallsBudget;   // Gemini calls still allowed = credits at batch start
+            // SHA-256 → index of the first file in this batch with those bytes (same-batch duplicates skip the AI call).
+            public readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> SeenHashes = new();
 
             public GeminiPrefetch(int fileCount, int callsBudget)
             {
@@ -604,12 +626,12 @@ namespace MedicalApp.Services
             for (int j = currentIndex; j < limit; j++)
             {
                 if (prefetch.Tasks[j] == null)
-                    prefetch.Tasks[j] = PrefetchOneAsync(prefetch, pdfPaths[j], clinic, user, progress, lang, ct);
+                    prefetch.Tasks[j] = PrefetchOneAsync(prefetch, j, pdfPaths[j], clinic, user, progress, lang, ct);
             }
         }
 
         private async Task<PrefetchOutcome> PrefetchOneAsync(
-            GeminiPrefetch prefetch, string path, Clinic clinic, User? user,
+            GeminiPrefetch prefetch, int index, string path, Clinic clinic, User? user,
             CamBatchProgress progress, string lang, CancellationToken ct)
         {
             var fileName = Path.GetFileName(path);
@@ -636,6 +658,14 @@ namespace MedicalApp.Services
                     if (!(probe.MatchedExplicitBlock && probe.IsValid))
                         return new PrefetchOutcome(false, null);
                 }
+
+                // Duplicate PDFs are skipped by the sequential path — no AI call for them
+                // (already stored for the clinic, or an earlier file of this batch has the same bytes).
+                var hash = Convert.ToHexString(SHA256.HashData(bytes));
+                var firstIndex = prefetch.SeenHashes.GetOrAdd(hash, index);
+                if (firstIndex < index) return new PrefetchOutcome(false, null);
+                if (await FindDuplicateAsync(db, clinic.Id, hash, ct) != null)
+                    return new PrefetchOutcome(false, null);
 
                 // Never spend more AI calls than the credits available at start.
                 if (Interlocked.Decrement(ref prefetch.CallsBudget) < 0)
@@ -748,8 +778,21 @@ namespace MedicalApp.Services
             return $"Email failed for {emailLabel}: {first}";
         }
 
+        /// <summary>Byte-identical report already stored for this clinic (any patient), newest first.</summary>
+        private static async Task<(string OriginalFileName, DateTime ProcessedAt)?> FindDuplicateAsync(
+            AppDbContext db, int clinicId, string pdfHash, CancellationToken ct)
+        {
+            var hit = await db.ClinicAnalyses.AsNoTracking()
+                .Where(a => a.ClinicId == clinicId && a.PdfSha256 == pdfHash)
+                .OrderByDescending(a => a.ProcessedAt)
+                .Select(a => new { a.OriginalFileName, a.ProcessedAt })
+                .FirstOrDefaultAsync(ct);
+            return hit == null ? null : (hit.OriginalFileName, hit.ProcessedAt);
+        }
+
+        /// <param name="force">Move right away (e.g. duplicate PDF) instead of waiting for 3 failed attempts.</param>
         private async Task MoveToErrorsIfRetriesExhaustedAsync(AppDbContext db, ICamFileStore files,
-            Clinic clinic, ClinicBatchRun batch, string filePath)
+            Clinic clinic, ClinicBatchRun batch, string filePath, bool force = false)
         {
             var fileName = Path.GetFileName(filePath);
             var attempts = await db.ClinicBatchErrors
@@ -757,7 +800,7 @@ namespace MedicalApp.Services
                 .Join(db.ClinicBatchRuns, e => e.BatchRunId, b => b.Id, (e, b) => new { e, b.ClinicId })
                 .Where(x => x.ClinicId == batch.ClinicId)
                 .CountAsync();
-            if (attempts < 3) return;
+            if (!force && attempts < 3) return;
             try
             {
                 var movedName = await files.MoveAsync(clinic, CamFolder.Original,
@@ -773,7 +816,10 @@ namespace MedicalApp.Services
                     .Select(x => x.e.Reason)
                     .ToListAsync();
 
-                var reasonsText = Loc.T("CamBatchFailedThreeTimesHeader") + "\n" +
+                var header = force && attempts < 3
+                    ? Loc.T("CamBatchDuplicateHeader")
+                    : Loc.T("CamBatchFailedThreeTimesHeader");
+                var reasonsText = header + "\n" +
                     string.Join("\n", reasons.Select(r => "  • " + r));
                 await files.WriteAsync(clinic, CamFolder.Errors, movedName + ".reasons.txt",
                     System.Text.Encoding.UTF8.GetBytes(reasonsText), overwrite: true);
