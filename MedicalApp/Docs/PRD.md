@@ -557,7 +557,17 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
     același pacient în 2 fișiere (1 PDF comparație, fără pacient duplicat), anulare în timpul
     prefetch-ului (contoare consistente) — **ALL CHECKS PASSED**; build 0 erori / 0 warning-uri.
   - **Utilizatorul validează local** (VS2026): întâi cu `MaxParallelFiles: 1`, apoi 4.
-- **P1 (următorul)**: poziție în coadă + ETA în UI-ul CAM (aprobat în principiu, amânat de utilizator).
+- **Stripe Checkout — IMPLEMENTAT** (15 iunie 2026; decizii utilizator: plată per pachet, EUR, promo-uri ale
+  noastre, chitanță Stripe automată). Detalii complete în `memory/STRIPE_PAYMENTS.md`. Pe scurt: `Stripe.net 52.4.2`;
+  `PaymentSettings` (`Payments:Provider` Stripe|Simulated); `StripePaymentService` (sesiune, verificare, marcare
+  idempotentă cu RowVersion, parsare webhook); `CreditsController`: `StartStripe` / `StripeSuccess` / `StripeCancel` /
+  `StripeWebhook`, iar creditarea comună extrasă în `FulfillPurchaseAsync` (folosită și de providerul Simulated —
+  comportament identic). Tabel nou `PaymentTransactions` + coloană `Purchases.ProviderReference` — migrare
+  **`AddPaymentTransactions`** (utilizatorul rulează `Update-Database`). Checkout.cshtml: buton Stripe când
+  `UseStripe`, formularul vechi doar pentru Simulated. Chei Loc `PaymentStripe*` (7 limbi). Sandbox Stripe RO
+  provizionat (Flow A, claimable); cheile de test merg în User Secrets local. Probă 26 checkuri ALL PASSED.
+  **Utilizatorul validează local cu cardul 4242.** Urmează (backlog): abonamente, facturare fiscală RO.
+- **P1**: poziție în coadă + ETA în UI-ul CAM (aprobat în principiu, amânat de utilizator).
 - **Pagina CAM „Fișierele mele” — IMPLEMENTAT** (14 iunie 2026). Înlocuitorul Windows Explorer
   pentru cele 4 foldere, necesar pe Azure (cabinetul nu vede discul serverului) și pentru orice
   cabinet real. Totul prin `ICamFileStore` ⇒ identic pe disc local și pe Blob; zero atingere la

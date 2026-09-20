@@ -34,5 +34,9 @@ namespace MedicalApp.Models
         /// <summary>Optional promo code used with the purchase.</summary>
         [StringLength(50)]
         public string? PromoCode { get; set; }
+
+        /// <summary>Provider-side id of the settled payment (Stripe PaymentIntent id). Null for simulated.</summary>
+        [StringLength(100)]
+        public string? ProviderReference { get; set; }
     }
 }

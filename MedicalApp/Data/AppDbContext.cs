@@ -10,6 +10,7 @@ namespace MedicalApp.Data
         public DbSet<User> Users { get; set; } = null!;
         public DbSet<InterpretationHistory> InterpretationHistories { get; set; } = null!;
         public DbSet<Purchase> Purchases { get; set; } = null!;
+        public DbSet<PaymentTransaction> PaymentTransactions { get; set; } = null!;
         public DbSet<PromoCode> PromoCodes { get; set; } = null!;
         public DbSet<Profile> Profiles { get; set; } = null!;
         public DbSet<LoincEntry> LoincDictionary { get; set; } = null!;
@@ -85,6 +86,18 @@ namespace MedicalApp.Data
                 entity.HasIndex(h => new { h.ProfileId, h.Status })
                       .HasDatabaseName("IX_InterpretationHistories_Profile_Status");
                 entity.Property(h => h.CreatedAt).HasColumnType("datetime2");
+            });
+
+            modelBuilder.Entity<PaymentTransaction>(entity =>
+            {
+                entity.ToTable("PaymentTransactions");
+                entity.HasKey(t => t.Id);
+                entity.HasIndex(t => t.SessionId).IsUnique();
+                entity.HasIndex(t => t.UserEmail);
+                entity.Property(t => t.AmountEur).HasColumnType("decimal(18,2)");
+                entity.Property(t => t.CreatedAt).HasColumnType("datetime2");
+                entity.Property(t => t.PaidAt).HasColumnType("datetime2");
+                entity.Property(t => t.RowVersion).IsRowVersion();
             });
 
             modelBuilder.Entity<Purchase>(entity =>

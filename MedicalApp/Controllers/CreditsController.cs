@@ -16,6 +16,8 @@ namespace MedicalApp.Controllers
         private readonly AdminSettings _adminSettings;
         private readonly ICamFileStore _camFileStore;
         private readonly PdfReportGenerator _pdfGenerator;
+        private readonly StripePaymentService _stripe;
+        private readonly PaymentSettings _payments;
         private readonly ILogger<CreditsController> _logger;
 
         public CreditsController(
@@ -24,8 +26,12 @@ namespace MedicalApp.Controllers
             IOptions<AdminSettings> adminOptions,
             ICamFileStore camFileStore,
             PdfReportGenerator pdfGenerator,
+            StripePaymentService stripe,
+            IOptions<PaymentSettings> payments,
             ILogger<CreditsController> logger)
         {
+            _stripe = stripe;
+            _payments = payments.Value;
             _db = db;
             _emailService = emailService;
             _adminSettings = adminOptions.Value;
@@ -82,6 +88,7 @@ namespace MedicalApp.Controllers
                 return RedirectToAction(nameof(Buy));
 
             ViewBag.Package = selected;
+            ViewBag.UseStripe = _payments.UseStripe;
             return View(new CheckoutViewModel { PackageKey = selected.Key });
         }
 
@@ -119,12 +126,33 @@ namespace MedicalApp.Controllers
             if (!PackageMatchesAccount(selected, user.UserType))
                 return RedirectToAction(nameof(Buy));
 
+            // The simulated provider is only for local development; when Stripe is
+            // active the card form no longer exists, so refuse a stray POST.
+            if (_payments.UseStripe)
+                return RedirectToAction(nameof(Checkout), new { package = selected.Key });
+
+            var outcome = await FulfillPurchaseAsync(user, selected, paymentMethod: "simulated", providerReference: null);
+            ApplyDemoUnlockTempData(outcome);
+
+            return RedirectAfterPurchase(user, selected);
+        }
+
+
+        /// <summary>
+        /// Everything that happens once a payment is KNOWN to be settled: credits,
+        /// Purchase row, CAM folders on first clinic purchase, freemium unlock email,
+        /// admin notification. Shared by the simulated provider, the Stripe return
+        /// page and the Stripe webhook — one code path, one behaviour.
+        /// </summary>
+        private async Task<PurchaseOutcome> FulfillPurchaseAsync(User user, CreditPackage selected,
+            string paymentMethod, string? providerReference)
+        {
+            string email = user.Email;
             // Evaluated BEFORE the Purchase row below is inserted: the freemium
             // ("DEMO") report is unlocked+emailed only on the very FIRST purchase.
             bool isFirstPurchase = !await _db.Purchases.AnyAsync(p => p.UserEmail == user.Email);
+            (int historyId, int otherUnlockedCount)? demoUnlocked = null;
 
-            // ---- SIMULATED PAYMENT (always succeeds) ----
-            // TODO: replace with real payment provider (Netopia/Stripe/PayPal).
             user.Credite += selected.Credits;
             user.CreditRest = user.Credite - user.CreditConsum;
             user.TotalPaid += selected.PriceEur;
@@ -135,15 +163,16 @@ namespace MedicalApp.Controllers
                 PurchasedAt = DateTime.UtcNow,
                 AmountEur = selected.PriceEur,
                 CreditsAdded = selected.Credits,
-                PaymentMethod = "simulated",
+                PaymentMethod = paymentMethod,
+                ProviderReference = providerReference,
                 PackageKey = selected.Key
             });
 
             await _db.SaveChangesAsync();
 
             _logger.LogInformation(
-                "Simulated payment: {Email} bought {Credits} credits for {Price} EUR ({Package}).",
-                email, selected.Credits, selected.PriceEur, selected.Key);
+                "Payment ({Method}): {Email} bought {Credits} credits for {Price} EUR ({Package}).",
+                paymentMethod, email, selected.Credits, selected.PriceEur, selected.Key);
 
             // CAM: la PRIMA cumpărare de credite a unei clinici, creează folderele
             // locale (Original, Sends, Sumar, Errors) pe C:\MedicalApp_files\.
@@ -186,8 +215,7 @@ namespace MedicalApp.Controllers
                     var unlocked = await TrySendUnlockedDemoReportAsync(user);
                     if (unlocked != null)
                     {
-                        TempData["DemoUnlockedHistoryId"] = unlocked.Value.historyId.ToString();
-                        TempData["DemoUnlockedOtherCount"] = unlocked.Value.otherUnlockedCount.ToString();
+                        demoUnlocked = unlocked;
                         _logger.LogInformation(
                             "Demo unlock: emailed full report id={Id} to {Email} after first purchase ({Others} other reports unlocked).",
                             unlocked.Value.historyId, user.Email, unlocked.Value.otherUnlockedCount);
@@ -214,16 +242,171 @@ namespace MedicalApp.Controllers
                     email);
             }
 
+            return new PurchaseOutcome(selected, demoUnlocked);
+        }
+
+        private sealed record PurchaseOutcome(CreditPackage Package, (int historyId, int otherUnlockedCount)? DemoUnlocked);
+
+        private void ApplyDemoUnlockTempData(PurchaseOutcome outcome)
+        {
+            if (outcome.DemoUnlocked == null) return;
+            TempData["DemoUnlockedHistoryId"] = outcome.DemoUnlocked.Value.historyId.ToString();
+            TempData["DemoUnlockedOtherCount"] = outcome.DemoUnlocked.Value.otherUnlockedCount.ToString();
+        }
+
+        private IActionResult RedirectAfterPurchase(User user, CreditPackage selected)
+        {
             TempData["SuccessMessage"] = string.Format(
                 Loc.T("PaymentSuccessMessage"), selected.Credits);
-
-            // Clinic users land back on the CAM dashboard after a successful
-            // top-up so the navbar mode doesn't flip to "personal" — Individual
-            // users keep the original B2C dashboard destination.
             if (string.Equals(user.UserType, "Clinic", StringComparison.OrdinalIgnoreCase))
                 return RedirectToAction("Index", "Dashboard", new { area = "CAM" });
-
             return RedirectToAction("Dashboard", "Account");
+        }
+
+        // ===================================================================
+        //  Stripe Checkout (Payments:Provider = "Stripe")
+        // ===================================================================
+
+        /// <summary>Creates the Stripe Checkout Session and sends the browser to Stripe's hosted page.</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> StartStripe(string packageKey)
+        {
+            var email = HttpContext.Session.GetString("UserEmail");
+            if (string.IsNullOrEmpty(email))
+                return RedirectToAction("Index", "Home");
+            if (!_payments.UseStripe)
+                return RedirectToAction(nameof(Checkout), new { package = packageKey });
+
+            var selected = CreditPackages.GetByKey(packageKey ?? "");
+            if (selected == null)
+                return RedirectToAction(nameof(Buy));
+
+            var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Email == email);
+            if (user == null)
+            {
+                HttpContext.Session.Clear();
+                return RedirectToAction("Index", "Home");
+            }
+            if (!PackageMatchesAccount(selected, user.UserType))
+                return RedirectToAction(nameof(Buy));
+
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            var successUrl = baseUrl + Url.Action(nameof(StripeSuccess)) + "?session_id={CHECKOUT_SESSION_ID}";
+            var cancelUrl = baseUrl + Url.Action(nameof(StripeCancel), new { package = selected.Key });
+
+            try
+            {
+                var (checkoutUrl, _) = await _stripe.CreateCheckoutAsync(
+                    user, selected, Loc.T(selected.NameKey), successUrl, cancelUrl, HttpContext.RequestAborted);
+                return Redirect(checkoutUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Stripe: could not create Checkout Session for {Email}/{Package}.", email, selected.Key);
+                TempData["ErrorMessage"] = Loc.T("PaymentStripeUnavailable");
+                return RedirectToAction(nameof(Checkout), new { package = selected.Key });
+            }
+        }
+
+        /// <summary>Stripe sends the browser here after payment. Verifies with Stripe, then fulfils (idempotent).</summary>
+        [HttpGet]
+        public async Task<IActionResult> StripeSuccess(string? session_id)
+        {
+            var email = HttpContext.Session.GetString("UserEmail");
+            if (string.IsNullOrEmpty(email))
+                return RedirectToAction("Index", "Home");
+            if (string.IsNullOrWhiteSpace(session_id))
+                return RedirectToAction(nameof(Buy));
+
+            var tx = await _stripe.FindTransactionAsync(session_id, HttpContext.RequestAborted);
+            if (tx == null || !string.Equals(tx.UserEmail, email, StringComparison.OrdinalIgnoreCase))
+                return RedirectToAction(nameof(Buy));
+
+            var selected = CreditPackages.GetByKey(tx.PackageKey);
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email);
+            if (selected == null || user == null)
+                return RedirectToAction(nameof(Buy));
+
+            if (tx.Status != PaymentTransaction.StatusPaid)
+            {
+                var (paid, paymentIntentId) = await _stripe.IsPaidAtStripeAsync(session_id, HttpContext.RequestAborted);
+                if (!paid)
+                {
+                    TempData["ErrorMessage"] = Loc.T("PaymentStripePending");
+                    return RedirectToAction(nameof(Buy));
+                }
+                var claimed = await _stripe.TryMarkPaidAsync(tx, paymentIntentId, HttpContext.RequestAborted);
+                if (claimed)
+                {
+                    var outcome = await FulfillPurchaseAsync(user, selected, "stripe", paymentIntentId ?? session_id);
+                    ApplyDemoUnlockTempData(outcome);
+                }
+            }
+
+            return RedirectAfterPurchase(user, selected);
+        }
+
+        [HttpGet]
+        public IActionResult StripeCancel(string? package)
+        {
+            TempData["ErrorMessage"] = Loc.T("PaymentStripeCancelled");
+            return string.IsNullOrEmpty(package)
+                ? RedirectToAction(nameof(Buy))
+                : RedirectToAction(nameof(Checkout), new { package });
+        }
+
+        /// <summary>
+        /// Stripe → server notification (register this URL in the Stripe Dashboard →
+        /// Developers → Webhooks, event <c>checkout.session.completed</c>). Fulfils the
+        /// purchase even if the customer never came back to StripeSuccess. Idempotent.
+        /// </summary>
+        [HttpPost]
+        [IgnoreAntiforgeryToken]
+        public async Task<IActionResult> StripeWebhook()
+        {
+            if (!_payments.UseStripe) return NotFound();
+
+            string json;
+            using (var reader = new StreamReader(Request.Body))
+                json = await reader.ReadToEndAsync();
+
+            Stripe.Event stripeEvent;
+            try
+            {
+                stripeEvent = _stripe.ParseWebhook(json, Request.Headers["Stripe-Signature"]);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Stripe webhook rejected (bad signature or payload).");
+                return BadRequest();
+            }
+
+            if (stripeEvent.Data.Object is not Stripe.Checkout.Session session)
+                return Ok();
+
+            var tx = await _stripe.FindTransactionAsync(session.Id);
+            if (tx == null) return Ok(); // not ours (e.g. another environment sharing the account)
+
+            switch (stripeEvent.Type)
+            {
+                case "checkout.session.completed":
+                case "checkout.session.async_payment_succeeded":
+                    if (session.PaymentStatus != "paid") break;
+                    var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == tx.UserEmail);
+                    var selected = CreditPackages.GetByKey(tx.PackageKey);
+                    if (user == null || selected == null) break;
+                    if (await _stripe.TryMarkPaidAsync(tx, session.PaymentIntentId))
+                        await FulfillPurchaseAsync(user, selected, "stripe", session.PaymentIntentId ?? session.Id);
+                    break;
+
+                case "checkout.session.expired":
+                case "checkout.session.async_payment_failed":
+                    await _stripe.MarkClosedAsync(tx,
+                        stripeEvent.Type == "checkout.session.expired" ? PaymentTransaction.StatusExpired : PaymentTransaction.StatusFailed);
+                    break;
+            }
+            return Ok();
         }
 
         /// <summary>

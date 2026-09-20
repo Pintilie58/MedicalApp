@@ -1,4 +1,4 @@
-@model MedicalApp.Models.CheckoutViewModel
+﻿@model MedicalApp.Models.CheckoutViewModel
 @{
     ViewData["Title"] = Loc.T("CheckoutTitle");
     var pkg = ViewBag.Package as MedicalApp.Services.CreditPackage;
@@ -32,7 +32,39 @@
                 </div>
             </div>
 
-            <!-- Payment form -->
+            @if (ViewBag.UseStripe == true)
+            {
+                <!-- Stripe hosted checkout: card data is entered on Stripe's page, never here -->
+                <div class="card border-0 shadow-sm" data-testid="stripe-checkout-card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">@Loc.T("PaymentDetails")</h5>
+                        @if (TempData["ErrorMessage"] is string err && !string.IsNullOrEmpty(err))
+                        {
+                            <div class="alert alert-warning" data-testid="stripe-checkout-error">@err</div>
+                        }
+                        <p class="small text-muted">@Loc.T("PaymentStripeIntro")</p>
+                        <form asp-action="StartStripe" method="post" data-testid="stripe-start-form">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="packageKey" value="@pkg?.Key" />
+                            <button type="submit" class="btn btn-primary w-100 fs-5 py-2 mt-2"
+                                    data-testid="stripe-pay-button">
+                                <i class="bi bi-lock-fill"></i> @Loc.T("PaymentStripeButton") @pkg?.PriceEur.ToString("0")€
+                            </button>
+                        </form>
+                        <div class="d-flex align-items-center justify-content-center gap-2 mt-3 small text-muted">
+                            <i class="bi bi-shield-check"></i> @Loc.T("PaymentStripeSecure")
+                        </div>
+                        <div class="text-center mt-3">
+                            <a asp-action="Buy" class="text-decoration-none small text-muted">
+                                &larr; @Loc.T("BackToPackages")
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
+            <!-- Payment form (simulated provider, local development only) -->
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
                     <h5 class="card-title mb-3">@Loc.T("PaymentDetails")</h5>
@@ -92,6 +124,7 @@
                     </form>
                 </div>
             </div>
+            }
         </div>
     </div>
 </div>

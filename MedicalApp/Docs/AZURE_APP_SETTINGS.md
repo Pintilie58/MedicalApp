@@ -37,6 +37,8 @@ App Service → *Settings* → *Environment variables* → *App settings*.
 | `ConnectionStrings__DefaultConnection` | `Server=tcp:<srv>.database.windows.net,1433;Database=MedicalAppDB;User ID=<user>;Password=<parolă>;Encrypt=True;TrustServerCertificate=False;Connect Timeout=30;Max Pool Size=50;Min Pool Size=2` | Azure SQL. Fără `MultipleActiveResultSets` (încetinește, nu e necesar). `Max Pool Size=50` pentru că pool-ul e per instanță |
 | `Gemini__ApiKey` | cheia Google | secret |
 | `EmailSettings__Password` | parola SMTP Brevo | secret |
+| `Payments__Stripe__SecretKey` | `sk_live_…` după revendicarea contului (`sk_test_…` până atunci) | secret |
+| `Payments__Stripe__WebhookSecret` | `whsec_…` din Dashboard → Developers → Webhooks (`/Credits/StripeWebhook`) | secret |
 | `CamSettings__Blob__AccountUrl` | `https://<cont>.blob.core.windows.net` | fișierele CAM; `App Service nu are disc C:\` |
 | `WEBSITE_TIME_ZONE` | `GTB Standard Time` | serverul e UTC; altfel sumarul zilnic pleacă la 09:00 UTC |
 
