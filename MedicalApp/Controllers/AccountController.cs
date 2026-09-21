@@ -264,7 +264,8 @@ namespace MedicalApp.Controllers
                 UserType = AccountTypes.Normalize(pending.UserType),
                 CabinetName = AccountTypes.IsCabinet(pending.UserType)
                     ? pending.CabinetName?.Trim()
-                    : null
+                    : null,
+                RegistrationLanguage = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName
             };
 
             // Apply promo code (if any and valid) - case-insensitive lookup.

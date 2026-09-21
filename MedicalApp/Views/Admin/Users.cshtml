@@ -73,6 +73,7 @@
                     <tr>
                         <th>Email</th>
                         <th>Type</th>
+                        <th class="text-center">Limba</th>
                         <th class="text-end">Profiles</th>
                         <th>Registered</th>
                         <th>Last login</th>
@@ -88,7 +89,7 @@
                 <tbody>
                     @if (!Model.Any())
                     {
-                        <tr><td colspan="12" class="text-muted text-center py-4">No users found.</td></tr>
+                        <tr><td colspan="13" class="text-muted text-center py-4">No users found.</td></tr>
                     }
                     @foreach (var item in Model)
                     {
@@ -129,6 +130,17 @@
                                           title="B2C account (Individual)">
                                         <i class="bi bi-person"></i> Individual
                                     </span>
+                                }
+                            </td>
+                            <td class="text-center">
+                                @if (!string.IsNullOrWhiteSpace(u.RegistrationLanguage))
+                                {
+                                    <span class="badge bg-light text-dark border" data-testid="user-lang-badge"
+                                          title="UI language at registration">@u.RegistrationLanguage.ToUpperInvariant()</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted" title="Registered before language tracking" data-testid="user-lang-unknown">&mdash;</span>
                                 }
                             </td>
                             <td class="text-end">

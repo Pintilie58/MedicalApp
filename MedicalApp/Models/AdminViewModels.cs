@@ -254,4 +254,21 @@ namespace MedicalApp.Models
         /// <summary>True only for the auto-generated "Eu" profile (Individual).</summary>
         public bool IsDefault { get; set; }
     }
+
+    /// <summary>Admin → "Struct Limbi": registrations grouped by UI language.</summary>
+    public class AdminLanguageStatsViewModel
+    {
+        public int TotalUsers { get; set; }
+        public int KnownUsers { get; set; }
+        public int UnknownUsers { get; set; }
+        public List<Row> Rows { get; set; } = new();
+
+        public class Row
+        {
+            public string Language { get; set; } = string.Empty;
+            public int Count { get; set; }
+            public double PercentOfKnown { get; set; }
+            public double PercentOfTotal { get; set; }
+        }
+    }
 }

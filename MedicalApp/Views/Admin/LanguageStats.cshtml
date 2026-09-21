@@ -1,0 +1,95 @@
+@model MedicalApp.Models.AdminLanguageStatsViewModel
+@{
+    ViewData["Title"] = "Struct Limbi";
+    var names = new Dictionary<string, string>
+    {
+        ["RO"] = "Română", ["EN"] = "English", ["FR"] = "Français", ["ES"] = "Español",
+        ["DE"] = "Deutsch", ["IT"] = "Italiano", ["PT"] = "Português"
+    };
+}
+
+<div class="container py-4">
+    <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+        <h2 class="text-primary fw-bold mb-0" data-testid="lang-stats-title">Struct Limbi</h2>
+        <a asp-action="Users" class="btn btn-sm btn-outline-primary ms-auto">Users</a>
+        <a asp-action="Index" class="btn btn-sm btn-outline-secondary" data-testid="lang-stats-back-btn">
+            &larr; Admin Dashboard
+        </a>
+    </div>
+
+    <p class="text-muted">
+        Limba interfeței cu care s-a înregistrat fiecare utilizator. Se înregistrează începând cu
+        introducerea coloanei; conturile mai vechi apar ca „necunoscută” și nu intră în procente.
+    </p>
+
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm"><div class="card-body">
+                <div class="small text-muted">Total utilizatori</div>
+                <div class="fs-3 fw-bold" data-testid="lang-stats-total">@Model.TotalUsers</div>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm"><div class="card-body">
+                <div class="small text-muted">Cu limbă cunoscută</div>
+                <div class="fs-3 fw-bold text-success" data-testid="lang-stats-known">@Model.KnownUsers</div>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm"><div class="card-body">
+                <div class="small text-muted">Necunoscută (conturi vechi)</div>
+                <div class="fs-3 fw-bold text-muted" data-testid="lang-stats-unknown">@Model.UnknownUsers</div>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm"><div class="card-body">
+                <div class="small text-muted">Limbi distincte</div>
+                <div class="fs-3 fw-bold" data-testid="lang-stats-distinct">@Model.Rows.Count</div>
+            </div></div>
+        </div>
+    </div>
+
+    @if (Model.Rows.Count == 0)
+    {
+        <div class="alert alert-info" data-testid="lang-stats-empty">
+            Niciun utilizator înregistrat de la introducerea evidenței pe limbi. Datele apar la următoarea înregistrare.
+        </div>
+    }
+    else
+    {
+        <div class="card border-0 shadow-sm">
+            <table class="table table-hover align-middle mb-0" data-testid="lang-stats-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Limba</th>
+                        <th class="text-end">Utilizatori</th>
+                        <th class="text-end">% din cunoscuți</th>
+                        <th class="text-end">% din total</th>
+                        <th style="width: 40%">Pondere</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Model.Rows)
+                    {
+                        <tr data-testid="lang-row-@r.Language.ToLower()">
+                            <td>
+                                <span class="badge bg-light text-dark border fs-6">@r.Language</span>
+                                <span class="text-muted ms-2">@(names.TryGetValue(r.Language, out var n) ? n : "")</span>
+                            </td>
+                            <td class="text-end fw-semibold">@r.Count</td>
+                            <td class="text-end">@r.PercentOfKnown.ToString("0.0") %</td>
+                            <td class="text-end text-muted">@r.PercentOfTotal.ToString("0.0") %</td>
+                            <td>
+                                <div class="progress" style="height: 14px;">
+                                    <div class="progress-bar bg-success" role="progressbar"
+                                         style="width: @r.PercentOfKnown.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)%"
+                                         aria-valuenow="@r.PercentOfKnown" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

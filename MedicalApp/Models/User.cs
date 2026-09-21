@@ -89,6 +89,13 @@ namespace MedicalApp.Models
         /// free period).</summary>
         public int ArchivePremiumCounter { get; set; } = 0;
 
+        /// <summary>
+        /// UI language (2-letter ISO, e.g. "ro") the account was registered with.
+        /// Null for accounts created before this column existed — they are reported as "unknown".
+        /// </summary>
+        [StringLength(5)]
+        public string? RegistrationLanguage { get; set; }
+
         // ----- Computed (NOT mapped to DB) -----
 
         /// <summary>Bonus credits still available.</summary>

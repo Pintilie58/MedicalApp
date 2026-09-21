@@ -573,6 +573,12 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   CabinetLabel / ProfileLabel`), plus `WWW.MyMedicalApp.NET` în antet și în footer (constanta `PdfBranding.Website`,
   înlocuiește „medicalapp.ro” și în sumarul CAM). `Profile.Notes` 500 → **4000** caractere (`Profile.MaxNotesLength`,
   textarea 8 rânduri + contor), migrare **`WidenProfileNotes`**. Probă `memory/probes/ComparePdfHeaderProbe.cs.txt` 9/9 PASS.
+- **Evidență pe limbi la înregistrare** (15 iunie 2026): `Users.RegistrationLanguage` (nvarchar(5), null pentru conturile
+  vechi — rămân „necunoscută”, decizia utilizatorului), setat la `AccountController.Register` din
+  `CultureInfo.CurrentUICulture` (cookie de limbă → altfel Accept-Language al browserului → altfel „en”).
+  Admin → Users: coloană **Limba** (badge RO/EN/…) după Type. Admin → buton **Struct Limbi** (`/Admin/LanguageStats`):
+  total / cunoscute / necunoscute / limbi distincte + tabel limbă, nr., % din cunoscuți, % din total, bară.
+  Migrare **`AddUserRegistrationLanguage`**. Analiza pe **țară** (GeoLite2 IP + țara cardului Stripe) — propusă, amânată.
 - **P1**: poziție în coadă + ETA în UI-ul CAM (aprobat în principiu, amânat de utilizator).
 - **Pagina CAM „Fișierele mele” — IMPLEMENTAT** (14 iunie 2026). Înlocuitorul Windows Explorer
   pentru cele 4 foldere, necesar pe Azure (cabinetul nu vede discul serverului) și pentru orice

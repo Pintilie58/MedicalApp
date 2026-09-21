@@ -623,6 +623,38 @@ namespace MedicalApp.Controllers
         }
 
         // =====================================================================
+        //  "Struct Limbi" — registrations by UI language (only accounts created
+        //  since RegistrationLanguage exists; older ones are grouped as "unknown").
+        // =====================================================================
+        [HttpGet]
+        public async Task<IActionResult> LanguageStats()
+        {
+            var groups = await _db.Users.AsNoTracking()
+                .GroupBy(u => u.RegistrationLanguage ?? "")
+                .Select(g => new { Lang = g.Key, Count = g.Count() })
+                .ToListAsync();
+
+            var total = groups.Sum(g => g.Count);
+            var known = groups.Where(g => g.Lang != "").Sum(g => g.Count);
+            var vm = new AdminLanguageStatsViewModel
+            {
+                TotalUsers = total,
+                KnownUsers = known,
+                UnknownUsers = total - known,
+                Rows = groups.Where(g => g.Lang != "")
+                    .OrderByDescending(g => g.Count).ThenBy(g => g.Lang)
+                    .Select(g => new AdminLanguageStatsViewModel.Row
+                    {
+                        Language = g.Lang.ToUpperInvariant(),
+                        Count = g.Count,
+                        PercentOfKnown = known == 0 ? 0 : Math.Round(100.0 * g.Count / known, 1),
+                        PercentOfTotal = total == 0 ? 0 : Math.Round(100.0 * g.Count / total, 1)
+                    }).ToList()
+            };
+            return View(vm);
+        }
+
+        // =====================================================================
         //  Performance panel — where do the minutes of an interpretation go?
         //  Reads the per-stage timings persisted by StageTimer on each history
         //  row. Purely diagnostic: no writes, no side effects.
