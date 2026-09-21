@@ -35,9 +35,11 @@ namespace MedicalApp.Models
         /// <summary>Optional birth year - helps with age-dependent parameters (e.g. PSA ref ranges).</summary>
         public int? BirthYear { get; set; }
 
-        /// <summary>Free-text notes (allergies, chronic conditions).</summary>
-        [StringLength(500)]
+        /// <summary>Free-text medical history (allergies, chronic conditions, treatments). Up to 4000 chars.</summary>
+        [StringLength(MaxNotesLength)]
         public string? Notes { get; set; }
+
+        public const int MaxNotesLength = 4000;
 
         /// <summary>
         /// Patient's declared cardiovascular-risk category. Used by the AI

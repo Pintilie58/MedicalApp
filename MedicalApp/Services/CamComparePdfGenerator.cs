@@ -104,10 +104,15 @@ namespace MedicalApp.Services
                                 .Text(string.Format(Loc.T("CamCompareInterpretationsBadge"), vm.Columns.Count))
                                 .FontSize(9).FontColor(Colors.White).Bold();
                         });
-                        col.Item().PaddingTop(2).Text(t =>
+                        col.Item().PaddingTop(3).Row(r =>
                         {
-                            t.Span(Loc.T("CamCompareClinicLabel")).FontColor(Colors.Grey.Darken1);
-                            t.Span(clinic.Name).FontColor(Colors.Grey.Darken3).SemiBold();
+                            r.RelativeItem().Text(t =>
+                            {
+                                t.Span(Loc.T("CamCompareClinicLabel")).FontSize(12).FontColor(Colors.Grey.Darken1);
+                                t.Span(clinic.Name).FontSize(12).Bold().FontColor(Colors.Blue.Darken3);
+                            });
+                            r.ConstantItem(140).AlignRight().Text(PdfBranding.Website)
+                                .FontSize(9).SemiBold().FontColor(Colors.Blue.Medium);
                         });
                         col.Item().PaddingTop(4).PaddingBottom(2).Text(
                             Loc.T("CamCompareSubtitle"))
@@ -320,7 +325,7 @@ namespace MedicalApp.Services
                     page.Footer().AlignCenter().Text(t =>
                     {
                         t.Span(Loc.T("CamCompareFooter")).FontSize(7).FontColor(Colors.Grey.Medium);
-                        t.Span("medicalapp.ro").FontSize(7).FontColor(Colors.Blue.Medium);
+                        t.Span(PdfBranding.Website).FontSize(7).FontColor(Colors.Blue.Medium);
                     });
                 });
             });

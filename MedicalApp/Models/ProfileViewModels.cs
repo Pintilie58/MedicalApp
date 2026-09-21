@@ -62,7 +62,7 @@ namespace MedicalApp.Models
         [Range(1900, 2100, ErrorMessage = "Year must be between 1900 and 2100")]
         public int? BirthYear { get; set; }
 
-        [StringLength(500)]
+        [StringLength(Profile.MaxNotesLength)]
         public string? Notes { get; set; }
 
         /// <summary>"low_moderate" | "high" | "very_high" | null. Used by AI prompt

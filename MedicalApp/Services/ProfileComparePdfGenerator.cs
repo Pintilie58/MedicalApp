@@ -22,7 +22,8 @@ namespace MedicalApp.Services
         }
 
         /// <summary>Renders the comparison as a landscape A4 PDF and returns the bytes.</summary>
-        public byte[] Generate(Profile profile, CompareInterpretationsViewModel vm)
+        /// <param name="owner">Account owner shown in the header: cabinet name for "Cabinet" accounts, e-mail otherwise. Null = omit the line.</param>
+        public byte[] Generate(Profile profile, CompareInterpretationsViewModel vm, User? owner = null)
         {
             ArgumentNullException.ThrowIfNull(profile);
             ArgumentNullException.ThrowIfNull(vm);
@@ -55,6 +56,26 @@ namespace MedicalApp.Services
                                 .PaddingVertical(3).PaddingHorizontal(8)
                                 .Text(string.Format(Loc.T("ProfileCompareInterpretationsCount"), vm.Columns.Count))
                                 .FontSize(9).FontColor(Colors.White).Bold();
+                        });
+                        col.Item().PaddingTop(3).Row(r =>
+                        {
+                            r.RelativeItem().Text(t =>
+                            {
+                                if (owner != null)
+                                {
+                                    var isCabinet = string.Equals(owner.UserType, "Cabinet", StringComparison.OrdinalIgnoreCase)
+                                                    && !string.IsNullOrWhiteSpace(owner.CabinetName);
+                                    t.Span(Loc.T(isCabinet ? "ProfileCompareCabinetLabel" : "ProfileCompareAccountLabel"))
+                                        .FontSize(12).FontColor(Colors.Grey.Darken1);
+                                    t.Span(isCabinet ? owner.CabinetName! : owner.Email)
+                                        .FontSize(12).Bold().FontColor(Colors.Blue.Darken3);
+                                    t.Span("   ·   ").FontSize(12).FontColor(Colors.Grey.Medium);
+                                }
+                                t.Span(Loc.T("ProfileCompareProfileLabel")).FontSize(12).FontColor(Colors.Grey.Darken1);
+                                t.Span(profile.Name).FontSize(12).Bold().FontColor(Colors.Blue.Darken3);
+                            });
+                            r.ConstantItem(140).AlignRight().Text(PdfBranding.Website)
+                                .FontSize(9).SemiBold().FontColor(Colors.Blue.Medium);
                         });
                         col.Item().PaddingTop(4).PaddingBottom(2).Text(
                             Loc.T("ProfileCompareColumnOrderHint"))
@@ -242,7 +263,7 @@ namespace MedicalApp.Services
                     page.Footer().AlignCenter().Text(t =>
                     {
                         t.Span(Loc.T("ProfileCompareFooterGen") + " ").FontSize(7).FontColor(Colors.Grey.Medium);
-                        t.Span("medicalapp.ro").FontSize(7).FontColor(Colors.Blue.Medium);
+                        t.Span(PdfBranding.Website).FontSize(7).FontColor(Colors.Blue.Medium);
                     });
                 });
             });

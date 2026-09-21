@@ -92,9 +92,12 @@
 
                 <div class="mb-4">
                     <label asp-for="Notes" class="form-label">@Loc.T("ProfileLabelNotes")</label>
-                    <textarea asp-for="Notes" class="form-control" rows="3"
+                    <textarea asp-for="Notes" class="form-control" rows="8"
+                              maxlength="@MedicalApp.Models.Profile.MaxNotesLength"
                               placeholder="@Loc.T("ProfilePlaceholderNotes")"
-                              data-testid="profile-notes"></textarea>
+                              data-testid="profile-notes"
+                              oninput="document.getElementById('notes-counter').textContent = this.value.length + ' / ' + this.maxLength"></textarea>
+                    <div class="form-text text-end" id="notes-counter" data-testid="profile-notes-counter">@((Model.Notes ?? "").Length) / @MedicalApp.Models.Profile.MaxNotesLength</div>
                     <span asp-validation-for="Notes" class="text-danger small"></span>
                 </div>
 

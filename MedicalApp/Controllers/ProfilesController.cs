@@ -796,7 +796,8 @@ namespace MedicalApp.Controllers
             byte[] pdfBytes;
             try
             {
-                pdfBytes = _comparePdf.Generate(profile, vm);
+                var owner = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Email == CurrentEmail);
+                pdfBytes = _comparePdf.Generate(profile, vm, owner);
             }
             catch (Exception ex)
             {

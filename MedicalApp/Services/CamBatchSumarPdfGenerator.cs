@@ -174,7 +174,7 @@ namespace MedicalApp.Services
                     page.Footer().AlignCenter().Text(t =>
                     {
                         t.Span(Loc.T("SumarPdfFooterGenerated")).FontSize(8).FontColor(Colors.Grey.Medium);
-                        t.Span("medicalapp.ro").FontSize(8).FontColor(Colors.Blue.Medium);
+                        t.Span(PdfBranding.Website).FontSize(8).FontColor(Colors.Blue.Medium);
                         t.Span($"  ·  {DateTime.Now:dd MMM yyyy HH:mm}").FontSize(8).FontColor(Colors.Grey.Medium);
                     });
                 });

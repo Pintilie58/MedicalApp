@@ -567,6 +567,12 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   `UseStripe`, formularul vechi doar pentru Simulated. Chei Loc `PaymentStripe*` (7 limbi). Sandbox Stripe RO
   provizionat (Flow A, claimable); cheile de test merg în User Secrets local. Probă 26 checkuri ALL PASSED.
   **Utilizatorul validează local cu cardul 4242.** Urmează (backlog): abonamente, facturare fiscală RO.
+- **Retușuri PDF comparație + Note profil** (15 iunie 2026): antetul PDF-urilor de comparație afișează mai mare (12pt,
+  bold albastru) proprietarul: CAM „Clinică: <nume>”; B2C „Cont: <email> · Profil: <nume>”; CM „Cabinet: <CabinetName> ·
+  Profil: <nume>” (`ProfileComparePdfGenerator.Generate(profile, vm, owner)`, chei Loc `ProfileCompareAccountLabel /
+  CabinetLabel / ProfileLabel`), plus `WWW.MyMedicalApp.NET` în antet și în footer (constanta `PdfBranding.Website`,
+  înlocuiește „medicalapp.ro” și în sumarul CAM). `Profile.Notes` 500 → **4000** caractere (`Profile.MaxNotesLength`,
+  textarea 8 rânduri + contor), migrare **`WidenProfileNotes`**. Probă `memory/probes/ComparePdfHeaderProbe.cs.txt` 9/9 PASS.
 - **P1**: poziție în coadă + ETA în UI-ul CAM (aprobat în principiu, amânat de utilizator).
 - **Pagina CAM „Fișierele mele” — IMPLEMENTAT** (14 iunie 2026). Înlocuitorul Windows Explorer
   pentru cele 4 foldere, necesar pe Azure (cabinetul nu vede discul serverului) și pentru orice
