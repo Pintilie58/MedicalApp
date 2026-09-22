@@ -947,5 +947,7 @@ credentials.json
 *.key
 .credentials
 
-# Docker: sablonul de variabile trebuie versionat (secretele stau in .env, ignorat mai sus)
-!.env.example
+# Docker: sablonul de variabile trebuie versionat (secretele stau in .env, ignorat mai sus).
+# Numele fisierului este "env.example" (fara punct la inceput) tocmai ca sa nu fie prins
+# de regulile .env / .env.* / *.env de mai sus.
+!env.example

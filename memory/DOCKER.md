@@ -12,7 +12,7 @@ LoincMatcher) în containere, ca pregătire pentru Azure App Service for Contain
 | `MedicalApp/appsettings.Docker.json` | Diferențele de configurare pentru container. Se încarcă doar când `ASPNETCORE_ENVIRONMENT=Docker`. |
 | `loinc_service/Dockerfile` | Imaginea Python. Instalează PyTorch **CPU-only** (altfel imaginea ar avea +2.5 GB de CUDA) și include modelul `all-MiniLM-L6-v2` în imagine. |
 | `docker-compose.yml` | Leagă cele 3 servicii: `sql`, `loinc`, `app`. |
-| `.env.example` | Șablon pentru secrete. Se copiază ca `.env` (ignorat de git). |
+| `env.example` | Șablon pentru secrete. Se copiază ca `.env` (ignorat de git). Numele e fără punct la început tocmai ca `.gitignore` să nu-l excludă. |
 
 ## Modificări în cod (2, ambele cu comutator în config)
 
@@ -36,7 +36,7 @@ LoincMatcher) în containere, ca pregătire pentru Azure App Service for Contain
 
 ```powershell
 git pull
-copy .env.example .env
+copy env.example .env
 notepad .env          # completează parola SA + cheile Gemini/Brevo/Stripe (test)
 docker compose build  # prima dată durează 10-20 min (PyTorch + modelul)
 docker compose up -d
