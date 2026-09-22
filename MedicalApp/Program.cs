@@ -275,6 +275,16 @@ using (var scopedServices = app.Services.CreateScope())
         .CreateLogger("StartupSeed");
     try
     {
+        // Container/fresh-host bootstrap: create the database and apply EF
+        // migrations. Off by default (dev + Azure use `dotnet ef database
+        // update`), on in appsettings.Docker.json where SQL starts empty.
+        if (builder.Configuration.GetValue("Database:AutoMigrate", false))
+        {
+            var db = scopedServices.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Database.MigrateAsync();
+            seedLogger.LogInformation("Database:AutoMigrate — EF Core migrations applied.");
+        }
+
         await StartupSeed.EnsureDefaultProfilesAsync(app.Services, seedLogger);
         await StartupSeed.EnsureFreeArchiveUntilAsync(app.Services, seedLogger);
         // Sync IsAdmin flag in DB with AdminSettings.Emails (promote + demote).
@@ -308,7 +318,14 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+// In a Linux container the app listens on plain HTTP (8080) behind Docker's port
+// mapping, so redirecting to HTTPS would point the browser at a port nobody
+// listens on. Disabled via appsettings.Docker.json; true everywhere else.
+if (builder.Configuration.GetValue("Hosting:UseHttpsRedirection", true))
+{
+    app.UseHttpsRedirection();
+}
+
 app.UseStaticFiles();
 
 app.UseRouting();

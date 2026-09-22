@@ -1,0 +1,9 @@
+bin/
+obj/
+.vs/
+.vscode/
+*.user
+*.suo
+Dockerfile
+.dockerignore
+appsettings.Azure.json

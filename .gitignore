@@ -946,3 +946,6 @@ credentials.json
 *.pem
 *.key
 .credentials
+
+# Docker: sablonul de variabile trebuie versionat (secretele stau in .env, ignorat mai sus)
+!.env.example

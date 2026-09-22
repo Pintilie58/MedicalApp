@@ -635,3 +635,38 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
 - **P2**: buton de re-probe LOINC din UI (fără restart aplicație)
 - **P4**: Integrare Stripe / Netopia
 - **P4**: Deploy cloud (Azure) — serviciu LOINC ca resursă separată
+
+---
+
+## 2026-06 — Containerizare Docker (Pasul 2: fișiere pregătite)
+
+**Context**: utilizatorul a instalat cu succes WSL 2 + Docker Desktop 29.8.0 pe Windows 11
+(`docker run hello-world` → OK). Decizii luate: bază nouă goală în container, toate cele 3
+servicii în compose, repo local `C:\Projects\MedicalApp-repo`, secrete în `.env` local.
+
+**Implementat (necesită rulare/validare pe mașina utilizatorului — Docker nu există în podul Emergent)**:
+- `MedicalApp/Dockerfile` — multi-stage .NET 9 SDK → aspnet runtime; `libfontconfig1` +
+  `fonts-liberation` pentru QuestPDF pe Linux; ascultă pe 8080.
+- `MedicalApp/.dockerignore`, `loinc_service/.dockerignore`.
+- `loinc_service/Dockerfile` — python:3.11-slim, **torch CPU-only** (evită ~2.5 GB CUDA),
+  modelul `all-MiniLM-L6-v2` pre-descărcat în imagine, uvicorn 0.0.0.0:8000, healthcheck `/health`.
+- `docker-compose.yml` — servicii `sql` (mssql 2022, PID Developer, port 14330→1433, volum
+  `mma-sqldata`, healthcheck sqlcmd), `loinc`, `app` (8080, volum `mma-files`, `depends_on`
+  sql healthy). Secretele injectate din `.env` prin variabile `Section__Key`.
+- `.env.example` (versionat prin `!.env.example` în `.gitignore`).
+- `MedicalApp/appsettings.Docker.json` — `LoincMatcher:BaseUrl=http://loinc:8000`,
+  `CamSettings:FilesRoot=/app/files`, `LoincAutoStart:Enabled=false`,
+  `Hosting:UseHttpsRedirection=false`, `Database:AutoMigrate=true`.
+- `Program.cs` — 2 comutatoare noi, ambele default = comportamentul vechi:
+  `Database:AutoMigrate` (aplică migrările EF la pornire) și `Hosting:UseHttpsRedirection`.
+- Build verificat: **0 warnings / 0 errors**.
+- Documentație: `/app/memory/DOCKER.md` (comenzi, porturi, troubleshooting, ce rămâne pentru Azure).
+
+**Următorii pași (Docker)**:
+- P0: utilizatorul rulează `docker compose build` + `up -d` local și confirmă că
+  http://localhost:8080 servește aplicația și migrările s-au aplicat.
+- P1: verificare flux CAM în container (upload fișiere → volum `mma-files`) și apel LOINC
+  `app → http://loinc:8000`.
+- P1: push imagini în Azure Container Registry + deploy pe App Service for Containers.
+- P1: comutare `CamSettings:Storage=Blob` + `ScaleOut:Enabled=true` pentru multi-instanță.
+- P0 (după domeniu public): webhook Stripe cu chei LIVE.
