@@ -870,3 +870,39 @@ captură de ecran. Dacă instrumentul nu poate măsura, repară instrumentul.
 Dashboard cabinet și `/Profiles`, la 980/768/390, cu date REALE (nume lungi,
 multe analize, text lung în Istoric medical). Semn că are versiunea nouă:
 `nemasurabile` scade de la 157 la câteva unități.
+
+### 2026-06 — P0 REPARAT: bară de derulare orizontală pe TOATE paginile logate
+
+**Găsit de utilizator** rulând `ui-audit.js` pe `/Profiles` la 390px:
+`bara de derulare orizontala : DA`, elementul vinovat
+`div.ms-auto.d-flex.align-items-center` cu lățime 636-814px.
+
+**Amploare reală (mult mai mare decât „problemă de mobil")**: grupul din dreapta
+din `Views/Shared/_Layout.cshtml` ține până la 6 elemente (credite, Admin,
+comutator CAM, Profiluri, e-mail, Deconectare), lățime naturală ~814px, într-un
+`d-flex` FĂRĂ `flex-wrap`. Măsurat pe banc de test cu markup-ul real:
+bară orizontală la **390, 480, 768, 900, 980 ȘI 1100px** ⇒ orice ecran sub ~1150px
+avea derulare laterală pe Dashboard, Profiles, Fișiere, Admin — toate paginile
+autentificate. Cazul cel mai rău = cont Cabinet + Admin (toate 6 elementele).
+
+**Reparat**: `ms-auto d-flex flex-wrap flex-xl-nowrap justify-content-end
+align-items-center gap-2` + adresa de e-mail ascunsă sub 768px
+(`d-none d-md-inline`, 211px, cel mai lat element și cel mai puțin util pe telefon).
+
+**Regresie evitată**: cu `flex-wrap` necondiționat, bara creștea la 2 rânduri și pe
+desktop (navH 76 → 102 la 1280px), unde încăpea deja. De aceea `flex-xl-nowrap`:
+de la 1200px în sus rămâne un singur rând, navH 76px / 56px — identic cu înainte.
+
+**Verificat**: banc de test cu markup-ul real din _Layout (cont Cabinet+Admin,
+gmail lung, etichete RO), 10 lățimi, înainte/după ⇒ 0 depășiri și fără bară
+orizontală la toate lățimile după fix; desktop ≥1200px neschimbat. Build 0/0.
+Bancul a fost șters după verificare.
+
+**ATENȚIE pentru următorul audit**: utilizatorul rula `ui-audit.js` din cache
+(versiunea fără suport pentru gradiente, `nemasurabile: 157`). Rezultatele de
+contrast din acel raport NU sunt valide. Instrucțiune dată: Ctrl+F5 + încărcare cu
+`/dev/ui-audit.js?v=2`; confirmarea versiunii noi = `nemasurabile` scade la
+câteva unități.
+
+**Rămâne de auditat (la utilizator, necesită autentificare)**: Dashboard B2C,
+Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.

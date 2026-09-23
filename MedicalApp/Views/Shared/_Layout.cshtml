@@ -18,7 +18,16 @@
         <nav class="navbar navbar-expand-sm navbar-dark bg-dark">
             <div class="container">
                 <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">@Loc.T("AppTitle")</a>
-                <div class="ms-auto d-flex align-items-center gap-2">
+                <div class="ms-auto d-flex flex-wrap flex-xl-nowrap justify-content-end align-items-center gap-2">
+                    @* `flex-wrap` is load-bearing: this group holds up to six items
+                       (credits, Admin, CAM toggle, Profiles, e-mail, Logout) whose
+                       natural width is ~814px. Without wrapping it pushed the whole
+                       page sideways on anything under ~1150px — a horizontal
+                       scrollbar on every logged-in page, not just on phones.
+                       Found June 2026 by the UI audit.
+                       `flex-xl-nowrap` keeps the single-row desktop bar from 1200px
+                       up, where everything fits and wrapping would only make the
+                       header taller for no reason. *@
                     @if (!string.IsNullOrEmpty(Context.Session.GetString("UserEmail")))
                     {
                         var _layoutEmail = Context.Session.GetString("UserEmail")!;
@@ -98,7 +107,10 @@
                             </a>
                         }
 
-                        <span class="text-white small me-2">@_layoutEmail</span>
+                        @* Hidden below 768px: the address is the widest item in the
+                           bar (183px for a gmail account) and the least useful on a
+                           phone — the user knows who they are logged in as. *@
+                        <span class="text-white small me-2 d-none d-md-inline">@_layoutEmail</span>
                         <form asp-area="" asp-controller="Account" asp-action="Logout" method="post" class="m-0">
                             @Html.AntiForgeryToken()
                             <button type="submit" class="btn btn-sm btn-outline-light">@Loc.T("Logout")</button>
