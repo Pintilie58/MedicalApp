@@ -742,3 +742,32 @@ VS2026 (:7xxx), care au key ring-uri Data Protection diferite — inofensiv, ses
 se recreează. Pe Azure e deja acoperit de `PersistKeysToAzureBlobStorage` când
 `ScaleOut:Enabled=true`. Utilizatorul a fost întrebat dacă vrea nume de cookie
 distinct per mediu (cosmetic) — fără răspuns, NEIMPLEMENTAT.
+
+## 2026-06 — Fix suprapunere banner hero pe ecrane înguste (landing page)
+
+**Raportat**: pe fereastră îngustă, bannerul verde multilingv se suprapunea peste
+rândul de statistici `30+ / ~30s / LOINC` din hero.
+
+**Cauză**: `.land-hero-visual-wrap .land-lang-banner` avea `margin-top: -7.5rem`
+(≈ −120 px), ridicare gândită pentru layout-ul pe 2 coloane (banner lângă doctorul
+care se plimbă). Sub 980 px `.land-hero-grid` trece pe `1fr`, coloana dreaptă ajunge
+SUB cea stângă, iar ridicarea trage bannerul peste `.land-hero-stats`.
+Fereastra de reproducere: **900–980 px** (meniul se pliază abia la 900 px, deci
+linkurile par încă „normale”); antetul `sticky` amplifica confuzia.
+
+**Rezolvat**:
+- scos `margin-top:-7.5rem` din `style` inline în `Views/Home/Landing.cshtml`
+  (rămâne o singură sursă, în CSS);
+- `wwwroot/css/landing.css`: `@media (max-width: 980px) { ... margin-top: 0 !important }`.
+
+**Verificat** cu banc temporar (landing.css real + grila reală + verificator geometric
+de suprapunere, apoi șters): BEFORE 940px = overlap YES; AFTER 940px = NO;
+AFTER 390px = NO + zero overflow orizontal; AFTER 1920px = margin-top tot −120px
+⇒ **desktop-ul rămâne neschimbat**. Build 0/0.
+**De validat de utilizator** (F5 + Ctrl+F5 pentru cache CSS).
+
+**Lecție de reținut**: pe landing page există mai multe offset-uri negative fixe
+(`margin-top`, `translate`) calibrate pentru grila pe 2 coloane. Orice offset negativ
+nou TREBUIE însoțit de resetare în `@media (max-width: 980px)`, altfel reapare exact
+acest tip de suprapunere. Breakpoint-uri active pe landing: 980 (grilă), 900 (meniu),
+600/520/480 (detalii).
