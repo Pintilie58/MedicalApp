@@ -41,7 +41,7 @@ namespace MedicalApp.Services
                     // Same anti-ligature reasoning as PdfReportGenerator —
                     // Arial keeps "ti"/"fi"/"fl" as separate glyphs so
                     // copy-paste of medical terms survives intact.
-                    page.DefaultTextStyle(x => x.FontSize(10).FontFamily(Fonts.Arial));
+                    page.DefaultTextStyle(x => x.FontSize(10).FontFamily(PdfBranding.FontChain));
 
                     page.Header().Element(h => ComposeHeader(h, vm));
                     page.Content().Element(c => ComposeContent(c, vm, chartPngBytes));

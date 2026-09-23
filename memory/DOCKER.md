@@ -72,3 +72,28 @@ bifează *Trust server certificate*.
   are domeniu public (Azure) — vezi `STRIPE_PAYMENTS.md`.
 - **Dicționarul LOINC** din SQL rămâne gol (CSV-ul LOINC nu e în repo, ~80 MB).
   Serviciul Python nu depinde de el la runtime — folosește `data/*.npy` din repo.
+
+## Fonturi în container (rezolvat 2026-06)
+
+**Simptom**: în PDF-urile generate din container, `✓` și `⚠` apăreau ca pătrățel cu `?`.
+Săgețile `↑ ↓ ↗ ↘`, `●`, `≈` se afișau corect. Pe Windows nu se reproduce.
+
+**Cauză**: generatoarele cereau `FontFamily("Arial")`, font inexistent pe Linux.
+Fontconfig substituia tacit **Liberation Sans**, care nu conține U+2713 (`✓`),
+U+26A0 (`⚠`) și U+1F512 (`🔒`).
+
+**Soluție**: `PdfBranding.FontChain = { "Arial", "Liberation Sans", "DejaVu Sans" }`,
+parcurs de QuestPDF **per glifă**. Arial rămâne primul ⇒ PDF-urile de pe Windows
+sunt neschimbate; Liberation Sans e metric-compatibil cu Arial (aceleași lățimi ⇒
+aceeași aşezare în pagină); DejaVu Sans acoperă doar simbolurile lipsă.
+`Dockerfile` instalează `fonts-liberation` + `fonts-dejavu-core`.
+Emoji-ul `🔒` (nerezolvabil cu fonturi monocrome) a fost înlocuit cu `▪`.
+
+**Verificare**: `/app/probe_pdf_glyphs/` — rulează cu
+`Settings.CheckIfAllTextGlyphsAreAvailable = true`, care face QuestPDF să arunce
+excepție la orice glifă lipsă. Rezultat pe Linux fără Arial: 14 PASS / 1 FAIL
+(doar emoji-ul lacăt, de aceea a fost înlocuit).
+
+**Regulă pentru viitor**: orice simbol nou într-un PDF se adaugă mai întâi în
+proba de glife și se rulează pe Linux. Dacă dă FAIL, se alege alt caracter —
+NU se mai adaugă fonturi în imagine.

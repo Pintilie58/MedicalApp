@@ -670,3 +670,38 @@ servicii în compose, repo local `C:\Projects\MedicalApp-repo`, secrete în `.en
 - P1: push imagini în Azure Container Registry + deploy pe App Service for Containers.
 - P1: comutare `CamSettings:Storage=Blob` + `ScaleOut:Enabled=true` pentru multi-instanță.
 - P0 (după domeniu public): webhook Stripe cu chei LIVE.
+
+## 2026-06 — Docker validat pe mașina utilizatorului + corecție fonturi PDF
+
+**Docker: RULEAZĂ**. Utilizatorul a executat local întregul flux:
+`docker compose build` (276 s) → `up -d` → 3 containere Up, `mma-sql` Healthy.
+Log-uri confirmate: `Database:AutoMigrate — EF Core migrations applied`,
+`StartupSeed: Clinica Demo created`, `LoincStore loaded: 97314 entries, ~149.5 MB`,
+`LOINC matcher READY (entries=97314)`, iar `mma-app` apelează cu succes
+`GET /ready 200 OK` pe `mma-loinc` ⇒ comunicarea C# ↔ Python în rețeaua Docker merge.
+Avertismentul `LoincSeeder: CSV file not found` este inofensiv: tabela SQL
+`LoincDictionary` e folosită doar de `seed_embeddings.py` (o dată) și de
+`LoincValidator.cs` (fără apelanți); potrivirea LOINC la runtime merge prin
+`LoincMatcherClient` → serviciul Python → fișierele `data/*.npy`.
+
+**Corecție fonturi PDF (Docker-only)**: `✓` și `⚠` apăreau ca pătrățele cu `?`.
+Introdus `PdfBranding.FontChain = { "Arial", "Liberation Sans", "DejaVu Sans" }`
+în toate cele 6 generatoare PDF; `Dockerfile` instalează `fonts-dejavu-core`;
+emoji-ul `🔒` înlocuit cu `▪` (3 locuri în `PdfReportGenerator`).
+Probă nouă `/app/probe_pdf_glyphs/` cu `CheckIfAllTextGlyphsAreAvailable=true`:
+14 PASS / 1 FAIL (doar emoji-ul lacăt). Build 0/0.
+**De validat de utilizator** după `docker compose up -d --build app`.
+
+**Stripe**: `Public business name` schimbat de utilizator în Dashboard
+(`speak-romanian-77` → `mymedicalapp.net`). Setare pe partea Stripe, nu în cod ⇒
+activă imediat și în container. **De refăcut o dată în contul LIVE.**
+Decizie: metodele de plată rămân toate (Card + Apple Pay + Link + Klarna),
+pentru conversie. Badge-ul „Sandbox” dispare automat pe cheile live.
+
+**Rămas pe listă (Docker/Azure)**:
+- P1: validare PDF-uri după rebuild (bife, ⚠, diacritice)
+- P1: Embedded Checkout — buton „Înapoi” și antet proprii în loc de cele Stripe (~2-3 h);
+  utilizatorul a amânat, nu a fost respins
+- P1: push imagini în Azure Container Registry + App Service for Containers
+- P1: `CamSettings:Storage=Blob` + `ScaleOut:Enabled=true` pentru multi-instanță
+- P0 (după domeniu public): webhook Stripe cu chei LIVE

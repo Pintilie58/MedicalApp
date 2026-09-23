@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "Ou6fgltY/TE=",
+  "success": true,
+  "projectFilePath": "/app/probe_pdf_glyphs/Probe.csproj",
+  "expectedPackageFiles": [
+    "/root/.nuget/packages/questpdf/2024.12.3/questpdf.2024.12.3.nupkg.sha512"
+  ],
+  "logs": []
+}

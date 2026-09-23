@@ -11,7 +11,8 @@ RUN dotnet publish MedicalApp.csproj -c Release -o /out /p:UseAppHost=false
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
 # QuestPDF needs fontconfig + at least one font family on Linux.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libfontconfig1 fonts-liberation curl \
+    && apt-get install -y --no-install-recommends \
+       libfontconfig1 fonts-liberation fonts-dejavu-core curl \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /out .

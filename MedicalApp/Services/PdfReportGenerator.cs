@@ -63,7 +63,7 @@ namespace MedicalApp.Services
                     page.Size(PageSizes.A4);
                     page.Margin(2, Unit.Centimetre);
                     page.PageColor(Colors.White);
-                    page.DefaultTextStyle(x => x.FontSize(10).FontColor(Colors.Black).FontFamily(Fonts.Arial));
+                    page.DefaultTextStyle(x => x.FontSize(10).FontColor(Colors.Black).FontFamily(PdfBranding.FontChain));
 
                     if (isFreemium)
                     {
@@ -490,7 +490,7 @@ namespace MedicalApp.Services
                                     .FontSize(8).FontColor(BlurBlockColor);
                                 c.Item().PaddingTop(2).Text(text =>
                                 {
-                                    text.Span("🔒 ").FontSize(8).FontColor(MutedText);
+                                    text.Span("▪ ").FontSize(8).FontColor(MutedText);
                                     text.Span(labels.FreemiumLockedLabel).FontSize(7).Italic().FontColor(MutedText);
                                 });
                             }
@@ -596,7 +596,7 @@ namespace MedicalApp.Services
                             .FontSize(9).FontColor(BlurBlockColor);
                         c.Item().PaddingTop(1).Text(t =>
                         {
-                            t.Span("🔒 ").FontSize(8).FontColor(MutedText);
+                            t.Span("▪ ").FontSize(8).FontColor(MutedText);
                             t.Span(labels.FreemiumLockedLabel).FontSize(7).Italic().FontColor(MutedText);
                         });
                     }
@@ -659,7 +659,7 @@ namespace MedicalApp.Services
                 c.Item().Text(BlockText(original, 60)).FontSize(10).FontColor(BlurBlockColor);
                 c.Item().Text(t =>
                 {
-                    t.Span("🔒 ").FontSize(8).FontColor(MutedText);
+                    t.Span("▪ ").FontSize(8).FontColor(MutedText);
                     t.Span(labels.FreemiumLockedLabel).FontSize(7).Italic().FontColor(MutedText);
                 });
             });

@@ -37,7 +37,7 @@ namespace MedicalApp.Services
                 {
                     page.Size(PageSizes.A4);
                     page.Margin(1.2f, Unit.Centimetre);
-                    page.DefaultTextStyle(t => t.FontFamily("Arial").FontSize(9));
+                    page.DefaultTextStyle(t => t.FontFamily(PdfBranding.FontChain).FontSize(9));
 
                     page.Header().Column(h =>
                     {

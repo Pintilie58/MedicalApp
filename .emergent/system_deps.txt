@@ -1,1 +1,2 @@
+fonts-dejavu-core=2.37-6
 poppler-utils=22.12.0-2+deb12u3
