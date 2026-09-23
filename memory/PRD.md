@@ -771,3 +771,70 @@ AFTER 390px = NO + zero overflow orizontal; AFTER 1920px = margin-top tot −120
 nou TREBUIE însoțit de resetare în `@media (max-width: 980px)`, altfel reapare exact
 acest tip de suprapunere. Breakpoint-uri active pe landing: 980 (grilă), 900 (meniu),
 600/520/480 (detalii).
+
+## 2026-06 — Revizie responsive + accesibilitate pe landing page (1280/980/768/390)
+
+**Metodă nouă, reutilizabilă**: aplicația C# poate fi pornită ÎN POD-UL EMERGENT
+fără SQL Server, pentru audit de UI:
+```
+ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=http://0.0.0.0:8099 \
+Hosting__UseHttpsRedirection=false LoincAutoStart__Enabled=false \
+LoincMatcher__Enabled=false Database__AutoMigrate=false \
+ConnectionStrings__DefaultConnection="Server=127.0.0.1,1433;...Connect Timeout=1" \
+dotnet run -c Release --no-launch-profile
+```
+Funcționează pentru că `StartupSeed` e prins în try/catch („app will continue
+running") și `HomeController.Index` nu atinge baza. Limba se comută prin cookie
+`.AspNetCore.Culture` = `c=ro|uic=ro`. **Paginile din spatele login-ului NU pot fi
+auditate aici** (necesită DB) — vezi `wwwroot/dev/ui-audit.js`.
+
+**Defecte găsite și reparate**:
+1. **CTA invizibil, pe TOATE lățimile inclusiv desktop**: `body.landing-body a`
+   (specificitate 0,1,2) învingea `.land-btn-primary` (0,1,0) ⇒ toate butoanele
+   `<a>` moșteneau culoarea de link. `land-btn-primary`: text #4A5C50 pe fundal
+   #4A5C50, contrast **1.00**. Reparat cu reguli de specificitate egală
+   (`body.landing-body a.land-btn-primary`) ⇒ **7.15**. Același mecanism scădea
+   CTA-ul coral la 2.42.
+2. **Coliziune meniu între 1010px și 769px**: `.land-nav-inner` avea
+   `justify-content: space-between` FĂRĂ `gap` ⇒ grupul de linkuri se lipea de
+   pilula de limbă (gap măsurat 0px); în ro/de/pt trecea unul peste altul.
+   Reparat în 3 pași: `gap: 1.5rem` pe container + `flex-wrap: wrap` + `min-width: 0`
+   pe rândul de linkuri + ascunderea linkurilor sub 940px (altfel rândul cerea
+   3-4 linii și meniul ajungea la 221-326px înălțime).
+   ATENȚIE: prima încercare, doar cu `gap`, a făcut ultimele 2 linkuri să DISPARĂ
+   sub pilulă (container strâns + copii care ies din el) — prinsă la măsurare.
+3. **Contrast sub WCAG AA** (aprobat de utilizator „închide ambele culori"):
+   - banner multilingv: #00C853 → **#00693C** (1.98 → 5.3 pe fundalul compus)
+   - CTA coral: variabile noi `--land-coral-cta: #C25436` / `--land-coral-cta-dark:
+     #B0462B` folosite DOAR pe pilule solide cu text alb (2.95 → 4.55).
+     `--land-coral` rămâne pentru borduri/iconițe/fundaluri cu text închis.
+   - `.land-compare-best` (badge „CEA MAI BUNĂ ALEGERE"): 2.95 → 4.55
+   - `.land-eyebrow-coral`: #D1674A → **#B0462B** pe #FCEEEB (3.23 → 4.94)
+4. **Gol vertical pe mobil** (aprobat „strânge-l"): `@media (max-width: 600px)`
+   reduce `.land-section` de la 6rem la 3.25rem și hero la 3/3.5rem.
+   Înălțimea paginii la 390px: 12740 → 12104px. `#clinics` are `padding-top:0`
+   inline, deci nu e afectat.
+
+**Rezultat final verificat**: RO + EN × 1280/980/768/390 ⇒ **0 depășiri de cadru,
+0 suprapuneri, 0 texte sub prag**, fără bară de derulare orizontală. Separat,
+70 combinații (7 limbi × 10 lățimi) pe meniu ⇒ 0 probleme, înălțime meniu max 179px.
+Build 0/0.
+
+**Alarme false documentate** (nu sunt defecte):
+- `.land-brand-mark` („M+"): fundal `linear-gradient`, contrastul nu se poate
+  calcula din `backgroundColor` ⇒ raportat 1.06, în realitate alb pe verde.
+- `.land-deck-tag`: stiva de carduri se suprapune PRIN DESIGN.
+- `.doc-walker` / `.doc-bouncer`: doctorul animat iese intenționat din cadru
+  (clipat de un părinte, nu produce bară de derulare).
+- iconițe emoji: raportul de contrast nu are sens pentru glife emoji.
+
+**Instrument livrat**: `MedicalApp/wwwroot/dev/ui-audit.js` — auditor client-side
+(read-only) pentru paginile din spatele login-ului. Se încarcă din consola
+browserului cu:
+`var s=document.createElement('script');s.src='/dev/ui-audit.js';document.body.appendChild(s);`
+apoi `uiAudit()` la fiecare lățime. Raportează depășiri, suprapuneri și contrast,
+cu excluderile de mai sus deja aplicate. Validat pe landing: 0/0/0 la 4 lățimi.
+
+**Decizii utilizator**: linkurile ascunse între 769-939px sunt OK (fără hamburger).
+Următorul audit cerut: **Dashboard B2C + Dashboard cabinet** (de rulat de utilizator
+cu ui-audit.js, pentru că necesită autentificare).

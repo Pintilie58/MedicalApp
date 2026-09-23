@@ -20,6 +20,13 @@
     /* Coral (accent / CTA) */
     --land-coral:        #E07A5F;
     --land-coral-dark:   #D1674A;
+    /* Accessible pair used ONLY for solid CTA pills that carry white text.
+       White on --land-coral measures 2.95:1; these two clear the WCAG AA 4.5:1
+       threshold (4.55 and 5.59) while staying recognisably coral. The softer
+       --land-coral above is kept for borders, icons and tinted backgrounds,
+       where it sits under DARK text and is already compliant. */
+    --land-coral-cta:      #C25436;
+    --land-coral-cta-dark: #B0462B;
     --land-coral-soft:   #FCEEEB;
 
     /* Status palette (used by hero data card + future result UIs) */
@@ -55,6 +62,13 @@ body.landing-body {
     margin: 0; padding: 0;
 }
 body.landing-body .land-section { padding: 6rem 0; }
+/* On phones the 6rem + 6rem rhythm leaves a ~192px empty band between every
+   two sections — nearly a full screen of nothing while scrolling. Reported
+   June 2026. Desktop keeps the generous spacing. */
+@media (max-width: 600px) {
+    body.landing-body .land-section { padding: 3.25rem 0; }
+    body.landing-body .land-hero { padding: 3rem 0 3.5rem 0; }
+}
 body.landing-body .land-container {
     max-width: 1200px; margin: 0 auto;
     padding: 0 1.5rem;
@@ -103,6 +117,12 @@ body.landing-body a:hover { color: var(--land-coral); }
 /* Row 2 — nav links on the left, language + auth CTAs on the right. */
 .land-nav-inner {
     display: flex; align-items: center; justify-content: space-between;
+    /* `space-between` alone let the two groups butt together (measured gap
+       0px between ~1010px and 769px): the last link ran straight into the
+       language pill, and in languages with longer words (ro "Prețuri",
+       de "Preise", pt "Preços") it visually slid under it. A flex gap
+       guarantees breathing room and makes the link row shrink instead. */
+    gap: 1.5rem;
     padding: 0 1.5rem 0.9rem;
     max-width: 1200px; margin: 0 auto;
 }
@@ -121,6 +141,26 @@ body.landing-body a:hover { color: var(--land-coral); }
 .land-nav-links {
     display: flex; align-items: center; gap: 1.75rem;
     list-style: none; padding: 0; margin: 0;
+    min-width: 0;               /* allow the row to shrink inside the flex parent */
+    flex-wrap: wrap;            /* ...and to wrap instead of sliding under the
+                                   language pill: without this the shrunken row
+                                   overflowed its own box and the last links
+                                   ("Pentru Clinici", "Prețuri") were painted
+                                   underneath the pill. */
+    row-gap: 0.35rem;
+}
+/* Tighten the link row in the band where it has to share the line with the
+   language pill and the two auth buttons. */
+@media (max-width: 1060px) {
+    .land-nav-links { gap: 1.1rem; }
+    .land-nav-links a { font-size: 0.86rem; }
+}
+/* Below this the wrapped row needs 3+ lines (measured 221-326px of header
+   height in ro/fr/de) and the sticky nav would eat a third of the screen.
+   Hide the anchor links and keep brand + language + auth actions, exactly as
+   on phones. Between 940px and 1060px the row wraps to at most 2 lines. */
+@media (max-width: 939px) {
+    .land-nav-links { display: none; }
 }
 .land-nav-links a {
     color: var(--land-mute); font-weight: 600; font-size: 0.92rem;
@@ -186,16 +226,29 @@ body.landing-body a:hover { color: var(--land-coral); }
 .land-btn-primary {
     background: var(--land-sage-dark); color: #fff;
 }
+/* `body.landing-body a` (line ~79) has specificity 0,1,2 and therefore beat the
+   0,1,0 of `.land-btn-primary` / `.land-btn-accent` above: every anchor-based
+   button silently inherited the generic LINK colour. On the primary pill that
+   meant sage-dark text on a sage-dark background — contrast 1.0, the label was
+   invisible (the empty dark pill in the nav). On the coral accent CTA it dropped
+   contrast to 2.42. Re-assert white with matching specificity. Found June 2026
+   by the landing-page contrast audit. */
+body.landing-body a.land-btn-primary,
+body.landing-body a.land-btn-primary:hover,
+body.landing-body a.land-btn-accent,
+body.landing-body a.land-btn-accent:hover {
+    color: #fff;
+}
 .land-btn-primary:hover {
     background: var(--land-ink); color: #fff;
     box-shadow: var(--land-shadow-md);
 }
 .land-btn-accent {
-    background: var(--land-coral); color: #fff;
+    background: var(--land-coral-cta); color: #fff;
 }
 .land-btn-accent:hover {
-    background: var(--land-coral-dark); color: #fff;
-    box-shadow: 0 8px 20px rgba(224, 122, 95, 0.30);
+    background: var(--land-coral-cta-dark); color: #fff;
+    box-shadow: 0 8px 20px rgba(176, 70, 43, 0.30);
 }
 .land-btn-ghost {
     background: transparent; color: var(--land-ink);
@@ -243,7 +296,9 @@ body.landing-body a:hover { color: var(--land-coral); }
 }
 .land-eyebrow-coral {
     background: var(--land-coral-soft);
-    color: var(--land-coral-dark);
+    /* --land-coral-dark on --land-coral-soft measured 3.23:1; this reads 4.94:1
+       at the same hue. Small uppercase label => needs the full 4.5 floor. */
+    color: #B0462B;
 }
 .land-audience-line {
     display: inline-flex; align-items: center; gap: 0.6rem;
@@ -1037,12 +1092,12 @@ body.landing-body a:hover { color: var(--land-coral); }
 .land-compare-best {
     position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
     display: inline-flex; align-items: center; gap: 0.35rem;
-    background: var(--land-coral); color: #fff;
+    background: var(--land-coral-cta); color: #fff;
     padding: 0.32rem 0.85rem;
     border-radius: var(--land-radius-pill);
     font-size: 0.72rem; font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.04em;
-    box-shadow: 0 6px 14px rgba(224, 122, 95, 0.35);
+    box-shadow: 0 6px 14px rgba(176, 70, 43, 0.35);
     white-space: nowrap;
     z-index: 3;
 }
@@ -1324,7 +1379,10 @@ body.landing-body a:hover { color: var(--land-coral); }
     will-change: transform;
 }
 .land-hero-visual-wrap .land-lang-banner-text {
-    color: #00C853 !important;        /* vivid green — Material A700 */
+    /* #00C853 (Material A700) measured only 1.98:1 on the pale-green banner
+       background — below the WCAG AA 4.5:1 floor for body text. This darker
+       green measures 5.03:1 and keeps the vivid, on-brand look. */
+    color: #00693C !important;
     font-weight: 800 !important;       /* aldin / bold extra */
     font-size: 1rem !important;
     line-height: 1.4;
