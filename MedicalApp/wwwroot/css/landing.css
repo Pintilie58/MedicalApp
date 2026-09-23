@@ -134,7 +134,10 @@ body.landing-body a:hover { color: var(--land-coral); }
 .land-brand-mark {
     width: 32px; height: 32px;
     border-radius: 9px;
-    background: linear-gradient(135deg, var(--land-sage) 0%, var(--land-sage-dark) 100%);
+    /* The light stop used to be --land-sage (#7A9180): white "M+" measured only
+       3.39:1 against it, so the mark faded at the top-left of the badge. #657A6B
+       keeps the same sage hue and reads 4.62:1; the dark stop is already 7.15:1. */
+    background: linear-gradient(135deg, #657A6B 0%, var(--land-sage-dark) 100%);
     display: inline-flex; align-items: center; justify-content: center;
     color: #fff; font-weight: 700; font-size: 0.9rem;
 }

@@ -45,22 +45,55 @@
         return (hi + 0.05) / (lo + 0.05);
     };
 
-    // Composites every translucent ancestor layer. Returns null when a gradient
-    // or background image is involved — those cannot be measured numerically and
-    // would produce false alarms (e.g. white text on a green gradient badge).
-    const bgOf = (el) => {
-        const stack = [];
+    // Composites every translucent ancestor layer to get the real backdrop.
+    //
+    // Gradients used to abort the whole measurement (one `linear-gradient`
+    // anywhere up the tree made every text inside it "unmeasurable" — 157 such
+    // elements on /Profiles, i.e. most of the page went unchecked). Now the
+    // gradient's declared colour stops are extracted and each one is tested, so
+    // the WORST case is reported. Only real bitmaps (`url(...)`) stay
+    // unmeasurable, and those are rare.
+    //
+    // Returns: array of candidate backdrop colours, or null when unmeasurable.
+    const bgCandidates = (el) => {
+        const layers = [];            // bottom-most last, as we walk upwards
         let n = el;
         while (n && n.nodeType === 1) {
             const cs = getComputedStyle(n);
-            if (cs.backgroundImage && cs.backgroundImage !== 'none') return null;
-            const c = parse(cs.backgroundColor);
-            if (c.a > 0) stack.push(c);
+            const group = [];
+            const bc = parse(cs.backgroundColor);
+            if (bc.a > 0) group.push(bc);
+            const bi = cs.backgroundImage;
+            if (bi && bi !== 'none') {
+                if (/gradient/i.test(bi)) {
+                    const stops = (bi.match(/rgba?\([^)]+\)/gi) || []).map(parse).filter(c => c.a > 0);
+                    if (!stops.length) return null;
+                    group.push(...stops);
+                } else {
+                    return null;      // bitmap background: cannot be measured
+                }
+            }
+            if (group.length) layers.push(group);
             n = n.parentElement;
         }
-        let acc = { r: 255, g: 255, b: 255, a: 1 };
-        for (let i = stack.length - 1; i >= 0; i--) acc = over(stack[i], acc);
-        return acc;
+
+        // Baseline: composite using the first colour of every layer.
+        const compose = (pick) => {
+            let acc = { r: 255, g: 255, b: 255, a: 1 };
+            for (let i = layers.length - 1; i >= 0; i--) acc = over(pick(i, layers[i]), acc);
+            return acc;
+        };
+        const out = [compose((i, g) => g[0])];
+
+        // Then vary ONE layer at a time across its alternatives (gradient stops),
+        // keeping the others at their first colour. Avoids a combinatorial blow-up
+        // while still surfacing the darkest/lightest realistic backdrop.
+        for (let k = 0; k < layers.length; k++) {
+            for (let s = 1; s < layers[k].length; s++) {
+                out.push(compose((i, g) => (i === k ? g[s] : g[0])));
+            }
+        }
+        return out;
     };
 
     const label = (e) => {
@@ -122,14 +155,20 @@
         for (const e of texts) {
             const txt = e.innerText.trim();
             if (EMOJI.test(txt) && txt.length <= 3) { res.unmeasurable++; continue; }
-            const bg = bgOf(e);
-            if (!bg) { res.unmeasurable++; continue; }
+            const backdrops = bgCandidates(e);
+            if (!backdrops) { res.unmeasurable++; continue; }
             const cs = getComputedStyle(e);
-            const r = ratio(parse(cs.color), bg);
+            const fg = parse(cs.color);
+            let worst = Infinity, worstBg = null;
+            for (const bg of backdrops) {
+                const r = ratio(fg, bg);
+                if (r < worst) { worst = r; worstBg = bg; }
+            }
             const size = parseFloat(cs.fontSize), bold = parseInt(cs.fontWeight, 10) >= 700;
             const floor = (size >= 24 || (size >= 18.66 && bold)) ? 3 : 4.5;
-            if (r < floor - 0.05) {
-                res.contrast.push(`${r.toFixed(2)}/${floor}  ${label(e)}  color=${cs.color}  "${txt.slice(0, 30)}"`);
+            if (worst < floor - 0.05) {
+                const bgTxt = `rgb(${Math.round(worstBg.r)}, ${Math.round(worstBg.g)}, ${Math.round(worstBg.b)})`;
+                res.contrast.push(`${worst.toFixed(2)}/${floor}  ${label(e)}  color=${cs.color} pe ${bgTxt}  "${txt.slice(0, 30)}"`);
             }
         }
 

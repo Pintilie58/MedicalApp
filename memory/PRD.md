@@ -838,3 +838,35 @@ cu excluderile de mai sus deja aplicate. Validat pe landing: 0/0/0 la 4 lățimi
 **Decizii utilizator**: linkurile ascunse între 769-939px sunt OK (fără hamburger).
 Următorul audit cerut: **Dashboard B2C + Dashboard cabinet** (de rulat de utilizator
 cu ui-audit.js, pentru că necesită autentificare).
+
+### 2026-06 — ui-audit.js: măsurarea contrastului pe gradiente (corecție importantă)
+
+Prima versiune a auditorului renunța complet la măsurarea contrastului dacă
+întâlnea ORICE `background-image`/gradient în lanțul de părinți. Pe `/Profiles`
+(raportat de utilizator) asta a dus la **157 elemente „nemăsurabile"**, adică
+majoritatea textelor paginii nu erau verificate, iar „0 sub prag" era înșelător.
+
+**Reparat**: `bgCandidates(el)` extrage stopurile de culoare declarate în gradient
+(`linear-gradient(... rgb(a) ... rgb(b) ...)`) și testează textul împotriva
+fiecărui stop, raportând **cazul cel mai defavorabil**. Variază un singur strat
+pe rând (restul pe prima culoare), pentru a evita explozia combinatorică.
+Rămân nemăsurabile doar bitmap-urile `url(...)` și emoji-urile.
+Rezultat pe landing: nemăsurabile **57 → 8**.
+
+**Consecință — o „alarmă falsă" declarată anterior era un defect real**:
+`.land-brand-mark` („M+" din logo) avea gradient `#7A9180 → #4A5C50`. Pe stopul
+închis contrastul e 7.15, dar pe stopul **deschis** doar **3.39** ⇒ litera se
+estompa în partea de sus a pătrățelului. Agentul o clasase drept alarmă falsă
+pe baza inspecției vizuale, NU a unei măsurători. Stopul deschis schimbat în
+**#657A6B** (4.62, aceeași nuanță de sage).
+
+**LECȚIE**: nu declara „alarmă falsă" pe baza a ceea ce pare corect într-o
+captură de ecran. Dacă instrumentul nu poate măsura, repară instrumentul.
+
+**Stare finală landing**: RO + EN × 1280/980/768/390 ⇒ 0 depășiri, 0 suprapuneri,
+0 texte sub prag, 8 nemăsurabile. Build 0/0.
+
+**Următorul pas (la utilizator)**: rulare `ui-audit.js?v=2` pe Dashboard B2C,
+Dashboard cabinet și `/Profiles`, la 980/768/390, cu date REALE (nume lungi,
+multe analize, text lung în Istoric medical). Semn că are versiunea nouă:
+`nemasurabile` scade de la 157 la câteva unități.
