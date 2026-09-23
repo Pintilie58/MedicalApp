@@ -41,11 +41,18 @@ namespace MedicalApp.Services
         /// </summary>
         public async Task<(string CheckoutUrl, string SessionId)> CreateCheckoutAsync(
             User user, CreditPackage package, string packageLabel,
-            string successUrl, string cancelUrl, CancellationToken ct = default)
+            string successUrl, string cancelUrl, string? uiLanguage = null,
+            CancellationToken ct = default)
         {
             var options = new SessionCreateOptions
             {
                 Mode = "payment",
+                // Without this Stripe uses "auto" = the BROWSER's Accept-Language, so a
+                // user with the UI in Spanish still got a Romanian checkout page on a
+                // Romanian Windows. Our 7 UI codes (en/ro/fr/es/de/it/pt) are all valid
+                // Stripe locales, so the app language maps 1:1; anything unexpected
+                // falls back to Stripe's own detection.
+                Locale = StripeLocale(uiLanguage),
                 CustomerEmail = user.Email,
                 ClientReferenceId = user.Email,
                 LineItems = new List<SessionLineItemOptions>
@@ -60,7 +67,8 @@ namespace MedicalApp.Services
                             ProductData = new SessionLineItemPriceDataProductDataOptions
                             {
                                 Name = $"MyMedicalApp — {packageLabel}",
-                                Description = $"{package.Credits} credite / credits",
+                                Description = string.Format(
+                                    Loc.T("StripeLineItemCredits", uiLanguage), package.Credits),
                             },
                         },
                     },
@@ -92,6 +100,19 @@ namespace MedicalApp.Services
             _logger.LogInformation("Stripe: Checkout Session {Session} created for {Email} / {Package} ({Price} EUR).",
                 session.Id, user.Email, package.Key, package.PriceEur);
             return (session.Url, session.Id);
+        }
+
+        /// <summary>
+        /// Maps a MyMedicalApp UI language onto a Stripe Checkout locale. All seven
+        /// codes we ship (en/ro/fr/es/de/it/pt) are accepted by Stripe verbatim, so
+        /// the only job here is to reject anything not in our own supported list and
+        /// let Stripe auto-detect instead of failing the session creation.
+        /// </summary>
+        private static string StripeLocale(string? uiLanguage)
+        {
+            if (string.IsNullOrWhiteSpace(uiLanguage)) return "auto";
+            var lang = (uiLanguage.Length > 2 ? uiLanguage[..2] : uiLanguage).ToLowerInvariant();
+            return SupportedLanguagesConfig.Codes.Contains(lang) ? lang : "auto";
         }
 
         /// <summary>Asks Stripe directly whether the session is paid (return-page path, no webhook needed).</summary>

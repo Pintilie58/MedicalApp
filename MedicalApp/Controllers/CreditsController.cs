@@ -298,7 +298,8 @@ namespace MedicalApp.Controllers
             try
             {
                 var (checkoutUrl, _) = await _stripe.CreateCheckoutAsync(
-                    user, selected, Loc.T(selected.NameKey), successUrl, cancelUrl, HttpContext.RequestAborted);
+                    user, selected, Loc.T(selected.NameKey), successUrl, cancelUrl,
+                    CultureInfo.CurrentUICulture.TwoLetterISOLanguageName, HttpContext.RequestAborted);
                 return Redirect(checkoutUrl);
             }
             catch (Exception ex)

@@ -710,3 +710,35 @@ pentru conversie. Badge-ul „Sandbox” dispare automat pe cheile live.
 (coloane `Clinics.LogoBytes/LogoContentType`, upload din CAM Dashboard, antet
 comparație). Utilizatorul a refuzat explicit: „DEOCAMDATĂ RENUNȚĂM LA ACEST LOGO”.
 **A NU se mai propune** fără cerere directă din partea utilizatorului.
+
+## 2026-06 — Localizarea paginii Stripe Checkout
+
+**Confirmat de utilizator**: corecția fonturilor PDF funcționează în container
+(`✓`, `⚠`, diacritice, `▪` — toate corecte). Problema fonturilor e ÎNCHISĂ.
+
+**Problemă nouă raportată**: pagina Stripe apărea integral în română indiferent de
+limba selectată în aplicație (reprodus cu UI pe spaniolă). Două cauze distincte:
+1. `SessionCreateOptions.Locale` nu era setat ⇒ Stripe folosea implicit `auto`,
+   adică **limba browserului**, nu limba aplicației.
+2. `Description = $"{package.Credits} credite / credits"` era hardcodat în
+   `StripePaymentService.cs` (română + engleză lipite).
+
+**Rezolvat**:
+- `StripePaymentService.CreateCheckoutAsync` primește `string? uiLanguage` și setează
+  `Locale = StripeLocale(uiLanguage)`. Helper privat `StripeLocale`: normalizează
+  `es-ES`→`es`, validează contra `SupportedLanguagesConfig.Codes`, altfel `"auto"`.
+  Toate cele 7 limbi livrate (en/ro/fr/es/de/it/pt) sunt locale Stripe valide ⇒ mapare 1:1.
+- `CreditsController` trimite `CultureInfo.CurrentUICulture.TwoLetterISOLanguageName`.
+- Cheie nouă `StripeLineItemCredits` adăugată în toate cele 7 blocuri din `Loc.cs`.
+- Probă nouă `/app/probe_stripe_locale/` (referință directă la MedicalApp.dll):
+  7/7 PASS traduceri + mapare locale corectă. Build 0/0.
+**De validat de utilizator** (F5 în VS2026 cu UI pe spaniolă, apoi rebuild container).
+
+**Explicat, NU defecte**: selectorul de monedă RON/EUR ține de Adaptive Pricing
+(țara/IP-ul clientului, nu limba); badge-ul „Sandbox” dispare doar pe chei live;
+avertismentul `SessionMiddleware: Error unprotecting the session cookie` apare
+pentru că browserul partajează cookie-urile `localhost` între container (:8080) și
+VS2026 (:7xxx), care au key ring-uri Data Protection diferite — inofensiv, sesiunea
+se recreează. Pe Azure e deja acoperit de `PersistKeysToAzureBlobStorage` când
+`ScaleOut:Enabled=true`. Utilizatorul a fost întrebat dacă vrea nume de cookie
+distinct per mediu (cosmetic) — fără răspuns, NEIMPLEMENTAT.
