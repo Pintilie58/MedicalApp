@@ -705,3 +705,8 @@ pentru conversie. Badge-ul „Sandbox” dispare automat pe cheile live.
 - P1: push imagini în Azure Container Registry + App Service for Containers
 - P1: `CamSettings:Storage=Blob` + `ScaleOut:Enabled=true` pentru multi-instanță
 - P0 (după domeniu public): webhook Stripe cu chei LIVE
+
+**Decizie 2026-06 — RESPINS: logo de clinică în PDF-urile B2B.** Propus de agent
+(coloane `Clinics.LogoBytes/LogoContentType`, upload din CAM Dashboard, antet
+comparație). Utilizatorul a refuzat explicit: „DEOCAMDATĂ RENUNȚĂM LA ACEST LOGO”.
+**A NU se mai propune** fără cerere directă din partea utilizatorului.
