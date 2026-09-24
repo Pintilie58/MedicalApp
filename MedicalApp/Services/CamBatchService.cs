@@ -338,10 +338,13 @@ namespace MedicalApp.Services
                 }
             }
 
-            // 1b. Byte-identical PDF already processed for this clinic → skip
-            //     (no AI cost, no credit) and park it in Errors with the reason.
+            // 1b. Byte-identical PDF already processed for this clinic AND THE SAME
+            //     PATIENT → skip (no AI cost, no credit) and park it in Errors with
+            //     the reason. The same file assigned to a different patient is
+            //     processed normally.
             var pdfHash = Convert.ToHexString(SHA256.HashData(bytes));
-            var duplicateOf = await FindDuplicateAsync(db, clinic.Id, pdfHash, ct);
+            var duplicateOf = await FindDuplicateAsync(db, clinic.Id, pdfHash,
+                CamPatientKey.Normalize(meta!.PatientName!), meta.PatientEmail!.Trim(), ct);
             if (duplicateOf != null)
             {
                 var when = duplicateOf.Value.ProcessedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm");
@@ -667,21 +670,34 @@ namespace MedicalApp.Services
 
                 // Same eligibility rules as step 1 of ProcessOneFileAsync; every
                 // other case is left to the sequential path (no AI cost here).
-                var hasOverride = await db.ClinicPdfOverrides
-                    .AnyAsync(o => o.ClinicId == clinic.Id && o.FileName == fileName, ct);
-                if (!hasOverride)
+                var overrideRow = await db.ClinicPdfOverrides.AsNoTracking()
+                    .FirstOrDefaultAsync(o => o.ClinicId == clinic.Id && o.FileName == fileName, ct);
+                string? patientName, patientEmail;
+                if (overrideRow != null)
+                {
+                    patientName = overrideRow.OverrideName;
+                    patientEmail = overrideRow.OverrideEmail;
+                }
+                else
                 {
                     var probe = extractor.Extract(bytes, fileName, clinicDomainBlacklist: null);
                     if (!(probe.MatchedExplicitBlock && probe.IsValid))
                         return new PrefetchOutcome(false, null);
+                    patientName = probe.PatientName;
+                    patientEmail = probe.PatientEmail;
                 }
+                if (string.IsNullOrWhiteSpace(patientName) || string.IsNullOrWhiteSpace(patientEmail))
+                    return new PrefetchOutcome(false, null);
 
-                // Duplicate PDFs are skipped by the sequential path — no AI call for them
-                // (already stored for the clinic, or an earlier file of this batch has the same bytes).
+                // Duplicate PDFs (same bytes, same patient) are skipped by the sequential
+                // path — no AI call for them (already stored for the clinic, or an earlier
+                // file of this batch has the same bytes for the same patient).
                 var hash = Convert.ToHexString(SHA256.HashData(bytes));
-                var firstIndex = prefetch.SeenHashes.GetOrAdd(hash, index);
+                var nameKey = CamPatientKey.Normalize(patientName);
+                var email = patientEmail.Trim();
+                var firstIndex = prefetch.SeenHashes.GetOrAdd($"{hash}|{nameKey}|{email}", index);
                 if (firstIndex < index) return new PrefetchOutcome(false, null);
-                if (await FindDuplicateAsync(db, clinic.Id, hash, ct) != null)
+                if (await FindDuplicateAsync(db, clinic.Id, hash, nameKey, email, ct) != null)
                     return new PrefetchOutcome(false, null);
 
                 // Never spend more AI calls than the credits available at start.
@@ -795,12 +811,15 @@ namespace MedicalApp.Services
             return $"Email failed for {emailLabel}: {first}";
         }
 
-        /// <summary>Byte-identical report already stored for this clinic (any patient), newest first.</summary>
+        /// <summary>Byte-identical report already stored for this clinic and the SAME patient (NameKey + Email), newest first.</summary>
         private static async Task<(string OriginalFileName, DateTime ProcessedAt)?> FindDuplicateAsync(
-            AppDbContext db, int clinicId, string pdfHash, CancellationToken ct)
+            AppDbContext db, int clinicId, string pdfHash, string nameKey, string email, CancellationToken ct)
         {
             var hit = await db.ClinicAnalyses.AsNoTracking()
                 .Where(a => a.ClinicId == clinicId && a.PdfSha256 == pdfHash)
+                .Join(db.ClinicPatients.AsNoTracking()
+                        .Where(p => p.ClinicId == clinicId && p.NameKey == nameKey && p.Email == email),
+                      a => a.PatientId, p => p.Id, (a, p) => a)
                 .OrderByDescending(a => a.ProcessedAt)
                 .Select(a => new { a.OriginalFileName, a.ProcessedAt })
                 .FirstOrDefaultAsync(ct);

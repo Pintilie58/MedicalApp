@@ -22,7 +22,8 @@ void Check(string what, bool ok, string? detail = null)
 async Task<Scenario> RunScenario(string title, int parallel, int fileCount, int credits,
     int geminiDelayMs = 250, string? failFile = null, string? noOverrideFile = null,
     bool samePatientPair = false, bool cancelAfterFirst = false,
-    bool duplicatePair = false, bool allSamePatient = false, bool legacyHashlessRow = false)
+    bool duplicatePair = false, bool allSamePatient = false, bool legacyHashlessRow = false,
+    bool duplicateBytesOtherPatient = false)
 {
     Console.WriteLine($"\n=== {title} (MaxParallelFiles={parallel}, files={fileCount}, credits={credits}) ===");
     var dbName = "campar-" + Guid.NewGuid();
@@ -73,7 +74,7 @@ async Task<Scenario> RunScenario(string title, int parallel, int fileCount, int 
         {
             var name = $"file{i:00}.pdf";
             // duplicatePair: file02 has EXACTLY the bytes of file01 (different name)
-            var srcName = duplicatePair && i == 2 ? "file01.pdf" : name;
+            var srcName = (duplicatePair || duplicateBytesOtherPatient) && i == 2 ? "file01.pdf" : name;
             store.Files[name] = System.Text.Encoding.UTF8.GetBytes("%PDF-1.4 fake " + srcName);
             // samePatientPair: files 1 and 2 belong to the same patient (compare PDF expected on the 2nd)
             var idx = (samePatientPair || duplicatePair) && i == 2 ? 1 : i;
@@ -214,6 +215,15 @@ async Task<Scenario> RunScenario(string title, int parallel, int fileCount, int 
     Check("8f no compare PDF generated for the duplicate", s.Batch.FilesCompared == 0, $"compared={s.Batch.FilesCompared}");
     Check("8g analyses carry the SHA-256", s.Analyses == 3 && s.HashedAnalyses == 3, $"analyses={s.Analyses} hashed={s.HashedAnalyses}");
     Check("8h log line mentions the duplicate", s.Progress.LogSnapshot().Any(l => l.Contains("Duplicat")));
+}
+
+// ---------------------------------------------------------------- 8bis. same bytes, DIFFERENT patient → processed (dedupe is per patient)
+{
+    var s = await RunScenario("Parallel 3, file02 is a byte-copy of file01 but for another patient", parallel: 3, fileCount: 4, credits: 10, duplicateBytesOtherPatient: true);
+    Check("8i 4 sent, 0 notSend (other patient is not a duplicate)", s.Batch.FilesSent == 4 && s.Batch.NotSends == 0, $"sent={s.Batch.FilesSent} notSends={s.Batch.NotSends}");
+    Check("8j Gemini called 4 times", s.Gemini.Calls.Count == 4, $"calls={s.Gemini.Calls.Count}");
+    Check("8k 4 patients / 4 analyses, all hashed", s.Patients == 4 && s.Analyses == 4 && s.HashedAnalyses == 4, $"patients={s.Patients} analyses={s.Analyses} hashed={s.HashedAnalyses}");
+    Check("8l no duplicate log line", !s.Progress.LogSnapshot().Any(l => l.Contains("Duplicat")));
 }
 
 // ---------------------------------------------------------------- 9. retention: keep newest 6 per patient, compare PDF at most 6 columns

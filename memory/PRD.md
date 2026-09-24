@@ -36,6 +36,11 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   Prompt Gemini întărit: „REFERENCE RANGES ARE COPIED, NEVER RECALLED”.
   Probă: `/app/memory/probes/ReferenceRangeVerifierProbe.cs.txt` (16 cazuri incl. regresii:
   două intervale/rând, praguri `<200`, date, B-12, virgulă decimală, rând ambiguu) — ALL PASS.
+- **Dedupe B2B devine PER PACIENT** (cerere utilizator): `CamBatchService.FindDuplicateAsync` face
+  join cu `ClinicPatients` (NameKey + Email); același PDF byte-cu-byte pentru un pacient diferit
+  (ex. override manual „CIRIP3000”) se procesează normal. Prefetch-ul paralel rezolvă pacientul
+  (override sau bloc [MedicalApp]) și cheia in-batch `SeenHashes` = hash|nameKey|email.
+  Probă `CamParallelPrefetchProbe` scenariu nou 8bis (8i–8l) — ALL CHECKS PASSED, build 0 warnings.
   Interpretările vechi din DB rămân cu intervalul greșit — se corectează la re-interpretare.
 - `PipelineMode` comutat pe **`monolithic`** (cerere utilizator, până la validarea modului split)
 - **Pre-Flight Check LOINC (P1)**: pe `/Interpretation/Upload` (GET) se citește snapshot-ul
