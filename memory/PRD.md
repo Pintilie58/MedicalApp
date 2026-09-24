@@ -54,7 +54,12 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
 - **Comparații + Dosar Medical responsive** (doar CSS + clase/`data-label`): Compare.cshtml — <576px
   card per analiză cu un „chip” datat per interpretare (păstrează culorile risen/fallen/absent) și
   intervalul dedesubt; Dossier.cshtml — tabelul `.tl` devine card per măsurătoare (dată + status +
-  tendință, laborator, benzi VALOARE / INTERVAL). Verificat mock 390/768 — 0 overflow.
+- **Comparații — prag adaptiv pentru carduri**: tabelul primește `data-cards-below` în funcție de numărul
+  de interpretări (2→576, 3→768, 4→992, 5→1200, 6→1400px); un mic script `matchMedia` comută clasa
+  `cmp-cards` (fără media query fixă). Verificat mock 6 coloane: tabel la 1440 fără scroll, carduri la 1366.
+- **Profil + Arhivă (History.cshtml) responsiv**: <992px fiecare interpretare devine card (bifă + dată,
+  fișier, chip-uri Data recoltării / Analize / În afara normalului, butoane pe rând propriu). Rândul
+  „În procesare” tratat separat (`h-processing`). Verificat mock 768/390 — 0 scroll orizontal.
 - `PipelineMode` comutat pe **`monolithic`** (cerere utilizator, până la validarea modului split)
 - **Pre-Flight Check LOINC (P1)**: pe `/Interpretation/Upload` (GET) se citește snapshot-ul
   `ILoincHealthState` (0 ms) și se afișează banner de avertizare `data-testid="loinc-offline-warning"`

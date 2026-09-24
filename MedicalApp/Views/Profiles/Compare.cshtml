@@ -37,36 +37,36 @@
         .compare-table thead th.cmp-th-param { min-width: 9rem !important; }
         .compare-table thead th.cmp-th-date { min-width: 6.5rem !important; }
     }
-    @@media (max-width: 575.98px) {
-        /* Phone: one card per analyte — name on top, then one dated chip per
-           interpretation, then the reference range. No horizontal scrolling. */
-        .compare-table thead { display: none; }
-        .compare-table, .compare-table tbody, .compare-table tr, .compare-table td { display: block; }
-        .compare-table > tbody > tr { display: flex; flex-wrap: wrap; gap: .35rem; padding: .6rem 0 .7rem; border-top: 1px solid #e9ecef; }
-        .compare-table > tbody > tr > td { border: 0; padding: 0; box-shadow: none; }
-        .compare-table > tbody > tr.table-secondary { display: block; padding: 0; margin-top: .75rem; }
-        .compare-table > tbody > tr.table-secondary > td { display: block; padding: .45rem .6rem; border-radius: .35rem; }
-        .compare-table td.cmp-label { flex: 1 1 100%; font-size: .95rem; }
-        .compare-table td.cmp-cell {
-            flex: 0 0 auto;
-            text-align: left !important;
-            padding: .25rem .55rem !important;
-            border: 1px solid #e3e8ee;
-            border-radius: .35rem;
-            font-size: .86rem;
-        }
-        .compare-table td.cmp-cell::before {
-            content: attr(data-label);
-            display: block;
-            font-size: .62rem;
-            line-height: 1.2;
-            color: #8a9099;
-            font-weight: 600;
-            letter-spacing: .02em;
-        }
-        .compare-table td.cmp-ref { flex: 1 1 100%; margin-top: .15rem; }
-        .compare-table td.cmp-ref::before { content: attr(data-label) ": "; font-weight: 600; text-transform: uppercase; font-size: .62rem; letter-spacing: .03em; }
+    /* Card mode (toggled by the script under the table once the window is narrower
+       than the threshold for the number of selected interpretations): one card per
+       analyte — name on top, then one dated chip per interpretation, then the
+       reference range. No horizontal scrolling. */
+    .compare-table.cmp-cards thead { display: none; }
+    .compare-table.cmp-cards, .compare-table.cmp-cards tbody, .compare-table.cmp-cards tr, .compare-table.cmp-cards td { display: block; }
+    .compare-table.cmp-cards > tbody > tr { display: flex; flex-wrap: wrap; gap: .35rem; padding: .6rem 0 .7rem; border-top: 1px solid #e9ecef; }
+    .compare-table.cmp-cards > tbody > tr > td { border: 0; padding: 0; box-shadow: none; }
+    .compare-table.cmp-cards > tbody > tr.table-secondary { display: block; padding: 0; margin-top: .75rem; }
+    .compare-table.cmp-cards > tbody > tr.table-secondary > td { display: block; padding: .45rem .6rem; border-radius: .35rem; }
+    .compare-table.cmp-cards td.cmp-label { flex: 1 1 100%; font-size: .95rem; }
+    .compare-table.cmp-cards td.cmp-cell {
+        flex: 0 0 auto;
+        text-align: left !important;
+        padding: .25rem .55rem !important;
+        border: 1px solid #e3e8ee;
+        border-radius: .35rem;
+        font-size: .86rem;
     }
+    .compare-table.cmp-cards td.cmp-cell::before {
+        content: attr(data-label);
+        display: block;
+        font-size: .62rem;
+        line-height: 1.2;
+        color: #8a9099;
+        font-weight: 600;
+        letter-spacing: .02em;
+    }
+    .compare-table.cmp-cards td.cmp-ref { flex: 1 1 100%; margin-top: .15rem; }
+    .compare-table.cmp-cards td.cmp-ref::before { content: attr(data-label) ": "; font-weight: 600; text-transform: uppercase; font-size: .62rem; letter-spacing: .03em; }
 </style>
 
 <div class="container-fluid py-5">
@@ -176,7 +176,8 @@
             </div>
 
             <div class="table-responsive">
-                <table class="table table-hover align-middle compare-table" data-testid="compare-table">
+                <table class="table table-hover align-middle compare-table" data-testid="compare-table"
+                       data-cards-below="@(Model.Columns.Count switch { <= 2 => 576, 3 => 768, 4 => 992, 5 => 1200, _ => 1400 })">
                     <thead class="table-light">
                         <tr>
                             <th class="cmp-th-param" style="min-width:180px;">@Loc.T("ProfileCompareHeaderParameter")</th>
@@ -273,6 +274,16 @@
                     </tbody>
                 </table>
             </div>
+            <script>
+                (function () {
+                    var t = document.querySelector('.compare-table');
+                    if (!t) return;
+                    var mq = window.matchMedia('(max-width: ' + (parseInt(t.getAttribute('data-cards-below'), 10) - 0.02) + 'px)');
+                    function apply() { t.classList.toggle('cmp-cards', mq.matches); }
+                    apply();
+                    if (mq.addEventListener) mq.addEventListener('change', apply); else mq.addListener(apply);
+                })();
+            </script>
 
             <p class="small text-muted mt-3">
                 @Loc.T("CompareViewLegendGrouping")

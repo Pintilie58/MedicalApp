@@ -5,6 +5,37 @@
     var errorMessage = TempData["ErrorMessage"] as string;
 }
 
+<style>
+    .history-table td.h-actions .btn { white-space: nowrap; }
+    @@media (max-width: 991.98px) {
+        /* Tablet & phone: one card per interpretation — checkbox + date + file name on
+           top, a strip of labelled chips (sample date, parameters, abnormal), then the
+           action buttons on their own line. No horizontal scrolling. */
+        .history-table thead { display: none; }
+        .history-table, .history-table tbody, .history-table tr, .history-table td { display: block; }
+        .history-table > tbody > tr { display: flex; flex-wrap: wrap; align-items: center; column-gap: .6rem; row-gap: .35rem; padding: .7rem .25rem .8rem; border-top: 1px solid #e9ecef; }
+        .history-table > tbody > tr > td { border: 0; padding: 0; box-shadow: none; width: auto; }
+        .history-table td.h-check { order: 1; flex: 0 0 auto; }
+        .history-table td.h-check .form-check-input { margin: 0; width: 1.2rem; height: 1.2rem; }
+        .history-table td.h-date { order: 2; flex: 0 0 auto; }
+        .history-table td.h-date .fw-semibold, .history-table td.h-date .small { display: inline; }
+        .history-table td.h-date .small { margin-left: .35rem; }
+        .history-table td.h-file { order: 3; flex: 1 1 100%; font-size: .9rem; }
+        .history-table td.h-sample, .history-table td.h-params, .history-table td.h-abn {
+            order: 4; flex: 0 0 auto; text-align: left !important;
+            background: #f4f7fb; border-radius: .35rem; padding: .25rem .55rem !important; font-size: .84rem;
+        }
+        .history-table td.h-sample::before, .history-table td.h-params::before, .history-table td.h-abn::before {
+            content: attr(data-label); display: block; font-size: .62rem; line-height: 1.2;
+            text-transform: uppercase; letter-spacing: .03em; color: #8a9099; font-weight: 600;
+        }
+        .history-table td.h-actions { order: 5; flex: 1 1 100%; text-align: left !important; display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .15rem; }
+        .history-table td.h-actions .btn { flex: 1 1 auto; }
+        .history-table td.h-actions form { margin-left: 0 !important; flex: 0 0 auto; }
+        .history-table td.h-processing { order: 4; flex: 1 1 100%; }
+    }
+</style>
+
 <div class="container py-5">
     <div class="row justify-content-center">
         <div class="col-lg-10">
@@ -186,7 +217,7 @@
                 </div>
 
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle" data-testid="history-table">
+                    <table class="table table-hover align-middle history-table" data-testid="history-table">
                         <thead class="table-light">
                             <tr>
                                 <th style="width:40px;"></th>
@@ -207,13 +238,13 @@
                                     // /Interpretation/Upload). The page auto-refreshes
                                     // until it becomes a normal "success" row.
                                     <tr class="table-warning" data-testid="history-row-processing-@h.Id">
-                                        <td></td>
-                                        <td>
+                                        <td class="h-check"></td>
+                                        <td class="h-date">
                                             <div class="fw-semibold">@h.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</div>
                                             <div class="small text-muted">@h.CreatedAt.ToLocalTime().ToString("HH:mm")</div>
                                         </td>
-                                        <td><span class="text-break">@(h.OriginalFileName ?? "-")</span></td>
-                                        <td colspan="4">
+                                        <td class="h-file"><span class="text-break">@(h.OriginalFileName ?? "-")</span></td>
+                                        <td colspan="4" class="h-processing">
                                             <span class="spinner-border spinner-border-sm text-warning me-2" role="status"></span>
                                             @if (h.QueuePosition > 0)
                                             {
@@ -231,7 +262,7 @@
                                     continue;
                                 }
                                 <tr data-testid="history-row-@h.Id">
-                                    <td>
+                                    <td class="h-check">
                                         @if (h.HasRawJson)
                                         {
                                             <input type="checkbox" class="form-check-input compare-check"
@@ -240,26 +271,26 @@
                                                data-testid="history-check-@h.Id" />
                                         }
                                     </td>
-                                    <td>
+                                    <td class="h-date">
                                         <div class="fw-semibold">@h.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</div>
                                         <div class="small text-muted">@h.CreatedAt.ToLocalTime().ToString("HH:mm")</div>
                                     </td>
-                                    <td>
+                                    <td class="h-file">
                                         <span class="text-break">@(h.OriginalFileName ?? "-")</span>
                                         @if (!string.IsNullOrWhiteSpace(h.Language))
                                         {
                                             <span class="badge bg-light text-muted ms-1">@h.Language</span>
                                         }
                                     </td>
-                                    <td class="text-muted">@(h.DateTaken ?? "-")</td>
-                                    <td class="text-center">
+                                    <td class="text-muted h-sample" data-label="@Loc.T("HistoryThSampleDate")">@(h.DateTaken ?? "-")</td>
+                                    <td class="text-center h-params" data-label="@Loc.T("HistoryThParams")">
                                         @if (h.KeyResultsCount.HasValue)
                                         {
                                             <span class="badge bg-primary">@h.KeyResultsCount</span>
                                         }
                                         else { <span class="text-muted">-</span> }
                                     </td>
-                                    <td class="text-center">
+                                    <td class="text-center h-abn" data-label="@Loc.T("HistoryThAbnormal")">
                                         @if (h.AbnormalFindingsCount.HasValue && h.AbnormalFindingsCount.Value > 0)
                                         {
                                             <span class="badge bg-danger">@h.AbnormalFindingsCount</span>
@@ -270,7 +301,7 @@
                                         }
                                         else { <span class="text-muted">-</span> }
                                     </td>
-                                    <td class="text-end">
+                                    <td class="text-end h-actions">
                                         @if (h.HasRawJson)
                                         {
                                             <a asp-action="ViewReport" asp-route-id="@h.Id"
