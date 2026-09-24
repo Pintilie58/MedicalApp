@@ -26,6 +26,17 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
 - **LoincHealthMonitor** — probe periodic `/ready`, cache in-memory, auto-start uvicorn pe Windows
 
 ### Iunie 2026
+- **Fix „0 - 0.2” citit ca „0-2” (bazofile %)** — `Services/ReferenceRangeVerifier.cs` (nou):
+  compară `reference_range` din JSON-ul Gemini cu rândul literal din textul PDF (PdfPig).
+  Înlocuiește DOAR când: intervalul modelului e `X - Y`, un singur rând conține nume + valoare
+  (token întreg), intervalul modelului NU e tipărit pe rând și există exact UN candidat tipărit
+  „înrudit” (fiecare limită egală sau cu cifrele subșir: `2`⊂`0.2`, `75`⊂`7.5`, `2`⊂`-2`).
+  Rulează înainte de `StatusValidator` în B2C (`B2cInterpretationRunner`) și B2B/CAM
+  (`CamBatchService`, text extras local din bytes; log operator `CamBatchLogRangeVerifier`, 7 limbi).
+  Prompt Gemini întărit: „REFERENCE RANGES ARE COPIED, NEVER RECALLED”.
+  Probă: `/app/memory/probes/ReferenceRangeVerifierProbe.cs.txt` (16 cazuri incl. regresii:
+  două intervale/rând, praguri `<200`, date, B-12, virgulă decimală, rând ambiguu) — ALL PASS.
+  Interpretările vechi din DB rămân cu intervalul greșit — se corectează la re-interpretare.
 - `PipelineMode` comutat pe **`monolithic`** (cerere utilizator, până la validarea modului split)
 - **Pre-Flight Check LOINC (P1)**: pe `/Interpretation/Upload` (GET) se citește snapshot-ul
   `ILoincHealthState` (0 ms) și se afișează banner de avertizare `data-testid="loinc-offline-warning"`

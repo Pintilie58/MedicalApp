@@ -393,6 +393,23 @@ namespace MedicalApp.Services
                 // Cosmetic step — never break a batch.
             }
 
+            // 3b'. Cross-check the model's reference ranges against the literal PDF
+            // text layer (e.g. "0 - 0.2" misread as "0-2"). Must run before the
+            // status validator below so the status is recomputed on the true range.
+            try
+            {
+                string camText;
+                using (var textMs = new MemoryStream(bytes))
+                    camText = PdfTextExtractor.Extract(textMs);
+                var fixes = ReferenceRangeVerifier.Verify(result, camText, _logger);
+                if (fixes.Count > 0)
+                    progress.Log(string.Format(Loc.T("CamBatchLogRangeVerifier", lang), fixes.Count));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "CAM batch {Id}: ReferenceRangeVerifier failed (keeping AI ranges)", batch.Id);
+            }
+
             // 3c. CAM now uses the SAME LOINC matcher as the B2C interpretation
             // path (Python service: 128 canonical anchors + semantic embeddings).
             // Without this step the Compare PDF cannot group rows by LOINC class

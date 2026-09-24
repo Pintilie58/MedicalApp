@@ -858,6 +858,10 @@ separate columns. Each visible row of the PDF appears on its own line of text.
 directly, so values, units and reference ranges are exactly what the lab printed.**
 
 In BOTH modes apply the following parsing rules:
+- **REFERENCE RANGES ARE COPIED, NEVER RECALLED.** Copy the printed range digit by
+  digit INCLUDING the decimal separator. ""0 - 0.2"" is NOT ""0 - 2""; ""13.2 - 17.2"" is NOT
+  ""13 - 17"". NEVER replace the lab's printed range with the ""typical"" or ""textbook""
+  range you remember for that analyte — each laboratory has its own limits.
 - For parameters reported as TWO SEPARATE ROWS (each row has its own value AND its own reference range) - typically a WBC differential printed as both COUNTS and PERCENTS, e.g.
       ""Numar total de neutrofile: 5.73 10^3/mm3 (ref 2-8 / 10^3/mm3)""
       ""Procent de neutrofile:    59.3 %       (ref 45-80 / %)""

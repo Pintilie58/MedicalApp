@@ -450,6 +450,16 @@ namespace MedicalApp.Services
 
             try
             {
+                var fixes = ReferenceRangeVerifier.Verify(result, extractedText, _logger);
+                if (fixes.Count > 0) resultMutated = true;
+            }
+            catch (Exception rvEx)
+            {
+                _logger.LogWarning(rvEx, "ReferenceRangeVerifier threw. Keeping the model's ranges.");
+            }
+
+            try
+            {
                 var stats = StatusValidator.Validate(result, _logger);
                 _logger.LogInformation(
                     "StatusValidator: parsed {Total}, corrected {Corrected}, skipped {Skipped}.",
