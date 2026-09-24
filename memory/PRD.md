@@ -45,7 +45,16 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   celulele Valoare/Interval): <992px tipografie fluidă `clamp()` + unitate sub valoare (fără nowrap);
   <576px fiecare analiză devine card (nume + status pe primul rând, apoi benzi „VALOARE” / „INTERVAL
   NORMAL”, etichete localizate din Loc). Eliminat `min-width: 34rem` (nu mai există scroll orizontal).
-  Verificat cu HTML mock la 1920/980/768/390 — 0 overflow, 0 suprapuneri.
+- **Fix „numele analizei + valoarea + intervalul apar de două ori”** — `Services/AnalyteLineDisplay.cs`
+  (nou): `RawLineReconstructor` umple `analyte_line_raw` cu ÎNTREGUL rând literal din PDF (necesar
+  matcher-ului LOINC); ecranul raport (`ProfilesController` → `AnalyteLine`) și PDF-ul
+  (`PdfReportGenerator`) afișau linia brută. Acum se scot numele (case/diacritice-insensitive),
+  valoarea, unitatea, intervalul/pragul și numărul de ordine; dacă nu rămân ≥3 litere descriptive,
+  legenda se ascunde. Datele din DB NU se modifică. Probă `AnalyteLineDisplayProbe` — ALL PASS.
+- **Comparații + Dosar Medical responsive** (doar CSS + clase/`data-label`): Compare.cshtml — <576px
+  card per analiză cu un „chip” datat per interpretare (păstrează culorile risen/fallen/absent) și
+  intervalul dedesubt; Dossier.cshtml — tabelul `.tl` devine card per măsurătoare (dată + status +
+  tendință, laborator, benzi VALOARE / INTERVAL). Verificat mock 390/768 — 0 overflow.
 - `PipelineMode` comutat pe **`monolithic`** (cerere utilizator, până la validarea modului split)
 - **Pre-Flight Check LOINC (P1)**: pe `/Interpretation/Upload` (GET) se citește snapshot-ul
   `ILoincHealthState` (0 ms) și se afișează banner de avertizare `data-testid="loinc-offline-warning"`

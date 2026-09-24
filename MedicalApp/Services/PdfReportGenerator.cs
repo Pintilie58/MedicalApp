@@ -503,8 +503,9 @@ namespace MedicalApp.Services
                                 // between the analyte name and the explanation so the user
                                 // can see exactly which lab methodology produced the value
                                 // and how the downstream LOINC axes were resolved.
-                                if (!string.IsNullOrWhiteSpace(r.AnalyteLineRaw))
-                                    c.Item().PaddingTop(1).Text(r.AnalyteLineRaw!.Trim())
+                                var caption = AnalyteLineDisplay.Clean(r.AnalyteLineRaw, r.Parameter, r.Value, r.Unit, r.ReferenceRange);
+                                if (caption != null)
+                                    c.Item().PaddingTop(1).Text(caption)
                                         .Italic().FontSize(8).FontColor(MutedText);
                                 if (!string.IsNullOrWhiteSpace(r.Explanation))
                                     c.Item().PaddingTop(1).Text(r.Explanation).FontSize(8).FontColor(MutedText);

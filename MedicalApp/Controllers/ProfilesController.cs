@@ -380,8 +380,8 @@ namespace MedicalApp.Controllers
                         ReferenceRange = isLocked ? null : k.ReferenceRange,
                         Status = isLocked ? null : k.Status,
                         Explanation = isLocked ? null : k.Explanation,
-                        AnalyteLine = isLocked || string.IsNullOrWhiteSpace(k.AnalyteLineRaw)
-                            ? null : k.AnalyteLineRaw!.Trim(),
+                        AnalyteLine = isLocked
+                            ? null : AnalyteLineDisplay.Clean(k.AnalyteLineRaw, k.Parameter, k.Value, k.Unit, k.ReferenceRange),
                         LoincCode = isLocked ? null : k.LoincCode,
                         LoincLongName = isLocked ? null : k.LoincLongName,
                         LoincSource = isLocked ? null : k.LoincSource,

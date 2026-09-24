@@ -30,6 +30,45 @@
     };
 }
 
+<style>
+    @@media (max-width: 991.98px) {
+        .compare-table { font-size: clamp(.78rem, 1.7vw, .9rem); }
+        .compare-table thead th { font-size: clamp(.7rem, 1.5vw, .82rem); }
+        .compare-table thead th.cmp-th-param { min-width: 9rem !important; }
+        .compare-table thead th.cmp-th-date { min-width: 6.5rem !important; }
+    }
+    @@media (max-width: 575.98px) {
+        /* Phone: one card per analyte — name on top, then one dated chip per
+           interpretation, then the reference range. No horizontal scrolling. */
+        .compare-table thead { display: none; }
+        .compare-table, .compare-table tbody, .compare-table tr, .compare-table td { display: block; }
+        .compare-table > tbody > tr { display: flex; flex-wrap: wrap; gap: .35rem; padding: .6rem 0 .7rem; border-top: 1px solid #e9ecef; }
+        .compare-table > tbody > tr > td { border: 0; padding: 0; box-shadow: none; }
+        .compare-table > tbody > tr.table-secondary { display: block; padding: 0; margin-top: .75rem; }
+        .compare-table > tbody > tr.table-secondary > td { display: block; padding: .45rem .6rem; border-radius: .35rem; }
+        .compare-table td.cmp-label { flex: 1 1 100%; font-size: .95rem; }
+        .compare-table td.cmp-cell {
+            flex: 0 0 auto;
+            text-align: left !important;
+            padding: .25rem .55rem !important;
+            border: 1px solid #e3e8ee;
+            border-radius: .35rem;
+            font-size: .86rem;
+        }
+        .compare-table td.cmp-cell::before {
+            content: attr(data-label);
+            display: block;
+            font-size: .62rem;
+            line-height: 1.2;
+            color: #8a9099;
+            font-weight: 600;
+            letter-spacing: .02em;
+        }
+        .compare-table td.cmp-ref { flex: 1 1 100%; margin-top: .15rem; }
+        .compare-table td.cmp-ref::before { content: attr(data-label) ": "; font-weight: 600; text-transform: uppercase; font-size: .62rem; letter-spacing: .03em; }
+    }
+</style>
+
 <div class="container-fluid py-5">
     <div class="row justify-content-center">
         <div class="col-12 col-xxl-11">
@@ -137,14 +176,14 @@
             </div>
 
             <div class="table-responsive">
-                <table class="table table-hover align-middle" data-testid="compare-table">
+                <table class="table table-hover align-middle compare-table" data-testid="compare-table">
                     <thead class="table-light">
                         <tr>
-                            <th style="min-width:180px;">@Loc.T("ProfileCompareHeaderParameter")</th>
+                            <th class="cmp-th-param" style="min-width:180px;">@Loc.T("ProfileCompareHeaderParameter")</th>
                             @for (int i = 0; i < Model.Columns.Count; i++)
                             {
                                 var col = Model.Columns[i];
-                                <th class="text-center" style="min-width:140px;">
+                                <th class="text-center cmp-th-date" style="min-width:140px;">
                                     @col.EffectiveDate.ToLocalTime().ToString("yyyy-MM-dd")
                                 </th>
                             }
@@ -172,7 +211,7 @@
                                 </tr>
                             }
                             <tr data-testid="compare-row-@row.Parameter.Replace(" ", "-")">
-                                <td class="fw-semibold" data-testid="compare-row-label">
+                                <td class="fw-semibold cmp-label" data-testid="compare-row-label">
                                     @row.Parameter
                                     @if (!string.IsNullOrWhiteSpace(row.Unit))
                                     { <span class="small text-muted">(@row.Unit)</span> }
@@ -209,9 +248,11 @@
                                         }
                                     }
                                 </td>
-                                @foreach (var cell in row.Cells)
+                                @for (int ci = 0; ci < row.Cells.Count; ci++)
                                 {
-                                    <td class="text-center @CellClass(cell.CellDirection)">
+                                    var cell = row.Cells[ci];
+                                    var cellDate = ci < Model.Columns.Count ? Model.Columns[ci].EffectiveDate.ToLocalTime().ToString("yyyy-MM-dd") : "";
+                                    <td class="text-center cmp-cell @CellClass(cell.CellDirection)" data-label="@cellDate">
                                         @if (cell.CellDirection == "absent")
                                         {
                                             <span>—</span>
@@ -226,7 +267,7 @@
                                         }
                                     </td>
                                 }
-                                <td class="small text-muted">@(row.ReferenceRange ?? "-")</td>
+                                <td class="small text-muted cmp-ref" data-label="@Loc.T("ProfileCompareHeaderReference")">@(row.ReferenceRange ?? "-")</td>
                             </tr>
                         }
                     </tbody>

@@ -50,6 +50,42 @@
     .tl tbody tr:last-child td { border-bottom: none; }
     .tl .v { font-size: 1rem; font-weight: 700; }
     .summary-card { background: #f4f7fb; border: 1px solid #dbe4ef; border-radius: .5rem; padding: .8rem 1rem; }
+    @@media (max-width: 991.98px) {
+        .dossier-paper { padding: 1.75rem 1.5rem 2.25rem; }
+        .tl thead th { font-size: clamp(.66rem, 1.5vw, .74rem); padding: .3rem .25rem; }
+        .tl tbody td { font-size: clamp(.76rem, 1.7vw, .84rem); padding: .4rem .25rem; }
+        .tl .v { font-size: clamp(.9rem, 2vw, 1rem); }
+        .analyte-name { font-size: clamp(.95rem, 2.2vw, 1.05rem); }
+    }
+    @@media (max-width: 575.98px) {
+        /* Phone: every measurement becomes a compact card — date + status + trend on
+           the first line, lab beneath, then value · reference strips. */
+        .dossier-paper { padding: 1.25rem .85rem 1.75rem; }
+        .analyte-card { padding: .7rem .75rem; }
+        .tl { table-layout: auto; }
+        .tl colgroup, .tl thead { display: none; }
+        .tl tbody, .tl tr, .tl td { display: block; }
+        .tl tbody tr { display: flex; flex-wrap: wrap; align-items: center; column-gap: .5rem; padding: .55rem 0 .6rem; border-bottom: 1px solid #f1f4f7; }
+        .tl tbody td { border-bottom: 0; padding: 0; font-size: .82rem; }
+        .tl tbody td.tl-date { order: 1; flex: 1 1 auto; }
+        .tl tbody td.tl-status { order: 2; flex: 0 0 auto; }
+        .tl tbody td.tl-trend { order: 3; flex: 0 0 auto; font-size: .76rem; }
+        .tl tbody td.tl-lab { order: 4; flex: 1 1 100%; font-size: .74rem; margin-top: .1rem; }
+        .tl tbody td.tl-value,
+        .tl tbody td.tl-ref { order: 5; flex: 0 1 auto; margin-top: .4rem; padding: .25rem .55rem; background: #f4f7fb; border-radius: .35rem; }
+        .tl tbody td.tl-ref { order: 6; flex: 1 1 0; min-width: 8rem; }
+        .tl tbody td.tl-value::before,
+        .tl tbody td.tl-ref::before {
+            content: attr(data-label);
+            display: block;
+            font-size: .64rem;
+            line-height: 1.2;
+            text-transform: uppercase;
+            letter-spacing: .03em;
+            color: #8a9099;
+            font-weight: 600;
+        }
+    }
 </style>
 
 <div class="dossier-stage">
@@ -224,21 +260,21 @@
                                             {
                                                 var s = st(e.Status);
                                                 <tr>
-                                                    <td>
+                                                    <td class="tl-date">
                                                         <strong>@e.Date.ToLocalTime().ToString("dd.MM.yyyy")</strong>
                                                         @if (!e.DateIsSampling)
                                                         {
                                                             <div class="loinc-line">@Loc.T("DossierDateFromInterpretation")</div>
                                                         }
                                                     </td>
-                                                    <td class="text-muted">@(string.IsNullOrWhiteSpace(e.Laboratory) ? "—" : e.Laboratory)</td>
-                                                    <td>
+                                                    <td class="text-muted tl-lab">@(string.IsNullOrWhiteSpace(e.Laboratory) ? "—" : e.Laboratory)</td>
+                                                    <td class="tl-value" data-label="@Loc.T("ValueLabel")">
                                                         <span class="v" style="color:@s.Color">@e.Value</span>
                                                         <span class="text-muted small">@e.Unit</span>
                                                     </td>
-                                                    <td class="text-muted">@(string.IsNullOrWhiteSpace(e.ReferenceRange) ? "—" : e.ReferenceRange)</td>
-                                                    <td><span class="fw-bold" style="color:@s.Color">@s.Label</span></td>
-                                                    <td>
+                                                    <td class="text-muted tl-ref" data-label="@Loc.T("ReferenceRange")">@(string.IsNullOrWhiteSpace(e.ReferenceRange) ? "—" : e.ReferenceRange)</td>
+                                                    <td class="tl-status"><span class="fw-bold" style="color:@s.Color">@s.Label</span></td>
+                                                    <td class="tl-trend">
                                                         @if (e.Trend == "up")
                                                         {
                                                             <span style="color:#c62828">&#8593; @Loc.T("DossierTrendUp")</span>
