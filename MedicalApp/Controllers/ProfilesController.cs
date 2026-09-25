@@ -710,6 +710,7 @@ namespace MedicalApp.Controllers
 
             var vm = BuildComparison(profile, parsed);
             vm.CreditConsumed = check.CreditConsumed;
+            vm.UserLabel = string.IsNullOrWhiteSpace(user.CabinetName) ? user.Email : user.CabinetName;
             return View(vm);
         }
 

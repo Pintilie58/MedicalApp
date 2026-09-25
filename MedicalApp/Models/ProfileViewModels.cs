@@ -130,6 +130,8 @@ namespace MedicalApp.Models
 
         public int ProfileId { get; set; }
         public string ProfileName { get; set; } = string.Empty;
+        /// <summary>Account shown in the header: cabinet name for B2B, e-mail otherwise.</summary>
+        public string? UserLabel { get; set; }
 
         /// <summary>Ordered oldest → newest by sampling date.</summary>
         public List<Column> Columns { get; set; } = new();

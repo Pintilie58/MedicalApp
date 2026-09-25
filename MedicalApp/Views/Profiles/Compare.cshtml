@@ -31,30 +31,69 @@
 }
 
 <style>
+    /* ---- Header ---- */
+    .cmp-brand { text-align: center; color: #0d47a1; font-weight: 800; font-size: 1.05rem; letter-spacing: .02em; margin-bottom: .35rem; }
+    .cmp-brand::after { content: ""; display: block; height: 2px; background: #0d47a1; opacity: .85; margin: .45rem auto 0; max-width: 14rem; }
+    .cmp-title { color: #0d47a1; font-weight: 700; font-size: 1.35rem; display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem; }
+    .cmp-title-main { font-weight: 800; }
+    .cmp-title-sep { color: #9aa3ad; font-weight: 400; }
+    .cmp-title-part { font-size: 1.05rem; font-weight: 600; color: #212529; }
+    .cmp-title-label { color: #6c757d; font-weight: 500; }
+
+    /* ---- Interpretation cards: one row, equal widths ---- */
+    .cmp-cols { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .cmp-col-card {
+        flex: 1 1 0; min-width: 9.5rem;
+        background: #fff; border: 1px solid #e3e8ee; border-top: 3px solid #0d6efd; border-radius: .45rem;
+        padding: .45rem .7rem .5rem; line-height: 1.25;
+    }
+    .cmp-col-idx { font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: #8a9099; font-weight: 600; }
+    .cmp-col-date { font-size: 1.05rem; font-weight: 800; color: #212529; margin: .05rem 0 .15rem; }
+    .cmp-col-meta { font-size: .76rem; color: #495057; }
+    .cmp-col-faint { color: #9aa3ad; }
+
+    /* ---- Table (desktop): compact cells, sticky header, zebra rows ---- */
+    .compare-table { table-layout: auto; font-size: .92rem; }
+    .compare-table thead th { position: sticky; top: 0; z-index: 2; font-size: .8rem; padding: .45rem .5rem; box-shadow: inset 0 -1px 0 #dee2e6; }
+    .compare-table thead th.cmp-th-param { width: 28%; min-width: 11rem; }
+    .compare-table thead th.cmp-th-ref { width: 14%; min-width: 6.5rem; }
+    .compare-table thead th.cmp-th-date { min-width: 6rem; white-space: nowrap; }
+    .compare-table > tbody > tr > td { padding: .4rem .5rem; }
+    .compare-table > tbody > tr:nth-child(even):not(.table-secondary) > td { --bs-table-bg: #fafbfd; }
+    .compare-table td.cmp-label { font-size: .92rem; line-height: 1.3; }
+    .compare-table td.cmp-label .badge { font-size: .66rem; padding: .2em .4em; }
+    .compare-table td.cmp-cell { white-space: nowrap; }
+    .compare-table .cmp-val { display: inline-flex; align-items: center; gap: .3rem; }
+    .compare-table .cmp-val .badge { font-size: .62rem; padding: .22em .38em; line-height: 1; }
+    .compare-table td.cmp-ref { font-size: .8rem; }
+
     @@media (max-width: 991.98px) {
         .compare-table { font-size: clamp(.78rem, 1.7vw, .9rem); }
-        .compare-table thead th { font-size: clamp(.7rem, 1.5vw, .82rem); }
-        .compare-table thead th.cmp-th-param { min-width: 9rem !important; }
-        .compare-table thead th.cmp-th-date { min-width: 6.5rem !important; }
+        .compare-table thead th { font-size: clamp(.7rem, 1.5vw, .8rem); }
+        .compare-table thead th.cmp-th-param { min-width: 9rem; }
+        .compare-table thead th.cmp-th-date { min-width: 5rem; }
+        .cmp-title { font-size: 1.15rem; }
+        .cmp-title-part { font-size: .95rem; }
     }
     /* Card mode (toggled by the script under the table once the window is narrower
        than the threshold for the number of selected interpretations): one card per
-       analyte — name on top, then one dated chip per interpretation, then the
-       reference range. No horizontal scrolling. */
+       analyte — name on top, then one dated chip per interpretation (equal widths,
+       no empty space on the right), then the reference range. No horizontal scrolling. */
     .compare-table.cmp-cards thead { display: none; }
     .compare-table.cmp-cards, .compare-table.cmp-cards tbody, .compare-table.cmp-cards tr, .compare-table.cmp-cards td { display: block; }
     .compare-table.cmp-cards > tbody > tr { display: flex; flex-wrap: wrap; gap: .35rem; padding: .6rem 0 .7rem; border-top: 1px solid #e9ecef; }
-    .compare-table.cmp-cards > tbody > tr > td { border: 0; padding: 0; box-shadow: none; }
+    .compare-table.cmp-cards > tbody > tr > td { border: 0; padding: 0; box-shadow: none; --bs-table-bg: transparent; }
     .compare-table.cmp-cards > tbody > tr.table-secondary { display: block; padding: 0; margin-top: .75rem; }
     .compare-table.cmp-cards > tbody > tr.table-secondary > td { display: block; padding: .45rem .6rem; border-radius: .35rem; }
     .compare-table.cmp-cards td.cmp-label { flex: 1 1 100%; font-size: .95rem; }
     .compare-table.cmp-cards td.cmp-cell {
-        flex: 0 0 auto;
+        flex: 1 1 0; min-width: 5.5rem;
         text-align: left !important;
         padding: .25rem .55rem !important;
         border: 1px solid #e3e8ee;
         border-radius: .35rem;
         font-size: .86rem;
+        white-space: normal;
     }
     .compare-table.cmp-cards td.cmp-cell::before {
         content: attr(data-label);
@@ -69,12 +108,24 @@
     .compare-table.cmp-cards td.cmp-ref::before { content: attr(data-label) ": "; font-weight: 600; text-transform: uppercase; font-size: .62rem; letter-spacing: .03em; }
 </style>
 
-<div class="container-fluid py-5">
+<div class="container-fluid py-4">
     <div class="row justify-content-center">
         <div class="col-12 col-xxl-11">
-            <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
-                <h2 class="text-primary fw-bold mb-0" data-testid="compare-heading">
-                    &#128200; @Loc.T("CompareViewTitle") @Model.ProfileName
+            <div class="cmp-brand" data-testid="compare-brand">www.MyMedicalApp.net</div>
+            <div class="d-flex align-items-center mb-3 flex-wrap gap-2">
+                <h2 class="cmp-title mb-0" data-testid="compare-heading">
+                    <span class="cmp-title-main">&#128200; @Loc.T("CompareHeaderTitle")</span>
+                    @if (!string.IsNullOrWhiteSpace(Model.UserLabel))
+                    {
+                        <span class="cmp-title-sep">—</span>
+                        <span class="cmp-title-part"><span class="cmp-title-label">@Loc.T("CompareHeaderUser"):</span> <span data-testid="compare-heading-user">@Model.UserLabel</span></span>
+                        <span class="cmp-title-sep">·</span>
+                    }
+                    else
+                    {
+                        <span class="cmp-title-sep">—</span>
+                    }
+                    <span class="cmp-title-part"><span class="cmp-title-label">@Loc.T("CompareHeaderProfile"):</span> <span data-testid="compare-heading-profile">@Model.ProfileName</span></span>
                 </h2>
                 <span class="badge bg-secondary align-self-center" data-testid="compare-column-count">
                     @string.Format(Loc.T("ProfileCompareInterpretationsCount"), Model.Columns.Count)
@@ -124,40 +175,32 @@
                 @Loc.T("ProfileCompareColumnOrderHint")
             </p>
 
-            @* Column headers as cards *@
-            <div class="row g-2 mb-3">
+            @* Column headers as compact cards — always one row (2–6 equal cards) *@
+            <div class="cmp-cols mb-3">
                 @{
-                    var colorByIdx = new[] { "border-primary", "border-info", "border-warning", "border-success" };
+                    var colorByIdx = new[] { "#0d6efd", "#0dcaf0", "#ffc107", "#198754", "#6f42c1", "#fd7e14" };
                 }
                 @for (int i = 0; i < Model.Columns.Count; i++)
                 {
                     var col = Model.Columns[i];
-                    var border = colorByIdx[i % colorByIdx.Length];
-                    <div class="col-12 col-md-6 @(Model.Columns.Count > 4 ? "col-xl-2" : "col-xl-3")">
-                        <div class="card @border h-100" data-testid="compare-col-card-@i">
-                            <div class="card-body py-2">
-                                <div class="small text-muted">@string.Format(Loc.T("ProfileCompareInterpretationN"), i + 1)</div>
-                                @if (!string.IsNullOrWhiteSpace(col.PatientName))
-                                {
-                                    <div class="fw-semibold text-dark mb-1"
-                                         data-testid="compare-col-patient-@i"
-                                         title="@Loc.T("CompareViewPatientTooltip")">
-                                        <span class="text-muted small">@Loc.T("ProfileComparePatientLabel")</span> @col.PatientName
-                                    </div>
-                                }
-                                <h6 class="fw-bold mb-1" data-testid="compare-col-sampled-@i">
-                                    @Loc.T("ProfileCompareSamplingLabel")
-                                    <span class="text-dark">
-                                        @col.EffectiveDate.ToLocalTime().ToString("yyyy-MM-dd")
-                                    </span>
-                                </h6>
-                                <div class="small text-muted">
-                                    @Loc.T("ProfileCompareInterpretedLabel") @col.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")
-                                </div>
-                                <div class="small text-muted">
-                                    @string.Format(Loc.T("ProfileCompareParamsAbnormalFormat"), col.KeyResultsCount, col.AbnormalFindingsCount)
-                                </div>
+                    var accent = colorByIdx[i % colorByIdx.Length];
+                    <div class="cmp-col-card" style="border-top-color:@accent" data-testid="compare-col-card-@i">
+                        <div class="cmp-col-idx">@string.Format(Loc.T("ProfileCompareInterpretationN"), i + 1)</div>
+                        <div class="cmp-col-date" data-testid="compare-col-sampled-@i" title="@Loc.T("ProfileCompareSamplingLabel")">
+                            @col.EffectiveDate.ToLocalTime().ToString("yyyy-MM-dd")
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(col.PatientName))
+                        {
+                            <div class="cmp-col-meta text-truncate" data-testid="compare-col-patient-@i"
+                                 title="@Loc.T("CompareViewPatientTooltip")">
+                                <span class="text-muted">@Loc.T("ProfileComparePatientLabel")</span> <strong>@col.PatientName</strong>
                             </div>
+                        }
+                        <div class="cmp-col-meta">
+                            @string.Format(Loc.T("ProfileCompareParamsAbnormalFormat"), col.KeyResultsCount, col.AbnormalFindingsCount)
+                        </div>
+                        <div class="cmp-col-meta cmp-col-faint">
+                            @Loc.T("ProfileCompareInterpretedLabel") @col.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")
                         </div>
                     </div>
                 }
@@ -177,18 +220,18 @@
 
             <div class="table-responsive">
                 <table class="table table-hover align-middle compare-table" data-testid="compare-table"
-                       data-cards-below="@(Model.Columns.Count switch { <= 2 => 576, 3 => 768, 4 => 992, 5 => 1200, _ => 1400 })">
+                       data-cards-below="@(Model.Columns.Count switch { <= 2 => 576, <= 4 => 768, _ => 992 })">
                     <thead class="table-light">
                         <tr>
-                            <th class="cmp-th-param" style="min-width:180px;">@Loc.T("ProfileCompareHeaderParameter")</th>
+                            <th class="cmp-th-param">@Loc.T("ProfileCompareHeaderParameter")</th>
                             @for (int i = 0; i < Model.Columns.Count; i++)
                             {
                                 var col = Model.Columns[i];
-                                <th class="text-center cmp-th-date" style="min-width:140px;">
+                                <th class="text-center cmp-th-date">
                                     @col.EffectiveDate.ToLocalTime().ToString("yyyy-MM-dd")
                                 </th>
                             }
-                            <th class="text-muted small">@Loc.T("ProfileCompareHeaderReference")</th>
+                            <th class="text-muted small cmp-th-ref">@Loc.T("ProfileCompareHeaderReference")</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -260,7 +303,7 @@
                                         }
                                         else
                                         {
-                                            <span class="d-inline-flex align-items-center gap-1">
+                                            <span class="cmp-val">
                                                 <span>@(cell.Value ?? "-")</span>
                                                 @Html.Raw(StatusBadge(cell.Status))
                                                 @Html.Raw(CellIcon(cell.CellDirection))

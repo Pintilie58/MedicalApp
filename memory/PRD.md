@@ -54,9 +54,17 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
 - **Comparații + Dosar Medical responsive** (doar CSS + clase/`data-label`): Compare.cshtml — <576px
   card per analiză cu un „chip” datat per interpretare (păstrează culorile risen/fallen/absent) și
   intervalul dedesubt; Dossier.cshtml — tabelul `.tl` devine card per măsurătoare (dată + status +
+  tendință, laborator, benzi VALOARE / INTERVAL). Verificat mock 390/768 — 0 overflow.
 - **Comparații — prag adaptiv pentru carduri**: tabelul primește `data-cards-below` în funcție de numărul
   de interpretări (2→576, 3→768, 4→992, 5→1200, 6→1400px); un mic script `matchMedia` comută clasa
   `cmp-cards` (fără media query fixă). Verificat mock 6 coloane: tabel la 1440 fără scroll, carduri la 1366.
+- **Comparații — redesign desktop** (Compare.cshtml + `UserLabel` în VM/controller + 3 chei Loc
+  `CompareHeaderTitle/User/Profile` ×7 limbi): brand centrat „www.MyMedicalApp.net”, titlu
+  „Comparații — Utilizator: email/CabinetName · Profil: X”; casetele interpretărilor compacte pe un
+  singur rând (flex egal, accent colorat sus); tabel compact (Parametru 28%, Referință 14%, date min
+  6rem, badge-uri mici, antet sticky, zebra); praguri carduri reduse: ≤2→576, 3–4→768, 5–6→992px; în
+  modul carduri chip-urile se întind egal. Verificat mock 1920/1280/1000/390 — tabel fără scroll la
+  1000px cu 6 interpretări.
 - **Profil + Arhivă (History.cshtml) responsiv**: <992px fiecare interpretare devine card (bifă + dată,
   fișier, chip-uri Data recoltării / Analize / În afara normalului, butoane pe rând propriu). Rândul
   „În procesare” tratat separat (`h-processing`). Verificat mock 768/390 — 0 scroll orizontal.
