@@ -46,7 +46,40 @@ docker compose logs -f app
 
 Apoi: http://localhost:8080
 
-## Comenzi utile
+## Actualizarea imaginii după modificări în cod (fără schimbări în DB)
+
+Situația tipică: ai făcut modificări doar în aplicația C# (Views, Services,
+Controllers). SQL și serviciul Python nu s-au schimbat ⇒ se reconstruiește
+**doar** imaginea `app`; volumul cu baza de date rămâne neatins.
+
+```powershell
+cd C:\Projects\MedicalApp-repo
+git pull                                  # 1. aduci codul nou (după Save to GitHub)
+docker compose ps                         # 2. vezi ce rulează (sql, loinc, app)
+docker compose up -d --build app          # 3. reconstruiește DOAR app și îl repornește
+docker compose logs -f app                # 4. urmărește pornirea (Ctrl+C pentru ieșire)
+```
+
+- Pasul 3 durează 2–5 minute (restaurare NuGet + `dotnet publish`). `sql` și `loinc`
+  nu sunt atinse — nu se reconstruiesc, nu se repornesc.
+- În log trebuie să apară `Now listening on: http://[::]:8080` și, dacă
+  `Database:AutoMigrate` e activ, `EF Core migrations applied` (fără migrări noi
+  nu se schimbă nimic în bază).
+- Apoi deschide http://localhost:8080 și fă **Ctrl+F5** (CSS/JS nou).
+- Dacă ai modificat `.env` (chei, parole): `docker compose up -d app` (fără
+  `--build`) e suficient — doar repornire.
+- Curățenie ocazională (imaginile vechi rămân pe disc): `docker image prune -f`.
+
+Când ar fi nevoie și de altceva:
+
+| Ai schimbat… | Comandă |
+|---|---|
+| doar cod C# (cazul obișnuit) | `docker compose up -d --build app` |
+| `loinc_service/*` (Python) | `docker compose up -d --build loinc` (10–20 min, PyTorch) |
+| o migrare EF Core nouă | `docker compose up -d --build app` — se aplică automat la pornire (`AutoMigrate`) |
+| `docker-compose.yml` | `docker compose up -d` (recreează doar serviciile afectate) |
+| vrei bază de date goală | `docker compose down -v` apoi `docker compose up -d` (ȘTERGE datele) |
+
 
 ```powershell
 docker compose logs -f app        # log-urile aplicației C#
