@@ -294,6 +294,61 @@ Check("8e. finished jobs do not block anything",
     && !await jobStore.HasActiveForUserAsync("d@test.ro"));
 
 // =====================================================================
+//  8f. The duplicate-e-mail bug: a job queued by THIS process must never be
+//      "recovered" (= run a second time) while the process is alive.
+// =====================================================================
+db.InterpretationJobs.RemoveRange(db.InterpretationJobs);
+await db.SaveChangesAsync();
+
+var mine = new InterpretationJob(7001, "dup@test.ro", 1, "P", new byte[] { 1 }, "f.pdf", "h", "ro", false, "tok");
+await jobStore.AddAsync(mine);
+var mineRow = await db.InterpretationJobs.AsNoTracking().FirstAsync(j => j.HistoryId == 7001);
+Check("8f. AddAsync stamps the enqueuing instance as owner",
+    mineRow.Status == "queued" && mineRow.Owner == InterpretationJobStore.Instance, mineRow.Owner ?? "null");
+Check("8g. a queued job owned by this process is NOT abandoned (single instance)",
+    (await jobStore.FindAbandonedAsync(10)).Count == 0);
+await jobStore.MarkRunningAsync(7001);
+Check("8h. nor while it is running here",
+    (await jobStore.FindAbandonedAsync(10)).Count == 0);
+
+// A queued row left behind by a DEAD process (restart) IS recovered at once.
+db.InterpretationJobs.Add(new InterpretationJobRecord
+{
+    HistoryId = 7002, UserEmail = "old@test.ro", ProfileName = "P", OriginalFileName = "f.pdf",
+    LanguageCode = "ro", Status = "queued", Owner = "dead-host/1", EnqueuedAt = DateTime.UtcNow
+});
+db.InterpretationJobs.Add(new InterpretationJobRecord
+{
+    HistoryId = 7003, UserEmail = "legacy@test.ro", ProfileName = "P", OriginalFileName = "f.pdf",
+    LanguageCode = "ro", Status = "queued", Owner = null, EnqueuedAt = DateTime.UtcNow
+});
+await db.SaveChangesAsync();
+var abandoned = await jobStore.FindAbandonedAsync(10);
+Check("8i. queued rows of a dead process / legacy rows without owner are recovered",
+    abandoned.Count == 2 && abandoned.All(a => a.HistoryId is 7002 or 7003),
+    string.Join(",", abandoned.Select(a => a.HistoryId)));
+
+// Scale-out: a sibling's fresh queued row is trusted, an old one is taken over.
+var multiStore = new InterpretationJobStore(db,
+    Options.Create(new ScaleOutSettings { Enabled = true }),
+    NullLogger<InterpretationJobStore>.Instance);
+db.ChangeTracker.Clear();
+var stale = await db.InterpretationJobs.FirstAsync(j => j.HistoryId == 7002);
+stale.EnqueuedAt = DateTime.UtcNow - InterpretationJobStore.QueuedGrace - TimeSpan.FromMinutes(1);
+db.InterpretationJobs.Add(new InterpretationJobRecord
+{
+    HistoryId = 7004, UserEmail = "sib@test.ro", ProfileName = "P", OriginalFileName = "f.pdf",
+    LanguageCode = "ro", Status = "queued", Owner = "sibling/2", EnqueuedAt = DateTime.UtcNow
+});
+await db.SaveChangesAsync();
+var multi = await multiStore.FindAbandonedAsync(10);
+Check("8j. scale-out: sibling's fresh queued row is left alone, stale one + legacy are taken",
+    multi.Select(m => m.HistoryId).OrderBy(x => x).SequenceEqual(new[] { 7002, 7003 }),
+    string.Join(",", multi.Select(a => a.HistoryId)));
+db.InterpretationJobs.RemoveRange(db.InterpretationJobs);
+await db.SaveChangesAsync();
+
+// =====================================================================
 //  9. The Gemini quota is split across instances
 // =====================================================================
 var single = new GeminiRateLimitSettings { RequestsPerMinute = 60, MaxConcurrentCalls = 6 };

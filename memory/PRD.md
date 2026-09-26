@@ -83,6 +83,14 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   arată forma scurtă (`ReferenceRangeDisplay.Short`, tooltip cu textul complet), textul integral pe
   rând lat `ref-note-row` (colspan 4 / 6), în Dosar o singură dată per formulare distinctă; în modul
   carduri (<576px) banda „Interval normal” se ascunde și rămâne nota completă. Mock 1920/390 OK.
+- **BUG CRITIC rezolvat: e-mail B2C trimis de 2 ori (și apel Gemini dublu)** — cursă în coada durabilă:
+  `InterpretationController.Upload` punea job-ul în coada din memorie ÎNAINTE de `AddAsync` în SQL;
+  worker-ul apela `MarkRunningAsync` pe un rând inexistent (return silențios), rândul rămânea `queued`
+  și `InterpretationJobRecoveryWorker` îl „recupera” → a doua rulare în paralel. Fix: (1) `AddAsync`
+  înainte de `TryEnqueue` (rollback cu `RemoveAsync` dacă enqueue eșuează); (2) `AddAsync` scrie
+  `Owner = InstanceId`, iar `FindAbandonedAsync` nu mai ia rândurile (queued sau running) deținute de
+  procesul curent; în scale-out rândurile `queued` ale unui sibling sunt tolerate `QueuedGrace` = 10 min;
+  (3) `MarkRunningAsync` loghează warning dacă rândul lipsește. Probă `AzureHostingProbe` 8f–8j — ALL PASS.
 - **Profil + Arhivă (History.cshtml) responsiv**: <992px fiecare interpretare devine card (bifă + dată,
   fișier, chip-uri Data recoltării / Analize / În afara normalului, butoane pe rând propriu). Rândul
   „În procesare” tratat separat (`h-processing`). Verificat mock 768/390 — 0 scroll orizontal.

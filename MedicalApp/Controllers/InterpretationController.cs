@@ -452,21 +452,22 @@ namespace MedicalApp.Controllers
                 Force: force,
                 ProgressToken: progressToken);
 
+            // Durable queue FIRST: the row must exist before the worker can pick
+            // the job up, otherwise MarkRunningAsync finds nothing, the row stays
+            // "queued" for ever and the recovery worker re-runs the job a second
+            // time in parallel (double Gemini bill, double e-mail).
+            await _jobStore.AddAsync(job);
+
             if (!_queue.TryEnqueue(job))
             {
                 // Lost a race with another tab of the same user — undo cleanly.
+                await _jobStore.RemoveAsync(pending.Id);
                 CreditLedger.RefundOne(user);
                 _db.InterpretationHistories.Remove(pending);
                 await _db.SaveChangesAsync();
                 TempData["ErrorMessage"] = Loc.T("InterpretationAlreadyRunning");
                 return RedirectToAction(nameof(Upload));
             }
-
-            // Durable queue: the job is now also on disk, so a restart or a
-            // crashed instance cannot silently lose a paid interpretation.
-            // Written AFTER the in-memory enqueue succeeded, so a rejected job
-            // never leaves a row behind.
-            await _jobStore.AddAsync(job);
 
             _logger.LogInformation(
                 "Interpretation queued: history={Id}, user={Email}, profile={Pid}, file={File}.",

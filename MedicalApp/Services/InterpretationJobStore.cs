@@ -30,6 +30,12 @@ namespace MedicalApp.Services
         /// <summary>How many times a job is retried after a crash before giving up.</summary>
         public const int MaxAttempts = 3;
 
+        /// <summary>
+        /// How long a "queued" row owned by ANOTHER live instance is trusted to be
+        /// in that instance's memory before recovery takes it over (scale-out only).
+        /// </summary>
+        public static readonly TimeSpan QueuedGrace = TimeSpan.FromMinutes(10);
+
         private static readonly string InstanceId =
             $"{Environment.MachineName}/{Environment.ProcessId}";
 
@@ -77,6 +83,9 @@ namespace MedicalApp.Services
                 Force = job.Force,
                 ProgressToken = job.ProgressToken,
                 Status = "queued",
+                // The enqueuing instance holds the job in its in-memory channel:
+                // recovery must not treat it as abandoned while that process lives.
+                Owner = InstanceId,
                 Attempts = 0,
                 EnqueuedAt = DateTime.UtcNow
             });
@@ -87,7 +96,13 @@ namespace MedicalApp.Services
         public async Task MarkRunningAsync(int historyId, CancellationToken ct = default)
         {
             var row = await _db.InterpretationJobs.FirstOrDefaultAsync(j => j.HistoryId == historyId, ct);
-            if (row == null) return;
+            if (row == null)
+            {
+                _logger.LogWarning(
+                    "Interpretation job for history {Id} has no durable row when starting — recovery cannot track it.",
+                    historyId);
+                return;
+            }
 
             row.Status = "running";
             row.Attempts++;
@@ -148,27 +163,34 @@ namespace MedicalApp.Services
         }
 
         /// <summary>
-        /// Jobs nobody is working on: queued, or running with an expired lease
-        /// (the instance died mid-flight). Oldest first, so nobody starves.
+        /// Jobs nobody is working on: queued by an instance that no longer holds
+        /// them in memory, or running with an expired lease (the instance died
+        /// mid-flight). Oldest first, so nobody starves.
+        ///
+        /// A "queued" row owned by THIS process is sitting in our own in-memory
+        /// channel waiting for a free slot — it is NOT abandoned. A queued row
+        /// owned by a sibling instance is trusted for <see cref="QueuedGrace"/>;
+        /// after that the sibling is presumed dead (in-memory queues do not
+        /// survive a crash) and the job is taken over.
         ///
         /// With a SINGLE instance (ScaleOut disabled — local development and
-        /// today's hosting) there is nobody else who could be running a job, so
-        /// every "running" row found after a start-up is abandoned by
-        /// definition and is picked up immediately instead of waiting for the
-        /// lease to expire.
+        /// today's hosting) there is nobody else who could be holding a job, so
+        /// every row owned by another process id is abandoned by definition and
+        /// is picked up immediately instead of waiting for the lease to expire.
         /// </summary>
         public async Task<List<InterpretationJobRecord>> FindAbandonedAsync(
             int take, CancellationToken ct = default)
         {
             var now = DateTime.UtcNow;
             var singleInstance = !_scaleOut.Enabled;
+            var queuedCutoff = now - QueuedGrace;
 
             return await _db.InterpretationJobs
-                .Where(j => j.Status == "queued"
-                            || (j.Status == "running"
-                                // Never steal a job THIS process is running.
-                                && j.Owner != InstanceId
-                                && (singleInstance || j.LeaseUntil == null || j.LeaseUntil < now)))
+                .Where(j => j.Owner != InstanceId
+                            && ((j.Status == "queued"
+                                 && (singleInstance || j.Owner == null || j.EnqueuedAt < queuedCutoff))
+                                || (j.Status == "running"
+                                    && (singleInstance || j.LeaseUntil == null || j.LeaseUntil < now))))
                 .OrderBy(j => j.EnqueuedAt)
                 .Take(take)
                 .ToListAsync(ct);
