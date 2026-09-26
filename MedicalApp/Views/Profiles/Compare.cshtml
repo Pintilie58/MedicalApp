@@ -59,7 +59,13 @@
     .compare-table thead th.cmp-th-ref { width: 14%; min-width: 6.5rem; }
     .compare-table thead th.cmp-th-date { min-width: 6rem; white-space: nowrap; }
     .compare-table > tbody > tr > td { padding: .4rem .5rem; }
-    .compare-table > tbody > tr:nth-child(even):not(.table-secondary) > td { --bs-table-bg: #fafbfd; }
+    .compare-table > tbody > tr.cmp-even > td { --bs-table-bg: #fafbfd; }
+    .compare-table > tbody > tr.cmp-has-note > td { border-bottom: 0; }
+    .compare-table > tbody > tr.cmp-ref-row > td.cmp-ref-full {
+        padding: 0 .5rem .5rem; font-size: .78rem; line-height: 1.4; color: #5c6670; white-space: normal;
+    }
+    .compare-table > tbody > tr.cmp-ref-row:hover > td { --bs-table-accent-bg: transparent; }
+    .cmp-ref-full-label { font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: #8a9099; margin-right: .2rem; }
     .compare-table td.cmp-label { font-size: .92rem; line-height: 1.3; }
     .compare-table td.cmp-label .badge { font-size: .66rem; padding: .2em .4em; }
     .compare-table td.cmp-cell { white-space: nowrap; }
@@ -106,6 +112,9 @@
     }
     .compare-table.cmp-cards td.cmp-ref { flex: 1 1 100%; margin-top: .15rem; }
     .compare-table.cmp-cards td.cmp-ref::before { content: attr(data-label) ": "; font-weight: 600; text-transform: uppercase; font-size: .62rem; letter-spacing: .03em; }
+    .compare-table.cmp-cards > tbody > tr.cmp-has-note td.cmp-ref { display: none; }
+    .compare-table.cmp-cards > tbody > tr.cmp-ref-row { display: block; border-top: 0; padding: 0 0 .7rem; margin-top: -.45rem; }
+    .compare-table.cmp-cards > tbody > tr.cmp-ref-row > td.cmp-ref-full { display: block; padding: 0; }
 </style>
 
 <div class="container-fluid py-4">
@@ -235,10 +244,15 @@
                         </tr>
                     </thead>
                     <tbody>
+                        @{ int zebra = 0; }
                         @foreach (var row in Model.Rows)
                         {
+                            var refIsLong = MedicalApp.Services.ReferenceRangeDisplay.IsLong(row.ReferenceRange);
+                            var zebraClass = (zebra++ % 2 == 1) ? "cmp-even" : "cmp-odd";
                             @if (row.IsFirstInClass)
                             {
+                                zebra = 1;
+                                zebraClass = "cmp-odd";
                                 <tr class="table-secondary" data-testid="compare-class-header-@row.LoincClass">
                                     <td colspan="@(Model.Columns.Count + 2)"
                                         class="fw-bold text-uppercase small text-dark py-2"
@@ -254,7 +268,7 @@
                                     </td>
                                 </tr>
                             }
-                            <tr data-testid="compare-row-@row.Parameter.Replace(" ", "-")">
+                            <tr class="@zebraClass @(refIsLong ? "cmp-has-note" : "")" data-testid="compare-row-@row.Parameter.Replace(" ", "-")">
                                 <td class="fw-semibold cmp-label" data-testid="compare-row-label">
                                     @row.Parameter
                                     @if (!string.IsNullOrWhiteSpace(row.Unit))
@@ -311,8 +325,17 @@
                                         }
                                     </td>
                                 }
-                                <td class="small text-muted cmp-ref" data-label="@Loc.T("ProfileCompareHeaderReference")">@(row.ReferenceRange ?? "-")</td>
+                                <td class="small text-muted cmp-ref" data-label="@Loc.T("ProfileCompareHeaderReference")"
+                                    title="@(refIsLong ? row.ReferenceRange : null)">@MedicalApp.Services.ReferenceRangeDisplay.Short(row.ReferenceRange)</td>
                             </tr>
+                            @if (refIsLong)
+                            {
+                                <tr class="cmp-ref-row @zebraClass" data-testid="compare-row-ref-note">
+                                    <td colspan="@(Model.Columns.Count + 2)" class="cmp-ref-full">
+                                        <span class="cmp-ref-full-label">@Loc.T("ProfileCompareHeaderReference"):</span> @row.ReferenceRange
+                                    </td>
+                                </tr>
+                            }
                         }
                     </tbody>
                 </table>

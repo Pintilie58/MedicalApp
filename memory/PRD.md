@@ -65,6 +65,12 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   6rem, badge-uri mici, antet sticky, zebra); praguri carduri reduse: ≤2→576, 3–4→768, 5–6→992px; în
   modul carduri chip-urile se întind egal. Verificat mock 1920/1280/1000/390 — tabel fără scroll la
   1000px cu 6 interpretări.
+- **Comparații — referințe lungi** (`Services/ReferenceRangeDisplay.cs` nou): dacă referința are >24
+  caractere, coloana afișează forma scurtă (primul interval/prag numeric, ex. „2.0–3.0”, „<100”, sau „—”)
+  cu tooltip, iar textul complet apare pe un sub-rând `cmp-ref-row` pe toată lățimea (colspan), fără
+  buton, integral și pe telefon. Zebra devine `cmp-odd/cmp-even` (numărător Razor, reset la fiecare
+  clasă LOINC) ca sub-rândul să nu strice alternanța. Probă `ReferenceRangeDisplayProbe` — ALL PASS.
+  PDF-ul Comparațiilor NU a fost încă aliniat (utilizatorul nu a răspuns).
 - **Profil + Arhivă (History.cshtml) responsiv**: <992px fiecare interpretare devine card (bifă + dată,
   fișier, chip-uri Data recoltării / Analize / În afara normalului, butoane pe rând propriu). Rândul
   „În procesare” tratat separat (`h-processing`). Verificat mock 768/390 — 0 scroll orizontal.
