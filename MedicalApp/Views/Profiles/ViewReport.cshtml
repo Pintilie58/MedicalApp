@@ -115,6 +115,12 @@
         padding: .45rem .35rem;
     }
     .rt tr.locked-row td { background: #f7f8f9; }
+    .rt tr.has-ref-note td { border-bottom: 0; }
+    .rt tr.ref-note-row td.ref-note {
+        border-top: 0; padding: 0 .35rem .7rem; font-size: .78rem; line-height: 1.45; color: #5c6670; overflow-wrap: anywhere;
+    }
+    .rt tr.ref-note-row:hover td { background: transparent; }
+    .ref-note-label { font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: #8a9099; margin-right: .2rem; }
 
     .status-chip {
         display: inline-flex;
@@ -241,6 +247,9 @@
         .param-name { font-size: .98rem; }
         .explain { font-size: .8rem; }
         .rt tr.panel-row { display: block; padding: 0; border-top: 0; }
+        .rt tbody tr.has-ref-note td.col-ref { display: none; }
+        .rt tbody tr.ref-note-row { display: block; border-top: 0; padding: 0 0 .7rem; margin-top: -.45rem; }
+        .rt tbody tr.ref-note-row td.ref-note { display: block; padding: 0; }
         .rt tr.panel-row td { display: block; padding: .4rem .6rem; border-radius: .3rem; }
         .rt tr.locked-row td.col-value,
         .rt tr.locked-row td.col-ref { flex: 1 1 40%; background: transparent; padding: 0 !important; }
@@ -461,7 +470,8 @@
                                         else
                                         {
                                             var s = st(row.Status);
-                                            <tr>
+                                            var refIsLong = MedicalApp.Services.ReferenceRangeDisplay.IsLong(row.ReferenceRange);
+                                            <tr class="@(refIsLong ? "has-ref-note" : "")">
                                                 <td>
                                                     <div class="param-name" style="color:@s.Color">@row.Parameter</div>
                                                     @if (!string.IsNullOrWhiteSpace(row.AnalyteLine))
@@ -497,12 +507,21 @@
                                                         <span class="val-unit">&nbsp;@row.Unit</span>
                                                     }
                                                 </td>
-                                                <td class="col-ref" data-label="@Loc.T("ReferenceRange")">@row.ReferenceRange</td>
+                                                <td class="col-ref" data-label="@Loc.T("ReferenceRange")"
+                                                    title="@(refIsLong ? row.ReferenceRange : null)">@MedicalApp.Services.ReferenceRangeDisplay.Short(row.ReferenceRange)</td>
                                                 <td class="col-status">
                                                     <span class="status-chip" style="background:@s.Color"
                                                           title="@row.Status">@Html.Raw(s.Arrow)</span>
                                                 </td>
                                             </tr>
+                                            @if (refIsLong)
+                                            {
+                                                <tr class="ref-note-row" data-testid="report-screen-ref-note">
+                                                    <td colspan="4" class="ref-note">
+                                                        <span class="ref-note-label">@Loc.T("ReferenceRange"):</span> @row.ReferenceRange
+                                                    </td>
+                                                </tr>
+                                            }
                                         }
                                     }
                                 </tbody>

@@ -50,6 +50,9 @@
     .tl tbody tr:last-child td { border-bottom: none; }
     .tl .v { font-size: 1rem; font-weight: 700; }
     .summary-card { background: #f4f7fb; border: 1px solid #dbe4ef; border-radius: .5rem; padding: .8rem 1rem; }
+    .tl tbody tr.has-ref-note td { border-bottom: 0; }
+    .tl tbody tr.ref-note-row td.ref-note { padding: 0 .4rem .5rem; font-size: .76rem; line-height: 1.45; color: #5c6670; overflow-wrap: anywhere; }
+    .ref-note-label { font-size: .6rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: #8a9099; margin-right: .2rem; }
     @@media (max-width: 991.98px) {
         .dossier-paper { padding: 1.75rem 1.5rem 2.25rem; }
         .tl thead th { font-size: clamp(.66rem, 1.5vw, .74rem); padding: .3rem .25rem; }
@@ -74,6 +77,9 @@
         .tl tbody td.tl-value,
         .tl tbody td.tl-ref { order: 5; flex: 0 1 auto; margin-top: .4rem; padding: .25rem .55rem; background: #f4f7fb; border-radius: .35rem; }
         .tl tbody td.tl-ref { order: 6; flex: 1 1 0; min-width: 8rem; }
+        .tl tbody tr.has-ref-note td.tl-ref { display: none; }
+        .tl tbody tr.ref-note-row { display: block; padding: 0 0 .6rem; border-bottom: 1px solid #f1f4f7; }
+        .tl tbody tr.ref-note-row td.ref-note { display: block; padding: 0; }
         .tl tbody td.tl-value::before,
         .tl tbody td.tl-ref::before {
             content: attr(data-label);
@@ -256,10 +262,14 @@
                                             </tr>
                                         </thead>
                                         <tbody>
+                                            @{ string? lastRefNote = null; }
                                             @foreach (var e in a.Entries)
                                             {
                                                 var s = st(e.Status);
-                                                <tr>
+                                                var refIsLong = MedicalApp.Services.ReferenceRangeDisplay.IsLong(e.ReferenceRange);
+                                                var showNote = refIsLong && !string.Equals(lastRefNote, e.ReferenceRange!.Trim(), StringComparison.Ordinal);
+                                                if (showNote) { lastRefNote = e.ReferenceRange!.Trim(); }
+                                                <tr class="@(showNote ? "has-ref-note" : "")">
                                                     <td class="tl-date">
                                                         <strong>@e.Date.ToLocalTime().ToString("dd.MM.yyyy")</strong>
                                                         @if (!e.DateIsSampling)
@@ -272,7 +282,8 @@
                                                         <span class="v" style="color:@s.Color">@e.Value</span>
                                                         <span class="text-muted small">@e.Unit</span>
                                                     </td>
-                                                    <td class="text-muted tl-ref" data-label="@Loc.T("ReferenceRange")">@(string.IsNullOrWhiteSpace(e.ReferenceRange) ? "—" : e.ReferenceRange)</td>
+                                                    <td class="text-muted tl-ref" data-label="@Loc.T("ReferenceRange")"
+                                                        title="@(refIsLong ? e.ReferenceRange : null)">@(string.IsNullOrWhiteSpace(e.ReferenceRange) ? "—" : MedicalApp.Services.ReferenceRangeDisplay.Short(e.ReferenceRange))</td>
                                                     <td class="tl-status"><span class="fw-bold" style="color:@s.Color">@s.Label</span></td>
                                                     <td class="tl-trend">
                                                         @if (e.Trend == "up")
@@ -293,6 +304,14 @@
                                                         }
                                                     </td>
                                                 </tr>
+                                                @if (showNote)
+                                                {
+                                                    <tr class="ref-note-row" data-testid="dossier-ref-note">
+                                                        <td colspan="6" class="ref-note">
+                                                            <span class="ref-note-label">@Loc.T("ReferenceRange"):</span> @e.ReferenceRange
+                                                        </td>
+                                                    </tr>
+                                                }
                                             }
                                         </tbody>
                                     </table>

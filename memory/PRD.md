@@ -79,6 +79,10 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   scurtă + notă ColumnSpan(4) (nu la rândurile blurate freemium). `MedicalDossierPdfGenerator`: referință
   scurtă + notă o singură dată per formulare distinctă. Probă `PdfHeaderProbe` (14 verificări, PdfPig) —
   ALL PASS; randări PNG verificate vizual.
+- **Referințe lungi și pe web la „Vezi pe ecran” (ViewReport) și Dosar medical (Dossier)**: coloana
+  arată forma scurtă (`ReferenceRangeDisplay.Short`, tooltip cu textul complet), textul integral pe
+  rând lat `ref-note-row` (colspan 4 / 6), în Dosar o singură dată per formulare distinctă; în modul
+  carduri (<576px) banda „Interval normal” se ascunde și rămâne nota completă. Mock 1920/390 OK.
 - **Profil + Arhivă (History.cshtml) responsiv**: <992px fiecare interpretare devine card (bifă + dată,
   fișier, chip-uri Data recoltării / Analize / În afara normalului, butoane pe rând propriu). Rândul
   „În procesare” tratat separat (`h-processing`). Verificat mock 768/390 — 0 scroll orizontal.
