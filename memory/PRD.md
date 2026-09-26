@@ -71,6 +71,14 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   buton, integral și pe telefon. Zebra devine `cmp-odd/cmp-even` (numărător Razor, reset la fiecare
   clasă LOINC) ca sub-rândul să nu strice alternanța. Probă `ReferenceRangeDisplayProbe` — ALL PASS.
   PDF-ul Comparațiilor NU a fost încă aliniat (utilizatorul nu a răspuns).
+- **PDF-uri aliniate la aranjamentul web** (B2C + CM + CAM): `PdfBranding.BrandHeader()` (brand centrat
+  „www.MyMedicalApp.net” + linie) și `PdfBranding.ReferenceNoteRow()` (rând lat cu textul complet al
+  referinței). `ProfileComparePdfGenerator`: antet „Comparații — Utilizator: … · Profil: …”, casete
+  compacte pe un rând (accent colorat, 6 culori), coloane date 1.0, referință scurtă + notă.
+  `CamComparePdfGenerator`: același tratament (brand, casete, notă). `PdfReportGenerator`: referință
+  scurtă + notă ColumnSpan(4) (nu la rândurile blurate freemium). `MedicalDossierPdfGenerator`: referință
+  scurtă + notă o singură dată per formulare distinctă. Probă `PdfHeaderProbe` (14 verificări, PdfPig) —
+  ALL PASS; randări PNG verificate vizual.
 - **Profil + Arhivă (History.cshtml) responsiv**: <992px fiecare interpretare devine card (bifă + dată,
   fișier, chip-uri Data recoltării / Analize / În afara normalului, butoane pe rând propriu). Rândul
   „În procesare” tratat separat (`h-processing`). Verificat mock 768/390 — 0 scroll orizontal.

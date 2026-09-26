@@ -550,10 +550,11 @@ namespace MedicalApp.Services
                             }
                         });
 
-                    // Reference cell
+                    // Reference cell (short form when the text is long; full text on a note row below)
+                    bool refIsLong = !blur && ReferenceRangeDisplay.IsLong(r.ReferenceRange);
                     t.Cell().PaddingVertical(4).BorderTop(0.25f).BorderColor(Colors.Grey.Lighten2)
                         .Background(blur ? BlurRowBackground : Colors.White)
-                        .AlignCenter().Text(blur ? "█████" : (r.ReferenceRange ?? "-"))
+                        .AlignCenter().Text(blur ? "█████" : ReferenceRangeDisplay.Short(r.ReferenceRange))
                         .FontSize(9).FontColor(blur ? BlurBlockColor : MutedText);
 
                     // Status cell
@@ -561,6 +562,9 @@ namespace MedicalApp.Services
                         .Background(blur ? BlurRowBackground : Colors.White)
                         .AlignCenter().Text(blur ? "?" : arrow)
                         .FontSize(12).Bold().FontColor(blur ? BlurBlockColor : color);
+
+                    if (refIsLong)
+                        PdfBranding.ReferenceNoteRow(t, 4, labels.Reference, r.ReferenceRange!.Trim());
                 }
             });
         }

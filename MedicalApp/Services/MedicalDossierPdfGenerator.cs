@@ -149,6 +149,7 @@ namespace MedicalApp.Services
                                     Head(Loc.T("Status"));
                                     Head(Loc.T("DossierColTrend"));
 
+                                    string? lastNote = null;
                                     foreach (var e in a.Entries)
                                     {
                                         var color = e.Status switch
@@ -158,6 +159,7 @@ namespace MedicalApp.Services
                                             "borderline" => Border,
                                             _ => "#000000"
                                         };
+                                        bool refIsLong = ReferenceRangeDisplay.IsLong(e.ReferenceRange);
 
                                         table.Cell().BorderBottom(0.5f).BorderColor("#eceff3").Padding(3)
                                             .Text(t =>
@@ -179,7 +181,7 @@ namespace MedicalApp.Services
                                             });
 
                                         table.Cell().BorderBottom(0.5f).BorderColor("#eceff3").Padding(3)
-                                            .Text(e.ReferenceRange ?? "—").FontSize(8).FontColor(Muted);
+                                            .Text(ReferenceRangeDisplay.Short(e.ReferenceRange)).FontSize(8).FontColor(Muted);
 
                                         table.Cell().BorderBottom(0.5f).BorderColor("#eceff3").Padding(3)
                                             .Text(StatusLabel(e.Status)).FontSize(8).Bold().FontColor(color);
@@ -187,6 +189,13 @@ namespace MedicalApp.Services
                                         table.Cell().BorderBottom(0.5f).BorderColor("#eceff3").Padding(3)
                                             .Text(TrendLabel(e.Trend)).FontSize(8)
                                             .FontColor(e.Trend == "up" ? High : e.Trend == "down" ? Low : Muted);
+
+                                        // Full reference text once per distinct wording (same lab → same text).
+                                        if (refIsLong && !string.Equals(lastNote, e.ReferenceRange!.Trim(), StringComparison.Ordinal))
+                                        {
+                                            lastNote = e.ReferenceRange!.Trim();
+                                            PdfBranding.ReferenceNoteRow(table, 6, Loc.T("ReferenceRange"), lastNote);
+                                        }
                                     }
                                 });
                             }

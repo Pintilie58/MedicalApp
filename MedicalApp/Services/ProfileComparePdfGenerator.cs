@@ -43,12 +43,23 @@ namespace MedicalApp.Services
 
                     page.Header().Column(col =>
                     {
+                        PdfBranding.BrandHeader(col);
                         col.Item().Row(r =>
                         {
                             r.RelativeItem().Text(t =>
                             {
-                                t.Span(Loc.T("ProfileCompareTitle") + " ").FontSize(15).Bold().FontColor(Colors.Blue.Darken3);
-                                t.Span(profile.Name).FontSize(15).Bold().FontColor(Colors.Blue.Darken3);
+                                t.Span(Loc.T("CompareHeaderTitle")).FontSize(15).Bold().FontColor(Colors.Blue.Darken3);
+                                t.Span("  —  ").FontSize(13).FontColor(Colors.Grey.Medium);
+                                if (owner != null)
+                                {
+                                    var isCabinet = string.Equals(owner.UserType, "Cabinet", StringComparison.OrdinalIgnoreCase)
+                                                    && !string.IsNullOrWhiteSpace(owner.CabinetName);
+                                    t.Span(Loc.T("CompareHeaderUser") + ": ").FontSize(11).FontColor(Colors.Grey.Darken1);
+                                    t.Span(isCabinet ? owner.CabinetName! : owner.Email).FontSize(11).Bold().FontColor(Colors.Grey.Darken4);
+                                    t.Span("   ·   ").FontSize(11).FontColor(Colors.Grey.Medium);
+                                }
+                                t.Span(Loc.T("CompareHeaderProfile") + ": ").FontSize(11).FontColor(Colors.Grey.Darken1);
+                                t.Span(profile.Name).FontSize(11).Bold().FontColor(Colors.Grey.Darken4);
                             });
                             r.ConstantItem(140)
                                 .AlignRight()
@@ -57,26 +68,6 @@ namespace MedicalApp.Services
                                 .Text(string.Format(Loc.T("ProfileCompareInterpretationsCount"), vm.Columns.Count))
                                 .FontSize(9).FontColor(Colors.White).Bold();
                         });
-                        col.Item().PaddingTop(3).Row(r =>
-                        {
-                            r.RelativeItem().Text(t =>
-                            {
-                                if (owner != null)
-                                {
-                                    var isCabinet = string.Equals(owner.UserType, "Cabinet", StringComparison.OrdinalIgnoreCase)
-                                                    && !string.IsNullOrWhiteSpace(owner.CabinetName);
-                                    t.Span(Loc.T(isCabinet ? "ProfileCompareCabinetLabel" : "ProfileCompareAccountLabel"))
-                                        .FontSize(12).FontColor(Colors.Grey.Darken1);
-                                    t.Span(isCabinet ? owner.CabinetName! : owner.Email)
-                                        .FontSize(12).Bold().FontColor(Colors.Blue.Darken3);
-                                    t.Span("   ·   ").FontSize(12).FontColor(Colors.Grey.Medium);
-                                }
-                                t.Span(Loc.T("ProfileCompareProfileLabel")).FontSize(12).FontColor(Colors.Grey.Darken1);
-                                t.Span(profile.Name).FontSize(12).Bold().FontColor(Colors.Blue.Darken3);
-                            });
-                            r.ConstantItem(140).AlignRight().Text(PdfBranding.Website)
-                                .FontSize(9).SemiBold().FontColor(Colors.Blue.Medium);
-                        });
                         col.Item().PaddingTop(4).PaddingBottom(2).Text(
                             Loc.T("ProfileCompareColumnOrderHint"))
                             .FontSize(8).Italic().FontColor(Colors.Grey.Darken1);
@@ -84,49 +75,41 @@ namespace MedicalApp.Services
 
                     page.Content().Column(content =>
                     {
-                        // ---------- Per-column mini cards ----------
+                        // ---------- Per-column mini cards (compact, one row) ----------
                         var cardBorders = new[]
                         {
-                            Colors.Blue.Medium, Colors.Cyan.Medium,
-                            Colors.Orange.Medium, Colors.Green.Medium
+                            "#0d6efd", "#0dcaf0", "#ffc107", "#198754", "#6f42c1", "#fd7e14"
                         };
                         content.Item().PaddingBottom(6).Row(row =>
                         {
                             for (int i = 0; i < vm.Columns.Count; i++)
                             {
                                 var c = vm.Columns[i];
-                                var border = cardBorders[i % cardBorders.Length];
+                                var accent = cardBorders[i % cardBorders.Length];
                                 row.RelativeItem().PaddingRight(i == vm.Columns.Count - 1 ? 0 : 4)
-                                    .Border(0.7f).BorderColor(border)
-                                    .Padding(6).Column(card =>
+                                    .Border(0.5f).BorderColor("#e3e8ee").BorderTop(2).BorderColor(accent)
+                                    .PaddingVertical(4).PaddingHorizontal(6).Column(card =>
                                 {
-                                    card.Item().Text(string.Format(Loc.T("ProfileCompareInterpretationN"), i + 1))
-                                        .FontSize(8).FontColor(Colors.Grey.Darken1);
+                                    card.Item().Text(string.Format(Loc.T("ProfileCompareInterpretationN"), i + 1).ToUpperInvariant())
+                                        .FontSize(6.5f).Bold().FontColor("#8a9099");
+                                    card.Item().Text(c.EffectiveDate.ToLocalTime().ToString("yyyy-MM-dd"))
+                                        .FontSize(11).Bold().FontColor(Colors.Grey.Darken4);
                                     if (!string.IsNullOrWhiteSpace(c.PatientName))
                                     {
                                         card.Item().Text(t =>
                                         {
-                                            t.Span(Loc.T("ProfileComparePatientLabel") + " ").FontSize(8).FontColor(Colors.Grey.Darken1);
-                                            t.Span(c.PatientName).FontSize(9).SemiBold()
-                                                .FontColor(Colors.Grey.Darken3);
+                                            t.Span(Loc.T("ProfileComparePatientLabel") + " ").FontSize(7.5f).FontColor(Colors.Grey.Darken1);
+                                            t.Span(c.PatientName).FontSize(7.5f).SemiBold().FontColor(Colors.Grey.Darken3);
                                         });
                                     }
-                                    card.Item().Text(t =>
-                                    {
-                                        t.Span(Loc.T("ProfileCompareSamplingLabel") + " ").FontSize(9).Bold();
-                                        t.Span(c.EffectiveDate.ToLocalTime().ToString("yyyy-MM-dd"))
-                                            .FontSize(9).Bold();
-                                    });
-                                    card.Item().Text(
-                                        $"{Loc.T("ProfileCompareInterpretedLabel")} {c.CreatedAt.ToLocalTime():yyyy-MM-dd}")
-                                        .FontSize(8).FontColor(Colors.Grey.Darken1);
                                     card.Item().Text(
                                         string.Format(Loc.T("ProfileCompareParamsAbnormalFormat"), c.KeyResultsCount, c.AbnormalFindingsCount))
-                                        .FontSize(8).FontColor(Colors.Grey.Darken1);
+                                        .FontSize(7.5f).FontColor(Colors.Grey.Darken2);
+                                    card.Item().Text(
+                                        $"{Loc.T("ProfileCompareInterpretedLabel")} {c.CreatedAt.ToLocalTime():yyyy-MM-dd}")
+                                        .FontSize(7).FontColor("#9aa3ad");
                                 });
                             }
-                            for (int i = vm.Columns.Count; i < CompareInterpretationsViewModel.MaxSelections; i++)
-                                row.RelativeItem();
                         });
 
                         // ---------- Summary badges row ----------
@@ -152,9 +135,9 @@ namespace MedicalApp.Services
                         {
                             table.ColumnsDefinition(c =>
                             {
-                                c.RelativeColumn(2.6f);
+                                c.RelativeColumn(2.8f);
                                 for (int i = 0; i < dateLabels.Count; i++)
-                                    c.RelativeColumn(1.4f);
+                                    c.RelativeColumn(1.0f);
                                 c.RelativeColumn(1.3f);
                             });
 
@@ -241,8 +224,11 @@ namespace MedicalApp.Services
                                     });
                                 }
 
-                                table.Cell().Element(BodyCellStyle).Text(row.ReferenceRange ?? "-")
+                                table.Cell().Element(BodyCellStyle).Text(ReferenceRangeDisplay.Short(row.ReferenceRange))
                                     .FontSize(8).FontColor(Colors.Grey.Darken2);
+                                if (ReferenceRangeDisplay.IsLong(row.ReferenceRange))
+                                    PdfBranding.ReferenceNoteRow(table, (uint)colSpanTotal,
+                                        Loc.T("ProfileCompareHeaderReference"), row.ReferenceRange!.Trim());
                             }
                         });
 
