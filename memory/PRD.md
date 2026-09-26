@@ -91,6 +91,12 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   `Owner = InstanceId`, iar `FindAbandonedAsync` nu mai ia rândurile (queued sau running) deținute de
   procesul curent; în scale-out rândurile `queued` ale unui sibling sunt tolerate `QueuedGrace` = 10 min;
   (3) `MarkRunningAsync` loghează warning dacă rândul lipsește. Probă `AzureHostingProbe` 8f–8j — ALL PASS.
+- **Raport Interpretare — explicația și LOINC pe toată lățimea** (web `ViewReport.cshtml` + `PdfReportGenerator`,
+  folosit de B2C/B2B/CM): rândul principal conține doar nume + metadate analit | valoare | interval | status
+  (aliniere verticală middle), iar explicația + linia LOINC trec pe un rând `rt-detail` colspan 4 (PDF:
+  `ColumnSpan(4)`). Rândurile blurate freemium au aceeași structură (bară + „Disponibil în versiunea
+  completă” pe rândul lat). Ordinea: principal → notă interval lung → detaliu. Verificat PDF (complet +
+  freemium, PNG) și mock web 1920/390.
 - **Profil + Arhivă (History.cshtml) responsiv**: <992px fiecare interpretare devine card (bifă + dată,
   fișier, chip-uri Data recoltării / Analize / În afara normalului, butoane pe rând propriu). Rândul
   „În procesare” tratat separat (`h-processing`). Verificat mock 768/390 — 0 scroll orizontal.

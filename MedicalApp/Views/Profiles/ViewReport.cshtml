@@ -116,6 +116,13 @@
     }
     .rt tr.locked-row td { background: #f7f8f9; }
     .rt tr.has-ref-note td { border-bottom: 0; }
+    /* Full-width detail row (explanation + LOINC) under the compact main row. */
+    .rt tr.rt-main td { vertical-align: middle; }
+    .rt tr.rt-detail td.rt-detail-cell { border-top: 0; padding: 0 .35rem .7rem; }
+    .rt tr.rt-main.has-detail td, .rt tr.rt-main.has-ref-note td { padding-bottom: .3rem; }
+    .rt tr.rt-detail:hover td { background: transparent; }
+    .rt tr.rt-detail .explain { margin-top: 0; }
+    .rt tr.locked-row.rt-detail td { background: #f7f8f9; }
     .rt tr.ref-note-row td.ref-note {
         border-top: 0; padding: 0 .35rem .7rem; font-size: .78rem; line-height: 1.45; color: #5c6670; overflow-wrap: anywhere;
     }
@@ -248,6 +255,9 @@
         .explain { font-size: .8rem; }
         .rt tr.panel-row { display: block; padding: 0; border-top: 0; }
         .rt tbody tr.has-ref-note td.col-ref { display: none; }
+        .rt tbody tr.rt-detail { display: block; border-top: 0; padding: 0 0 .7rem; margin-top: -.45rem; }
+        .rt tbody tr.rt-detail td.rt-detail-cell { display: block; padding: 0; }
+        .rt tbody tr.rt-main.has-detail, .rt tbody tr.rt-main.has-ref-note { padding-bottom: .35rem; }
         .rt tbody tr.ref-note-row { display: block; border-top: 0; padding: 0 0 .7rem; margin-top: -.45rem; }
         .rt tbody tr.ref-note-row td.ref-note { display: block; padding: 0; }
         .rt tr.panel-row td { display: block; padding: .4rem .6rem; border-radius: .3rem; }
@@ -456,48 +466,32 @@
 
                                         if (row.Locked)
                                         {
-                                            <tr class="locked-row" data-testid="report-screen-row-locked">
+                                            <tr class="locked-row rt-main" data-testid="report-screen-row-locked">
                                                 <td>
                                                     <div class="locked-bar" style="width:62%"></div>
-                                                    <div class="locked-bar" style="width:88%"></div>
-                                                    <div class="locked-note">&#128274; @lockedLabel</div>
                                                 </td>
                                                 <td class="col-value"><div class="locked-bar" style="width:100%"></div></td>
                                                 <td class="col-ref"><div class="locked-bar" style="width:100%"></div></td>
                                                 <td class="col-status text-secondary fw-bold">?</td>
+                                            </tr>
+                                            <tr class="locked-row rt-detail">
+                                                <td colspan="4" class="rt-detail-cell">
+                                                    <div class="locked-bar" style="width:92%"></div>
+                                                    <div class="locked-note">&#128274; @lockedLabel</div>
+                                                </td>
                                             </tr>
                                         }
                                         else
                                         {
                                             var s = st(row.Status);
                                             var refIsLong = MedicalApp.Services.ReferenceRangeDisplay.IsLong(row.ReferenceRange);
-                                            <tr class="@(refIsLong ? "has-ref-note" : "")">
+                                            var hasDetail = !string.IsNullOrWhiteSpace(row.Explanation) || !string.IsNullOrWhiteSpace(row.LoincCode);
+                                            <tr class="rt-main @(refIsLong ? "has-ref-note" : "") @(hasDetail ? "has-detail" : "")">
                                                 <td>
                                                     <div class="param-name" style="color:@s.Color">@row.Parameter</div>
                                                     @if (!string.IsNullOrWhiteSpace(row.AnalyteLine))
                                                     {
                                                         <div class="analyte-line">@row.AnalyteLine</div>
-                                                    }
-                                                    @if (!string.IsNullOrWhiteSpace(row.Explanation))
-                                                    {
-                                                        <div class="explain">@row.Explanation</div>
-                                                    }
-                                                    @if (!string.IsNullOrWhiteSpace(row.LoincCode))
-                                                    {
-                                                        <div class="loinc-line">
-                                                            LOINC <strong>@row.LoincCode</strong>
-                                                            @if (!string.IsNullOrWhiteSpace(row.LoincLongName))
-                                                            {
-                                                                <text>&nbsp;&middot;&nbsp;@row.LoincLongName</text>
-                                                            }
-                                                            <span class="loinc-dot ms-1"
-                                                                  style="color:@LoincSourceBadge.GetDotColor(row.LoincSource)"
-                                                                  title="@LoincSourceBadge.GetTooltip(row.LoincSource)">&#9679;</span>
-                                                            @if (!LoincSourceBadge.IsVerified(row.LoincSource) && row.LoincScore.HasValue)
-                                                            {
-                                                                <text>@($" {(int)Math.Round(row.LoincScore.Value * 100)}%")</text>
-                                                            }
-                                                        </div>
                                                     }
                                                 </td>
                                                 <td class="col-value" data-label="@Loc.T("ValueLabel")">
@@ -519,6 +513,34 @@
                                                 <tr class="ref-note-row" data-testid="report-screen-ref-note">
                                                     <td colspan="4" class="ref-note">
                                                         <span class="ref-note-label">@Loc.T("ReferenceRange"):</span> @row.ReferenceRange
+                                                    </td>
+                                                </tr>
+                                            }
+                                            @if (hasDetail)
+                                            {
+                                                <tr class="rt-detail" data-testid="report-screen-row-detail">
+                                                    <td colspan="4" class="rt-detail-cell">
+                                                        @if (!string.IsNullOrWhiteSpace(row.Explanation))
+                                                        {
+                                                            <div class="explain">@row.Explanation</div>
+                                                        }
+                                                        @if (!string.IsNullOrWhiteSpace(row.LoincCode))
+                                                        {
+                                                            <div class="loinc-line">
+                                                                LOINC <strong>@row.LoincCode</strong>
+                                                                @if (!string.IsNullOrWhiteSpace(row.LoincLongName))
+                                                                {
+                                                                    <text>&nbsp;&middot;&nbsp;@row.LoincLongName</text>
+                                                                }
+                                                                <span class="loinc-dot ms-1"
+                                                                      style="color:@LoincSourceBadge.GetDotColor(row.LoincSource)"
+                                                                      title="@LoincSourceBadge.GetTooltip(row.LoincSource)">&#9679;</span>
+                                                                @if (!LoincSourceBadge.IsVerified(row.LoincSource) && row.LoincScore.HasValue)
+                                                                {
+                                                                    <text>@($" {(int)Math.Round(row.LoincScore.Value * 100)}%")</text>
+                                                                }
+                                                            </div>
+                                                        }
                                                     </td>
                                                 </tr>
                                             }

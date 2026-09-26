@@ -477,7 +477,10 @@ namespace MedicalApp.Services
                     lastHeader = currentHeader;
                     firstIteration = false;
 
-                    // Parameter cell
+                    // Parameter cell: name + inline analyte metadata only. The explanation
+                    // and the LOINC line go on a full-width detail row below, so the
+                    // value / reference / status cells never leave empty space under them.
+                    var caption = blur ? null : AnalyteLineDisplay.Clean(r.AnalyteLineRaw, r.Parameter, r.Value, r.Unit, r.ReferenceRange);
                     t.Cell().PaddingVertical(4).BorderTop(0.25f).BorderColor(Colors.Grey.Lighten2)
                         .Background(blur ? BlurRowBackground : Colors.White)
                         .Column(c =>
@@ -486,50 +489,16 @@ namespace MedicalApp.Services
                             {
                                 c.Item().Text(BlockText(r.Parameter ?? "Parameter", 18))
                                     .SemiBold().FontSize(10).FontColor(BlurBlockColor);
-                                c.Item().PaddingTop(1).Text(BlockText("explanation", 50))
-                                    .FontSize(8).FontColor(BlurBlockColor);
-                                c.Item().PaddingTop(2).Text(text =>
-                                {
-                                    text.Span("▪ ").FontSize(8).FontColor(MutedText);
-                                    text.Span(labels.FreemiumLockedLabel).FontSize(7).Italic().FontColor(MutedText);
-                                });
                             }
                             else
                             {
                                 c.Item().Text(r.Parameter).SemiBold().FontSize(10).FontColor(color);
                                 // Inline analyte metadata copied verbatim from the PDF row
                                 // (specimen + method + analyzer, e.g.
-                                // "-Ser - Turbidimetrie (ABX PENTRA C400 ISE)"). Displayed
-                                // between the analyte name and the explanation so the user
-                                // can see exactly which lab methodology produced the value
-                                // and how the downstream LOINC axes were resolved.
-                                var caption = AnalyteLineDisplay.Clean(r.AnalyteLineRaw, r.Parameter, r.Value, r.Unit, r.ReferenceRange);
+                                // "-Ser - Turbidimetrie (ABX PENTRA C400 ISE)").
                                 if (caption != null)
                                     c.Item().PaddingTop(1).Text(caption)
                                         .Italic().FontSize(8).FontColor(MutedText);
-                                if (!string.IsNullOrWhiteSpace(r.Explanation))
-                                    c.Item().PaddingTop(1).Text(r.Explanation).FontSize(8).FontColor(MutedText);
-                                if (!string.IsNullOrWhiteSpace(r.LoincCode))
-                                {
-                                    c.Item().PaddingTop(2).Text(text =>
-                                    {
-                                        text.Span("LOINC ").FontSize(7).FontColor(MutedText);
-                                        text.Span(r.LoincCode!).FontSize(7).SemiBold().FontColor(MutedText);
-                                        if (!string.IsNullOrWhiteSpace(r.LoincLongName))
-                                        {
-                                            text.Span("  ·  ").FontSize(7).FontColor(MutedText);
-                                            text.Span(r.LoincLongName!).FontSize(7).FontColor(MutedText);
-                                        }
-                                        text.Span("  ").FontSize(7);
-                                        text.Span("●").FontSize(8)
-                                            .FontColor(LoincSourceBadge.GetPdfColor(r.LoincSource));
-                                        if (!LoincSourceBadge.IsVerified(r.LoincSource) && r.LoincScore.HasValue)
-                                        {
-                                            text.Span($" {(int)System.Math.Round(r.LoincScore.Value * 100)}%")
-                                                .FontSize(7).FontColor(MutedText);
-                                        }
-                                    });
-                                }
                             }
                         });
 
@@ -565,6 +534,52 @@ namespace MedicalApp.Services
 
                     if (refIsLong)
                         PdfBranding.ReferenceNoteRow(t, 4, labels.Reference, r.ReferenceRange!.Trim());
+
+                    // Full-width detail row: explanation + LOINC line (blurred bars for
+                    // locked freemium rows).
+                    bool hasDetail = blur || !string.IsNullOrWhiteSpace(r.Explanation) || !string.IsNullOrWhiteSpace(r.LoincCode);
+                    if (hasDetail)
+                    {
+                        t.Cell().ColumnSpan(4).PaddingTop(0).PaddingBottom(4)
+                            .Background(blur ? BlurRowBackground : Colors.White)
+                            .Column(c =>
+                            {
+                                if (blur)
+                                {
+                                    c.Item().Text(BlockText("explanation", 110))
+                                        .FontSize(8).FontColor(BlurBlockColor);
+                                    c.Item().PaddingTop(2).Text(text =>
+                                    {
+                                        text.Span("▪ ").FontSize(8).FontColor(MutedText);
+                                        text.Span(labels.FreemiumLockedLabel).FontSize(7).Italic().FontColor(MutedText);
+                                    });
+                                    return;
+                                }
+                                if (!string.IsNullOrWhiteSpace(r.Explanation))
+                                    c.Item().Text(r.Explanation).FontSize(8).FontColor(MutedText);
+                                if (!string.IsNullOrWhiteSpace(r.LoincCode))
+                                {
+                                    c.Item().PaddingTop(2).Text(text =>
+                                    {
+                                        text.Span("LOINC ").FontSize(7).FontColor(MutedText);
+                                        text.Span(r.LoincCode!).FontSize(7).SemiBold().FontColor(MutedText);
+                                        if (!string.IsNullOrWhiteSpace(r.LoincLongName))
+                                        {
+                                            text.Span("  ·  ").FontSize(7).FontColor(MutedText);
+                                            text.Span(r.LoincLongName!).FontSize(7).FontColor(MutedText);
+                                        }
+                                        text.Span("  ").FontSize(7);
+                                        text.Span("●").FontSize(8)
+                                            .FontColor(LoincSourceBadge.GetPdfColor(r.LoincSource));
+                                        if (!LoincSourceBadge.IsVerified(r.LoincSource) && r.LoincScore.HasValue)
+                                        {
+                                            text.Span($" {(int)System.Math.Round(r.LoincScore.Value * 100)}%")
+                                                .FontSize(7).FontColor(MutedText);
+                                        }
+                                    });
+                                }
+                            });
+                    }
                 }
             });
         }
