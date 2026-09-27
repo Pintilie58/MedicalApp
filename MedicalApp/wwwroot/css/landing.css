@@ -253,6 +253,17 @@ body.landing-body a.land-btn-accent:hover {
     background: var(--land-coral-cta-dark); color: #fff;
     box-shadow: 0 8px 20px rgba(176, 70, 43, 0.30);
 }
+/* Admin-driven discount CTA ("Credits −20%"): only rendered while a B2C discount is active. */
+.land-btn-promo {
+    background: #c62828; color: #fff; font-weight: 800;
+    box-shadow: 0 6px 16px rgba(198, 40, 40, 0.30);
+    animation: land-promo-pulse 2.4s ease-in-out infinite;
+}
+.land-btn-promo:hover { background: #a51f1f; color: #fff; box-shadow: 0 8px 22px rgba(198, 40, 40, 0.42); }
+@keyframes land-promo-pulse {
+    0%, 100% { box-shadow: 0 6px 16px rgba(198, 40, 40, 0.30); }
+    50% { box-shadow: 0 6px 26px rgba(198, 40, 40, 0.55); }
+}
 .land-btn-ghost {
     background: transparent; color: var(--land-ink);
     border-color: var(--land-border);

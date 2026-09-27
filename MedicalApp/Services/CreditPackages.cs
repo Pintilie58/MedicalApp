@@ -13,7 +13,13 @@ namespace MedicalApp.Services
         string NameKey,
         decimal PriceEur,
         int Credits,
-        string Audience = "Individual");
+        string Audience = "Individual",
+        decimal? OriginalPriceEur = null,
+        int DiscountPercent = 0)
+    {
+        public bool IsDiscounted => DiscountPercent > 0 && OriginalPriceEur.HasValue;
+        public decimal SavingEur => IsDiscounted ? OriginalPriceEur!.Value - PriceEur : 0m;
+    }
 
     /// <summary>
     /// Available credit packages. Kept as code constants for now; can be moved to DB later.
@@ -38,14 +44,15 @@ namespace MedicalApp.Services
 
             // ----- B2B (Clinici de Analize Medicale) -----
             // Stabilit cu utilizatorul Feb 2026. Discount progresiv:
-            //   50 EUR  →  17 credite (~2.94 EUR/credit) — pachet "Starter" pentru pilot
-            //   500 EUR → 183 credite (~2.73 EUR/credit) — pachet "Business" zilnic
-            //  1000 EUR → 390 credite (~2.56 EUR/credit) — pachet "Enterprise" volum mare
+            //   49 EUR  →  17 credite (~2.88 EUR/credit) — pachet "Starter" pentru pilot
+            //   499 EUR → 183 credite (~2.73 EUR/credit) — pachet "Business" zilnic
+            //   999 EUR → 390 credite (~2.56 EUR/credit) — pachet "Enterprise" volum mare
+            // (Prețuri psihologice 49/499/999 din sept. 2026, creditele neschimbate.)
             // Cheile vechi (cam_test / cam_pro) au fost retrase; istoricul Purchases
             // care le conține se afișează corect pe baza credit/eur snapshot-uite.
-            new("cam_starter",    "PackageCamStarter",    50m,   17,  "Clinic"),
-            new("cam_business",   "PackageCamBusiness",   500m,  183, "Clinic"),
-            new("cam_enterprise", "PackageCamEnterprise", 1000m, 390, "Clinic"),
+            new("cam_starter",    "PackageCamStarter",    49m,   17,  "Clinic"),
+            new("cam_business",   "PackageCamBusiness",   499m,  183, "Clinic"),
+            new("cam_enterprise", "PackageCamEnterprise", 999m,  390, "Clinic"),
 
             // ----- CM (Cabinet Medical, iunie 2026) -----
             // Un singur pachet: 89 EUR → 45 credite (~1.98 EUR/credit). Aceeași

@@ -24,9 +24,20 @@
                             <strong>@pkg.Credits</strong>
                         </div>
                         <hr />
+                        @if (pkg.IsDiscounted)
+                        {
+                            <div class="d-flex justify-content-between mb-1 text-muted">
+                                <span>@Loc.T("PromoOldPrice")</span>
+                                <s data-testid="checkout-old-price">@pkg.OriginalPriceEur!.Value.ToString("0")€</s>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2 text-danger fw-semibold">
+                                <span>@string.Format(Loc.T("PromoBadgeOff"), pkg.DiscountPercent)</span>
+                                <span data-testid="checkout-saving">−@pkg.SavingEur.ToString("0.##")€</span>
+                            </div>
+                        }
                         <div class="d-flex justify-content-between fs-5">
                             <strong>@Loc.T("Total")</strong>
-                            <strong class="text-primary">@pkg.PriceEur.ToString("0")€</strong>
+                            <strong class="@(pkg.IsDiscounted ? "text-danger" : "text-primary")" data-testid="checkout-total">@pkg.PriceEur.ToString("0")€</strong>
                         </div>
                     }
                 </div>

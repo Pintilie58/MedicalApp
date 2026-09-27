@@ -26,7 +26,20 @@
         </span>
     </div>
 
-    <div class="row g-4 justify-content-center mt-2">
+    @if (ViewBag.PurchasesSuspended == true)
+    {
+        <div class="alert alert-warning text-center fs-5 py-4" data-testid="credits-suspended">
+            <i class="bi bi-pause-circle me-2"></i>@Loc.T("PromoPurchasesSuspended")
+        </div>
+    }
+    else if ((int)(ViewBag.DiscountPercent ?? 0) > 0)
+    {
+        <div class="alert alert-danger text-center fw-semibold" data-testid="credits-promo-banner">
+            <i class="bi bi-tag-fill me-2"></i>@string.Format(Loc.T("PromoBannerBuy"), (int)ViewBag.DiscountPercent)
+        </div>
+    }
+
+    <div class="row g-4 justify-content-center mt-2 @(ViewBag.PurchasesSuspended == true ? "d-none" : "")">
         @{
             // 3 boxes for CAM (Clinic audience) → col-lg-4 fills the row.
             // 4 boxes for B2C (Individual)     → col-lg-3 fills the row.
@@ -43,17 +56,31 @@
             var isPopular = pkg.Key == "super" || pkg.Key == "cam_business";
             var cardClass = isPopular ? "border-primary shadow-lg pkg-popular" : "shadow-sm";
             <div class="@colCls">
-                <div class="card h-100 border-0 @cardClass position-relative">
+                <div class="card h-100 border-0 @cardClass position-relative @(pkg.IsDiscounted ? "pkg-discounted" : "")" data-testid="package-card-@pkg.Key">
                     @if (isPopular)
                     {
                         <span class="badge bg-primary position-absolute start-50 px-3 py-2 pkg-popular-badge">
                             @Loc.T("MostPopular")
                         </span>
                     }
+                    @if (pkg.IsDiscounted)
+                    {
+                        <span class="pkg-discount-ribbon" data-testid="package-discount-@pkg.Key">@string.Format(Loc.T("PromoBadgeOff"), pkg.DiscountPercent)</span>
+                    }
                     <div class="card-body text-center d-flex flex-column">
                         <h4 class="card-title mt-2">@Loc.T(pkg.NameKey)</h4>
                         <div class="my-3">
-                            <span class="display-4 fw-bold text-primary">@pkg.PriceEur.ToString("0")€</span>
+                            @if (pkg.IsDiscounted)
+                            {
+                                <div class="pkg-old-price" title="@Loc.T("PromoOldPrice")">
+                                    <s data-testid="package-old-price-@pkg.Key">@pkg.OriginalPriceEur!.Value.ToString("0")€</s>
+                                </div>
+                            }
+                            <span class="display-4 fw-bold @(pkg.IsDiscounted ? "text-danger" : "text-primary")" data-testid="package-price-@pkg.Key">@pkg.PriceEur.ToString("0")€</span>
+                            @if (pkg.IsDiscounted)
+                            {
+                                <div class="pkg-saving" data-testid="package-saving-@pkg.Key">@string.Format(Loc.T("PromoYouSave"), pkg.SavingEur.ToString("0.##"))</div>
+                            }
                         </div>
                         <div class="mb-3">
                             <span class="fs-3 fw-semibold">@pkg.Credits</span>
@@ -101,6 +128,20 @@
     /* Make the "Most popular" ribbon sit fully inside the card, anchored
        at the top edge, so it isn't half-clipped above the card body. */
     .pkg-popular { padding-top: 18px; }
+    .pkg-discounted { outline: 2px solid #dc3545; outline-offset: -2px; }
+    .pkg-discount-ribbon {
+        position: absolute; top: 14px; right: -6px; z-index: 6;
+        background: #dc3545; color: #fff; font-weight: 800; font-size: .95rem; letter-spacing: .02em;
+        padding: .3rem .8rem .3rem .9rem; border-radius: .35rem 0 0 .35rem;
+        box-shadow: 0 4px 10px rgba(220, 53, 69, .35);
+    }
+    .pkg-discount-ribbon::after {
+        content: ""; position: absolute; right: 0; bottom: -6px; border-width: 0 6px 6px 0;
+        border-style: solid; border-color: transparent #a52834 transparent transparent;
+    }
+    .pkg-old-price { font-size: 1.25rem; color: #8a9099; line-height: 1; margin-bottom: .1rem; }
+    .pkg-popular .pkg-discount-ribbon { top: 46px; }
+    .pkg-saving { display: inline-block; margin-top: .35rem; font-size: .85rem; font-weight: 700; color: #b02a37; background: #fdecee; border-radius: 999px; padding: .15rem .7rem; }
     .pkg-popular-badge {
         top: 12px;
         transform: translateX(-50%);

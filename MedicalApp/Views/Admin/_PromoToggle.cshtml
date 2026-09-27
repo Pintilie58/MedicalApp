@@ -1,0 +1,16 @@
+@model (string Module, int Level, bool On)
+@{
+    var testId = $"promo-toggle-{Model.Level}-{Model.Module.ToLowerInvariant()}";
+}
+<form asp-controller="Admin" asp-action="SetPromotion" method="post" class="d-inline">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="module" value="@Model.Module" />
+    <input type="hidden" name="level" value="@Model.Level" />
+    <input type="hidden" name="enabled" value="@((!Model.On).ToString().ToLowerInvariant())" />
+    <button type="submit"
+            class="btn btn-sm fw-bold px-3 @(Model.On ? "btn-success" : "btn-outline-secondary")"
+            style="min-width: 4.5rem"
+            data-testid="@testId" data-state="@(Model.On ? "on" : "off")">
+        @(Model.On ? Loc.T("AdminPromoYes") : Loc.T("AdminPromoNo"))
+    </button>
+</form>

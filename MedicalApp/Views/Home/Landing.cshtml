@@ -18,6 +18,8 @@
     // account-type option (per user request Feb 2026: only Persoană fizică
     // may sign up when the user arrives via a "free interpretation" button).
     string AuthUrlFree(string tab) => Url.Action("Auth", "Home", new { tab = tab, flow = "free" }) ?? "/Home/Auth";
+    string AuthUrlCredits() => Url.Action("Auth", "Home", new { tab = "login", flow = "credits" }) ?? "/Home/Auth";
+    int landingDiscount = ViewData["LandingDiscountPercent"] is int _ld ? _ld : 0;
 }
 <!DOCTYPE html>
 <html lang="@current">
@@ -85,6 +87,12 @@
                     }
                 </div>
             </div>
+            @if (landingDiscount > 0)
+            {
+                <a href="@AuthUrlCredits()" class="land-btn land-btn-promo" data-testid="land-promo-button">
+                    &#127991; @string.Format(Loc.T("LandingPromoButton"), landingDiscount)
+                </a>
+            }
             <a href="@AuthUrl("login")" class="land-btn land-btn-ghost" data-testid="land-signin">
                 @Loc.T("NavSignIn")
             </a>
@@ -140,6 +148,12 @@
                     <a href="#how" class="land-btn land-btn-ghost land-btn-lg" data-testid="hero-cta-secondary">
                         @Loc.T("HeroCtaSecondary")
                     </a>
+                    @if (landingDiscount > 0)
+                    {
+                        <a href="@AuthUrlCredits()" class="land-btn land-btn-promo land-btn-lg" data-testid="hero-promo-button">
+                            &#127991; @string.Format(Loc.T("LandingPromoButton"), landingDiscount)
+                        </a>
+                    }
                 </div>
                 <div class="land-hero-stats">
                     <div><strong>30+</strong><span>@Loc.T("HeroStatLangs")</span></div>

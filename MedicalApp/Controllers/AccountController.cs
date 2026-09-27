@@ -522,6 +522,11 @@ namespace MedicalApp.Controllers
                 if (clinicId > 0)
                     HttpContext.Session.SetInt32("ClinicId", clinicId);
             }
+            if (HttpContext.Session.GetString("PostLoginGoTo") == "credits")
+            {
+                HttpContext.Session.Remove("PostLoginGoTo");
+                return RedirectToAction("Buy", "Credits");
+            }
             return RedirectToAction("Dashboard", "Account");
         }
 

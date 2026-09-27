@@ -18,6 +18,7 @@ namespace MedicalApp.Controllers
         private readonly GeminiSettings _geminiSettings;
         private readonly LoincMatcherSettings _loincSettings;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly PromotionService _promotions;
         private readonly ILogger<AdminController> _logger;
 
         public AdminController(
@@ -28,8 +29,10 @@ namespace MedicalApp.Controllers
             IOptions<GeminiSettings> geminiSettings,
             IOptions<LoincMatcherSettings> loincSettings,
             IHttpClientFactory httpClientFactory,
+            PromotionService promotions,
             ILogger<AdminController> logger)
         {
+            _promotions = promotions;
             _db = db;
             _emailService = emailService;
             _dailySummaryService = dailySummaryService;
@@ -1211,6 +1214,43 @@ namespace MedicalApp.Controllers
             };
 
             return await q.Select(u => u.Email).ToListAsync();
+        }
+
+        // =====================================================================
+        //  Discounts (Reduceri) — per-module discount level / purchase kill-switch
+        // =====================================================================
+        [HttpGet]
+        public async Task<IActionResult> Promotions()
+            => View(await _promotions.GetAllAsync());
+
+        /// <summary>
+        /// One toggle click. <paramref name="module"/> is "all" or a module key;
+        /// <paramref name="level"/> is 20, 50 or 0 (0 = stop purchases).
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SetPromotion(string module, int level, bool enabled)
+        {
+            var admin = HttpContext.Session.GetString("UserEmail") ?? "admin";
+            var targets = string.Equals(module, "all", StringComparison.OrdinalIgnoreCase)
+                ? PromotionService.Modules
+                : new[] { AccountTypes.Normalize(module) };
+            try
+            {
+                foreach (var m in targets)
+                {
+                    if (level == 0) await _promotions.SetSuspendedAsync(m, enabled, admin);
+                    else await _promotions.SetDiscountAsync(m, level, enabled, admin);
+                }
+                TempData["SuccessMessage"] = Loc.T("AdminPromoSaved");
+                _logger.LogInformation("Admin {Admin}: promotion level {Level} → {Enabled} for {Modules}",
+                    admin, level, enabled, string.Join(",", targets));
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                TempData["ErrorMessage"] = "Invalid module or level.";
+            }
+            return RedirectToAction(nameof(Promotions));
         }
 
         // =====================================================================

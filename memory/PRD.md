@@ -97,6 +97,17 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   `ColumnSpan(4)`). Rândurile blurate freemium au aceeași structură (bară + „Disponibil în versiunea
   completă” pe rândul lat). Ordinea: principal → notă interval lung → detaliu. Verificat PDF (complet +
   freemium, PNG) și mock web 1920/390.
+- **Admin „Reduceri” (promoții per modul)** — tabelă nouă `PromotionSettings` (migrare
+  `20260927155504_AddPromotionSettings`; local: `Update-Database`; Docker: AutoMigrate), `Models/PromotionSetting.cs`,
+  `Services/PromotionService.cs` (cache 30 s, `PriceList`/`Discount`/`ResolveAsync`/`PackagesForAsync`),
+  `CreditPackage` extins cu `OriginalPriceEur`/`DiscountPercent`/`SavingEur`. Reguli: B2C 20% → ultimele 3, 50% →
+  ultimele 2; B2B → ultimele 2; CM → pachetul unic; preț = floor; credite neschimbate; 20/50 exclusive per modul;
+  „Oprire cumpărare” blochează Buy/Checkout/StartStripe. B2B reprețuit 49/499/999. `CreditsController`: prețul
+  se rezolvă server-side la Checkout/StartStripe; la Stripe suma creditată/`Purchase.AmountEur` vin din
+  `PaymentTransaction.AmountEur` (snapshot). UI: `Admin/Promotions` (+ `_PromoToggle`, buton roșu în Admin
+  Index), Buy.cshtml (banner, ribbon −X%, preț tăiat, „Economisești”), Checkout (preț vechi + total redus),
+  Landing: buton „Credite reduse cu X%” (nav + hero, `flow=credits` → după login → Credits/Buy). 19 chei Loc ×7.
+  Probă `PromotionServiceProbe` (21 verificări) — ALL PASS; mock Buy 1280/390 OK.
 - **Profil + Arhivă (History.cshtml) responsiv**: <992px fiecare interpretare devine card (bifă + dată,
   fișier, chip-uri Data recoltării / Analize / În afara normalului, butoane pe rând propriu). Rândul
   „În procesare” tratat separat (`h-processing`). Verificat mock 768/390 — 0 scroll orizontal.

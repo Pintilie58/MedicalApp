@@ -175,6 +175,7 @@ builder.Services.AddScoped<CamPdfMetadataExtractor>();
 builder.Services.AddScoped<CamCheckPdfsBuilder>();
 builder.Services.Configure<PaymentSettings>(builder.Configuration.GetSection("Payments"));
 builder.Services.AddScoped<StripePaymentService>();
+builder.Services.AddScoped<PromotionService>();
 builder.Services.AddSingleton<CamBatchRegistry>();
 builder.Services.AddScoped<CamBatchService>();
 // CAM batches are queued in the database and executed by a background worker,

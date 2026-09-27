@@ -18,6 +18,7 @@ namespace MedicalApp.Controllers
         private readonly PdfReportGenerator _pdfGenerator;
         private readonly StripePaymentService _stripe;
         private readonly PaymentSettings _payments;
+        private readonly PromotionService _promotions;
         private readonly ILogger<CreditsController> _logger;
 
         public CreditsController(
@@ -28,9 +29,11 @@ namespace MedicalApp.Controllers
             PdfReportGenerator pdfGenerator,
             StripePaymentService stripe,
             IOptions<PaymentSettings> payments,
+            PromotionService promotions,
             ILogger<CreditsController> logger)
         {
             _stripe = stripe;
+            _promotions = promotions;
             _payments = payments.Value;
             _db = db;
             _emailService = emailService;
@@ -59,7 +62,10 @@ namespace MedicalApp.Controllers
             // tiers for everyone else.
             var audience = AccountTypes.Normalize(user?.UserType);
             ViewBag.Audience = audience;
-            return View(CreditPackages.ForAudience(audience).ToList());
+            var promo = await _promotions.GetAsync(audience);
+            ViewBag.PurchasesSuspended = promo.PurchasesSuspended;
+            ViewBag.DiscountPercent = promo.HasDiscount ? promo.DiscountPercent : 0;
+            return View(await _promotions.PackagesForAsync(audience));
         }
 
         // ---------- Checkout: show simulated card form ----------
@@ -74,8 +80,10 @@ namespace MedicalApp.Controllers
             if (string.IsNullOrEmpty(package))
                 return RedirectToAction(nameof(Buy));
 
-            var selected = CreditPackages.GetByKey(package);
+            var selected = await _promotions.ResolveAsync(package);
             if (selected == null)
+                return RedirectToAction(nameof(Buy));
+            if (await PurchasesSuspendedAsync(selected))
                 return RedirectToAction(nameof(Buy));
 
             // A package belongs to ONE audience: a cabinet must not buy the B2C
@@ -96,6 +104,10 @@ namespace MedicalApp.Controllers
             string.Equals(package.Audience, AccountTypes.Normalize(userType),
                           StringComparison.OrdinalIgnoreCase);
 
+        /// <summary>Admin kill-switch: no money is taken for a module whose purchases are suspended.</summary>
+        private async Task<bool> PurchasesSuspendedAsync(CreditPackage package) =>
+            (await _promotions.GetAsync(package.Audience)).PurchasesSuspended;
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Checkout(CheckoutViewModel model)
@@ -104,8 +116,10 @@ namespace MedicalApp.Controllers
             if (string.IsNullOrEmpty(email))
                 return RedirectToAction("Index", "Home");
 
-            var selected = CreditPackages.GetByKey(model.PackageKey);
+            var selected = await _promotions.ResolveAsync(model.PackageKey);
             if (selected == null)
+                return RedirectToAction(nameof(Buy));
+            if (await PurchasesSuspendedAsync(selected))
                 return RedirectToAction(nameof(Buy));
 
             if (!ModelState.IsValid)
@@ -131,7 +145,7 @@ namespace MedicalApp.Controllers
             if (_payments.UseStripe)
                 return RedirectToAction(nameof(Checkout), new { package = selected.Key });
 
-            var outcome = await FulfillPurchaseAsync(user, selected, paymentMethod: "simulated", providerReference: null);
+            var outcome = await FulfillPurchaseAsync(user, selected, selected.PriceEur, paymentMethod: "simulated", providerReference: null);
             ApplyDemoUnlockTempData(outcome);
 
             return RedirectAfterPurchase(user, selected);
@@ -145,7 +159,7 @@ namespace MedicalApp.Controllers
         /// page and the Stripe webhook — one code path, one behaviour.
         /// </summary>
         private async Task<PurchaseOutcome> FulfillPurchaseAsync(User user, CreditPackage selected,
-            string paymentMethod, string? providerReference)
+            decimal amountEur, string paymentMethod, string? providerReference)
         {
             string email = user.Email;
             // Evaluated BEFORE the Purchase row below is inserted: the freemium
@@ -155,13 +169,13 @@ namespace MedicalApp.Controllers
 
             user.Credite += selected.Credits;
             user.CreditRest = user.Credite - user.CreditConsum;
-            user.TotalPaid += selected.PriceEur;
+            user.TotalPaid += amountEur;
 
             _db.Purchases.Add(new Purchase
             {
                 UserEmail = user.Email,
                 PurchasedAt = DateTime.UtcNow,
-                AmountEur = selected.PriceEur,
+                AmountEur = amountEur,
                 CreditsAdded = selected.Credits,
                 PaymentMethod = paymentMethod,
                 ProviderReference = providerReference,
@@ -172,7 +186,7 @@ namespace MedicalApp.Controllers
 
             _logger.LogInformation(
                 "Payment ({Method}): {Email} bought {Credits} credits for {Price} EUR ({Package}).",
-                paymentMethod, email, selected.Credits, selected.PriceEur, selected.Key);
+                paymentMethod, email, selected.Credits, amountEur, selected.Key);
 
             // CAM: la PRIMA cumpărare de credite a unei clinici, creează folderele
             // locale (Original, Sends, Sumar, Errors) pe C:\MedicalApp_files\.
@@ -233,7 +247,7 @@ namespace MedicalApp.Controllers
             // ---- Notify all admins by email (non-blocking: failure does NOT break the purchase) ----
             try
             {
-                await SendAdminPurchaseNotificationAsync(user, selected);
+                await SendAdminPurchaseNotificationAsync(user, selected with { PriceEur = amountEur });
             }
             catch (Exception ex)
             {
@@ -278,8 +292,10 @@ namespace MedicalApp.Controllers
             if (!_payments.UseStripe)
                 return RedirectToAction(nameof(Checkout), new { package = packageKey });
 
-            var selected = CreditPackages.GetByKey(packageKey ?? "");
+            var selected = await _promotions.ResolveAsync(packageKey);
             if (selected == null)
+                return RedirectToAction(nameof(Buy));
+            if (await PurchasesSuspendedAsync(selected))
                 return RedirectToAction(nameof(Buy));
 
             var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Email == email);
@@ -340,7 +356,7 @@ namespace MedicalApp.Controllers
                 var claimed = await _stripe.TryMarkPaidAsync(tx, paymentIntentId, HttpContext.RequestAborted);
                 if (claimed)
                 {
-                    var outcome = await FulfillPurchaseAsync(user, selected, "stripe", paymentIntentId ?? session_id);
+                    var outcome = await FulfillPurchaseAsync(user, selected, tx.AmountEur, "stripe", paymentIntentId ?? session_id);
                     ApplyDemoUnlockTempData(outcome);
                 }
             }
@@ -398,7 +414,7 @@ namespace MedicalApp.Controllers
                     var selected = CreditPackages.GetByKey(tx.PackageKey);
                     if (user == null || selected == null) break;
                     if (await _stripe.TryMarkPaidAsync(tx, session.PaymentIntentId))
-                        await FulfillPurchaseAsync(user, selected, "stripe", session.PaymentIntentId ?? session.Id);
+                        await FulfillPurchaseAsync(user, selected, tx.AmountEur, "stripe", session.PaymentIntentId ?? session.Id);
                     break;
 
                 case "checkout.session.expired":

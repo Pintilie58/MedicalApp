@@ -1,0 +1,77 @@
+@model IReadOnlyList<MedicalApp.Services.PromotionState>
+@using MedicalApp.Services
+@{
+    ViewData["Title"] = Loc.T("AdminPromotionsTitle");
+    var byModule = Model.ToDictionary(m => m.Module, m => m);
+    var modules = new (string Key, string LabelKey)[]
+    {
+        (AccountTypes.Individual, "AdminPromoModuleB2C"),
+        (AccountTypes.Cabinet, "AdminPromoModuleCM"),
+        (AccountTypes.Clinic, "AdminPromoModuleB2B")
+    };
+    var levels = new (int Level, string Title, string Icon, string Color)[]
+    {
+        (20, string.Format(Loc.T("AdminPromoDiscount"), 20), "bi-tag", "primary"),
+        (50, string.Format(Loc.T("AdminPromoDiscount"), 50), "bi-tags-fill", "danger"),
+        (0, Loc.T("AdminPromoStop"), "bi-pause-circle-fill", "dark")
+    };
+    bool IsOn(string module, int level) =>
+        byModule.TryGetValue(module, out var st) && (level == 0 ? st.PurchasesSuspended : st.DiscountPercent == level);
+    bool AllOn(int level) => modules.All(m => IsOn(m.Key, level));
+}
+
+<div class="container py-4" data-testid="admin-promotions">
+    <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+        <h2 class="mb-0 text-danger fw-bold">&#127991; @Loc.T("AdminPromotionsTitle")</h2>
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm ms-auto">&larr; Admin</a>
+    </div>
+    <p class="text-muted small">@Loc.T("AdminPromotionsIntro")</p>
+    <p class="text-muted small"><i class="bi bi-info-circle me-1"></i>@Loc.T("AdminPromoRule")</p>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success" data-testid="promo-saved">@TempData["SuccessMessage"]</div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+    }
+
+    <div class="row g-4">
+        @for (int li = 0; li < levels.Length; li++)
+        {
+            var lv = levels[li];
+            <div class="col-lg-4">
+                <div class="card shadow-sm h-100 border-@lv.Color" data-testid="promo-level-@lv.Level">
+                    <div class="card-header bg-@lv.Color text-white fw-bold">
+                        @(li + 1). <i class="bi @lv.Icon me-1"></i>@lv.Title
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center fw-semibold">
+                            <span>@Loc.T("AdminPromoAllModules")</span>
+                            @await Html.PartialAsync("_PromoToggle", (Module: "all", Level: lv.Level, On: AllOn(lv.Level)))
+                        </li>
+                        @foreach (var m in modules)
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>@Loc.T(m.LabelKey)</span>
+                                @await Html.PartialAsync("_PromoToggle", (Module: m.Key, Level: lv.Level, On: IsOn(m.Key, lv.Level)))
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="mt-4 small text-muted">
+        @foreach (var st in Model.Where(s => s.UpdatedAt.HasValue))
+        {
+            <div data-testid="promo-updated-@st.Module">
+                <strong>@st.Module</strong>:
+                @(st.PurchasesSuspended ? Loc.T("AdminPromoStop") : st.DiscountPercent > 0 ? string.Format(Loc.T("AdminPromoDiscount"), st.DiscountPercent) : "—")
+                · @string.Format(Loc.T("AdminPromoUpdated"), st.UpdatedAt!.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm"), st.UpdatedBy)
+            </div>
+        }
+    </div>
+</div>

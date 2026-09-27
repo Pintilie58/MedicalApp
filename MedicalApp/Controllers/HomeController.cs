@@ -7,11 +7,19 @@ namespace MedicalApp.Controllers
 {
     public class HomeController : Controller
     {
-        public IActionResult Index()
+        private readonly PromotionService _promotions;
+
+        public HomeController(PromotionService promotions) => _promotions = promotions;
+
+        public async Task<IActionResult> Index()
         {
             // If already logged in, go straight to Dashboard (skip login form).
             if (!string.IsNullOrEmpty(HttpContext.Session.GetString("UserEmail")))
                 return RedirectToAction("Dashboard", "Account");
+
+            // Public visitors are individuals → the landing advertises the B2C discount.
+            var promo = await _promotions.GetAsync(AccountTypes.Individual);
+            ViewData["LandingDiscountPercent"] = promo.HasDiscount ? promo.DiscountPercent : 0;
 
             // NOT logged in → marketing landing page (new) instead of the
             // old login form. The old login form is still reachable directly
@@ -43,6 +51,11 @@ namespace MedicalApp.Controllers
             // buttons on the landing remain unaffected.
             if (string.Equals(flow, "free", StringComparison.OrdinalIgnoreCase))
                 ViewData["Flow"] = "free";
+
+            // ?flow=credits — the landing's "Credits −20%" button: after sign-in /
+            // registration the user lands straight on the credit packages page.
+            if (string.Equals(flow, "credits", StringComparison.OrdinalIgnoreCase))
+                HttpContext.Session.SetString("PostLoginGoTo", "credits");
 
             return View("Index");
         }

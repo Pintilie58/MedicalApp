@@ -12,6 +12,7 @@ namespace MedicalApp.Data
         public DbSet<Purchase> Purchases { get; set; } = null!;
         public DbSet<PaymentTransaction> PaymentTransactions { get; set; } = null!;
         public DbSet<PromoCode> PromoCodes { get; set; } = null!;
+        public DbSet<PromotionSetting> PromotionSettings { get; set; } = null!;
         public DbSet<Profile> Profiles { get; set; } = null!;
         public DbSet<LoincEntry> LoincDictionary { get; set; } = null!;
         public DbSet<LoincMatchCacheEntry> LoincMatchCache { get; set; } = null!;
@@ -32,6 +33,12 @@ namespace MedicalApp.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<PromotionSetting>(entity =>
+            {
+                entity.ToTable("PromotionSettings");
+                entity.HasIndex(p => p.Module).IsUnique();
+            });
 
             modelBuilder.Entity<User>(entity =>
             {
