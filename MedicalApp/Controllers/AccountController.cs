@@ -530,6 +530,39 @@ namespace MedicalApp.Controllers
             return RedirectToAction("Dashboard", "Account");
         }
 
+        /// <summary>
+        /// Clinic (B2B) accounts must re-type their login password before entering the
+        /// Individuals module (modal on the CAM pages). Wrong password → back to the CAM
+        /// dashboard with the modal re-opened and an error.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ConfirmPersonalMode(string? password)
+        {
+            var email = HttpContext.Session.GetString("UserEmail");
+            if (string.IsNullOrEmpty(email))
+                return RedirectToAction("Index", "Home");
+
+            var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Email == email);
+            if (user == null)
+                return RedirectToAction("Index", "Home");
+
+            var attempts = HttpContext.Session.GetInt32("PersonalModeAttempts") ?? 0;
+            bool ok = attempts < 5
+                      && !string.IsNullOrEmpty(password)
+                      && BCrypt.Net.BCrypt.Verify(password, user.Parola);
+            if (!ok)
+            {
+                HttpContext.Session.SetInt32("PersonalModeAttempts", attempts + 1);
+                TempData["PersonalModeError"] = Loc.T("PersonalModeWrong");
+                return RedirectToAction("Index", "Dashboard", new { area = "CAM" });
+            }
+
+            HttpContext.Session.Remove("PersonalModeAttempts");
+            HttpContext.Session.SetString("PersonalModeConfirmed", "1");
+            return RedirectToAction(nameof(Dashboard));
+        }
+
         public async Task<IActionResult> Dashboard()
         {
             var email = HttpContext.Session.GetString("UserEmail");
@@ -551,6 +584,15 @@ namespace MedicalApp.Controllers
             {
                 HttpContext.Session.Remove("JustLoggedIn");
                 return RedirectToAction("Index", "Dashboard", new { area = "CAM" });
+            }
+
+            // CAM: Personal mode is entered only through the password confirmation
+            // (ConfirmPersonalMode). A direct URL sends the clinic back to its
+            // dashboard with the confirmation modal opened.
+            if (string.Equals(user.UserType, "Clinic", StringComparison.OrdinalIgnoreCase) &&
+                HttpContext.Session.GetString("PersonalModeConfirmed") != "1")
+            {
+                return RedirectToAction("Index", "Dashboard", new { area = "CAM", personal = 1 });
             }
 
             return View(user);

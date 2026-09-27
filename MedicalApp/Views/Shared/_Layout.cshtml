@@ -81,7 +81,7 @@
                                 _path.StartsWith("/Credits", StringComparison.OrdinalIgnoreCase);
                             if (_isOnCamArea)
                             {
-                                <a asp-controller="Account" asp-action="Dashboard" asp-area=""
+                                <a href="#" data-bs-toggle="modal" data-bs-target="#personalModeModal"
                                    class="btn btn-sm btn-outline-light fw-bold" data-testid="nav-mode-personal"
                                    title="@Loc.T("NavModePersonalTooltip")">
                                     &#128106; @Loc.T("NavModePersonal")
@@ -228,5 +228,11 @@
     <script src="~/js/password-toggle.js" asp-append-version="true"></script>
     <script src="~/js/mobile-tooltip.js" asp-append-version="true"></script>
     <script src="~/js/drag-drop-upload.js" asp-append-version="true"></script>
+    @if (!string.IsNullOrEmpty(Context.Session.GetString("UserEmail"))
+         && ((Context.Request.Path.Value ?? "").StartsWith("/CAM", StringComparison.OrdinalIgnoreCase)
+             || (Context.Request.Path.Value ?? "").StartsWith("/Credits", StringComparison.OrdinalIgnoreCase)))
+    {
+        <partial name="_PersonalModeModal" />
+    }
 </body>
 </html>

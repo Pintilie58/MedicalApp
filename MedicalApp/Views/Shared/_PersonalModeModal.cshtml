@@ -1,0 +1,49 @@
+@using MedicalApp.Services
+@{
+    var personalModeError = TempData["PersonalModeError"] as string;
+    var autoOpen = !string.IsNullOrEmpty(personalModeError)
+                   || string.Equals(Context.Request.Query["personal"], "1", StringComparison.Ordinal);
+}
+@* B2B → B2C switch: the clinic re-types its login password on the SAME page. *@
+<div class="modal fade" id="personalModeModal" tabindex="-1" aria-labelledby="personalModeTitle" aria-hidden="true"
+     data-testid="personal-mode-modal" data-auto-open="@(autoOpen ? "1" : "0")">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="post" asp-area="" asp-controller="Account" asp-action="ConfirmPersonalMode"
+              data-testid="personal-mode-form" autocomplete="off">
+            @Html.AntiForgeryToken()
+            <div class="modal-header">
+                <h5 class="modal-title" id="personalModeTitle">&#128106; @Loc.T("PersonalModeTitle")</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3" data-testid="personal-mode-prompt">@Loc.T("PersonalModePrompt")</p>
+                @if (!string.IsNullOrEmpty(personalModeError))
+                {
+                    <div class="alert alert-danger py-2" data-testid="personal-mode-error">@personalModeError</div>
+                }
+                <label for="personalModePassword" class="form-label small text-muted">@Loc.T("PersonalModePassword")</label>
+                <input type="password" class="form-control" id="personalModePassword" name="password" required
+                       autocomplete="current-password" data-testid="personal-mode-password" />
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-testid="personal-mode-cancel">
+                    @Loc.T("PersonalModeCancel")
+                </button>
+                <button type="submit" class="btn btn-primary fw-semibold" data-testid="personal-mode-submit">
+                    @Loc.T("PersonalModeConfirm")
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+<script>
+    (function () {
+        var m = document.getElementById('personalModeModal');
+        if (!m || !window.bootstrap) return;
+        m.addEventListener('shown.bs.modal', function () {
+            var i = document.getElementById('personalModePassword');
+            if (i) { i.value = ''; i.focus(); }
+        });
+        if (m.getAttribute('data-auto-open') === '1') bootstrap.Modal.getOrCreateInstance(m).show();
+    })();
+</script>

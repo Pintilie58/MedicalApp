@@ -108,6 +108,13 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   Index), Buy.cshtml (banner, ribbon −X%, preț tăiat, „Economisești”), Checkout (preț vechi + total redus),
   Landing: buton „Credite reduse cu X%” (nav + hero, `flow=credits` → după login → Credits/Buy). 19 chei Loc ×7.
   Probă `PromotionServiceProbe` (21 verificări) — ALL PASS; mock Buy 1280/390 OK.
+- **B2B → B2C cu confirmare parolă** (`Views/Shared/_PersonalModeModal.cshtml`, inclus în `_Layout` pe /CAM și
+  /Credits): butoanele „Mod personal” (navbar) și „Comută la contul personal” (footer CAM Dashboard) deschid un
+  modal pe aceeași pagină cu mesajul „Dacă vreți să intrați în modulul Persoane fizice, tastați parola de logare”;
+  `AccountController.ConfirmPersonalMode` (POST, BCrypt.Verify ca la login, max 5 încercări/sesiune) setează
+  `PersonalModeConfirmed` în sesiune; `Account/Dashboard` redirecționează conturile Clinic neconfirmate la CAM
+  Dashboard cu `?personal=1` (modal auto-deschis); CAM Dashboard Index șterge flag-ul (se cere parola la fiecare
+  comutare). Parolă greșită → TempData `PersonalModeError` + modal redeschis. 6 chei Loc ×7.
 - **Profil + Arhivă (History.cshtml) responsiv**: <992px fiecare interpretare devine card (bifă + dată,
   fișier, chip-uri Data recoltării / Analize / În afara normalului, butoane pe rând propriu). Rândul
   „În procesare” tratat separat (`h-processing`). Verificat mock 768/390 — 0 scroll orizontal.

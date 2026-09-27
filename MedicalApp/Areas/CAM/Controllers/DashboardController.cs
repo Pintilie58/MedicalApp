@@ -42,6 +42,9 @@ namespace MedicalApp.Areas.CAM.Controllers
             if (string.IsNullOrEmpty(CurrentEmail))
                 return RedirectToAction("Index", "Home", new { area = "" });
 
+            // Back in B2B: the next switch to Personal mode must ask for the password again.
+            HttpContext.Session.Remove("PersonalModeConfirmed");
+
             var user = await _db.Users.AsNoTracking()
                 .FirstOrDefaultAsync(u => u.Email == CurrentEmail);
             if (user == null)
