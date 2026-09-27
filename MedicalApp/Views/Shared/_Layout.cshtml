@@ -97,8 +97,15 @@
                             }
                         }
 
-                        @* Profiles quick link - only for logged-in users *@
-                        if (_layoutUser != null)
+                        @* Profiles quick link - only for logged-in users. Hidden for
+                           clinics while in B2B mode: it would bypass the password
+                           confirmation required to enter the Individuals module. *@
+                        var _navPath = Context.Request.Path.Value ?? "";
+                        var _clinicInB2b = _layoutUser != null
+                            && string.Equals(_layoutUser.UserType, "Clinic", StringComparison.OrdinalIgnoreCase)
+                            && (_navPath.StartsWith("/CAM", StringComparison.OrdinalIgnoreCase)
+                                || _navPath.StartsWith("/Credits", StringComparison.OrdinalIgnoreCase));
+                        if (_layoutUser != null && !_clinicInB2b)
                         {
                             <a asp-area="" asp-controller="Profiles" asp-action="Index"
                                class="btn btn-sm btn-outline-light" data-testid="nav-profiles-link"

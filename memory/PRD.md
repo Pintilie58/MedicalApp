@@ -115,6 +115,7 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   `PersonalModeConfirmed` în sesiune; `Account/Dashboard` redirecționează conturile Clinic neconfirmate la CAM
   Dashboard cu `?personal=1` (modal auto-deschis); CAM Dashboard Index șterge flag-ul (se cere parola la fiecare
   comutare). Parolă greșită → TempData `PersonalModeError` + modal redeschis. 6 chei Loc ×7.
+  Butonul „Profile” din navbar e ascuns pentru clinici cât sunt în B2B (/CAM, /Credits) — ocolea confirmarea.
 - **Profil + Arhivă (History.cshtml) responsiv**: <992px fiecare interpretare devine card (bifă + dată,
   fișier, chip-uri Data recoltării / Analize / În afara normalului, butoane pe rând propriu). Rândul
   „În procesare” tratat separat (`h-processing`). Verificat mock 768/390 — 0 scroll orizontal.
