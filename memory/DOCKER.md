@@ -130,3 +130,11 @@ excepție la orice glifă lipsă. Rezultat pe Linux fără Arial: 14 PASS / 1 FA
 **Regulă pentru viitor**: orice simbol nou într-un PDF se adaugă mai întâi în
 proba de glife și se rulează pe Linux. Dacă dă FAIL, se alege alt caracter —
 NU se mai adaugă fonturi în imagine.
+
+## 2026-06 — Promoții (tabela PromotionSettings) + Application Insights în Docker
+
+- Migrarea `20260927155504_AddPromotionSettings` se aplică **automat** la pornirea containerului
+  (`Database:AutoMigrate = true` în `appsettings.Docker.json`). Nu rulezi nimic manual în SQL.
+- `docker-compose.yml` primește opțional `APPLICATIONINSIGHTS_CONNECTION_STRING` din `.env`
+  (gol implicit ⇒ fără monitorizare, identic cu rularea locală).
+- Verificare tabelă: `docker compose exec sql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "<parola>" -C -d MedicalAppDB -Q "SELECT * FROM PromotionSettings; SELECT TOP 3 MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId DESC"`

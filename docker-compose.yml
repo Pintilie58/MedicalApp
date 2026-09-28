@@ -46,6 +46,7 @@ services:
       Payments__Stripe__SecretKey: ${STRIPE_SECRET_KEY:-}
       Payments__Stripe__PublishableKey: ${STRIPE_PUBLISHABLE_KEY:-}
       Payments__Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET:-}
+      APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING:-}
     ports:
       - "8080:8080"
     volumes:
