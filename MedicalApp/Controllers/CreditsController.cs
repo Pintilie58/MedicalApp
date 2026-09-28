@@ -187,6 +187,7 @@ namespace MedicalApp.Controllers
             _logger.LogInformation(
                 "Payment ({Method}): {Email} bought {Credits} credits for {Price} EUR ({Package}).",
                 paymentMethod, email, selected.Credits, amountEur, selected.Key);
+            AppTelemetry.RecordPayment(paymentMethod, selected.Key, amountEur, selected.Credits);
 
             // CAM: la PRIMA cumpărare de credite a unei clinici, creează folderele
             // locale (Original, Sends, Sumar, Errors) pe C:\MedicalApp_files\.

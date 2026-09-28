@@ -1,4 +1,5 @@
 ﻿using MedicalApp.Models;
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 
@@ -923,8 +924,38 @@ Emit ONLY these fields, STRICT JSON, no markdown fences:
         //  Used by the monolithic path AND by every split stage, so the retry
         //  semantics the controller relies on (transient / retired model) are
         //  identical everywhere.
+        //  PostAsync only measures (Application Insights metrics) and delegates
+        //  to PostCoreAsync, which does the real work.
         // =====================================================================
         private async Task<GeminiRaw> PostAsync(
+            string systemPrompt, string userPrompt, string? pdfBase64, string modelName,
+            int thinkingBudget, string? thinkingLevel, string logContext, string languageCode,
+            CancellationToken ct)
+        {
+            var clock = Stopwatch.StartNew();
+            var outcome = "ok";
+            try
+            {
+                var raw = await PostCoreAsync(systemPrompt, userPrompt, pdfBase64, modelName,
+                                              thinkingBudget, thinkingLevel, logContext, languageCode, ct);
+                AppTelemetry.RecordGeminiTokens(modelName, raw.InputTokens, raw.OutputTokens, raw.ThoughtTokens);
+                return raw;
+            }
+            catch (GeminiTransientException ex)
+            {
+                outcome = ex.HttpStatusCode == 429 ? "rate_limited" : "unavailable";
+                throw;
+            }
+            catch (GeminiModelRetiredException) { outcome = "model_retired"; throw; }
+            catch (OperationCanceledException) { outcome = "cancelled"; throw; }
+            catch (Exception) { outcome = "error"; throw; }
+            finally
+            {
+                AppTelemetry.RecordGeminiCall(modelName, outcome, clock.Elapsed.TotalMilliseconds);
+            }
+        }
+
+        private async Task<GeminiRaw> PostCoreAsync(
             string systemPrompt, string userPrompt, string? pdfBase64, string modelName,
             int thinkingBudget, string? thinkingLevel, string logContext, string languageCode,
             CancellationToken ct)

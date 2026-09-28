@@ -1,6 +1,7 @@
 using System.Text.Json;
 using MedicalApp.Models;
 using Microsoft.Extensions.Caching.Distributed;
+using System.Diagnostics;
 
 namespace MedicalApp.Services
 {
@@ -84,6 +85,7 @@ namespace MedicalApp.Services
             _logger.LogInformation("CAM batch {Id} claimed (attempt {Attempt}).", batch.Id, batch.Attempts);
 
             using var heartbeat = new CancellationTokenSource();
+            var batchClock = Stopwatch.StartNew();
             try
             {
                 var progress = _registry.GetOrCreate(batch.Id, batch.ClinicId, total: 0);
@@ -94,6 +96,7 @@ namespace MedicalApp.Services
                 using var runScope = _scopeFactory.CreateScope();
                 var runner = runScope.ServiceProvider.GetRequiredService<CamBatchService>();
                 await runner.RunAsync(batch.Id, batch.LanguageCode ?? "ro");
+                AppTelemetry.RecordCamBatch("completed", batchClock.Elapsed);
 
                 heartbeat.Cancel();
                 await keepAlive;
@@ -101,6 +104,7 @@ namespace MedicalApp.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "CAM batch {Id} crashed outside the runner.", batch.Id);
+                AppTelemetry.RecordCamBatch("crashed", batchClock.Elapsed);
             }
             finally
             {

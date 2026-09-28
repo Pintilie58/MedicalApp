@@ -3,9 +3,41 @@ using MedicalApp.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
+using OpenTelemetry.Metrics;
 using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ---------------------------------------------------------------------------
+// APPLICATION INSIGHTS (Azure, June 2026). Active ONLY when a connection
+// string is present (App Service -> Environment variables ->
+// APPLICATIONINSIGHTS_CONNECTION_STRING). Locally there is none, so nothing
+// changes: no package initialisation, no network calls. SDK 3.x is
+// OpenTelemetry-based; "adaptive sampling" is its rate-limited sampler
+// (TracesPerSecond). Business metrics: Services/AppTelemetry.cs.
+// Step-by-step guide: Docs/APPLICATION_INSIGHTS.md
+// ---------------------------------------------------------------------------
+var aiConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+if (string.IsNullOrWhiteSpace(aiConnectionString))
+    aiConnectionString = builder.Configuration["ApplicationInsights:ConnectionString"];
+
+if (!string.IsNullOrWhiteSpace(aiConnectionString))
+{
+    builder.Services.AddApplicationInsightsTelemetry(options =>
+    {
+        options.ConnectionString = aiConnectionString;
+        // Adaptive (rate-limited) sampling: at most N traces/second per instance.
+        options.TracesPerSecond =
+            builder.Configuration.GetValue<double?>("ApplicationInsights:TracesPerSecond") ?? 5.0;
+        // false = a Warning/Error log is NEVER dropped just because its request
+        // was sampled out. Logs are already filtered to Warning+ (Logging:OpenTelemetry).
+        options.EnableTraceBasedLogsSampler =
+            builder.Configuration.GetValue<bool?>("ApplicationInsights:EnableTraceBasedLogsSampler") ?? false;
+    });
+
+    // Custom business metrics (Gemini, queues, payments). Metrics are never sampled.
+    builder.Services.ConfigureOpenTelemetryMeterProvider(meter => meter.AddMeter(AppTelemetry.MeterName));
+}
 
 // ---------------------------------------------------------------------------
 // SCALE-OUT (June 2026). Everything here is INACTIVE until
@@ -268,6 +300,9 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
 });
 
 var app = builder.Build();
+
+// Queue depth gauges for Application Insights (no-op without a listener).
+AppTelemetry.RegisterQueueGauges(app.Services.GetRequiredService<InterpretationJobQueue>());
 
 // Run idempotent startup seed tasks (creates "Eu" profile for existing users).
 using (var scopedServices = app.Services.CreateScope())

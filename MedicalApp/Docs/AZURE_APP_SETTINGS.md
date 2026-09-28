@@ -41,6 +41,7 @@ App Service → *Settings* → *Environment variables* → *App settings*.
 | `Payments__Stripe__WebhookSecret` | `whsec_…` din Dashboard → Developers → Webhooks (`/Credits/StripeWebhook`) | secret |
 | `CamSettings__Blob__AccountUrl` | `https://<cont>.blob.core.windows.net` | fișierele CAM; `App Service nu are disc C:\` |
 | `WEBSITE_TIME_ZONE` | `GTB Standard Time` | serverul e UTC; altfel sumarul zilnic pleacă la 09:00 UTC |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | `InstrumentationKey=…;IngestionEndpoint=…` din resursa Application Insights → Overview | monitorizare (erori, timpi, cozi, plăți). Fără ea aplicația pornește fără Application Insights. Ghid: `Docs/APPLICATION_INSIGHTS.md` |
 
 ### Recomandate / după caz
 | Name | Value | Când |
@@ -52,6 +53,7 @@ App Service → *Settings* → *Environment variables* → *App settings*.
 | `CamSettings__MaxParallelFiles` | `4` (în `appsettings.Azure.json`); `1` = secvențial clasic | dacă un lot CAM dă erori 429 sau vrei să revii la comportamentul vechi, fără rebuild |
 | `Gemini__RateLimit__MaxConcurrentCalls` | `20` (Azure json, calibrat Tier 1); trebuie ≥ `InterpretationQueue__MaxConcurrent` + `CamSettings__MaxParallelFiles` | când urci paralelismul |
 | `InterpretationQueue__MaxConcurrent` | `8`-`10` | după ce măsori în *Admin → Performance* |
+| `ApplicationInsights__TracesPerSecond` | `5` (implicit) | Adaptive Sampling: câte cereri/secundă păstrează Application Insights per instanță. Urcă la `10`-`20` la depanare, coboară la `2` dacă factura crește |
 
 ### În portal, nu în JSON
 - **Always On** = On (altfel App Service adoarme procesul și worker-ele de fundal se opresc).

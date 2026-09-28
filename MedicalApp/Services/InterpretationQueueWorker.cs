@@ -1,6 +1,7 @@
 using MedicalApp.Data;
 using MedicalApp.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics;
 
 namespace MedicalApp.Services
 {
@@ -48,6 +49,7 @@ namespace MedicalApp.Services
 
                     _ = Task.Run(async () =>
                     {
+                        var jobClock = Stopwatch.StartNew();
                         using var heartbeat = new CancellationTokenSource();
                         try
                         {
@@ -68,6 +70,7 @@ namespace MedicalApp.Services
                             var runner = scope.ServiceProvider
                                 .GetRequiredService<B2cInterpretationRunner>();
                             await runner.RunAsync(job, stoppingToken);
+                            AppTelemetry.RecordB2cJob("completed", jobClock.Elapsed);
 
                             // Stop the heartbeat BEFORE deleting the row, so the
                             // two never race over the same record.
@@ -85,6 +88,7 @@ namespace MedicalApp.Services
                             _logger.LogError(ex,
                                 "Interpretation job {HistoryId} crashed outside the runner.",
                                 job.HistoryId);
+                            AppTelemetry.RecordB2cJob("crashed", jobClock.Elapsed);
                             await SalvageAsync(job);
                         }
                         finally

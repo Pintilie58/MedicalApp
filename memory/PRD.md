@@ -1009,3 +1009,20 @@ câteva unități.
 
 **Rămâne de auditat (la utilizator, necesită autentificare)**: Dashboard B2C,
 Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.
+
+## 2026-06 — Application Insights pregătit pentru Azure (Adaptive Sampling)
+- NuGet `Microsoft.ApplicationInsights.AspNetCore` **3.1.2** (OpenTelemetry). Pornește DOAR când există
+  `APPLICATIONINSIGHTS_CONNECTION_STRING` (sau `ApplicationInsights:ConnectionString`) → local nimic nu se schimbă.
+- `Program.cs`: `TracesPerSecond` (= adaptive/rate-limited sampling, implicit 5) și `EnableTraceBasedLogsSampler=false`
+  citite din `ApplicationInsights:*`; `ConfigureOpenTelemetryMeterProvider(AddMeter("MyMedicalApp"))`; gauge-uri coadă B2C după `Build()`.
+- `Services/AppTelemetry.cs` (static, doar `System.Diagnostics.Metrics`, no-op fără listener): `gemini.calls/.call.duration/.tokens`,
+  `interpretation.b2c.jobs/.duration/.queue.waiting/.queue.active`, `cam.batches/.batch.duration`, `payments.completed/.amount/.credits`.
+- Hook-uri: `GeminiMedicalInterpretationService.Split.cs` (`PostAsync` = wrapper de măsurare → `PostCoreAsync`),
+  `InterpretationQueueWorker`, `CamBatchQueueWorker`, `CreditsController.FulfillPurchaseAsync`.
+- `appsettings.Azure.json`: secțiune `ApplicationInsights` + `Logging:OpenTelemetry:LogLevel` (Default Warning; CreditsController &
+  StripePaymentService Information = evenimente de plată în `traces`).
+- Docs: `Docs/APPLICATION_INSIGHTS.md` (ghid începător: resursă, connection string, App Service, Live Metrics, sampling, metrici, KQL,
+  alerte email + availability test /healthz, Daily cap, troubleshooting). `Docs/AZURE_APP_SETTINGS.md` actualizat.
+- Verificat: `dotnet build` 0 erori/0 warning-uri (SDK 9.0.318 instalat temporar în /tmp); probă runtime cu connection string dummy:
+  host pornește, opțiunile se leagă, toate metricile + gauge-urile emit. Netestat pe Azure real (utilizatorul face hostarea).
+- Securitate: cheia Gemini din query string e `Redacted` implicit de instrumentarea HTTP OpenTelemetry.
