@@ -113,6 +113,7 @@
 
         var T = {
             running: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("JobIndicatorRunning"))),
+            runningEta: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("JobIndicatorRunningEtaFmt"))),
             queued: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("JobIndicatorQueuedFmt"))),
             done: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("JobIndicatorDone"))),
             failed: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("JobIndicatorFailed")))
@@ -199,6 +200,10 @@
                             var mins = Math.max(1, Math.round((d.etaSeconds || 0) / 60));
                             show('running',
                                 String(T.queued).replace('{0}', d.position).replace('{1}', mins),
+                                '#');
+                        } else if (d.etaSeconds) {
+                            show('running',
+                                String(T.runningEta).replace('{0}', Math.max(1, Math.round(d.etaSeconds / 60))),
                                 '#');
                         } else {
                             show('running', T.running, '#');

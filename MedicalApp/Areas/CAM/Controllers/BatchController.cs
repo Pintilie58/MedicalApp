@@ -225,6 +225,7 @@ namespace MedicalApp.Areas.CAM.Controllers
                     if (p.ClinicId != clinicId) return NotFound();
                 }
 
+                var secPerFileFast = await SecondsPerFileAsync();
                 return Json(new
                 {
                     status = p.Status,
@@ -235,7 +236,10 @@ namespace MedicalApp.Areas.CAM.Controllers
                     notSends = p.NotSends,
                     currentFile = p.CurrentFile ?? string.Empty,
                     log = p.LogSnapshot(),
-                    finished = false
+                    finished = false,
+                    queuePosition = 0,
+                    etaStartSeconds = 0,
+                    etaSeconds = Math.Max(0, p.Total - p.Processed) * secPerFileFast
                 });
             }
 
@@ -270,6 +274,35 @@ namespace MedicalApp.Areas.CAM.Controllers
             var stillActive = batch.FinishedAt == null
                               && (batch.Status == "Queued" || batch.Status == "Running");
 
+            // Queue position + ETA (all clinics share the same worker pool).
+            //   position   = queued batches created before this one, +1
+            //   etaStart   = files still to be processed by everything ahead of us
+            //   eta        = etaStart + our own files (or, when running, what is left)
+            int queuePosition = 0, etaStartSeconds = 0, etaSeconds = 0;
+            if (stillActive)
+            {
+                var secPerFile = await SecondsPerFileAsync();
+                var effectiveStatus = p?.Status ?? snap?.Status ?? batch.Status;
+                if (effectiveStatus == "Queued")
+                {
+                    var ahead = await _db.ClinicBatchRuns.AsNoTracking()
+                        .Where(b => b.FinishedAt == null
+                                    && ((b.Status == "Queued" && b.Id < batch.Id) || b.Status == "Running"))
+                        .Select(b => new { b.Status, b.TotalFiles, b.FilesInterpreted, b.NotSends })
+                        .ToListAsync();
+                    queuePosition = ahead.Count(a => a.Status == "Queued") + 1;
+                    var filesAhead = ahead.Sum(a => Math.Max(0, a.TotalFiles - a.FilesInterpreted - a.NotSends));
+                    etaStartSeconds = filesAhead * secPerFile;
+                    etaSeconds = etaStartSeconds + batch.TotalFiles * secPerFile;
+                }
+                else
+                {
+                    var processed = p?.Processed ?? snap?.Processed ?? (batch.FilesInterpreted + batch.NotSends);
+                    var total = p?.Total ?? snap?.Total ?? batch.TotalFiles;
+                    etaSeconds = Math.Max(0, total - processed) * secPerFile;
+                }
+            }
+
             return Json(new
             {
                 status = p?.Status ?? snap?.Status ?? batch.Status,
@@ -281,8 +314,51 @@ namespace MedicalApp.Areas.CAM.Controllers
                 notSends = p?.NotSends ?? snap?.NotSends ?? batch.NotSends,
                 currentFile = p?.CurrentFile ?? snap?.CurrentFile ?? string.Empty,
                 log = p?.LogSnapshot() ?? snap?.Log ?? new List<string>(),
-                finished = !stillActive
+                finished = !stillActive,
+                queuePosition,
+                etaStartSeconds,
+                etaSeconds
             });
+        }
+
+        /// <summary>
+        /// Average wall-clock seconds per file over the last 10 completed batches
+        /// (already reflects MaxParallelFiles). Cached 5 min in the distributed cache
+        /// so the polling fast path stays free of DB queries; 95 s until we have history.
+        /// </summary>
+        private async Task<int> SecondsPerFileAsync()
+        {
+            const string key = "cam:sec-per-file";
+            try
+            {
+                var cached = await _cache.GetStringAsync(key);
+                if (int.TryParse(cached, out var v) && v > 0) return v;
+            }
+            catch { /* cache unavailable → compute */ }
+
+            int result = 95;
+            try
+            {
+                var recent = await _db.ClinicBatchRuns.AsNoTracking()
+                    .Where(b => b.Status == "Completed" && b.FinishedAt != null && b.TotalFiles > 0)
+                    .OrderByDescending(b => b.Id)
+                    .Select(b => new { b.StartedAt, b.FinishedAt, b.TotalFiles })
+                    .Take(10)
+                    .ToListAsync();
+                if (recent.Count > 0)
+                {
+                    var perFile = recent.Select(b => (b.FinishedAt!.Value - b.StartedAt).TotalSeconds / b.TotalFiles)
+                                        .Where(x => x > 5 && x < 1800).ToList();
+                    if (perFile.Count > 0) result = Math.Max(20, (int)Math.Round(perFile.Average()));
+                }
+                await _cache.SetStringAsync(key, result.ToString(),
+                    new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5) });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "CAM: seconds-per-file estimate unavailable, using default.");
+            }
+            return result;
         }
 
         // Returns the current user's ClinicId, or 0 when no clinic matches.

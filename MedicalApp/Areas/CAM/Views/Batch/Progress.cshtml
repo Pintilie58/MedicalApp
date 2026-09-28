@@ -88,6 +88,7 @@
             <div class="card border-secondary"><div class="card-body py-2 text-center">
                 <div class="small text-muted">@Loc.T("CamProgressStatus")</div>
                 <div class="fs-5 fw-bold" id="prgStatus" data-testid="cam-progress-status">@Loc.T("CamProgressStatusRunning")</div>
+                <div class="small text-muted mt-1" id="prgEta" data-testid="cam-progress-eta"></div>
             </div></div>
         </div>
     </div>
@@ -136,8 +137,26 @@
         'running':   @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamProgressStatusRunning"))),
         'completed': @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamProgressStatusCompleted"))),
         'cancelled': @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamProgressStatusCancelled"))),
-        'failed':    @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamProgressStatusFailed")))
+        'failed':    @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamProgressStatusFailed"))),
+        'queued':    @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamProgressStatusQueued")))
     };
+    var LBL_QUEUE_POS = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamProgressQueuePosFmt")));
+    var LBL_ETA_LEFT  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamProgressEtaLeftFmt")));
+    function mins(sec) { return Math.max(1, Math.round((sec || 0) / 60)); }
+    function renderEta(data) {
+        var el = document.getElementById('prgEta');
+        if (!el) return;
+        if (data.finished) { el.textContent = ''; return; }
+        if (data.status === 'Queued') {
+            el.textContent = LBL_QUEUE_POS.replace('{0}', data.queuePosition || 1)
+                                          .replace('{1}', mins(data.etaStartSeconds))
+                                          .replace('{2}', mins(data.etaSeconds));
+        } else if (data.status === 'Running' && data.etaSeconds > 0) {
+            el.textContent = LBL_ETA_LEFT.replace('{0}', mins(data.etaSeconds));
+        } else {
+            el.textContent = '';
+        }
+    }
     var LBL_FINAL_COMPLETED = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamProgressFinalCompleted")));
     var LBL_FINAL_CANCELLED = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamProgressStatusCancelled")));
     var LBL_FINAL_FAILED    = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Loc.T("CamProgressStatusFailed")));
@@ -157,6 +176,7 @@
         var statusEl = document.getElementById('prgStatus');
         var key = (data.status || '').toLowerCase();
         statusEl.textContent = STATUS_LABELS[key] || data.status || '—';
+        renderEta(data);
         statusEl.className = 'fs-5 fw-bold ' +
             (data.status === 'Running'   ? 'text-primary'
             : data.status === 'Completed' ? 'text-success'

@@ -206,7 +206,7 @@ namespace MedicalApp.Controllers
             var latest = await _db.InterpretationHistories.AsNoTracking()
                 .Where(h => h.UserEmail == CurrentEmail)
                 .OrderByDescending(h => h.Id)
-                .Select(h => new { h.Id, h.Status })
+                .Select(h => new { h.Id, h.Status, h.CreatedAt })
                 .FirstOrDefaultAsync();
 
             bool running = latest?.Status == "processing";
@@ -216,10 +216,19 @@ namespace MedicalApp.Controllers
             // "You are 3rd in line, about 8 minutes" — position 0 means the job
             // is actually being worked on right now.
             int position = running ? _queue.GetPosition(latest!.Id) : 0;
-            int? etaSeconds = position > 0
-                ? (int)Math.Ceiling((double)position / _queue.MaxConcurrent)
-                  * await AverageInterpretationSecondsAsync()
-                : null;
+            int? etaSeconds = null;
+            if (running)
+            {
+                var avg = await AverageInterpretationSecondsAsync();
+                if (position > 0)
+                    etaSeconds = (int)Math.Ceiling((double)position / _queue.MaxConcurrent) * avg;
+                else
+                {
+                    // Being worked on: what is (probably) left of the average duration.
+                    var elapsed = (int)(DateTime.UtcNow - latest!.CreatedAt).TotalSeconds;
+                    etaSeconds = Math.Max(30, avg - elapsed);
+                }
+            }
 
             return Json(new
             {

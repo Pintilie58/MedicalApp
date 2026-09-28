@@ -120,6 +120,12 @@ utilizatorului (VS2026). Aici se validează prin `dotnet build` (0 warnings) și
   RequestsPerMinute 60→**600**, MaxConcurrentCalls 6→**12**, InstanceCount 1; `InterpretationQueue:MaxConcurrent`
   3→**8**, MaxPerUser 1; CamSettings MaxParallelFiles 4 (neschimbat); ScaleOut false. Docker/Development moștenesc
   din bază (nu suprascriu aceste chei). README-urile din JSON actualizate cu semnalele de trecere la Tier 2.
+- **Poziție în coadă + ETA**: B2B — `BatchController.Status` returnează `queuePosition`, `etaStartSeconds`,
+  `etaSeconds` (secunde/fișier = media ultimelor 10 loturi finalizate, cache distribuit 5 min, implicit 95 s;
+  coada e globală, toate clinicile); `Progress.cshtml` afișează sub Status „Poziția în coadă: N • pornește în
+  ~X min • gata în ~Y min” sau „Timp estimat rămas: ~X min” (+ eticheta „În coadă”). B2C — `JobStatus` dă ETA și
+  când job-ul rulează (media − timp scurs, min 30 s); `_JobIndicator` arată „Fișier PDF în lucru • încă ~X min”
+  (poziția la rând exista deja). 4 chei Loc ×7.
 - **Profil + Arhivă (History.cshtml) responsiv**: <992px fiecare interpretare devine card (bifă + dată,
   fișier, chip-uri Data recoltării / Analize / În afara normalului, butoane pe rând propriu). Rândul
   „În procesare” tratat separat (`h-processing`). Verificat mock 768/390 — 0 scroll orizontal.
