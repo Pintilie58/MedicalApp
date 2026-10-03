@@ -210,6 +210,25 @@ body.landing-body a:hover { color: var(--land-coral); }
         padding: 0.6rem 0.95rem;
         font-size: 0.82rem;
     }
+    /* The actions group (language + promo + sign-in) is a nested flex row
+       that never wrapped: with the admin-driven promo pill present, three
+       nowrap pills overflowed the viewport (reported June 2026, see photo
+       at ~500 px). Let the group wrap and centre, like its parent. */
+    .land-nav-actions {
+        flex-wrap: wrap;
+        justify-content: center;
+        row-gap: 0.5rem;
+        min-width: 0;
+        max-width: 100%;
+    }
+}
+@media (max-width: 480px) {
+    /* Phones: the promo pill takes its own full-width row under the two
+       pills, so no language (de/es have the longest labels) can overflow. */
+    .land-nav-actions .land-btn-promo {
+        order: 3;
+        flex: 1 1 100%;
+    }
 }
 
 /* ============== Buttons ============== */
@@ -239,7 +258,9 @@ body.landing-body a:hover { color: var(--land-coral); }
 body.landing-body a.land-btn-primary,
 body.landing-body a.land-btn-primary:hover,
 body.landing-body a.land-btn-accent,
-body.landing-body a.land-btn-accent:hover {
+body.landing-body a.land-btn-accent:hover,
+body.landing-body a.land-btn-promo,
+body.landing-body a.land-btn-promo:hover {
     color: #fff;
 }
 .land-btn-primary:hover {

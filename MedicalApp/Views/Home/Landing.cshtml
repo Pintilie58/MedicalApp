@@ -58,7 +58,7 @@
             <li><a href="#clinics" data-testid="nav-clinics">@Loc.T("NavClinics")</a></li>
             <li><a href="#pricing" data-testid="nav-pricing">@Loc.T("NavPricing")</a></li>
         </ul>
-        <div class="d-flex align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2 land-nav-actions" data-testid="land-nav-actions">
             <div class="land-lang">
                 <button class="land-lang-btn" id="landLangBtn" aria-haspopup="true" aria-expanded="false"
                         data-testid="land-lang-btn">
@@ -90,7 +90,7 @@
             @if (landingDiscount > 0)
             {
                 <a href="@AuthUrlCredits()" class="land-btn land-btn-promo" data-testid="land-promo-button">
-                    &#127991; @string.Format(Loc.T("LandingPromoButton"), landingDiscount)
+                    &#127991; @string.Format(Loc.T("LandingPromoButtonShort"), landingDiscount)
                 </a>
             }
             <a href="@AuthUrl("login")" class="land-btn land-btn-ghost" data-testid="land-signin">

@@ -1026,3 +1026,11 @@ Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.
 - Verificat: `dotnet build` 0 erori/0 warning-uri (SDK 9.0.318 instalat temporar în /tmp); probă runtime cu connection string dummy:
   host pornește, opțiunile se leagă, toate metricile + gauge-urile emit. Netestat pe Azure real (utilizatorul face hostarea).
 - Securitate: cheia Gemini din query string e `Redacted` implicit de instrumentarea HTTP OpenTelemetry.
+
+## 2026-06 — Header landing: butonul promo ieșea din pagină pe ecrane mici
+- Cauză: grupul de acțiuni (limbă + promo + autentificare) era `d-flex` fără wrap, iar `.land-btn` e `nowrap`.
+- Fix: (1) text scurt în header `LandingPromoButtonShort` („Credite −50%”, 7 limbi), hero păstrează textul lung;
+  (2) `.land-nav-actions` wrap + centrare ≤768px, promo pe rând propriu full-width ≤480px (`landing.css`).
+- Bonus găsit la test: textul butonului promo era roșu-închis pe roșu (specificitatea `body.landing-body a`) → adăugat
+  `a.land-btn-promo { color:#fff }` ca la primary/accent.
+- Verificat cu replică statică a nav-ului + landing.css la 390/500/700/1920 px: scrollWidth = viewport (fără overflow), text alb.
