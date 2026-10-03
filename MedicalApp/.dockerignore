@@ -1,9 +1,16 @@
+bin
 bin/
+obj
 obj/
+.vs
 .vs/
+**/.vs
+**/bin
+**/obj
+.vscode
 .vscode/
 *.user
 *.suo
+*.vsidx
 Dockerfile
 .dockerignore
-appsettings.Azure.json

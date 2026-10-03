@@ -116,6 +116,7 @@ az role assignment create --assignee $ME --role "Storage Blob Data Contributor" 
 ```powershell
 az acr create -n $ACR -g $RG -l $LOC --sku Basic -o table
 
+# ÎNCHIDE Visual Studio înainte (blochează fișiere din .vs\ și împachetarea eșuează cu "Permission denied").
 # Aplicația C# (~3-5 min)
 az acr build -r $ACR -t mymedicalapp/app:v1 -t mymedicalapp/app:latest ./MedicalApp
 # Serviciul Python (~10-15 min: PyTorch CPU + modelul)

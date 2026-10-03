@@ -1043,3 +1043,6 @@ Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.
 - Ghid complet cu toate comenzile: `MedicalApp/Docs/AZURE_DEPLOY_DOCKER.md` (pași 0-7 + rutina de update + costuri).
 - Progres: Pasul 0 și 1 trimise utilizatorului (Resource Group + Azure SQL + Update-Database). Următorul: Pasul 2 (Storage).
 - Adăugat și: buton „Înapoi la panou” în Profiles/History (refolosește cheia BackToDashboard, 7 limbi) — confirmat de utilizator.
+- Azure pasul 3: `.dockerignore` C# rescris (tipare `.vs`/`bin`/`obj` fără slash + `**/`), ELIMINATĂ excluderea `appsettings.Azure.json`
+  (necesar în imaginea pentru Azure; Docker local nu-l citește oricum, ASPNETCORE_ENVIRONMENT=Docker). Pași 0-2 finalizați de utilizator
+  (regiune germanywestcentral, SQL + migrări OK, Storage OK, ACR creat).
