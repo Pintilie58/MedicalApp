@@ -3,7 +3,7 @@
 > Decizie (iunie 2026): aplicația C# rulează ca **container Linux în App Service**, serviciul
 > Python LOINC ca **Azure Container App**, baza în **Azure SQL**, fișierele CAM în **Blob Storage**,
 > imaginile în **Azure Container Registry**. Nivel de pornire **economic** (B1 + SQL Basic),
-> regiunea **West Europe**. Domeniu: `mymedicalapp.net` (GoDaddy).
+> regiunea **Germany West Central** (West Europe a refuzat abonamentul nou: „region not accepting new customers"). Domeniu: `mymedicalapp.net` (GoDaddy).
 >
 > Toate comenzile se dau în **PowerShell** (nu CMD), din folderul repo-ului:
 > `cd C:\Projects\MedicalApp-repo`. Liniile care încep cu `#` sunt comentarii, nu se copiază.
@@ -25,7 +25,7 @@ az account set --subscription "f2e789d3-0227-4815-81c9-6dfbfca6a736"
 az account show --query "{nume:name, id:id}" -o table
 
 $RG      = "rg-mymedicalapp"
-$LOC     = "westeurope"
+$LOC     = "germanywestcentral"      # West Europe refuza abonamentele noi (iunie 2026)
 $SQLSRV  = "sql-mymedicalapp"              # (unic global) doar litere mici, cifre, cratimă
 $SQLDB   = "MedicalAppDB"
 $STG     = "stmymedicalapp"                # (unic global) DOAR litere mici și cifre, 3-24 caractere
@@ -37,11 +37,20 @@ $LOINC   = "loinc-matcher"
 $AI      = "appi-mymedicalapp"
 
 az group create -n $RG -l $LOC -o table
-```
-**Verificare:** `az group list -o table` → apare `rg-mymedicalapp` cu `Succeeded`.
 
-> Dacă o comandă spune `MissingSubscriptionRegistration` / `The subscription is not registered to use namespace 'Microsoft.X'`:
-> `az provider register -n Microsoft.X --wait` (ex. `Microsoft.Sql`, `Microsoft.Web`, `Microsoft.App`, `Microsoft.ContainerRegistry`, `Microsoft.Storage`, `Microsoft.OperationalInsights`, `Microsoft.Insights`) și repetă comanda.
+# O SINGURĂ DATĂ pe abonament nou: activează serviciile (altfel: MissingSubscriptionRegistration)
+az provider register -n Microsoft.Sql --wait
+az provider register -n Microsoft.Storage --wait
+az provider register -n Microsoft.ContainerRegistry --wait
+az provider register -n Microsoft.Web --wait
+az provider register -n Microsoft.App --wait
+az provider register -n Microsoft.OperationalInsights --wait
+az provider register -n Microsoft.Insights --wait
+```
+**Verificare:** `az group list -o table` → apare `rg-mymedicalapp` cu `Succeeded`; `az provider show -n Microsoft.Sql --query registrationState -o tsv` → `Registered`.
+
+> `RequestDisallowedByAzure: The selected region is currently not accepting new customers` = regiunea e plină pentru abonamente noi.
+> Schimbă `$LOC` (în ordine: `germanywestcentral`, `northeurope`, `swedencentral`, `francecentral`) și repetă comanda. Resource group-ul poate rămâne.
 
 ---
 
