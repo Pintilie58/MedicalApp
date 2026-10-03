@@ -52,7 +52,11 @@
                         ? Loc.T("HistoryInterpretationSingular")
                         : Loc.T("HistoryInterpretationPlural"))
                 </span>
-                <div class="ms-auto">
+                <div class="ms-auto d-flex gap-2 flex-wrap">
+                    <a asp-controller="Account" asp-action="Dashboard"
+                       class="btn btn-outline-secondary" data-testid="btn-back-dashboard">
+                        &larr; @Loc.T("BackToDashboard")
+                    </a>
                     <a asp-action="Index" class="btn btn-outline-secondary" data-testid="btn-back-profiles">
                         &larr; @Loc.T("HistoryBackToProfiles")
                     </a>
