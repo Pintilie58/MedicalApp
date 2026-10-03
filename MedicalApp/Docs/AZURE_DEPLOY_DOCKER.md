@@ -109,23 +109,36 @@ az role assignment create --assignee $ME --role "Storage Blob Data Contributor" 
 
 ---
 
-## Pasul 3 — Container Registry + construirea imaginilor ÎN Azure
+## Pasul 3 — Container Registry + urcarea imaginilor
 
-`az acr build` urcă doar codul sursă (câțiva MB) și construiește imaginea pe serverele Azure — nu urci GB de acasă.
+> `az acr build` (construire în Azure) este **blocat pe abonamentele noi/free trial** (`TasksOperationsNotAllowed`).
+> Construim local cu Docker Desktop (deja testat) și facem `push`. Închide Visual Studio înainte de build (blochează `.vs\`).
 
 ```powershell
 az acr create -n $ACR -g $RG -l $LOC --sku Basic -o table
+$ACRSRV = "$ACR.azurecr.io"
 
-# ÎNCHIDE Visual Studio înainte (blochează fișiere din .vs\ și împachetarea eșuează cu "Permission denied").
-# Aplicația C# (~3-5 min)
-az acr build -r $ACR -t mymedicalapp/app:v1 -t mymedicalapp/app:latest ./MedicalApp
-# Serviciul Python (~10-15 min: PyTorch CPU + modelul)
-az acr build -r $ACR -t mymedicalapp/loinc:v1 -t mymedicalapp/loinc:latest ./loinc_service
+docker compose build app                       # imaginea C# (include appsettings.Azure.json)
+az acr login -n $ACR                           # Login Succeeded (valabil 3 h)
+
+docker tag mymedicalapp-app "$ACRSRV/mymedicalapp/app:v1"
+docker tag mymedicalapp-app "$ACRSRV/mymedicalapp/app:latest"
+docker push "$ACRSRV/mymedicalapp/app:v1"
+docker push "$ACRSRV/mymedicalapp/app:latest"
+
+# Python (imaginea locală există deja; ~2-3 GB, 10-30 min la primul push)
+docker tag mymedicalapp-loinc "$ACRSRV/mymedicalapp/loinc:v1"
+docker tag mymedicalapp-loinc "$ACRSRV/mymedicalapp/loinc:latest"
+docker push "$ACRSRV/mymedicalapp/loinc:v1"
+docker push "$ACRSRV/mymedicalapp/loinc:latest"
 ```
+Dacă `docker tag` spune `No such image`: `docker images` și folosește numele din coloana REPOSITORY.
+
 **Verificare:** `az acr repository list -n $ACR -o table` → `mymedicalapp/app`, `mymedicalapp/loinc`.
 
-> La fiecare update de cod: `git pull` → `az acr build -r $ACR -t mymedicalapp/app:v2 -t mymedicalapp/app:latest ./MedicalApp`
-> → apoi pasul 5.6 (App Service trage `:latest` la restart). Păstrează etichete `v1, v2, …` ca să poți reveni.
+> La fiecare update de cod: `git pull` → `docker compose build app` → `docker tag` cu `:v2` și `:latest` → `docker push` ambele → pasul 5.6.
+> Păstrează etichete `v1, v2, …` ca să poți reveni. (Dacă ulterior deblochezi ACR Tasks printr-un tichet la suport,
+> `az acr build -r $ACR -t mymedicalapp/app:vN -t mymedicalapp/app:latest ./MedicalApp` înlocuiește build+tag+push.)
 
 ---
 
@@ -284,7 +297,10 @@ Detalii și capcane: `SCALE_OUT.md`, `AZURE_SCALING.md`.
 ## Update de cod (rutina după fiecare „Save to GitHub")
 ```powershell
 cd C:\Projects\MedicalApp-repo; git pull
-az acr build -r $ACR -t mymedicalapp/app:v2 -t mymedicalapp/app:latest ./MedicalApp   # v2, v3, ...
+docker compose build app
+az acr login -n $ACR
+docker tag mymedicalapp-app "$ACRSRV/mymedicalapp/app:v2"; docker tag mymedicalapp-app "$ACRSRV/mymedicalapp/app:latest"   # v2, v3, ...
+docker push "$ACRSRV/mymedicalapp/app:v2"; docker push "$ACRSRV/mymedicalapp/app:latest"
 az webapp restart -n $APP -g $RG                                                       # trage :latest
 az webapp log tail -n $APP -g $RG
 ```
