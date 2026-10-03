@@ -1034,3 +1034,12 @@ Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.
 - Bonus găsit la test: textul butonului promo era roșu-închis pe roșu (specificitatea `body.landing-body a`) → adăugat
   `a.land-btn-promo { color:#fff }` ca la primary/accent.
 - Verificat cu replică statică a nav-ului + landing.css la 390/500/700/1920 px: scrollWidth = viewport (fără overflow), text alb.
+
+## 2026-06 — Portare Azure (din Docker) — START
+- Decizii utilizator: cont Azure nou (free trial, subscription f2e789d3-…), West Europe, nivel economic (B1 + SQL Basic),
+  domeniu mymedicalapp.net pe GoDaddy, Azure CLI instalat și autentificat.
+- Arhitectură: App Service for Containers (Linux) pentru C#, Azure Container Apps pentru Python LOINC, Azure SQL, Blob Storage, ACR
+  (imagini construite cu `az acr build`), Application Insights.
+- Ghid complet cu toate comenzile: `MedicalApp/Docs/AZURE_DEPLOY_DOCKER.md` (pași 0-7 + rutina de update + costuri).
+- Progres: Pasul 0 și 1 trimise utilizatorului (Resource Group + Azure SQL + Update-Database). Următorul: Pasul 2 (Storage).
+- Adăugat și: buton „Înapoi la panou” în Profiles/History (refolosește cheia BackToDashboard, 7 limbi) — confirmat de utilizator.
