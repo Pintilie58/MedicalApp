@@ -1049,3 +1049,7 @@ Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.
 - Azure: App Service B1 refuzat (cotă free-trial 0; abonament trecut pe Pay-As-You-Go). Aplicația C# rulează în **Azure Container Apps**
   (`mymedicalapp`, mediul `cae-mymedicalapp`, germanywestcentral) alături de `loinc-matcher`. /healthz OK, interpretare de test OK.
   Ghid rescris pentru Container Apps (pas 5, 6.1, rutina update). Urmează: 5.8 ScaleOut__Enabled=true, domeniu GoDaddy, Stripe LIVE.
+- Azure LIVE (iunie 2026): https://mymedicalapp.net + www (Container Apps, cert gestionat, DNS GoDaddy: A @ 48.201.29.44, CNAME www,
+  TXT asuid/asuid.www). ScaleOut__Enabled=true activ (sesiuni SQL + DP keys Blob), test „rămâi logat după restart” OK.
+  Rămas: 6.4 Stripe LIVE + webhook (https://mymedicalapp.net/Credits/StripeWebhook), 6.5 Daily cap/buget/alerte, restricție IP LOINC,
+  schimbarea parolei SQL (slabă), eventual GitHub Actions pentru deploy automat.
