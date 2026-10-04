@@ -167,114 +167,73 @@ $LOINCURL
 
 ---
 
-## Pasul 5 — Aplicația C# → App Service for Containers
+## Pasul 5 — Aplicația C# → Azure Container Apps (varianta aplicată)
 
-### 5.1 Plan + Web App
-```powershell
-az appservice plan create -n $PLAN -g $RG -l $LOC --is-linux --sku B1 -o table
-az webapp create -n $APP -g $RG -p $PLAN --container-image-name "$ACRSRV/mymedicalapp/app:latest" -o table
-```
-Dacă `--container-image-name` nu e recunoscut (CLI mai vechi): folosește `--deployment-container-image-name`.
+> App Service B1 a fost refuzat de cota free-trial (`Current Limit (B1 VMs): 0`, portalul nu permite cereri de cotă în primele
+> ore după upgrade). Aplicația C# rulează deci în **același mediu Container Apps** ca Python-ul. Secțiunea App Service din
+> `AZURE_APP_SETTINGS.md` rămâne valabilă pentru NUMELE variabilelor; comenzile sunt cele de aici.
 
-### 5.2 Identitate + drepturi (fără parole în configurație)
 ```powershell
-$PRINCIPAL = az webapp identity assign -n $APP -g $RG --query principalId -o tsv
-$ACRID = az acr show -n $ACR -g $RG --query id -o tsv
-az role assignment create --assignee $PRINCIPAL --role AcrPull --scope $ACRID -o table
-az role assignment create --assignee $PRINCIPAL --role "Storage Blob Data Contributor" --scope $STGID -o table
-az webapp config set -n $APP -g $RG --generic-configurations '{\"acrUseManagedIdentityCreds\": true}' -o none
-```
-
-### 5.3 Application Insights
-```powershell
+# 5.1 Application Insights
+az extension add -n application-insights
 az monitor app-insights component create --app $AI -g $RG -l $LOC --application-type web -o table
 $AICONN = az monitor app-insights component show --app $AI -g $RG --query connectionString -o tsv
+
+# 5.2 cheile din .env (Docker) -> variabile PowerShell
+Get-Content .env | Where-Object { $_ -match '^\s*([^#=]+)=(.*)$' } | ForEach-Object { Set-Variable -Name $matches[1].Trim() -Value $matches[2].Trim() }
+
+# 5.3 aplicația (secretele intră în seiful Container Apps)
+az containerapp create -n $APP -g $RG --environment $CAE `
+  --image "$ACRSRV/mymedicalapp/app:latest" `
+  --registry-server $ACRSRV --registry-identity system `
+  --target-port 8080 --ingress external `
+  --cpu 1.0 --memory 2.0Gi --min-replicas 1 --max-replicas 1 `
+  --secrets "sqlconn=$SQLCONN" "gemini=$GEMINI_API_KEY" "brevo=$BREVO_SMTP_PASSWORD" "stripesk=$STRIPE_SECRET_KEY" "aiconn=$AICONN" `
+  --env-vars ASPNETCORE_ENVIRONMENT=Azure TZ=Europe/Bucharest ASPNETCORE_FORWARDEDHEADERS_ENABLED=true `
+    ConnectionStrings__DefaultConnection=secretref:sqlconn Gemini__ApiKey=secretref:gemini `
+    EmailSettings__Password=secretref:brevo Payments__Stripe__SecretKey=secretref:stripesk `
+    "Payments__Stripe__PublishableKey=$STRIPE_PUBLISHABLE_KEY" `
+    "CamSettings__Blob__AccountUrl=https://$STG.blob.core.windows.net" `
+    "LoincMatcher__BaseUrl=$LOINCURL" APPLICATIONINSIGHTS_CONNECTION_STRING=secretref:aiconn -o table
+
+# 5.4 Blob + adresa
+$PRINCIPAL = az containerapp identity show -n $APP -g $RG --query principalId -o tsv
+az role assignment create --assignee $PRINCIPAL --role "Storage Blob Data Contributor" --scope $STGID -o table
+$APPURL = "https://" + (az containerapp show -n $APP -g $RG --query properties.configuration.ingress.fqdn -o tsv)
+Invoke-RestMethod "$APPURL/healthz"      # ok
+
+# 5.8 OBLIGATORIU pe Container Apps (disc temporar): sesiuni în SQL + chei Data Protection în Blob
+az containerapp update -n $APP -g $RG --set-env-vars ScaleOut__Enabled=true Gemini__RateLimit__InstanceCount=1 -o none
 ```
-(Dacă cere extensia: `az extension add -n application-insights`.)
-
-### 5.4 Variabilele aplicației (toate deodată)
-Completează înainte: cheia Gemini, parola Brevo, cheile Stripe (**test** până la pasul 6).
-```powershell
-$GEMINI = "AIza..."
-$BREVO  = "..."
-$STRIPE_SK = "sk_test_..."
-$STRIPE_PK = "pk_test_..."
-
-az webapp config appsettings set -n $APP -g $RG -o none --settings `
-  ASPNETCORE_ENVIRONMENT=Azure `
-  WEBSITES_PORT=8080 `
-  WEBSITE_TIME_ZONE="Europe/Bucharest" `
-  "ConnectionStrings__DefaultConnection=$SQLCONN" `
-  "Gemini__ApiKey=$GEMINI" `
-  "EmailSettings__Password=$BREVO" `
-  "Payments__Stripe__SecretKey=$STRIPE_SK" `
-  "Payments__Stripe__PublishableKey=$STRIPE_PK" `
-  "CamSettings__Blob__AccountUrl=https://$STG.blob.core.windows.net" `
-  "LoincMatcher__BaseUrl=$LOINCURL" `
-  "APPLICATIONINSIGHTS_CONNECTION_STRING=$AICONN"
-```
-> `Payments__Stripe__WebhookSecret` se adaugă la pasul 6, după ce există domeniul.
-> Pe Linux fusul orar e `Europe/Bucharest` (nu `GTB Standard Time`, care e numele Windows).
-
-### 5.5 Setările planului
-```powershell
-az webapp config set -n $APP -g $RG --always-on true --http20-enabled true --ftps-state Disabled -o none
-az webapp config set -n $APP -g $RG --generic-configurations '{\"healthCheckPath\": \"/healthz\"}' -o none
-az webapp update -n $APP -g $RG --https-only true --client-affinity-enabled false -o none
-az webapp log config -n $APP -g $RG --docker-container-logging filesystem -o none
-```
-
-### 5.6 Pornire + verificare
-```powershell
-az webapp restart -n $APP -g $RG
-az webapp log tail -n $APP -g $RG          # Ctrl+C pentru ieșire
-```
-În log cauți `Now listening on: http://[::]:8080`. Apoi:
-1. `Invoke-RestMethod "https://$APP.azurewebsites.net/healthz"` → `ok`
-2. Browser: `https://mymedicalapp.azurewebsites.net` → login cu contul admin.
-3. **Admin → Diagnostic infrastructură** → SQL, Blob, LOINC, Gemini pe verde.
-4. O interpretare B2C de test + un lot CAM de 2 fișiere.
-5. Application Insights → *Live metrics* → `Servers: 1`.
-
-> Erori tipice: `Login failed for user` → connection string greșit (verifică `$SQLPASS`); `403` la Blob → rolul din 5.2 încă nu s-a propagat (așteaptă 5 min, restart); container nu pornește → `az webapp log tail` + verifică `WEBSITES_PORT=8080`.
+Verificări: login → `az containerapp revision restart` → rămâi logat; tabelele `AppSessionCache`, `AppSingletonLease`; `dataprotection/keys.xml`.
+Loguri: `az containerapp logs show -n $APP -g $RG --tail 60`. Secret nou/modificat: `az containerapp secret set -n $APP -g $RG --secrets "nume=valoare"` apoi restart revizie.
 
 ---
 
 ## Pasul 6 — Domeniu, HTTPS, Stripe LIVE, protecții
 
-### 6.1 Domeniul `mymedicalapp.net` (GoDaddy)
+### 6.1 Domeniul `mymedicalapp.net` (GoDaddy) pe Container Apps
 ```powershell
-$VERIFYID = az webapp show -n $APP -g $RG --query customDomainVerificationId -o tsv
-$APPIP    = az webapp show -n $APP -g $RG --query inboundIpAddress -o tsv
-$VERIFYID; $APPIP
+$VERIFYID = az containerapp show -n $APP -g $RG --query properties.customDomainVerificationId -o tsv
+$ENVIP    = az containerapp env show -n $CAE -g $RG --query properties.staticIp -o tsv
+$FQDN     = az containerapp show -n $APP -g $RG --query properties.configuration.ingress.fqdn -o tsv
 ```
-În **GoDaddy → My Products → Domains → mymedicalapp.net → DNS → Manage DNS**: șterge înregistrările vechi `A` (@) și `CNAME` (www) care arătau spre vechiul conținut, apoi adaugă:
-
-| Type | Name | Value | TTL |
-|---|---|---|---|
-| `A` | `@` | `$APPIP` | 1 h |
-| `TXT` | `asuid` | `$VERIFYID` | 1 h |
-| `CNAME` | `www` | `mymedicalapp.azurewebsites.net` | 1 h |
-| `TXT` | `asuid.www` | `$VERIFYID` | 1 h |
-
-Așteaptă 10-30 min (verifică cu `nslookup mymedicalapp.net`), apoi:
+GoDaddy → DNS → șterge `A @` / `CNAME www` vechi, adaugă: `A @ = $ENVIP`, `TXT asuid = $VERIFYID`, `CNAME www = $FQDN`, `TXT asuid.www = $VERIFYID`.
+După propagare (`nslookup mymedicalapp.net`):
 ```powershell
-az webapp config hostname add -n $APP -g $RG --hostname mymedicalapp.net -o table
-az webapp config hostname add -n $APP -g $RG --hostname www.mymedicalapp.net -o table
-# Certificate gratuite, gestionate de Azure (se reînnoiesc singure)
-az webapp config ssl create -n $APP -g $RG --hostname mymedicalapp.net -o table
-az webapp config ssl create -n $APP -g $RG --hostname www.mymedicalapp.net -o table
+az containerapp hostname add  -n $APP -g $RG --hostname mymedicalapp.net -o table
+az containerapp hostname bind -n $APP -g $RG --hostname mymedicalapp.net --environment $CAE --validation-method HTTP -o table
+az containerapp hostname add  -n $APP -g $RG --hostname www.mymedicalapp.net -o table
+az containerapp hostname bind -n $APP -g $RG --hostname www.mymedicalapp.net --environment $CAE --validation-method CNAME -o table
 ```
-Dacă `ssl create` nu există în versiunea ta de CLI: Portal → App Service → *Custom domains* → lângă fiecare domeniu **Add binding** → *Create App Service Managed Certificate* → SNI SSL.
-
-**Verificare:** `https://mymedicalapp.net/healthz` → `ok`, lacăt verde în browser.
+Certificat gestionat gratuit (5-15 min). **Verificare:** `https://mymedicalapp.net/healthz` → `ok`.
 
 ### 6.2 Stripe LIVE + webhook (abia acum, cu domeniul funcțional)
 1. Stripe Dashboard → treci pe **Live mode** → *Developers → API keys* → copiază `sk_live_…` și `pk_live_…`.
 2. *Developers → Webhooks → Add endpoint*: URL `https://mymedicalapp.net/Credits/StripeWebhook`, evenimente `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired` → copiază **Signing secret** `whsec_…`.
 ```powershell
-az webapp config appsettings set -n $APP -g $RG -o none --settings `
-  "Payments__Stripe__SecretKey=sk_live_..." "Payments__Stripe__PublishableKey=pk_live_..." "Payments__Stripe__WebhookSecret=whsec_..."
+az containerapp secret set -n $APP -g $RG --secrets "stripesk=sk_live_..." "stripewh=whsec_..." -o none
+az containerapp update -n $APP -g $RG --set-env-vars "Payments__Stripe__PublishableKey=pk_live_..." Payments__Stripe__WebhookSecret=secretref:stripewh -o none
 ```
 3. Plată reală de test cu pachetul cel mai mic → creditele apar; în Stripe → Webhooks → evenimentul are `200`.
 
@@ -301,16 +260,16 @@ docker compose build app
 az acr login -n $ACR
 docker tag mymedicalapp-app "$ACRSRV/mymedicalapp/app:v2"; docker tag mymedicalapp-app "$ACRSRV/mymedicalapp/app:latest"   # v2, v3, ...
 docker push "$ACRSRV/mymedicalapp/app:v2"; docker push "$ACRSRV/mymedicalapp/app:latest"
-az webapp restart -n $APP -g $RG                                                       # trage :latest
-az webapp log tail -n $APP -g $RG
+az containerapp update -n $APP -g $RG --image "$ACRSRV/mymedicalapp/app:v2" -o none      # eticheta fixă => revizie nouă, rollback ușor
+az containerapp logs show -n $APP -g $RG --tail 40
 ```
-Migrări EF noi: `Update-Database -Connection "..."` din VS **înainte** de restart (pe Azure `AutoMigrate` e oprit intenționat).
-Rollback: `az webapp config container set -n $APP -g $RG --container-image-name "$ACRSRV/mymedicalapp/app:v1"` + restart.
+Migrări EF noi: `dotnet ef database update --connection "$SQLCONN"` **înainte** de update (pe Azure `AutoMigrate` e oprit intenționat).
+Rollback: `az containerapp update -n $APP -g $RG --image "$ACRSRV/mymedicalapp/app:v1"`.
 
 ## Costuri estimate (economic, West Europe)
 | Resursă | SKU | €/lună |
 |---|---|---|
-| App Service | B1 Linux | ≈ 12 |
+| Container Apps (C#, 1 vCPU/2 GB mereu pornit, majoritar idle) | consumption | ≈ 15-25 |
 | Azure SQL | Basic 5 DTU | ≈ 5 |
 | Container Apps (Python, 1 vCPU/2 GB mereu pornit) | consumption | ≈ 15-25 |
 | Container Registry | Basic | ≈ 5 |

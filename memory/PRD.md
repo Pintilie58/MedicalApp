@@ -1046,3 +1046,6 @@ Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.
 - Azure pasul 3: `.dockerignore` C# rescris (tipare `.vs`/`bin`/`obj` fără slash + `**/`), ELIMINATĂ excluderea `appsettings.Azure.json`
   (necesar în imaginea pentru Azure; Docker local nu-l citește oricum, ASPNETCORE_ENVIRONMENT=Docker). Pași 0-2 finalizați de utilizator
   (regiune germanywestcentral, SQL + migrări OK, Storage OK, ACR creat).
+- Azure: App Service B1 refuzat (cotă free-trial 0; abonament trecut pe Pay-As-You-Go). Aplicația C# rulează în **Azure Container Apps**
+  (`mymedicalapp`, mediul `cae-mymedicalapp`, germanywestcentral) alături de `loinc-matcher`. /healthz OK, interpretare de test OK.
+  Ghid rescris pentru Container Apps (pas 5, 6.1, rutina update). Urmează: 5.8 ScaleOut__Enabled=true, domeniu GoDaddy, Stripe LIVE.
