@@ -1053,3 +1053,9 @@ Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.
   TXT asuid/asuid.www). ScaleOut__Enabled=true activ (sesiuni SQL + DP keys Blob), test „rămâi logat după restart” OK.
   Rămas: 6.4 Stripe LIVE + webhook (https://mymedicalapp.net/Credits/StripeWebhook), 6.5 Daily cap/buget/alerte, restricție IP LOINC,
   schimbarea parolei SQL (slabă), eventual GitHub Actions pentru deploy automat.
+- 2026-06: **Stripe LIVE activ pe https://mymedicalapp.net** — cheie restricționată `rk_live_` (full access except sensitive; cheile
+  expuse în capturi au fost rotite), webhook `…/Credits/StripeWebhook` (Snapshot, 4 evenimente checkout.session.*), secrete
+  `stripesk`/`stripewh` în Container Apps. Prima plată reală confirmată de utilizator. Local/Docker rămân pe chei test.
+- Rămas (protecții, ~15 min): buget lunar + alertă, Daily cap App Insights, alertă Failed requests, schimbare parolă SQL
+  (comenzi: az sql server update --admin-password + az containerapp secret set sqlconn + revizie nouă), restricție IP ingress LOINC,
+  opțional GitHub Actions pentru deploy automat. Apoi dezvoltare: ETA + poziție coadă (P0).
