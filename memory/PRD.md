@@ -1059,3 +1059,8 @@ Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.
 - Rămas (protecții, ~15 min): buget lunar + alertă, Daily cap App Insights, alertă Failed requests, schimbare parolă SQL
   (comenzi: az sql server update --admin-password + az containerapp secret set sqlconn + revizie nouă), restricție IP ingress LOINC,
   opțional GitHub Actions pentru deploy automat. Apoi dezvoltare: ETA + poziție coadă (P0).
+
+## 2026-10-20 — Flyer A5 marketing
+- Flyer A5 față-verso (RO), fără prețuri/ofertă: față B2C, verso funcții + secțiune clinici/CAM. PDF tipar 154x216mm (bleed 3mm) + PNG HD/WhatsApp.
+- Fișiere: /app/MedicalApp/Docs/Marketing/Flyer-A5 (sursă template.html + build.py; regenerare: python3 build.py).
+- Protecții Azure: 1 buget 60€ OK, 2 Daily cap 0.5GB OK, 3 alerte (action group, erori>=5/5min, availability /healthz 15min/3 locații, prag 2) OK. Protecția 4 (parolă SQL) ÎN AȘTEPTARE — Etapa 1 (listare nume resurse) netrimisă.

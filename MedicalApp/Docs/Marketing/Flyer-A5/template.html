@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FAF8F2; --ink:#2B302D; --mute:#5C6660; --sage:#7A9180; --sage-d:#4A5C50; --sage-dd:#3A4A40;
+  --sage-l:#EAF0EB; --coral:#E07A5F; --coral-cta:#C25436; --coral-s:#FCEEEB; --line:rgba(43,48,45,.12);
+}
+@page{ size:154mm 216mm; margin:0; }
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+body{ font-family:'Plus Jakarta Sans',sans-serif; color:var(--ink); font-size:8.2pt; line-height:1.45; }
+.page{ width:154mm; height:216mm; position:relative; overflow:hidden; background:var(--bg); page-break-after:always; }
+.safe{ position:absolute; inset:0; padding:11mm 11mm 0 11mm; }
+h1,h2,h3,.brand,.num{ font-family:'Outfit',sans-serif; }
+.ico{ display:inline-flex; width:5.2mm; height:5.2mm; }
+.ico svg{ width:100%; height:100%; }
+.brand{ display:flex; align-items:center; gap:2.2mm; font-weight:700; font-size:11pt; letter-spacing:-.01em; }
+.mark{ width:7.5mm; height:7.5mm; border-radius:2mm; background:linear-gradient(135deg,#657A6B,var(--sage-d));
+  color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:8.5pt; font-weight:700; }
+.topbar{ display:flex; justify-content:space-between; align-items:center; }
+.chip{ font-size:6.8pt; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--sage-d);
+  background:var(--sage-l); border-radius:99px; padding:1.2mm 3mm; }
+.blob{ position:absolute; border-radius:50%; filter:blur(0); }
+
+/* FRONT */
+.f-blob1{ width:95mm; height:95mm; right:-30mm; top:-28mm; background:var(--sage-l); }
+.f-blob2{ width:40mm; height:40mm; left:-14mm; top:96mm; background:var(--coral-s); }
+.eyebrow{ margin-top:9mm; font-size:7.2pt; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--coral-cta); }
+.f-h1{ margin-top:2.5mm; font-size:24pt; line-height:1.04; font-weight:700; letter-spacing:-.025em; }
+.f-h1 em{ font-style:normal; color:var(--sage-d); position:relative; }
+.f-h1 em::after{ content:""; position:absolute; left:0; right:0; bottom:.5mm; height:2.2mm; background:var(--coral); opacity:.28; z-index:-1; border-radius:1mm; }
+.lead{ margin-top:4mm; font-size:9pt; color:var(--mute); max-width:118mm; }
+.hero-row{ margin-top:4.5mm; display:grid; grid-template-columns:72mm 1fr; gap:5mm; align-items:stretch; }
+.hero-img{ height:60mm; border-radius:5mm; overflow:hidden; background:#fff; box-shadow:0 3mm 7mm rgba(74,92,80,.14); position:relative; }
+.hero-img img{ width:100%; height:100%; object-fit:cover; object-position:50% 40%; }
+.badge{ position:absolute; left:3mm; bottom:3mm; background:#fff; border-radius:99px; padding:1.3mm 3mm 1.3mm 2mm;
+  font-size:7pt; font-weight:700; display:flex; align-items:center; gap:1.5mm; box-shadow:0 1mm 3mm rgba(0,0,0,.1); }
+.badge .dot{ width:2.2mm; height:2.2mm; border-radius:50%; background:#3F9C5A; }
+.stats{ display:flex; flex-direction:column; gap:3mm; }
+.stat{ flex:1; background:#fff; border:0.3mm solid var(--line); border-radius:4mm; padding:3mm 3.5mm; display:flex; flex-direction:column; justify-content:center; }
+.stat b{ font-family:'Outfit'; font-size:17pt; line-height:1; color:var(--sage-d); font-weight:700; }
+.stat span{ margin-top:1mm; font-size:7.4pt; color:var(--mute); line-height:1.3; }
+.sec-t{ margin-top:5mm; font-size:12pt; font-weight:700; letter-spacing:-.01em; }
+.steps{ margin-top:3mm; display:grid; grid-template-columns:repeat(3,1fr); gap:3mm; }
+.step{ position:relative; padding-top:1mm; }
+.step .n{ display:flex; align-items:center; gap:2mm; }
+.step .num{ width:7mm; height:7mm; border-radius:50%; background:var(--coral-cta); color:#fff; font-weight:700; font-size:9pt; display:flex; align-items:center; justify-content:center; }
+.step .ico{ color:var(--sage-d); }
+.step h3{ margin-top:2mm; font-size:8.6pt; line-height:1.2; font-weight:600; }
+.step p{ margin-top:1mm; font-size:7.2pt; color:var(--mute); line-height:1.38; }
+.cta{ position:absolute; left:0; right:0; bottom:0; height:35mm; background:var(--sage-d); color:#fff; padding:6mm 11mm 9mm; display:flex; align-items:center; gap:6mm; }
+.cta .qr{ width:25mm; height:25mm; background:#fff; border-radius:3mm; padding:2mm; flex:none; }
+.cta .qr svg{ width:100%; height:100%; }
+.cta h2{ font-size:14pt; line-height:1.1; font-weight:700; }
+.cta .url{ margin-top:1.8mm; display:inline-block; font-family:'Outfit'; font-weight:700; font-size:12pt; color:#fff; background:var(--coral-cta); border-radius:99px; padding:1.2mm 4mm; letter-spacing:.01em; }
+.cta p{ margin-top:2mm; font-size:7pt; opacity:.85; line-height:1.35; }
+
+/* BACK */
+.b-blob1{ width:70mm; height:70mm; left:-28mm; top:-26mm; background:var(--coral-s); }
+.b-h2{ margin-top:6mm; font-size:17pt; line-height:1.08; font-weight:700; letter-spacing:-.02em; }
+.b-lead{ margin-top:2mm; font-size:8.2pt; color:var(--mute); }
+.feats{ margin-top:3.5mm; display:grid; grid-template-columns:1fr 1fr; gap:2mm 3.5mm; }
+.feat{ display:flex; gap:2.6mm; align-items:flex-start; background:#fff; border:0.3mm solid var(--line); border-radius:3.2mm; padding:2mm 2.6mm; }
+.feat .ic{ flex:none; width:7.5mm; height:7.5mm; border-radius:2.2mm; background:var(--sage-l); color:var(--sage-d); display:flex; align-items:center; justify-content:center; }
+.feat .ic .ico{ width:4.3mm; height:4.3mm; }
+.feat.c .ic{ background:var(--coral-s); color:var(--coral-cta); }
+.feat h3{ font-size:8.2pt; font-weight:600; line-height:1.2; }
+.feat p{ font-size:6.9pt; color:var(--mute); line-height:1.32; margin-top:.5mm; }
+.clinic{ margin:4mm -11mm 0; background:var(--sage-dd); color:#fff; padding:5mm 11mm 5mm; display:grid; grid-template-columns:1fr 46mm; gap:5mm; }
+.clinic .k{ font-size:6.8pt; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:#F4B9A6; }
+.clinic h2{ margin-top:1.5mm; font-size:14pt; line-height:1.1; font-weight:700; }
+.clinic .cl{ margin-top:2mm; font-size:7.6pt; opacity:.88; }
+.clinic ul{ list-style:none; margin-top:2.6mm; display:flex; flex-direction:column; gap:1.3mm; }
+.clinic li{ display:flex; gap:2mm; font-size:7.4pt; line-height:1.35; }
+.clinic li .ico{ flex:none; width:3.8mm; height:3.8mm; color:#F4B9A6; margin-top:.2mm; }
+.clinic .pic{ border-radius:4mm; overflow:hidden; background:var(--bg); align-self:start; height:28mm; }
+.clinic .pic img{ width:100%; height:100%; object-fit:cover; }
+.clinic .tags{ margin-top:3mm; display:flex; flex-direction:column; gap:1.6mm; }
+.clinic .tag{ font-size:6.8pt; font-weight:600; background:rgba(255,255,255,.1); border:0.3mm solid rgba(255,255,255,.18); border-radius:2.2mm; padding:1.6mm 2.4mm; line-height:1.3; }
+.clinic .tag b{ display:block; font-family:'Outfit'; font-size:9pt; color:#fff; }
+.foot{ position:absolute; left:11mm; right:11mm; bottom:8.5mm; display:flex; align-items:center; gap:4mm; }
+.foot .qr{ width:19mm; height:19mm; flex:none; background:#fff; border-radius:2mm; padding:1.4mm; }
+.foot .qr svg{ width:100%; height:100%; }
+.trust{ display:flex; gap:1.5mm; flex-wrap:wrap; }
+.trust > span{ display:inline-flex; align-items:center; gap:1mm; font-size:6.6pt; font-weight:700; color:var(--sage-d); background:var(--sage-l); border-radius:99px; padding:.8mm 2.4mm; }
+.trust .ico{ width:3mm; height:3mm; }
+.foot .site{ font-family:'Outfit'; font-size:11pt; font-weight:700; color:var(--ink); margin-top:1.6mm; }
+.foot .site small{ font-family:'Plus Jakarta Sans'; font-size:7pt; font-weight:500; color:var(--mute); margin-left:1.5mm; }
+.disc{ margin-top:1mm; font-size:6.2pt; color:var(--mute); font-style:italic; }
+</style>
+</head>
+<body>
+
+<!-- ============ FAȚĂ ============ -->
+<section class="page">
+  <div class="blob f-blob1"></div>
+  <div class="blob f-blob2"></div>
+  <div class="safe">
+    <div class="topbar">
+      <div class="brand"><span class="mark">M+</span>MyMedicalApp.NET+</div>
+      <span class="chip">AI medical · 30+ limbi</span>
+    </div>
+
+    <div class="eyebrow">Pentru tine și familia ta</div>
+    <h1 class="f-h1">Analizele tale de sânge, <em>explicate clar</em> în câteva secunde.</h1>
+    <p class="lead">Încarci PDF-ul de la laborator și primești o interpretare caldă, pe înțelesul tău — cu grafice de evoluție, factori de risc, recomandări personalizate și întrebări pentru medic. Direct pe ecran și pe email.</p>
+
+    <div class="hero-row">
+      <div class="hero-img">
+        <img src="assets/front.jpg" alt="">
+        <div class="badge"><span class="dot"></span>Raport gata în ~30 de secunde</div>
+      </div>
+      <div class="stats">
+        <div class="stat"><b>~30 s</b><span>timp mediu pentru o interpretare completă</span></div>
+        <div class="stat"><b>30+ limbi</b><span>raportul pe limba ta, oricare ar fi limba buletinului</span></div>
+        <div class="stat"><b>LOINC</b><span>fiecare parametru mapat pe codul medical internațional</span></div>
+      </div>
+    </div>
+
+    <h2 class="sec-t">Din PDF în claritate, în trei pași</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="n"><span class="num">1</span><span class="ico">{{cloud-upload}}</span></div>
+        <h3>Încarci buletinul de analize</h3>
+        <p>PDF de la orice laborator, inclusiv cu mai multe pagini.</p>
+      </div>
+      <div class="step">
+        <div class="n"><span class="num">2</span><span class="ico">{{sparkles}}</span></div>
+        <h3>AI-ul medical îl interpretează</h3>
+        <p>Citește fiecare valoare și marchează ce iese din limite.</p>
+      </div>
+      <div class="step">
+        <div class="n"><span class="num">3</span><span class="ico">{{mail}}</span></div>
+        <h3>Primești raportul complet</h3>
+        <p>PDF frumos formatat, pe ecran și pe email.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="cta">
+    <div class="qr">{{qr}}</div>
+    <div>
+      <h2>Înțelege-ți analizele fără să aștepți o programare.</h2>
+      <span class="url">www.MyMedicalApp.Net</span>
+      <p>Scanează codul QR, creează-ți contul și încarcă primul buletin în mai puțin de un minut.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ VERSO ============ -->
+<section class="page">
+  <div class="blob b-blob1"></div>
+  <div class="safe">
+    <div class="topbar">
+      <div class="brand"><span class="mark">M+</span>MyMedicalApp.NET+</div>
+      <span class="chip">Persoane fizice · Cabinete · Clinici</span>
+    </div>
+
+    <h2 class="b-h2">Mai mult decât o simplă explicație.</h2>
+    <p class="b-lead">Tot ce ai nevoie ca să înțelegi ce spun analizele tale — și ce să faci mai departe.</p>
+
+    <div class="feats">
+      <div class="feat"><span class="ic"><span class="ico">{{chart-line}}</span></span><div><h3>Grafice de evoluție</h3><p>Vezi cum se schimbă valorile față de analizele anterioare.</p></div></div>
+      <div class="feat c"><span class="ic"><span class="ico">{{triangle-alert}}</span></span><div><h3>Factori de risc</h3><p>Asocieri de risc evidențiate pe baza valorilor tale.</p></div></div>
+      <div class="feat"><span class="ic"><span class="ico">{{git-merge}}</span></span><div><h3>Corelații între analize</h3><p>Valorile sunt citite împreună, nu separat.</p></div></div>
+      <div class="feat c"><span class="ic"><span class="ico">{{clipboard-list}}</span></span><div><h3>Recomandări</h3><p>Sfaturi medicale și de stil de viață, plus investigații utile.</p></div></div>
+      <div class="feat"><span class="ic"><span class="ico">{{message-circle-question}}</span></span><div><h3>Întrebări pentru medic</h3><p>Pleci la consult pregătit, cu întrebările potrivite.</p></div></div>
+      <div class="feat c"><span class="ic"><span class="ico">{{users}}</span></span><div><h3>Profile de familie</h3><p>Tu, partenerul, copiii și părinții — într-un singur cont.</p></div></div>
+      <div class="feat"><span class="ic"><span class="ico">{{columns-3}}</span></span><div><h3>Compară rapoarte</h3><p>Până la 6 interpretări puse una lângă alta.</p></div></div>
+      <div class="feat c"><span class="ic"><span class="ico">{{languages}}</span></span><div><h3>Pe limba ta</h3><p>Peste 30 de limbi, indiferent de limba buletinului.</p></div></div>
+    </div>
+
+    <div class="clinic">
+      <div>
+        <div class="k">Pentru clinici, cabinete și laboratoare</div>
+        <h2>Oferă-le pacienților un serviciu pe care concurența nu-l are.</h2>
+        <p class="cl">Modulul profesional CAM preia munca repetitivă și adaugă interpretarea clară la fiecare buletin emis.</p>
+        <ul>
+          <li><span class="ico">{{layers}}</span>Procesare în lot — sute de buletine pe zi</li>
+          <li><span class="ico">{{send}}</span>Trimitere automată a rapoartelor pe email</li>
+          <li><span class="ico">{{folder-archive}}</span>Istoric și arhivă pentru fiecare pacient</li>
+          <li><span class="ico">{{columns-3}}</span>Comparații între analizele aceluiași pacient</li>
+          <li><span class="ico">{{stethoscope}}</span>Un sprijin în plus pentru diagnosticul corect</li>
+        </ul>
+      </div>
+      <div>
+        <div class="pic"><img src="assets/clinic.jpg" alt=""></div>
+        <div class="tags">
+          <div class="tag"><b>Pacienți mulțumiți</b>primesc analize, interpretare și comparații</div>
+          <div class="tag"><b>Timp câștigat</b>sarcini automatizate în fluxul laboratorului</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="qr">{{qr}}</div>
+    <div style="flex:1">
+      <div class="trust">
+        <span><span class="ico">{{shield-check}}</span>GDPR</span>
+        <span>LOINC</span><span>UCUM</span><span>Microsoft Azure</span>
+      </div>
+      <div class="site">www.MyMedicalApp.Net<small>contact@mymedicalapp.net</small></div>
+      <p class="disc">Unealtă educațională — nu înlocuiește sfatul medicului. Discută întotdeauna rezultatele cu medicul tău.</p>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>
