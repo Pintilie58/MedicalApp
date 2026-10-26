@@ -1071,3 +1071,11 @@ Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.
 - Rezultat pe 3 buletine CIRIP (78/69/55 rânduri): ambele modele 100% valori corecte, același număr de rânduri. 3.8: raționament clinic mai profund, intervale de referință complete; ~15% mai lent; cost ~1.6x acum (0.75/3.75 $/M), ~3.1x din 2027 (1.50/7.50).
 - Probleme 3.8 înainte de comutare: prefix numerotare în nume parametri ("6. Acid uric"), expected_count din _extraction_audit nesigur -> retry inutil (b2025: 69/73). GeminiPricing.Flash3 (1.50/9.00) e depășit față de prețul real 3.8.
 - Nicio modificare în aplicația live.
+
+## 2026-10-26 — Comparații: fără săgeți de evoluție
+- Eliminat ↗/↘ și fundalul roz/albastru/gri din celule (rămâne doar galben pentru „—”) în: Views/Profiles/Compare.cshtml, ProfileComparePdfGenerator, CamComparePdfGenerator.
+- Casete noi: ↑ Crescute / ↓ Scăzute / ≈ La limită = numărul TUTUROR markerilor din tabel (VM.HighCount/LowCount/BorderlineCount, ProfilesController.CountStatus).
+- Legendă: linia veche despre evoluție înlocuită cu CompareLegendMarkers (7 limbi). Chei noi Loc: CompareBadgeHigh/Low/Borderline, CompareLegendMarkers.
+- Dosar medical (coloana Evoluție) neatins, la cererea utilizatorului.
+- Verificat: build OK; PDF B2C și CAM generate cu 3 buletine reale (22/1/7 markeri, numărătoare corectă). Pagina web: doar compilare, de verificat în Docker.
+- Gemini: rămânem pe 2.5 Flash; 3.8 Flash testat și disponibil pe viitor. llmtest/ adăugat în .gitignore.

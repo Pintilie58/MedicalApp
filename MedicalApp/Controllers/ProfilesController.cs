@@ -1197,8 +1197,17 @@ namespace MedicalApp.Controllers
                 RisenCount = risen,
                 FallenCount = fallen,
                 UnchangedCount = unchanged,
-                PartialCount = partial
+                PartialCount = partial,
+                HighCount = CountStatus(rows, "high"),
+                LowCount = CountStatus(rows, "low"),
+                BorderlineCount = CountStatus(rows, "borderline")
             };
+        }
+
+        private static int CountStatus(List<CompareInterpretationsViewModel.ComparisonRow> rows, string status)
+        {
+            return rows.Sum(r => r.Cells.Count(c => c.CellDirection != "absent"
+                && string.Equals(c.Status?.Trim(), status, StringComparison.OrdinalIgnoreCase)));
         }
 
         /// <summary>

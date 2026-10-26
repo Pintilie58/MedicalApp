@@ -143,6 +143,11 @@ namespace MedicalApp.Models
         public int UnchangedCount { get; set; }
         public int PartialCount { get; set; }
 
+        // Status markers counted over every cell of the table.
+        public int HighCount { get; set; }
+        public int LowCount { get; set; }
+        public int BorderlineCount { get; set; }
+
         public bool CreditConsumed { get; set; }
 
         public class Column

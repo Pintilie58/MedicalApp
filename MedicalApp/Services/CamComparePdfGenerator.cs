@@ -12,10 +12,10 @@ namespace MedicalApp.Services
     /// <c>Views/Profiles/Compare.cshtml</c> layout:
     ///   1. Header (title + patient + clinic) with a small "interpretări" badge
     ///   2. One mini-card per analysis (Interpretarea N · Recoltare · Interpretat · X parametri · Y anormalități)
-    ///   3. Summary badges (Crescute / Scăzute / Neschimbate / Doar parțial)
+    ///   3. Summary badges: status markers counted over all cells (Crescute / Scăzute / La limită)
     ///   4. Main table — Parametru | date1 | date2 | ... | Referință
     ///        - class header rows that span the whole width
-    ///        - per-cell value + status arrow (↑/↓/↕/✓) + direction arrow (↗ ↘ — ✓)
+    ///        - per-cell value + status marker (↑/↓/≈/✓); yellow background only for a missing value
     ///        - drift warning ⚠ on the row label when LOINC drift occurs
     ///   5. Footer legend explaining the icons + LOINC source dots
     /// </summary>
@@ -167,12 +167,9 @@ namespace MedicalApp.Services
                                     .PaddingVertical(3).PaddingHorizontal(8)
                                     .Text(text).FontSize(8).Bold().FontColor(fg);
                             }
-                            Badge(string.Format("↗ " + Loc.T("CamCompareBadgeRisen"), vm.RisenCount), Colors.Red.Medium, Colors.White);
-                            Badge(string.Format("↘ " + Loc.T("CamCompareBadgeFallen"), vm.FallenCount), Colors.Blue.Lighten2, Colors.Black);
-                            Badge(string.Format("= " + Loc.T("CamCompareBadgeUnchanged"), vm.UnchangedCount), Colors.Green.Medium, Colors.White);
-                            if (vm.PartialCount > 0)
-                                Badge(string.Format("⚠ " + Loc.T("CamCompareBadgePartial"), vm.PartialCount),
-                                    Colors.Yellow.Medium, Colors.Black);
+                            Badge("↑ " + string.Format(Loc.T("CompareBadgeHigh"), vm.HighCount), Colors.Red.Medium, Colors.White);
+                            Badge("↓ " + string.Format(Loc.T("CompareBadgeLow"), vm.LowCount), Colors.Blue.Darken1, Colors.White);
+                            Badge("≈ " + string.Format(Loc.T("CompareBadgeBorderline"), vm.BorderlineCount), Colors.Amber.Medium, Colors.Black);
                             row.RelativeItem(); // filler
                         });
 
@@ -271,13 +268,6 @@ namespace MedicalApp.Services
                                                 t.Span("  " + statusGlyph.Value.glyph)
                                                     .FontColor(statusGlyph.Value.color).Bold();
                                             }
-                                            // Direction arrow (↗ risen red / ↘ fallen blue)
-                                            var dirGlyph = DirectionGlyph(cell.CellDirection);
-                                            if (dirGlyph != null)
-                                            {
-                                                t.Span("  " + dirGlyph.Value.glyph)
-                                                    .FontColor(dirGlyph.Value.color).Bold();
-                                            }
                                         }
                                     });
                                 }
@@ -296,7 +286,7 @@ namespace MedicalApp.Services
                         {
                             t.DefaultTextStyle(s => s.FontSize(7).FontColor(Colors.Grey.Darken1));
                             t.Line(Loc.T("CamCompareLegendLine1"));
-                            t.Line(Loc.T("CamCompareLegendLine2"));
+                            t.Line(Loc.T("CompareLegendMarkers"));
                             // Value colors (added June 2026 at the clinic's request).
                             t.Span("● ").FontColor("#c62828").Bold();
                             t.Span("● ").FontColor("#1565c0").Bold();
@@ -341,14 +331,7 @@ namespace MedicalApp.Services
         /// </summary>
         private static IContainer CellBgFor(IContainer c, string? direction)
         {
-            string bg = direction switch
-            {
-                "first"  => "#F8F9FA", // table-light
-                "risen"  => "#F8D7DA", // table-danger
-                "fallen" => "#CFF4FC", // table-info
-                "absent" => "#FFF3CD", // table-warning
-                _ => "#FFFFFF"
-            };
+            string bg = direction == "absent" ? "#FFF3CD" : "#FFFFFF";
             return c.Background(bg).Padding(5)
                     .BorderBottom(0.5f).BorderColor(Colors.Grey.Lighten2);
         }
@@ -380,14 +363,5 @@ namespace MedicalApp.Services
             };
         }
 
-        private static (string glyph, string color)? DirectionGlyph(string? dir)
-        {
-            return (dir ?? string.Empty).ToLowerInvariant() switch
-            {
-                "risen"  => ("↗", Colors.Red.Darken2),
-                "fallen" => ("↘", Colors.Blue.Darken2),
-                _ => ((string, string)?)null
-            };
-        }
     }
 }

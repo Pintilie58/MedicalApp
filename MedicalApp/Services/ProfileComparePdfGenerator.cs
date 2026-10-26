@@ -121,12 +121,9 @@ namespace MedicalApp.Services
                                     .PaddingVertical(3).PaddingHorizontal(8)
                                     .Text(text).FontSize(8).Bold().FontColor(fg);
                             }
-                            Badge(string.Format(Loc.T("ProfileCompareBadgeRisen"), vm.RisenCount), Colors.Red.Medium, Colors.White);
-                            Badge(string.Format(Loc.T("ProfileCompareBadgeFallen"), vm.FallenCount), Colors.Blue.Lighten2, Colors.Black);
-                            Badge(string.Format(Loc.T("ProfileCompareBadgeUnchanged"), vm.UnchangedCount), Colors.Green.Medium, Colors.White);
-                            if (vm.PartialCount > 0)
-                                Badge(string.Format(Loc.T("ProfileCompareBadgePartial"), vm.PartialCount),
-                                    Colors.Yellow.Medium, Colors.Black);
+                            Badge("↑ " + string.Format(Loc.T("CompareBadgeHigh"), vm.HighCount), Colors.Red.Medium, Colors.White);
+                            Badge("↓ " + string.Format(Loc.T("CompareBadgeLow"), vm.LowCount), Colors.Blue.Darken1, Colors.White);
+                            Badge("≈ " + string.Format(Loc.T("CompareBadgeBorderline"), vm.BorderlineCount), Colors.Amber.Medium, Colors.Black);
                             row.RelativeItem();
                         });
 
@@ -214,12 +211,6 @@ namespace MedicalApp.Services
                                                 t.Span("  " + statusGlyph.Value.glyph)
                                                     .FontColor(statusGlyph.Value.color).Bold();
                                             }
-                                            var dirGlyph = DirectionGlyph(cell.CellDirection);
-                                            if (dirGlyph != null)
-                                            {
-                                                t.Span("  " + dirGlyph.Value.glyph)
-                                                    .FontColor(dirGlyph.Value.color).Bold();
-                                            }
                                         }
                                     });
                                 }
@@ -236,7 +227,7 @@ namespace MedicalApp.Services
                         {
                             t.DefaultTextStyle(s => s.FontSize(7).FontColor(Colors.Grey.Darken1));
                             t.Line(Loc.T("ProfileCompareLegendGrouping"));
-                            t.Line(Loc.T("ProfileCompareLegendColors"));
+                            t.Line(Loc.T("CompareLegendMarkers"));
                             t.Span("● ").FontColor("#198754");
                             t.Span(Loc.T("ProfileCompareLegendAnchor") + " · ");
                             t.Span("● ").FontColor("#0d6efd");
@@ -270,14 +261,7 @@ namespace MedicalApp.Services
 
         private static IContainer CellBgFor(IContainer c, string? direction)
         {
-            string bg = direction switch
-            {
-                "first"  => "#F8F9FA",
-                "risen"  => "#F8D7DA",
-                "fallen" => "#CFF4FC",
-                "absent" => "#FFF3CD",
-                _ => "#FFFFFF"
-            };
+            string bg = direction == "absent" ? "#FFF3CD" : "#FFFFFF";
             return c.Background(bg).Padding(5)
                     .BorderBottom(0.5f).BorderColor(Colors.Grey.Lighten2);
         }
@@ -294,14 +278,5 @@ namespace MedicalApp.Services
             };
         }
 
-        private static (string glyph, string color)? DirectionGlyph(string? dir)
-        {
-            return (dir ?? string.Empty).ToLowerInvariant() switch
-            {
-                "risen"  => ("↗", Colors.Red.Darken2),
-                "fallen" => ("↘", Colors.Blue.Darken2),
-                _ => ((string, string)?)null
-            };
-        }
     }
 }

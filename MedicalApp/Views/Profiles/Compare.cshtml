@@ -2,24 +2,7 @@
 @{
     ViewData["Title"] = string.Format(MedicalApp.Services.Loc.T("CompareViewTabTitle"), Model.ProfileName);
 
-    string CellClass(string d) => d switch
-    {
-        "first"     => "table-light",
-        "risen"     => "table-danger",
-        "fallen"    => "table-info",
-        "unchanged" => "",
-        "absent"    => "table-warning text-muted fst-italic",
-        _ => ""
-    };
-    string CellIcon(string d) => d switch
-    {
-        "risen"     => "<span style=\"color:#dc3545;font-weight:600;\">&#8599;</span>",   // ↗ roșu
-        "fallen"    => "<span style=\"color:#0d6efd;font-weight:600;\">&#8600;</span>",   // ↘ albastru
-        "unchanged" => "",
-        "first"     => "",
-        "absent"    => "<span class=\"text-muted\">&mdash;</span>",
-        _ => ""
-    };
+    string CellClass(string d) => d == "absent" ? "table-warning text-muted fst-italic" : "";
     string StatusBadge(string? status) => status?.ToLowerInvariant() switch
     {
         "high"       => "<span class=\"badge bg-danger\">&#8593;</span>",
@@ -216,15 +199,9 @@
             </div>
 
             <div class="d-flex flex-wrap gap-2 mb-3" data-testid="compare-summary-badges">
-                <span class="badge bg-danger">@string.Format(Loc.T("ProfileCompareBadgeRisen"), Model.RisenCount)</span>
-                <span class="badge bg-info text-dark">@string.Format(Loc.T("ProfileCompareBadgeFallen"), Model.FallenCount)</span>
-                <span class="badge bg-success">@string.Format(Loc.T("ProfileCompareBadgeUnchanged"), Model.UnchangedCount)</span>
-                @if (Model.PartialCount > 0)
-                {
-                    <span class="badge bg-warning text-dark" data-testid="compare-partial-badge">
-                        @string.Format(Loc.T("ProfileCompareBadgePartial"), Model.PartialCount)
-                    </span>
-                }
+                <span class="badge bg-danger" data-testid="compare-high-badge">&#8593; @string.Format(Loc.T("CompareBadgeHigh"), Model.HighCount)</span>
+                <span class="badge bg-primary" data-testid="compare-low-badge">&#8595; @string.Format(Loc.T("CompareBadgeLow"), Model.LowCount)</span>
+                <span class="badge bg-warning text-dark" data-testid="compare-borderline-badge">&#8776; @string.Format(Loc.T("CompareBadgeBorderline"), Model.BorderlineCount)</span>
             </div>
 
             <div class="table-responsive">
@@ -320,7 +297,6 @@
                                             <span class="cmp-val">
                                                 <span>@(cell.Value ?? "-")</span>
                                                 @Html.Raw(StatusBadge(cell.Status))
-                                                @Html.Raw(CellIcon(cell.CellDirection))
                                             </span>
                                         }
                                     </td>
@@ -354,7 +330,7 @@
             <p class="small text-muted mt-3">
                 @Loc.T("CompareViewLegendGrouping")
                 <br />
-                @Loc.T("CompareViewLegendColors")
+                <span data-testid="compare-legend-markers">@Loc.T("CompareLegendMarkers")</span>
                 <br />
                 <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background:#198754;vertical-align:middle;"></span>
                 @Loc.T("LoincSourceLegendVerified")
