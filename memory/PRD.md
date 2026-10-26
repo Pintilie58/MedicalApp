@@ -1064,3 +1064,10 @@ Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.
 - Flyer A5 față-verso (RO), fără prețuri/ofertă: față B2C, verso funcții + secțiune clinici/CAM. PDF tipar 154x216mm (bleed 3mm) + PNG HD/WhatsApp.
 - Fișiere: /app/MedicalApp/Docs/Marketing/Flyer-A5 (sursă template.html + build.py; regenerare: python3 build.py).
 - Protecții Azure: 1 buget 60€ OK, 2 Daily cap 0.5GB OK, 3 alerte (action group, erori>=5/5min, availability /healthz 15min/3 locații, prag 2) OK. Protecția 4 (parolă SQL) ÎN AȘTEPTARE — Etapa 1 (listare nume resurse) netrimisă.
+
+## 2026-10-26 — Test comparativ Gemini 2.5 Flash vs 3.8 Flash
+- Cheia Gemini are acum acces la 3.x (3-flash-preview, 3.1-pro-preview, 3.5/3.6/3.7/3.8-flash, gemini-4-argon).
+- Harness .NET (cod real al aplicației, mod monolithic TEXT): /app/llmtest (bin, out, pdf). dotnet 9 instalat în /opt/dotnet (doar pod).
+- Rezultat pe 3 buletine CIRIP (78/69/55 rânduri): ambele modele 100% valori corecte, același număr de rânduri. 3.8: raționament clinic mai profund, intervale de referință complete; ~15% mai lent; cost ~1.6x acum (0.75/3.75 $/M), ~3.1x din 2027 (1.50/7.50).
+- Probleme 3.8 înainte de comutare: prefix numerotare în nume parametri ("6. Acid uric"), expected_count din _extraction_audit nesigur -> retry inutil (b2025: 69/73). GeminiPricing.Flash3 (1.50/9.00) e depășit față de prețul real 3.8.
+- Nicio modificare în aplicația live.

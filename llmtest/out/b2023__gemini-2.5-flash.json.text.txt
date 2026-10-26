@@ -1,0 +1,183 @@
+--- Page 1 ---
+Pagina 1 din 3
+TONIC MEDICAL CENTER
+LABORATOR ANALIZE MEDICALE
+Barlad, Bulevardul Republicii , nr. 176
+Tel: 0753-014999, 0759-684780
+E-mail: office@tonic-lab.ro
+Buletin de analize medicale nr. 1743
+Data cerere: 10/10/2023 09:56
+Data si ora recoltare: 10/10/2023 10:01
+PROBA:CONFORMA    DUPLICAT
+Nume: IACOMI LIVIU    Varsta: 64 Sex: M    Medic: STOIAN VIORICA
+C.N.P: 1581020370030    Recoltat: Sediu    CONTRACT: CJAS-VS
+Localitate: BIRLAD    Adresa:    Asistent recoltare: Grigoriu Gina
+HEMATOLOGIE - VALIDAT DE : DIANA SANDRA POPA - MEDIC PRIMAR MEDICINA DE LABORATOR
+1. Examen citologic al frotiului sanguin -Sange - Microscopie optica (MANUAL HEMATOLOGIE)
+ANALIZE    REZULTATE    INTERVAL BIOLOGIC DE REFERINTA / UM
+Neutrofile segmentate    50 %    40 - 70 / %
+Eozinofile    10 %    1 - 4 / %
+Limfocite    35 %    20 - 40 / %
+Monocite    5 %    4 - 8 / %
+2. Hemoleucograma completa -Sange - Spectroscopie de impedanta, spectrofotometrie, citometrie in flux (PENTRA ES 60)
+ANALIZE    REZULTATE    INTERVAL BIOLOGIC DE REFERINTA / UM
+Numar total de leucocite    8.3 10^3/mm3    4 - 10 / 10^3/mm3
+Numar total de limfocite    2.49 10^3/mm3    1 - 4 / 10^3/mm3
+Numar total de monocite    0.78 10^3/mm3    0.3 - 1 / 10^3/mm3
+Numar total de neutrofile    4.21 10^3/mm3    2 - 8 / 10^3/mm3
+Numat total de eozinofile    0.84 10^3/mm3    0 - 0.85 / 10^3/mm3
+Numat total de bazofile    0.03 10^3/mm3    0 - 0.2 / 10^3/mm3
+Procent de limfocite    29.8 %    20 - 55 / %
+Procent de monocite    9.3 %    0 - 15 / %
+Procent de neutrofile    50.4 %    45 - 80 / %
+Procent de eozinofile    10.1 %    0 - 7 / %
+Procent de bazofile    0.4 %    0 - 0.2 / %
+Numar total de eritrocite    5.25 10^6/mm3    3.8 - 5.8 / 10^6/mm3
+Hemoglobina    15.4 g/dL    12.6 - 17.4 / g/dL
+Hematocrit    46.4 %    39 - 50 / %
+MCV (Volum eritrocitar mediu)    88 um^3    81 - 103 / um^3
+MCH (Hemoglobina eritrocitara medie)    29.3 pg    27 - 35 / pg
+MCHC (Concentratia medie de hemoglobina)    33.2 g/dL    32 - 36 / g/dL
+RDW (Largimea curbei de distributie eritrocitara)    13.4 %    11.5 - 14 / %
+Numar total de trombocite    296 10^3/mm3    150 - 400 / 10^3/mm3
+PCT (Plachetocrit)    0.228 %    0.15 - 0.5 / %
+MPV (Volum trombocitar mediu)    7.7 um^3    6 - 10 / um^3
+PDW (Largimea curbei de distributie trombocitara)    12.8 %    8 - 18 / %
+HEMATOLOGIE. - VALIDAT DE : DIANA SANDRA POPA - MEDIC PRIMAR MEDICINA DE LABORATOR
+ANALIZE    REZULTATE    INTERVAL BIOLOGIC DE REFERINTA / UM
+3. VSH -Sange - Westergren (MANUAL HEMATOLOGIE)    15 mm/h    5 - 12 / mm/h
+COAGULARE - VALIDAT DE : DIANA SANDRA POPA - MEDIC PRIMAR MEDICINA DE LABORATOR
+ANALIZE    REZULTATE    INTERVAL BIOLOGIC DE REFERINTA / UM
+4. Fibrinogenemie -Plasma - Coagulometrie (BFT II )    377.0 mg/dl    180.8 - 419.1 / mg/dl
+Cod formular:F-7.4.1-01, editia din 01.10.2024 Tiparit de: 1581020370030 Eliberat la:16 Jul 2026 23:54:28 Tiparit de: 1581020370030 Data tiparirii: 16 Jul 2026 23:54:28
+
+
+--- Page 2 ---
+Pagina 2 din 3
+Buletin de analize medicale nr. 1743
+Data cerere 10/10/2023 09:56
+DUPLICAT
+Nume: IACOMI LIVIU    Varsta: 64 Sex: M    Medic: STOIAN VIORICA
+C.N.P: 1581020370030    RECOLTAT: Sediu    CONTRACT: CJAS-VS
+Localitate: BIRLAD    Adresa:
+BIOCHIMIE SERICA - VALIDAT DE : MARIANA-SILVIA PRISECARU - CHIMIST MEDICAL PRINCIPAL
+ANALIZE    REZULTATE    INTERVAL BIOLOGIC DE REFERINTA / UM
+5. Creatinina serica -Ser - Spectrofotometrie (ABX PENTRA
+0.983 mg/dl    0.5 - 1.3 / mg/dl
+C400 ISE)
+6. Acid uric seric -Ser - Spectrofotometrie (ABX PENTRA C400
+7.00 mg/dl    3.5 - 7.2 / mg/dl
+ISE)
+7. Calciu ionic seric -Ser - Spectrofotometrie (ABX PENTRA
+4.21 mg/dl    3.5 - 5 / mg/dl
+C400 ISE)
+8. Calciu seric total -Ser - Spectrofotometrie (ABX PENTRA
+10.26 mg/dl    8.6 - 10.3 / mg/dl
+C400 ISE)
+Normal: < 200 mg/dl
+9. Colesterol seric total -Ser - Spectrofotometrie (ABX PENTRA
+249.11 mg/dl    Limita de risc: 200-239 mg/dl
+C400 ISE)
+Risc crescut: > 240 mg/dl
+10. Gama GT -Ser - Spectrofotometrie (ABX PENTRA C400 ISE)    46.40 U/L    0 - 38 / U/L
+11. Glicemie -Ser - Spectrofotometrie (ABX PENTRA C400 ISE)    107.15 mg/dl    74 - 106 / mg/dl
+12. HDL colesterol -Ser - Spectrofotometrie (ABX PENTRA C400
+45.35 mg/dl    30 - 70 / mg/dl
+ISE)
+13. LDL colesterol -Ser - Spectrofotometrie (ABX PENTRA C400
+187.22 mg/dl    0 - 130 / mg/dl
+ISE)
+14. Proteine totale serice -Ser - Spectrofotometrie (ABX
+7.96 g/dL    6.4 - 8.3 / g/dL
+PENTRA C400 ISE)
+15. Sideremie -Ser - Spectrofotometrie (ABX PENTRA C400 ISE)    94.38 ug/dl    43 - 184 / ug/dl
+16. TGO -Ser - Spectrofotometrie (ABX PENTRA C400 ISE)    24.41 U/L    0 - 35 / U/L
+17. TGP -Ser - Spectrofotometrie (ABX PENTRA C400 ISE)    35.50 U/L    0 - 45 / U/L
+Normal: < 150 mg/dl
+18. Trigliceride serice -Ser - Spectrofotometrie (ABX PENTRA    Risc scazut: 150-200 mg/dl
+82.74 mg/dl
+C400 ISE)    Ridicat: 200-500 mg/dl
+Risc ridicat: > 500 mg/dl
+19. Uree serica -Ser - Spectrofotometrie (ABX PENTRA C400
+34.31 mg/dl    18 - 55 / mg/dl
+ISE)
+20. Electroforeza proteinelor serice -Ser - Migrare in camp electric cu densitometrie (HYDRASYS 2 SCAN )
+ANALIZE    REZULTATE    INTERVAL BIOLOGIC DE REFERINTA / UM
+Albumina %    58.4 %    54.3 - 64.5 / %
+Albumina    4.65 g/dL    3.5 - 5.45 / g/dL
+Alfa 1 globuline %    2.3 %    1.2 - 3.3 / %
+Alfa 1 globuline    0.18 g/dL    0.08 - 0.3 / g/dL
+Alfa 2 globuline %    10.2 %    8.3 - 15 / %
+Alfa 2 globuline    0.81 g/dL    0.53 - 1.24 / g/dL
+Beta 1 globuline %    8.6 %    6.5 - 11.5 / %
+Beta 1 globuline    0.68 g/dL    0.41 - 0.96 / g/dL
+Beta 2 globuline %    5.3 %    2.5 - 7.2 / %
+Beta 2 globuline    0.42 g/dL    0.16 - 0.6 / g/dL
+Gama globuline %    15.2 %    7.1 - 19.5 / %
+Gama globuline    1.21 g/dL    0.45 - 1.61 / g/dL
+Raport Albumina/Globuline    1.40 g/dL    1.39 - 2.23 / g/dL
+ANALIZE    REZULTATE    INTERVAL BIOLOGIC DE REFERINTA / UM
+2
+G1 ≥ 90 ml/min/1.73m -GFR normal
+2
+G2 60-89 ml/min/1.73m -Scadere usoara
+21. *Rata filtrarii glomerulare eGFR -Ser - (MANUAL    2
+G3a 45-59 ml/min/1.73m - Scadere usoara pana la moderata
+85.79 mL/min/1.73 m2
+BIOCHIMIE)    2
+G3b 30-44 ml/min/1.73m -Scadere moderata pană la severa
+2
+G4 15-29 ml/min/1.73m -Scadere severa
+2
+G5 <15 ml/min/1.73m -Insuficienta renala
+Cod formular:F-7.4.1-01, editia din 01.10.2024 Tiparit de: 1581020370030 Eliberat la:16 Jul 2026 23:54:28 Tiparit de: 1581020370030 Data tiparirii: 16 Jul 2026 23:54:28
+
+
+--- Page 3 ---
+Pagina 3 din 3
+Buletin de analize medicale nr. 1743
+Data cerere 10/10/2023 09:56
+DUPLICAT
+Nume: IACOMI LIVIU    Varsta: 64 Sex: M    Medic: STOIAN VIORICA
+C.N.P: 1581020370030    RECOLTAT: Sediu    CONTRACT: CJAS-VS
+Localitate: BIRLAD    Adresa:
+BIOCHIMIE URINARA - VALIDAT DE : MARIANA-SILVIA PRISECARU - CHIMIST MEDICAL PRINCIPAL
+22. Examen complet de urina (sumar + sediment) -Urina - Reflectometrie (CLINITEX STATUS)
+ANALIZE    REZULTATE    INTERVAL BIOLOGIC DE REFERINTA / UM
+Glucoza    NEGATIV mg/dl    Negativ
+Bilirubina    NEGATIV    Negativ
+Corpi cetonici    NEGATIV mg/dl    Negativ
+Densitate    1.020    1.001 - 1.035
+Hematii    NEGATIV    Negativ
+pH    6.5    4.6 - 8
+Proteine    NEGATIV mg/dl    Negativ
+Urobilinogen    0.2 E.U./dL E.U./dL    0.2 - 2 / E.U./dL
+Nitriti    NEGATIV    Negativ
+Leucocite    NEGATIV    Negativ
+SEDIMENT URINAR (microscopie optica):    -
+Celule epiteliale plate    Rare
+Leucocite    Rare
+IMUNOLOGIE - VALIDAT DE : MARIANA-SILVIA PRISECARU - CHIMIST MEDICAL PRINCIPAL
+ANALIZE    REZULTATE    INTERVAL BIOLOGIC DE REFERINTA / UM
+23. Factor reumatoid -Ser - Turbidimetrie (ABX PENTRA C400 ISE)    7.46 IU/mL    0 - 30 / IU/mL
+24. Proteina C reactiva -Ser - Turbidimetrie (ABX PENTRA C400 ISE)    10.46 mg/L    0 - 5 / mg/L
+25. FT4 -Ser - chemiluminiscenta (ADVIA CENTAUR CP)    1.09 ng/dL    0.89 - 1.76 / ng/dL
+26. PSA -Ser - chemiluminiscenta (ADVIA CENTAUR CP)    0.85 ng/ml    0 - 4 / ng/ml
+27. TSH -Ser - chemiluminiscenta (ADVIA CENTAUR CP)    1.791 uUI/ml    0.55 - 4.78 / uUI/ml
+Carenta: < 12 ng/ml
+28. 25 OH VITAMINA D * -Ser - ELISA (ALEGRIA)    21.7 ng/ml    Nivel insuficient: 12-20 ng/ml
+Nivel suficient: > 20-160 ng/ml
+BIOCLINICA - VALIDAT DE : MARIANA-SILVIA PRISECARU - CHIMIST MEDICAL PRINCIPAL
+ANALIZE    REZULTATE    INTERVAL BIOLOGIC DE REFERINTA / UM
+29. Clor seric ** -Ser - (SUBCONTRACTAT)    Conform anexa
+30. Potasiu seric ** -Ser - (SUBCONTRACTAT)    Conform anexa
+31. Sodiu seric ** -Ser - (SUBCONTRACTAT)    Conform anexa
+Nota: Analizele marcate cu * nu sunt acreditate RENAR.
+Analizele marcate cu ** sunt efectuate la un laborator subcontractat.
+Opiniile si interpretarile continute de prezentul document nu sunt acoperite de acreditarea RENAR!
+Validat si verificat sef laborator -
+Rezultatele se refera numai la probele analizate.
+Este interzisa reproducerea partiala sau totala a buletinului de analize medicale.
+Cod formular:F-7.4.1-01, editia din 01.10.2024 Tiparit de: 1581020370030 Eliberat la:16 Jul 2026 23:54:28 Tiparit de: 1581020370030 Data tiparirii: 16 Jul 2026 23:54:28
+
+
