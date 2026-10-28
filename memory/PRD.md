@@ -1079,3 +1079,5 @@ Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.
 - Dosar medical (coloana Evoluție) neatins, la cererea utilizatorului.
 - Verificat: build OK; PDF B2C și CAM generate cu 3 buletine reale (22/1/7 markeri, numărătoare corectă). Pagina web: doar compilare, de verificat în Docker.
 - Gemini: rămânem pe 2.5 Flash; 3.8 Flash testat și disponibil pe viitor. llmtest/ adăugat în .gitignore.
+
+## 2026-10-28 — Flyer: adăugat „Construiește-ți propria ta bază de date medicale” deasupra imaginii și „Încearcă gratuit!” în imagine (față). A5 + bleed păstrat.
