@@ -1081,3 +1081,8 @@ Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.
 - Gemini: rămânem pe 2.5 Flash; 3.8 Flash testat și disponibil pe viitor. llmtest/ adăugat în .gitignore.
 
 ## 2026-10-28 — Flyer: adăugat „Construiește-ți propria ta bază de date medicale” deasupra imaginii și „Încearcă gratuit!” în imagine (față). A5 + bleed păstrat.
+
+## 2026-10-30 — Incident Gemini + „Restul” lung
+- Cauză oprire interpretări: credit prepaid Google Gemini epuizat (402 RESOURCE_EXHAUSTED). Rezolvat de utilizator: top-up + Auto-reload.
+- „Restul” 247s la o interpretare gemini-2.5-pro: încercările eșuate cu 2.5-flash + pauzele (5/15/30/60s) nu intră în „Apel AI” (B2cInterpretationRunner), apoi fallback pe 2.5-pro.
+- Decizie utilizator: NU se modifică nimic acum, se urmărește fenomenul. Opțiuni propuse pentru mai târziu: A) coloane Reîncercări/Așteptare în Admin Performance; B) fallback mai rapid; C) 402 fără retry + e-mail de alertă către admin.
