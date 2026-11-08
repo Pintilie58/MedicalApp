@@ -1086,3 +1086,8 @@ Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.
 - Cauză oprire interpretări: credit prepaid Google Gemini epuizat (402 RESOURCE_EXHAUSTED). Rezolvat de utilizator: top-up + Auto-reload.
 - „Restul” 247s la o interpretare gemini-2.5-pro: încercările eșuate cu 2.5-flash + pauzele (5/15/30/60s) nu intră în „Apel AI” (B2cInterpretationRunner), apoi fallback pe 2.5-pro.
 - Decizie utilizator: NU se modifică nimic acum, se urmărește fenomenul. Opțiuni propuse pentru mai târziu: A) coloane Reîncercări/Așteptare în Admin Performance; B) fallback mai rapid; C) 402 fără retry + e-mail de alertă către admin.
+
+## 2026-11-08 — Favicon M+
+- wwwroot: favicon.ico (16/32/48/64), favicon-16/32.png, apple-touch-icon.png (180), android-chrome-192/512.png, site.webmanifest. Stil = land-brand-mark (gradient #657A6B→#4A5C50, M+ alb, Outfit 800).
+- Views/Shared/_Favicons.cshtml inclus în _Layout.cshtml (toate paginile B2C/CAM/Admin) și Landing.cshtml.
+- Verificat: build OK; aplicația nu a putut porni în sandbox (fără SQL) — de testat în Docker.
