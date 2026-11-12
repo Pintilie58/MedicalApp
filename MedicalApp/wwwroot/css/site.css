@@ -4,7 +4,7 @@ html {
 }
 
 body {
-    margin-bottom: 60px;
+    margin-bottom: 0;
     background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
 }
 
@@ -61,3 +61,31 @@ body {
 .app-nav .badge.bg-success { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85); }
 .app-nav .btn-outline-light { border-color: rgba(255, 255, 255, 0.7); }
 .app-nav .btn-outline-light:hover { color: #4A5C50; }
+
+/* Green app footer — mirrors the green header. */
+.app-footer {
+    background: linear-gradient(135deg, #5A7061 0%, #4A5C50 100%);
+    color: rgba(255, 255, 255, 0.85);
+    padding: 2.5rem 0 1.5rem;
+}
+.app-footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 2rem; }
+@media (max-width: 768px) { .app-footer-grid { grid-template-columns: 1fr; gap: 1.25rem; } }
+.app-footer-tagline { font-size: 0.9rem; max-width: 360px; margin: 0; }
+.app-footer h5 {
+    font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em;
+    color: #fff; font-weight: 700; margin-bottom: 0.7rem;
+}
+.app-footer ul { list-style: none; padding: 0; margin: 0; }
+.app-footer ul li { padding: 0.2rem 0; font-size: 0.9rem; }
+.app-footer a { color: rgba(255, 255, 255, 0.85); text-decoration: none; }
+.app-footer a:hover { color: #fff; text-decoration: underline; }
+.app-footer-bottom {
+    margin-top: 1.75rem; padding-top: 1.25rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;
+    font-size: 0.82rem; color: rgba(255, 255, 255, 0.75);
+}
+
+/* Keep the green footer at the bottom on short pages. */
+body { display: flex; flex-direction: column; min-height: 100vh; }
+body > main { flex: 1 0 auto; }

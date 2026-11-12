@@ -1099,3 +1099,8 @@ Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.
 
 ## 2026-11-12 — Antet verde în aplicație
 - _Layout.cshtml: navbar bg-dark → .app-nav (gradient #5A7061→#4A5C50), siglă M+ + MyMedicalApp.NET (Outfit). site.css: badge credite verde cu contur alb, butoane outline-light. Afectează toate paginile din interior (B2C, CAM, Admin, cont). Verificat pe replică 1280/390.
+
+## 2026-11-12 — Subsol verde
+- _Layout: footer nou .app-footer (siglă M+, tagline, Aplicația: Panou/Profile/Cumpără credite/Site principal — linkurile de cont doar logat, Profile ascuns pentru clinică în mod B2B; Contact: e-mail + site; © + disclaimer). Chei noi Loc FootApp/FootDashboard/FootHomeSite (7 limbi).
+- Landing footer verde (landing.css). Termeni/Confidențialitate/GDPR rămân „#” la cererea utilizatorului.
+- site.css: body flex column ca subsolul să stea jos pe pagini scurte; margin-bottom 60px eliminat. Build OK, replică 1280/390 verificată.

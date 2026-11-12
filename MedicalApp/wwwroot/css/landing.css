@@ -1008,8 +1008,9 @@ body.landing-body .land-nav a.land-btn-primary:hover { background: var(--land-co
 
 /* ============== Footer ============== */
 .land-footer {
-    background: var(--land-surface);
-    border-top: 1px solid var(--land-border);
+    background: linear-gradient(135deg, #5A7061 0%, var(--land-sage-dark) 100%);
+    color: rgba(255, 255, 255, 0.85);
+    border-top: 1px solid rgba(0, 0, 0, 0.18);
     padding: 3rem 0 2rem 0;
 }
 .land-footer-grid {
@@ -1018,16 +1019,19 @@ body.landing-body .land-nav a.land-btn-primary:hover { background: var(--land-co
 }
 @media (max-width: 900px) { .land-footer-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 600px) { .land-footer-grid { grid-template-columns: 1fr; } }
-.land-footer h5 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--land-ink); margin-bottom: 0.75rem; font-weight: 700; font-family: 'Outfit', sans-serif; }
+.land-footer h5 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: #fff; margin-bottom: 0.75rem; font-weight: 700; font-family: 'Outfit', sans-serif; }
 .land-footer ul { list-style: none; padding: 0; margin: 0; }
 .land-footer ul li { padding: 0.25rem 0; font-size: 0.9rem; }
-.land-footer ul li a { color: var(--land-mute); }
-.land-footer ul li a:hover { color: var(--land-sage-dark); }
+body.landing-body .land-footer ul li a { color: rgba(255, 255, 255, 0.85); }
+body.landing-body .land-footer ul li a:hover { color: #fff; text-decoration: underline; }
+.land-footer .land-brand { color: #fff; }
+body.landing-body .land-footer p { color: rgba(255, 255, 255, 0.85); }
+.land-footer .land-brand-mark { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9); }
 .land-footer-bottom {
     max-width: 1200px; margin: 2rem auto 0 auto; padding: 1.5rem 1.5rem 0 1.5rem;
-    border-top: 1px solid var(--land-border);
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
     display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;
-    font-size: 0.85rem; color: var(--land-mute);
+    font-size: 0.85rem; color: rgba(255, 255, 255, 0.75);
 }
 
 /* ============== Language selector ============== */

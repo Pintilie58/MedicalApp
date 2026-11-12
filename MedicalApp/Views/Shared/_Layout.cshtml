@@ -140,9 +140,50 @@
         @RenderBody()
     </main>
 
-    <footer class="border-top footer text-muted mt-5 py-3">
-        <div class="container text-center">
-            &copy; @DateTime.Now.Year - @Loc.T("AppTitle")
+    @{
+        var _footLoggedIn = !string.IsNullOrEmpty(Context.Session.GetString("UserEmail"));
+        var _footPath = Context.Request.Path.Value ?? "";
+        // Clinics in B2B mode must not get a shortcut into Profiles (password-gated), same rule as the header.
+        var _footEmail = Context.Session.GetString("UserEmail");
+        var _footUserType = _footLoggedIn
+            ? (Context.RequestServices.GetService(typeof(AppDbContext)) as AppDbContext)?.Users.AsNoTracking()
+                .Where(u => u.Email == _footEmail).Select(u => u.UserType).FirstOrDefault()
+            : null;
+        var _footClinicInB2b = string.Equals(_footUserType, "Clinic", StringComparison.OrdinalIgnoreCase)
+            && (_footPath.StartsWith("/CAM", StringComparison.OrdinalIgnoreCase) || _footPath.StartsWith("/Credits", StringComparison.OrdinalIgnoreCase));
+    }
+    <footer class="app-footer mt-5" data-testid="app-footer">
+        <div class="container app-footer-grid">
+            <div>
+                <div class="app-brand mb-2"><span class="app-brand-mark" aria-hidden="true">M+</span>@Loc.T("AppTitle")</div>
+                <p class="app-footer-tagline">@Loc.T("FootTagline")</p>
+            </div>
+            <div>
+                <h5>@Loc.T("FootApp")</h5>
+                <ul>
+                    @if (_footLoggedIn)
+                    {
+                        <li><a asp-area="" asp-controller="Account" asp-action="Dashboard" data-testid="footer-dashboard-link">@Loc.T("FootDashboard")</a></li>
+                        @if (!_footClinicInB2b)
+                        {
+                            <li><a asp-area="" asp-controller="Profiles" asp-action="Index" data-testid="footer-profiles-link">@Loc.T("NavProfiles")</a></li>
+                        }
+                        <li><a asp-area="" asp-controller="Credits" asp-action="Buy" data-testid="footer-credits-link">@Loc.T("BuyCredits")</a></li>
+                    }
+                    <li><a href="/" data-testid="footer-home-link">@Loc.T("FootHomeSite")</a></li>
+                </ul>
+            </div>
+            <div>
+                <h5>@Loc.T("FootContact")</h5>
+                <ul>
+                    <li><a href="mailto:contact@mymedicalapp.net" data-testid="footer-contact-link">contact@mymedicalapp.net</a></li>
+                    <li><a href="https://www.mymedicalapp.net" data-testid="footer-site-link">www.mymedicalapp.net</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="container app-footer-bottom">
+            <div>&copy; @DateTime.UtcNow.Year @Loc.T("AppTitle"). @Loc.T("FootRights")</div>
+            <div>@Loc.T("FootDisclaimer")</div>
         </div>
     </footer>
 
