@@ -102,7 +102,7 @@ body.landing-body a:hover { color: var(--land-coral); }
     border-bottom: 1px solid var(--land-border);
 }
 /* Row 1 — brand alone, centered. Added Feb 2026 after the rebrand to
-   MyMedicalApp.NET+ made the single-row header too wide on 1280×720 laptops. */
+   MyMedicalApp.NET made the single-row header too wide on 1280×720 laptops. */
 .land-nav-brand-row {
     display: flex;
     justify-content: center;
@@ -294,6 +294,34 @@ body.landing-body a.land-btn-promo:hover {
     color: var(--land-sage-dark);
 }
 .land-btn-lg { padding: 1rem 2rem; font-size: 1.02rem; }
+
+/* ============== Green header (same sage as the M+ mark) ==============
+   White on #4A5C50 = 7.15:1. Every element on the bar is re-coloured so
+   nothing dark sits on the dark green. */
+.land-nav {
+    background: linear-gradient(135deg, rgba(90, 112, 97, 0.97) 0%, rgba(74, 92, 80, 0.97) 100%);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.18);
+    box-shadow: 0 4px 18px rgba(43, 48, 45, 0.18);
+}
+body.landing-body .land-nav a.land-brand,
+body.landing-body .land-nav a.land-brand:hover { color: #fff; }
+.land-nav .land-brand-mark { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9); }
+.land-nav .land-nav-links a { color: rgba(255, 255, 255, 0.9); }
+.land-nav .land-nav-links a:hover {
+    color: #fff;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.30);
+}
+.land-nav .land-lang-btn { border-color: rgba(255, 255, 255, 0.9); }
+body.landing-body .land-nav a.land-btn-ghost {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.6);
+}
+body.landing-body .land-nav a.land-btn-ghost:hover {
+    background: #fff; border-color: #fff; color: var(--land-sage-dark);
+}
+/* Dark-sage CTA would vanish on the green bar: use the accessible coral pair. */
+body.landing-body .land-nav a.land-btn-primary { background: var(--land-coral-cta); color: #fff; }
+body.landing-body .land-nav a.land-btn-primary:hover { background: var(--land-coral-cta-dark); color: #fff; }
 
 /* ============== Hero ============== */
 .land-hero {

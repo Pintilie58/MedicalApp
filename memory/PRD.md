@@ -1091,3 +1091,8 @@ Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.
 - wwwroot: favicon.ico (16/32/48/64), favicon-16/32.png, apple-touch-icon.png (180), android-chrome-192/512.png, site.webmanifest. Stil = land-brand-mark (gradient #657A6B→#4A5C50, M+ alb, Outfit 800).
 - Views/Shared/_Favicons.cshtml inclus în _Layout.cshtml (toate paginile B2C/CAM/Admin) și Landing.cshtml.
 - Verificat: build OK; aplicația nu a putut porni în sandbox (fără SQL) — de testat în Docker.
+
+## 2026-11-12 — Rebrand fără „+”, tooltip nou, antet verde
+- „MyMedicalApp.NET+” → „MyMedicalApp.NET” peste tot (Loc 7 limbi, Landing, CAM Dashboard, email CAM, manifest, flyer regenerat). „M+” păstrat. Motor CAM tier 2 redenumit „MyMedicalApp.NET Pro” (altfel identic cu tier 1).
+- PillarTooltipRegisterLab: „Înregistrează-te și deschide portofolii separate (max. 2000) pentru pacienții tăi! Succes!” în 7 limbi.
+- Antet landing verde-salvie (gradient #5A7061→#4A5C50), text alb, M+ cu contur alb, „Începe gratuit” coral #C25436. Verificat pe replică statică 1280/390.

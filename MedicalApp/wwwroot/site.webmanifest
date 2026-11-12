@@ -1,5 +1,5 @@
 {
-  "name": "MyMedicalApp.NET+",
+  "name": "MyMedicalApp.NET",
   "short_name": "MyMedicalApp",
   "icons": [
     { "src": "/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png" },

@@ -963,7 +963,7 @@ namespace MedicalApp.Services
                 var prefix = Loc.T("CamBatchEnginePrefix", lang);
                 return tier switch
                 {
-                    2 => $"{prefix} MyMedicalApp.NET+",
+                    2 => $"{prefix} MyMedicalApp.NET Pro",
                     3 => $"{prefix} MyMedicalApp.NET Plus",
                     _ => $"{prefix} MyMedicalApp.NET"
                 };
