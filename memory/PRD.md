@@ -1096,3 +1096,6 @@ Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.
 - „MyMedicalApp.NET+” → „MyMedicalApp.NET” peste tot (Loc 7 limbi, Landing, CAM Dashboard, email CAM, manifest, flyer regenerat). „M+” păstrat. Motor CAM tier 2 redenumit „MyMedicalApp.NET Pro” (altfel identic cu tier 1).
 - PillarTooltipRegisterLab: „Înregistrează-te și deschide portofolii separate (max. 2000) pentru pacienții tăi! Succes!” în 7 limbi.
 - Antet landing verde-salvie (gradient #5A7061→#4A5C50), text alb, M+ cu contur alb, „Începe gratuit” coral #C25436. Verificat pe replică statică 1280/390.
+
+## 2026-11-12 — Antet verde în aplicație
+- _Layout.cshtml: navbar bg-dark → .app-nav (gradient #5A7061→#4A5C50), siglă M+ + MyMedicalApp.NET (Outfit). site.css: badge credite verde cu contur alb, butoane outline-light. Afectează toate paginile din interior (B2C, CAM, Admin, cont). Verificat pe replică 1280/390.
