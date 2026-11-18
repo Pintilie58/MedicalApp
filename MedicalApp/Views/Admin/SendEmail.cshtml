@@ -1,4 +1,4 @@
-@model MedicalApp.Models.BulkEmailViewModel
+﻿@model MedicalApp.Models.BulkEmailViewModel
 @{
     ViewData["Title"] = "Admin - Bulk email";
     var filters = new[]
@@ -66,7 +66,7 @@
                         Each email will be wrapped automatically:<br />
                         &nbsp;&nbsp;<strong>Header:</strong> <em>MyMedicalApp.NET - Intelligent interpretation of medical analyses</em><br />
                         &nbsp;&nbsp;<strong>Body:</strong> the text you write below<br />
-                        &nbsp;&nbsp;<strong>Footer:</strong> <em>Be smart, take care of your health!</em>
+                        &nbsp;&nbsp;<strong>Footer:</strong> <em>Take care of your health!</em> <img src="/images/tagline-icon.png" alt="" style="height:2em;vertical-align:middle;" />
                     </div>
                     <textarea asp-for="HtmlBody" rows="12" class="form-control font-monospace"
                               placeholder="&lt;p&gt;Hello,&lt;/p&gt;&lt;p&gt;Your message here...&lt;/p&gt;"></textarea>

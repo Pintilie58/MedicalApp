@@ -1,4 +1,4 @@
-@model MedicalApp.Models.EvolutionViewModel
+﻿@model MedicalApp.Models.EvolutionViewModel
 @{
     ViewData["Title"] = $"{Loc.T("EvolutionPageHeading")} - {Model.ProfileName}";
 
@@ -19,7 +19,7 @@
        the page (per user request, "în antet și sfârșit"). *@
     <div class="text-center mb-3" data-testid="evolution-slogan-top">
         <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle px-3 py-2 fw-semibold">
-            @Loc.T("EvolutionPdfSlogan")
+            @Loc.T("EvolutionPdfSlogan") <img src="@MedicalApp.Services.TaglineIcon.WebPath" alt="" class="tagline-icon" />
         </span>
     </div>
 
@@ -173,7 +173,7 @@
             @* Bottom slogan strip — matches the top banner. *@
             <div class="text-center mt-4" data-testid="evolution-slogan-bottom">
                 <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle px-3 py-2 fw-semibold">
-                    @Loc.T("EvolutionPdfSlogan")
+                    @Loc.T("EvolutionPdfSlogan") <img src="@MedicalApp.Services.TaglineIcon.WebPath" alt="" class="tagline-icon" />
                 </span>
             </div>
         </div>

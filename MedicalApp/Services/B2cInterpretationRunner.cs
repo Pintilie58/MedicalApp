@@ -1,4 +1,4 @@
-using MedicalApp.Data;
+﻿using MedicalApp.Data;
 using MedicalApp.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -760,7 +760,7 @@ namespace MedicalApp.Services
     {profileLine}
     <p>{intro}</p>
     <p style='color: #6c757d; font-size: 0.9em;'>{attached}</p>
-    <p style='font-style: italic; color: #0d47a1;'>{tagline}</p>
+    <p style='font-style: italic; color: #0d47a1;'>{tagline}{TaglineIcon.EmailImg()}</p>
     <hr style='border: none; border-top: 1px solid #dee2e6; margin: 20px 0;' />
     <p style='color: #6c757d; font-size: 0.9em;'>{regards}</p>
     <p style='color: #0d47a1; font-weight: bold;'>www.mymedicalapp.net</p>

@@ -89,3 +89,6 @@ body {
 /* Keep the green footer at the bottom on short pages. */
 body { display: flex; flex-direction: column; min-height: 100vh; }
 body > main { flex: 1 0 auto; }
+
+/* Smiling "smart" face next to the health tagline — 2x the text height. */
+.tagline-icon { height: 2em; width: auto; vertical-align: middle; margin-left: 0.3em; }

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
@@ -9,6 +9,10 @@
     <UserSecretsId>f33d471a-90a7-4ca4-a797-dd8dc5541ebb</UserSecretsId>
     <NoWarn>$(NoWarn);NU1902;NU1903;OPENAI001</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="wwwroot\images\tagline-icon.png" LogicalName="tagline-icon.png" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" Version="1.5.4" />

@@ -1,4 +1,4 @@
-@model MedicalApp.Models.MedicalDossierViewModel
+﻿@model MedicalApp.Models.MedicalDossierViewModel
 @{
     ViewData["Title"] = Loc.T("DossierTitle");
 
@@ -322,7 +322,7 @@
 
                     <p class="small fst-italic text-muted mt-4 mb-0">@Loc.T("DossierDisclaimer")</p>
                     <div class="text-center mt-4">
-                        <div class="fst-italic text-primary">@Loc.T("Tagline")</div>
+                        <div class="fst-italic text-primary" data-testid="report-tagline">@Loc.T("Tagline") <img src="@MedicalApp.Services.TaglineIcon.WebPath" alt="" class="tagline-icon" /></div>
                         <div class="small text-muted mt-1">www.mymedicalapp.net</div>
                     </div>
                 </div>

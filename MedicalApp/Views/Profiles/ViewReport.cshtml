@@ -1,4 +1,4 @@
-@model MedicalApp.Models.ReportScreenViewModel
+﻿@model MedicalApp.Models.ReportScreenViewModel
 @using MedicalApp.Services
 @{
     ViewData["Title"] = Loc.T("ScreenReportTitle");
@@ -725,7 +725,7 @@
                     }
 
                     <div class="text-center mt-4">
-                        <div class="fst-italic text-primary">@Loc.T("Tagline")</div>
+                        <div class="fst-italic text-primary" data-testid="report-tagline">@Loc.T("Tagline") <img src="@MedicalApp.Services.TaglineIcon.WebPath" alt="" class="tagline-icon" /></div>
                         <div class="small text-muted mt-1">www.mymedicalapp.net</div>
                     </div>
                 </div>

@@ -1104,3 +1104,8 @@ Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.
 - _Layout: footer nou .app-footer (siglă M+, tagline, Aplicația: Panou/Profile/Cumpără credite/Site principal — linkurile de cont doar logat, Profile ascuns pentru clinică în mod B2B; Contact: e-mail + site; © + disclaimer). Chei noi Loc FootApp/FootDashboard/FootHomeSite (7 limbi).
 - Landing footer verde (landing.css). Termeni/Confidențialitate/GDPR rămân „#” la cererea utilizatorului.
 - site.css: body flex column ca subsolul să stea jos pe pagini scurte; margin-bottom 60px eliminat. Build OK, replică 1280/390 verificată.
+
+## 2026-11-18 — Slogan fără „Fii inteligent(ă)”
+- Tagline + EvolutionPdfSlogan → „Ai grijă de sănătatea ta!” (7 limbi) + iconiță zâmbăreț cu degetul la tâmplă (wwwroot/images/tagline-icon.png, embedded resource, Services/TaglineIcon.cs), înălțime 2x text.
+- Aplicat: ViewReport, Dossier, Evolution (web), PdfReportGenerator (antet+subsol), EvolutionPdfGenerator, e-mailuri rezultat B2C (runner + ProfilesController), e-mail Credits, BulkEmailWorker, previzualizare Admin SendEmail. E-mailurile încarcă iconița de la https://www.mymedicalapp.net/images/tagline-icon.png (vizibilă după publicare).
+- Verificat: build OK, PDF raport generat cu iconița.

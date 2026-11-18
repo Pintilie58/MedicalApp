@@ -1,4 +1,4 @@
-using QuestPDF.Fluent;
+﻿using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using MedicalApp.Models;
@@ -50,11 +50,7 @@ namespace MedicalApp.Services
                         // Slogan strip — same line user requested for the
                         // "antet și la sfârșit" (header AND footer). Centered
                         // sage so it doesn't compete with the report content.
-                        footerCol.Item().AlignCenter().Text(t =>
-                        {
-                            t.Span(Loc.T("EvolutionPdfSlogan"))
-                                .FontSize(9).SemiBold().FontColor(Colors.Green.Darken2);
-                        });
+                        TaglineIcon.PdfLine(footerCol.Item(), s => s.FontSize(9).SemiBold().FontColor(Colors.Green.Darken2), Loc.T("EvolutionPdfSlogan"), 9);
                         footerCol.Item().AlignCenter().Text(t =>
                         {
                             t.Span(Loc.T("EvolutionPdfBrand"))
@@ -82,11 +78,7 @@ namespace MedicalApp.Services
                 // Top slogan strip — same line as the footer, so the brand
                 // promise is visible whether the reader scrolls to the top or
                 // the bottom of the page.
-                col.Item().AlignCenter().Text(t =>
-                {
-                    t.Span(Loc.T("EvolutionPdfSlogan"))
-                        .FontSize(9).SemiBold().FontColor(Colors.Green.Darken2);
-                });
+                TaglineIcon.PdfLine(col.Item(), s => s.FontSize(9).SemiBold().FontColor(Colors.Green.Darken2), Loc.T("EvolutionPdfSlogan"), 9);
                 col.Item().PaddingTop(4).Text(t =>
                 {
                     t.Span(Loc.T("EvolutionPdfTitle") + " — ")

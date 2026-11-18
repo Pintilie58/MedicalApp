@@ -1,4 +1,4 @@
-using MedicalApp.Models;
+﻿using MedicalApp.Models;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -136,8 +136,7 @@ namespace MedicalApp.Services
                 }
 
                 // Opening tagline
-                col.Item().AlignCenter().Text(labels.Tagline)
-                    .FontSize(11).Italic().FontColor(BrandColor);
+                TaglineIcon.PdfLine(col.Item(), s => s.FontSize(11).Italic().FontColor(BrandColor), labels.Tagline, 11);
 
                 // Patient info — never blurred (the user already has this info)
                 if (r.PatientInfo != null)
@@ -298,8 +297,7 @@ namespace MedicalApp.Services
                 col.Spacing(3);
                 col.Item().PaddingTop(6).LineHorizontal(1).LineColor(BrandColor);
 
-                col.Item().AlignCenter().Text(labels.Tagline)
-                    .FontSize(10).Italic().FontColor(BrandColor);
+                TaglineIcon.PdfLine(col.Item(), s => s.FontSize(10).Italic().FontColor(BrandColor), labels.Tagline, 10);
 
                 col.Item().AlignCenter().Text("www.mymedicalapp.net")
                     .FontSize(9).FontColor(BrandColor).Bold();
