@@ -500,7 +500,7 @@ namespace MedicalApp.Controllers
     <p>{Loc.T("EmailGreeting", lang)}</p>
     <p style='font-size: 1.05em;'>{intro}</p>
     {archiveNote}
-    <p style='font-style: italic; color: #0d47a1;'>{Loc.T("Tagline", lang)}{TaglineIcon.EmailImg()}</p>
+    <p style='font-style: italic; color: #0d47a1;'>{Loc.T("Tagline", lang)}</p>
     <hr style='border: none; border-top: 1px solid #dee2e6; margin: 20px 0;' />
     <p style='color: #6c757d; font-size: 0.9em;'>{Loc.T("EmailRegards", lang)}</p>
     <p style='color: #0d47a1; font-weight: bold;'>www.mymedicalapp.net</p>

@@ -1109,3 +1109,5 @@ Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.
 - Tagline + EvolutionPdfSlogan → „Ai grijă de sănătatea ta!” (7 limbi) + iconiță zâmbăreț cu degetul la tâmplă (wwwroot/images/tagline-icon.png, embedded resource, Services/TaglineIcon.cs), înălțime 2x text.
 - Aplicat: ViewReport, Dossier, Evolution (web), PdfReportGenerator (antet+subsol), EvolutionPdfGenerator, e-mailuri rezultat B2C (runner + ProfilesController), e-mail Credits, BulkEmailWorker, previzualizare Admin SendEmail. E-mailurile încarcă iconița de la https://www.mymedicalapp.net/images/tagline-icon.png (vizibilă după publicare).
 - Verificat: build OK, PDF raport generat cu iconița.
+
+## 2026-11-18 — Iconița zâmbăreț eliminată la cererea utilizatorului; rămâne doar textul „Ai grijă de sănătatea ta!” (7 limbi). Build OK.

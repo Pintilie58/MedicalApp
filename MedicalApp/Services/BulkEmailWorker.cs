@@ -176,7 +176,7 @@ namespace MedicalApp.Services
     {innerHtml}
   </div>
   <div style=""background:#f1f5fb;color:#0d47a1;padding:16px 24px;border-radius:0 0 10px 10px;text-align:center;font-size:13px;font-weight:600;border:1px solid #e9ecef;border-top:0;"">
-    Take care of your health!{TaglineIcon.EmailImg(13)}
+    Take care of your health!
   </div>
 </div>";
     }

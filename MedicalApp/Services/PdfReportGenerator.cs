@@ -136,7 +136,8 @@ namespace MedicalApp.Services
                 }
 
                 // Opening tagline
-                TaglineIcon.PdfLine(col.Item(), s => s.FontSize(11).Italic().FontColor(BrandColor), labels.Tagline, 11);
+                col.Item().AlignCenter().Text(labels.Tagline)
+                    .FontSize(11).Italic().FontColor(BrandColor);
 
                 // Patient info — never blurred (the user already has this info)
                 if (r.PatientInfo != null)
@@ -297,7 +298,8 @@ namespace MedicalApp.Services
                 col.Spacing(3);
                 col.Item().PaddingTop(6).LineHorizontal(1).LineColor(BrandColor);
 
-                TaglineIcon.PdfLine(col.Item(), s => s.FontSize(10).Italic().FontColor(BrandColor), labels.Tagline, 10);
+                col.Item().AlignCenter().Text(labels.Tagline)
+                    .FontSize(10).Italic().FontColor(BrandColor);
 
                 col.Item().AlignCenter().Text("www.mymedicalapp.net")
                     .FontSize(9).FontColor(BrandColor).Bold();
