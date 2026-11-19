@@ -1,4 +1,4 @@
-using MedicalApp.Attributes;
+﻿using MedicalApp.Attributes;
 using MedicalApp.Data;
 using MedicalApp.Models;
 using MedicalApp.Services;
@@ -19,6 +19,7 @@ namespace MedicalApp.Controllers
         private readonly LoincMatcherSettings _loincSettings;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly PromotionService _promotions;
+        private readonly ICamFileStore _camFiles;
         private readonly ILogger<AdminController> _logger;
 
         public AdminController(
@@ -30,8 +31,10 @@ namespace MedicalApp.Controllers
             IOptions<LoincMatcherSettings> loincSettings,
             IHttpClientFactory httpClientFactory,
             PromotionService promotions,
+            ICamFileStore camFiles,
             ILogger<AdminController> logger)
         {
+            _camFiles = camFiles;
             _promotions = promotions;
             _db = db;
             _emailService = emailService;
@@ -1071,6 +1074,19 @@ namespace MedicalApp.Controllers
                 return RedirectToAction(nameof(UserDetail), new { email = e });
             }
 
+            // Never delete under running work: the workers would write into rows that are gone.
+            var clinicForCheck = await _db.Clinics.AsNoTracking().FirstOrDefaultAsync(c => c.UserEmail == e);
+            bool busy = await _db.InterpretationHistories.AnyAsync(h => h.UserEmail == e
+                            && (h.Status == "processing" || h.Status == "queued"))
+                        || await _db.InterpretationJobs.AnyAsync(j => j.UserEmail == e)
+                        || (clinicForCheck != null && await _db.ClinicBatchRuns.AnyAsync(b => b.ClinicId == clinicForCheck.Id
+                            && (b.Status == "Running" || b.Status == "Queued")));
+            if (busy)
+            {
+                TempData["ErrorMessage"] = "This user has an interpretation or a CAM batch in progress. Try again after it finishes.";
+                return RedirectToAction(nameof(UserDetail), new { email = e });
+            }
+
             // ---- Cascade-delete ALL related rows so no orphan footprint
             //      remains in the database after the user is gone.
             //
@@ -1094,14 +1110,54 @@ namespace MedicalApp.Controllers
                 _db.ClinicAnalyses.RemoveRange(_db.ClinicAnalyses.Where(a => a.ClinicId == cid));
                 _db.ClinicPatients.RemoveRange(_db.ClinicPatients.Where(p => p.ClinicId == cid));
                 _db.ClinicPdfOverrides.RemoveRange(_db.ClinicPdfOverrides.Where(o => o.ClinicId == cid));
+                _db.ClinicBatchClaims.RemoveRange(
+                    _db.ClinicBatchClaims.Where(x => _db.ClinicBatchRuns
+                        .Where(r => r.ClinicId == cid).Select(r => r.Id).Contains(x.BatchRunId)));
                 _db.Clinics.Remove(clinic);
             }
 
             _db.Users.Remove(user);
             await _db.SaveChangesAsync();
 
+            // Keep the AI cost statistics, but without the person's e-mail.
+            await _db.AiUsageLogs.Where(l => l.UserEmail == e)
+                .ExecuteUpdateAsync(s => s.SetProperty(l => l.UserEmail, (string?)null));
+
+            // CAM files (uploaded PDFs, sent PDFs, summaries, errors). Best effort:
+            // the database deletion above is already final, storage errors are only logged.
+            int filesDeleted = 0, fileErrors = 0;
+            if (clinic != null)
+            {
+                foreach (var folder in Enum.GetValues<CamFolder>())
+                {
+                    try
+                    {
+                        foreach (var f in await _camFiles.ListAsync(clinic, folder))
+                        {
+                            try
+                            {
+                                if (await _camFiles.DeleteAsync(clinic, folder, f.Name)) filesDeleted++;
+                            }
+                            catch (Exception ex)
+                            {
+                                fileErrors++;
+                                _logger.LogWarning(ex, "DeleteUser {Email}: could not delete CAM file {Folder}/{Name}", e, folder, f.Name);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        fileErrors++;
+                        _logger.LogWarning(ex, "DeleteUser {Email}: could not list CAM folder {Folder}", e, folder);
+                    }
+                }
+            }
+
             _logger.LogWarning("Admin deleted user {Email} (and all related purchases/history/profiles/CAM data).", e);
-            TempData["SuccessMessage"] = $"User {e} and all related data were deleted.";
+            TempData["SuccessMessage"] = clinic == null
+                ? $"User {e} and all related data were deleted."
+                : $"User {e} and all related data were deleted ({filesDeleted} CAM files removed"
+                  + (fileErrors > 0 ? $", {fileErrors} could not be removed - see logs" : "") + ").";
             return RedirectToAction(nameof(Users));
         }
 

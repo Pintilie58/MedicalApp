@@ -2074,6 +2074,20 @@ namespace MedicalApp.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
+            // Never delete under a running interpretation: the worker would write
+            // into a history row that no longer exists.
+            bool busy = await _db.InterpretationHistories.AnyAsync(h => h.ProfileId == id
+                            && h.UserEmail == CurrentEmail && (h.Status == "processing" || h.Status == "queued"))
+                        || await _db.InterpretationJobs.AnyAsync(j => j.ProfileId == id && j.UserEmail == CurrentEmail);
+            if (busy)
+            {
+                TempData["ErrorMessage"] = Loc.T("ErrProfileHasRunningJob");
+                return RedirectToAction(nameof(Index));
+            }
+
+            // GDPR: the profile's interpretations go with it (they hold the medical data).
+            _db.InterpretationHistories.RemoveRange(
+                _db.InterpretationHistories.Where(h => h.ProfileId == id && h.UserEmail == CurrentEmail));
             _db.Profiles.Remove(profile);
             await _db.SaveChangesAsync();
 

@@ -1115,3 +1115,8 @@ Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.
 ## 2026-11-19 — StatusValidator: valori cenzurate („< X”, „> X”)
 - Bug: TryParseValue ignora „<”, deci „< 0.35” vs „<0.35” devenea high (alergeni). Fix: TryParseCensored + ComputeCensoredStatus; decide doar când limita e sigură (low/normal/high), altfel păstrează statusul AI; niciodată borderline; lo=0 ignorat pentru „<”. Valorile numerice normale neatinse.
 - Test: 16 cazuri OK; regresie pe 6 rezultate reale (402 rânduri) = 0 schimbări. Interpretările vechi NU se recalculează (decizie utilizator). Harness: /app/llmtest/svtest.
+
+## 2026-11-19 — Ștergere completă (GDPR)
+- A: ProfilesController.Delete șterge și InterpretationHistories ale profilului; blocat dacă există interpretare queued/processing sau job în coadă (ErrProfileHasRunningJob, 7 limbi). Modal confirmare arată numărul de interpretări (ProfilesDeleteConfirmNote cu {0}, 7 limbi).
+- B: AdminController.DeleteUser: blocat dacă interpretare/lot CAM în curs; șterge și ClinicBatchClaims; AiUsageLogs.UserEmail → null; șterge fișierele CAM din toate folderele (Original/Sends/Sumar/Errors) prin ICamFileStore, best-effort cu log. PaymentTransactions PĂSTRATE (contabilitate).
+- Test: probe SQLite /app/llmtest/probe_delete — 16/16 PASS. Probe-urile vechi /app/probe_* erau deja nesincronizate cu ctor AdminController.

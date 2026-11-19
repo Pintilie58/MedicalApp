@@ -1,4 +1,4 @@
-@model MedicalApp.Models.ProfilesIndexViewModel
+﻿@model MedicalApp.Models.ProfilesIndexViewModel
 @*
     /Profiles - list of the current user's health profiles (Eu, Mama, Tata, …).
     Each card shows quick stats and links to the archive (History) for that profile.
@@ -204,7 +204,8 @@
                                         {
                                             <form asp-action="Delete" method="post"
                                                   class="m-0 js-delete-profile-form"
-                                                  data-profile-name="@p.Name">
+                                                  data-profile-name="@p.Name"
+                                                  data-profile-count="@p.InterpretationsCount">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="id" value="@p.Id" />
                                                 <button type="submit"
@@ -276,7 +277,7 @@
                     @Html.Raw(string.Format(Loc.T("ProfilesDeleteConfirmBodyFmt"), "<strong id=\"deleteProfileName\">-</strong>"))
                 </p>
                 <p class="small text-muted mb-0">
-                    @Loc.T("ProfilesDeleteConfirmNote")
+                    @Html.Raw(string.Format(Loc.T("ProfilesDeleteConfirmNote"), "<strong id=\"deleteProfileCount\">0</strong>"))
                 </p>
             </div>
             <div class="modal-footer">
@@ -363,6 +364,8 @@
                     e.preventDefault();
                     pendingForm = form;
                     if (nameEl) nameEl.textContent = form.getAttribute('data-profile-name') || '-';
+                    var countEl = document.getElementById('deleteProfileCount');
+                    if (countEl) countEl.textContent = form.getAttribute('data-profile-count') || '0';
                     modal.show();
                 });
             });
