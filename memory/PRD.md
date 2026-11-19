@@ -1111,3 +1111,7 @@ Dashboard cabinet, /Profiles, la 980/768/390, cu date reale.
 - Verificat: build OK, PDF raport generat cu iconița.
 
 ## 2026-11-18 — Iconița zâmbăreț eliminată la cererea utilizatorului; rămâne doar textul „Ai grijă de sănătatea ta!” (7 limbi). Build OK.
+
+## 2026-11-19 — StatusValidator: valori cenzurate („< X”, „> X”)
+- Bug: TryParseValue ignora „<”, deci „< 0.35” vs „<0.35” devenea high (alergeni). Fix: TryParseCensored + ComputeCensoredStatus; decide doar când limita e sigură (low/normal/high), altfel păstrează statusul AI; niciodată borderline; lo=0 ignorat pentru „<”. Valorile numerice normale neatinse.
+- Test: 16 cazuri OK; regresie pe 6 rezultate reale (402 rânduri) = 0 schimbări. Interpretările vechi NU se recalculează (decizie utilizator). Harness: /app/llmtest/svtest.

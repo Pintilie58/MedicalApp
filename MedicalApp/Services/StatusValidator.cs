@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.RegularExpressions;
 using MedicalApp.Models;
 
@@ -52,10 +52,22 @@ namespace MedicalApp.Services
                     continue;
                 }
 
-                // Borderline tolerance: when value is within 2% of a finite boundary,
-                // we keep status="borderline" (the model's own value if it picked it,
-                // otherwise we generate it).
-                string computed = ComputeStatus(v, lo, hi, loInclusive, hiInclusive);
+                // Censored values ("< 0.35", "> 90") are only bounds, not measurements:
+                // decide when the bound settles it, otherwise keep the model's status.
+                string? computed;
+                if (TryParseCensored(kr.Value, out bool below, out bool strict, out double x))
+                {
+                    computed = ComputeCensoredStatus(below, strict, x, lo, hi, loInclusive, hiInclusive);
+                    if (computed == null)
+                    {
+                        skipped++;
+                        continue;
+                    }
+                }
+                else
+                {
+                    computed = ComputeStatus(v, lo, hi, loInclusive, hiInclusive);
+                }
 
                 var current = (kr.Status ?? "").Trim().ToLowerInvariant();
                 if (current != computed)
@@ -105,6 +117,54 @@ namespace MedicalApp.Services
             if (!m.Success) return false;
             return double.TryParse(m.Value.Replace(',', '.'),
                 NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+        }
+
+        private static readonly Regex CensoredRx = new(
+            @"^\s*(<|>|≤|≥)\s*(=)?\s*(-?\d+([.,]\d+)?)", RegexOptions.Compiled);
+
+        // "< 0.35", "<=5", "≤ 0.01", "> 90", "≥60" -> bound direction + number.
+        public static bool TryParseCensored(string? raw, out bool below, out bool strict, out double x)
+        {
+            below = false; strict = true; x = 0;
+            if (string.IsNullOrWhiteSpace(raw)) return false;
+            var m = CensoredRx.Match(raw);
+            if (!m.Success) return false;
+            var op = m.Groups[1].Value;
+            below = op is "<" or "≤";
+            strict = op is "<" or ">" && !m.Groups[2].Success;
+            return double.TryParse(m.Groups[3].Value.Replace(',', '.'),
+                NumberStyles.Float, CultureInfo.InvariantCulture, out x);
+        }
+
+        // Returns null when the bound cannot decide (e.g. "< 30" vs "10 - 50").
+        // Never returns "borderline": the exact value is unknown.
+        public static string? ComputeCensoredStatus(bool below, bool strict, double x,
+            double? lo, double? hi, bool loInc, bool hiInc)
+        {
+            if (below)
+            {
+                // true value < x (or <= x). A lower bound of 0 ("0 - 0.35") is not a
+                // real floor for concentrations, so only the upper bound matters then.
+                if (lo.HasValue && lo.Value == 0) lo = null;
+                if (lo.HasValue)
+                {
+                    bool surelyUnderLo = x < lo.Value || (x == lo.Value && (strict || !loInc));
+                    return surelyUnderLo ? "low" : null;
+                }
+                if (!hi.HasValue) return null;
+                bool surelyInsideHi = x < hi.Value || (x == hi.Value && (strict || hiInc));
+                return surelyInsideHi ? "normal" : null;
+            }
+
+            // true value > x (or >= x)
+            if (hi.HasValue)
+            {
+                bool surelyOverHi = x > hi.Value || (x == hi.Value && (strict || !hiInc));
+                return surelyOverHi ? "high" : null;
+            }
+            if (!lo.HasValue) return null;
+            bool surelyInsideLo = x > lo.Value || (x == lo.Value && (strict || loInc));
+            return surelyInsideLo ? "normal" : null;
         }
 
         // ---------------- range parser ----------------
